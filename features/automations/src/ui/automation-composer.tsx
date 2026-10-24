@@ -87,14 +87,14 @@ function ModelMenu({
               </span>
             </span>
             <DropdownMenuRadioItemIndicator>
-              <Check aria-hidden className="size-3.5" />
+              <Check aria-hidden />
             </DropdownMenuRadioItemIndicator>
           </DropdownMenuRadioItem>
           {(choices?.models ?? []).map((m) => (
             <DropdownMenuRadioItem key={keyOf(m.ref)} value={keyOf(m.ref)}>
               <span className="min-w-0 flex-1 truncate">{m.label}</span>
               <DropdownMenuRadioItemIndicator>
-                <Check aria-hidden className="size-3.5" />
+                <Check aria-hidden />
               </DropdownMenuRadioItemIndicator>
             </DropdownMenuRadioItem>
           ))}
@@ -134,7 +134,7 @@ function ThinkingMenu({
             <DropdownMenuRadioItem key={level.id} value={level.id}>
               <span className="min-w-0 flex-1">{level.label}</span>
               <DropdownMenuRadioItemIndicator>
-                <Check aria-hidden className="size-3.5" />
+                <Check aria-hidden />
               </DropdownMenuRadioItemIndicator>
             </DropdownMenuRadioItem>
           ))}
@@ -200,7 +200,7 @@ export function AutomationComposer({
                       <span className="text-xs text-muted-foreground">{row.detail}</span>
                     </span>
                     <DropdownMenuRadioItemIndicator>
-                      <Check aria-hidden className="size-3.5" />
+                      <Check aria-hidden />
                     </DropdownMenuRadioItemIndicator>
                   </DropdownMenuRadioItem>
                 ))}

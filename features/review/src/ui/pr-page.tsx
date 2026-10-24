@@ -51,7 +51,7 @@ export function CodeReviewPage({ ctx, workspaces, openExternal }: CodeReviewPage
   if (workspaceId === null) {
     return (
       <div className="pr-page__blank">
-        <FileDiff aria-hidden className="size-8 opacity-30" />
+        <FileDiff aria-hidden className=" opacity-30" />
         <p className="text-sm font-medium">还没有工作区</p>
         <p className="text-xs opacity-50">先添加一个工作区，这里会展示它远端仓库上的 pull request。</p>
       </div>

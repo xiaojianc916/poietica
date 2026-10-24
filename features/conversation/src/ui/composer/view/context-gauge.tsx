@@ -112,7 +112,7 @@ export function gaugeLayout(usage: SessionUsage): GaugeLayout {
 
 function Ring({ fraction }: { readonly fraction: number }) {
   return (
-    <svg aria-hidden="true" className="context-gauge__ring" height="14" viewBox="0 0 14 14" width="14">
+    <svg aria-hidden="true" className="context-gauge__ring" viewBox="0 0 14 14">
       <circle className="context-gauge__ring-track" cx="7" cy="7" r={RADIUS} />
 
       <circle

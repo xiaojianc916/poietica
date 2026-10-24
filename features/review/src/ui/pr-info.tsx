@@ -105,12 +105,10 @@ function MergeStatus({ pull }: { readonly pull: GithubPullRequest }): ReactNode 
     <Card label="Merge status">
       <p className="flex items-center gap-2">
         {pull.mergeStatus === 'conflicting' ? (
-          <GitMergeConflict aria-hidden className={cn('size-4 shrink-0', TONE_TEXT.bad)} />
+          <GitMergeConflict aria-hidden className={cn(' ', TONE_TEXT.bad)} />
         ) : tone === 'ok' ? (
-          <span
-            className={cn('grid size-4 shrink-0 place-items-center rounded-full bg-success text-success-foreground')}
-          >
-            <Check aria-hidden className="size-3" strokeWidth={3} />
+          <span className={cn('grid place-items-center rounded-full bg-success text-success-foreground')}>
+            <Check aria-hidden />
           </span>
         ) : (
           <StateGlyph pull={pull} />
@@ -128,7 +126,7 @@ function MergeStatus({ pull }: { readonly pull: GithubPullRequest }): ReactNode 
 function StateGlyph({ pull }: { readonly pull: GithubPullRequest }): ReactNode {
   const presentation = pullStatePresentation(pull)
   const Icon = STATE_GLYPHS[presentation.glyph]
-  return <Icon aria-hidden className={cn('size-4 shrink-0', presentation.className)} />
+  return <Icon aria-hidden className={cn(' ', presentation.className)} />
 }
 
 function CommentRow({ comment }: { readonly comment: PullComment }): ReactNode {
@@ -137,7 +135,7 @@ function CommentRow({ comment }: { readonly comment: PullComment }): ReactNode {
     <li className="flex flex-col gap-0.5">
       <span className="flex min-w-0 items-baseline gap-1.5">
         <span className="truncate font-medium">{comment.author}</span>
-        <span className="shrink-0 opacity-70">{relativeTime(comment.createdAt)}</span>
+        <span className=" opacity-70">{relativeTime(comment.createdAt)}</span>
       </span>
       {text === '' ? null : <p className="line-clamp-2 text-xs opacity-80">{text}</p>}
     </li>
@@ -178,7 +176,7 @@ function ReviewsSection({
   const request =
     pull.state === 'open' ? (
       <Button
-        className="h-6 shrink-0 gap-0.5 rounded-full pr-1.5 pl-2.5 font-normal"
+        className="h-6 gap-0.5 rounded-full pr-1.5 pl-2.5 font-normal"
         disabled={busy}
         onClick={onRequestReview}
         size="xs"
@@ -186,7 +184,7 @@ function ReviewsSection({
         variant="secondary"
       >
         {busy ? 'Requesting…' : 'Request'}
-        <ChevronRight aria-hidden className="size-3.5" />
+        <ChevronRight aria-hidden />
       </Button>
     ) : null
   return (
@@ -206,27 +204,27 @@ function ReviewsSection({
  * 所以这里自己拼：一个着色实心圆 + 里面一枚反色的小字形，效果与它一致。
  */
 function CheckGlyph({ state }: { readonly state: GithubCheckState }): ReactNode {
-  const shell = 'grid size-4 shrink-0 place-items-center rounded-full'
+  const shell = 'grid   place-items-center rounded-full'
   if (state === 'pending') {
-    return <LoaderCircle aria-hidden className="size-4 shrink-0 animate-spin text-warning" />
+    return <LoaderCircle aria-hidden className=" animate-spin text-warning" />
   }
   if (state === 'success') {
     return (
       <span className={cn(shell, 'bg-success text-success-foreground')}>
-        <Check aria-hidden className="size-3" strokeWidth={3} />
+        <Check aria-hidden />
       </span>
     )
   }
   if (state === 'failure') {
     return (
       <span className={cn(shell, 'bg-destructive text-destructive-foreground')}>
-        <X aria-hidden className="size-3" strokeWidth={3} />
+        <X aria-hidden />
       </span>
     )
   }
   return (
     <span className={cn(shell)}>
-      <span aria-hidden className="size-3.5 rounded-full border border-current border-dashed opacity-50" />
+      <span aria-hidden className=" rounded-full border border-dashed opacity-50" />
     </span>
   )
 }

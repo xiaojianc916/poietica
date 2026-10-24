@@ -58,7 +58,7 @@ export function UpdateRow({
       <Download aria-hidden="true" className="text-muted-foreground" />
       <span>检查更新</span>
       {state?.phase === 'checking' ? (
-        <LoaderCircle aria-hidden="true" className="ml-auto size-3.5 animate-spin text-muted-foreground" />
+        <LoaderCircle aria-hidden="true" className="ml-auto animate-spin text-muted-foreground" />
       ) : null}
     </DropdownMenuItem>
   )

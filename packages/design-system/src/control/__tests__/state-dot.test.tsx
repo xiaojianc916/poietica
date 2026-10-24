@@ -25,7 +25,8 @@ describe('StateDot', () => {
     const ring = container.firstElementChild as SVGSVGElement
     expect(ring.tagName.toLowerCase()).toBe('svg')
     expect(ring.dataset.state).toBe('ongoing')
-    expect(ring.getAttribute('width')).toBe('14')
+    /* 尺寸走内联 style（表现属性那份被 :where(svg) 压住，Q53 清理时删除），style 才是生效通道。 */
+    expect(ring.style.width).toBe('14px')
     expect(ring.getAttribute('viewBox')).toBe('0 0 24 24')
     const circles = ring.querySelectorAll('circle')
     expect(circles).toHaveLength(2)
@@ -37,7 +38,7 @@ describe('StateDot', () => {
     expect((container.firstElementChild as HTMLElement).style.width).toBe('8px')
 
     rerender(<StateDot size={8} state="ongoing" />)
-    expect((container.firstElementChild as SVGSVGElement).getAttribute('width')).toBe('8')
+    expect((container.firstElementChild as SVGSVGElement).style.width).toBe('8px')
   })
 
   test('五档的 data-state 都写在自己那一个元素上（样式靠它取色）', () => {

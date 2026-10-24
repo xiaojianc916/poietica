@@ -31,7 +31,7 @@ export function createTerminalDockTabs({
       return state.terminals.map((entry) => ({
         id: entry.id,
         title: terminalTabLabel(entry),
-        icon: <SquareTerminal aria-hidden className="size-3.5 shrink-0 opacity-60" />,
+        icon: <SquareTerminal aria-hidden className=" opacity-60" />,
         active: entry.id === state.activeId,
       }))
     },

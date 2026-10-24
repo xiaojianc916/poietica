@@ -41,7 +41,7 @@ export function ConversationTodoToggle({ todoThread }: { readonly todoThread: Co
       }}
       type="button"
     >
-      <ListTodo aria-hidden className="size-4" />
+      <ListTodo aria-hidden />
     </button>
   )
 }
@@ -68,7 +68,7 @@ export function ConversationAuxiliaryToggle({ layout }: { readonly layout: Layou
       }}
       type="button"
     >
-      <PanelRight aria-hidden className="size-4" />
+      <PanelRight aria-hidden />
     </button>
   )
 }

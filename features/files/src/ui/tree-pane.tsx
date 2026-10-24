@@ -82,8 +82,8 @@ function TreeView({
 
   return (
     <div className="files-pane flex h-full min-h-0 flex-col">
-      <div className="files-rule flex h-[var(--ui-control-height-sm)] shrink-0 items-center gap-1 px-2.5">
-        <FolderTree aria-hidden className="size-3.5 shrink-0 opacity-50" />
+      <div className="files-rule flex h-[var(--ui-control-height-sm)] items-center gap-1 px-2.5">
+        <FolderTree aria-hidden className=" opacity-50" />
         <span className="min-w-0 flex-1 truncate text-xs font-medium opacity-70">{name ?? '工作区'}</span>
         <IconButton
           disabled={selected === null}
@@ -92,13 +92,13 @@ function TreeView({
             if (selected !== null) model.reveal(selected)
           }}
         >
-          <Crosshair aria-hidden className="size-3.5" />
+          <Crosshair aria-hidden />
         </IconButton>
         <IconButton label="全部折叠" onClick={() => model.collapseAll()}>
-          <ListCollapse aria-hidden className="size-3.5" />
+          <ListCollapse aria-hidden />
         </IconButton>
         <IconButton label="刷新" onClick={() => model.reload()}>
-          <RefreshCw aria-hidden className="size-3.5" />
+          <RefreshCw aria-hidden />
         </IconButton>
       </div>
       <Filter onChange={(next) => model.setQuery(next)} value={query} />
@@ -149,9 +149,9 @@ function TreeFooter({ filtering, model }: { readonly filtering: boolean; readonl
 /* 与审查的筛选框同一形制：一条圆角药丸圈住图标与输入，清除键常占位、有字没字一样高。 */
 function Filter({ onChange, value }: { readonly onChange: (value: string) => void; readonly value: string }) {
   return (
-    <div className="flex shrink-0 px-2 py-2">
+    <div className="flex px-2 py-2">
       <div className="files-filter flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-full pr-2 pl-2.5">
-        <Search aria-hidden className="size-3.5 shrink-0 text-placeholder" />
+        <Search aria-hidden className=" text-placeholder" />
         <input
           aria-label="筛选文件"
           className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-placeholder"
@@ -169,7 +169,7 @@ function Filter({ onChange, value }: { readonly onChange: (value: string) => voi
         />
         <span className={value === '' ? 'invisible' : undefined}>
           <IconButton label="清除筛选" onClick={() => onChange('')}>
-            <X aria-hidden className="size-3.5" />
+            <X aria-hidden />
           </IconButton>
         </span>
       </div>
@@ -196,7 +196,7 @@ export function IconButton({
         aria-label={label}
         aria-pressed={pressed}
         className={cn(
-          'files-action flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:opacity-100',
+          'files-action flex size-6  items-center justify-center rounded-md opacity-60 hover:opacity-100',
           disabled ? 'pointer-events-none opacity-30' : null,
         )}
         disabled={disabled}
@@ -216,7 +216,7 @@ export function Note({ children }: { readonly children: ReactNode }) {
 export function Placeholder({ children, title }: { readonly children: ReactNode; readonly title: string }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-      <FolderTree aria-hidden className="size-8 opacity-30" />
+      <FolderTree aria-hidden className=" opacity-30" />
       <p className="text-sm font-medium">{title}</p>
       <p className="text-xs opacity-50">{children}</p>
     </div>

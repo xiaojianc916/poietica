@@ -207,7 +207,7 @@ function TitleBar({ sidebarOpen, toggleSidebar, onOpenSearch }: TitleBarProps): 
           type="button"
           variant="ghost"
         >
-          <PanelLeft aria-hidden="true" className="size-4" />
+          <PanelLeft aria-hidden="true" />
         </Button>
         <Button
           aria-label="搜索"
@@ -217,7 +217,7 @@ function TitleBar({ sidebarOpen, toggleSidebar, onOpenSearch }: TitleBarProps): 
           type="button"
           variant="ghost"
         >
-          <Search aria-hidden="true" className="size-4" />
+          <Search aria-hidden="true" />
         </Button>
         {leftItems.map((c) => (
           <FeatureScope featureId={c.featureId} key={c.item.id}>

@@ -268,7 +268,7 @@ function LoginBody({
             type="button"
             variant="soft"
           >
-            <ExternalLink aria-hidden="true" size={13} />
+            <ExternalLink aria-hidden="true" />
             打开网页
           </Button>
         </div>
@@ -292,7 +292,7 @@ function Outcome({ outcome }: { readonly outcome: NonNullable<FlowState['outcome
     return (
       <div className="models-login">
         <p className="models-login__status" data-tone="danger">
-          <CircleAlert aria-hidden="true" size={16} />
+          <CircleAlert aria-hidden="true" />
           登录失败
         </p>
         <p className="models-login__detail">{outcome.message}</p>
@@ -302,7 +302,7 @@ function Outcome({ outcome }: { readonly outcome: NonNullable<FlowState['outcome
   return (
     <div className="models-login">
       <p className="models-login__status" data-tone="success">
-        <CircleCheck aria-hidden="true" size={16} />
+        <CircleCheck aria-hidden="true" />
         {outcome.key ? '已获取 API Key' : '登录成功'}
       </p>
       {outcome.account === null ? null : <p className="models-login__hint">已登录为 {outcome.account}</p>}
@@ -330,11 +330,11 @@ function AuthLinks({ url }: { readonly url: string }) {
         type="button"
         variant="soft"
       >
-        <ExternalLink aria-hidden="true" size={13} />
+        <ExternalLink aria-hidden="true" />
         重新打开
       </Button>
       <Button className="models-login__btn" onClick={() => copy(url)} size="xs" type="button" variant="ghost">
-        {copied ? <Check aria-hidden="true" size={13} /> : <Copy aria-hidden="true" size={13} />}
+        {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
         {copied ? '已复制' : '复制链接'}
       </Button>
     </div>
@@ -354,7 +354,7 @@ function DeviceCode({ code }: { readonly code: string }) {
         type="button"
         variant="ghost"
       >
-        {copied ? <Check aria-hidden="true" size={13} /> : <Copy aria-hidden="true" size={13} />}
+        {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
         {copied ? '已复制' : '复制'}
       </Button>
     </div>

@@ -11,7 +11,7 @@ import type { ReactNode } from 'react'
 /* 工具栏右端那张「更多操作」菜单。菜单壳、行清单、行类名、缩放步进照 legacy；换掉三处口径：没接进来的条目不再假装存在、缩放范围按契约 browser.setZoom 的 -3…5、最近关闭是新增的。 */
 
 const triggerClassName =
-  'flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-launcher hover:opacity-100'
+  'flex size-6  items-center justify-center rounded-md opacity-60 hover:bg-launcher hover:opacity-100'
 
 const labelClassName = 'min-w-0 flex-1 truncate text-xs'
 
@@ -62,7 +62,7 @@ function ZoomStep({
   return (
     <button
       aria-label={label}
-      className="flex size-6 shrink-0 items-center justify-center rounded-md hover:bg-current/10"
+      className="flex size-6 items-center justify-center rounded-md hover:bg-current/10"
       onClick={onClick}
       title={label}
       type="button"
@@ -79,14 +79,14 @@ function ZoomRow({ onZoom, level }: { readonly onZoom: (level: number) => void; 
     <fieldset aria-label="缩放" className="flex min-h-[var(--ui-control-height-sm)] items-center gap-1 px-2">
       <span className={labelClassName}>缩放</span>
       <ZoomStep label="缩小" onClick={() => onZoom(Math.max(ZOOM_MIN, level - ZOOM_STEP))}>
-        <Minus aria-hidden className="size-3.5" />
+        <Minus aria-hidden />
       </ZoomStep>
-      <span className="w-10 shrink-0 text-center text-xs tabular-nums opacity-70">{percent}%</span>
+      <span className="w-10 text-center text-xs tabular-nums opacity-70">{percent}%</span>
       <ZoomStep label="放大" onClick={() => onZoom(Math.min(ZOOM_MAX, level + ZOOM_STEP))}>
-        <Plus aria-hidden className="size-3.5" />
+        <Plus aria-hidden />
       </ZoomStep>
       <ZoomStep label="重置缩放" onClick={() => onZoom(0)}>
-        <RotateCcw aria-hidden className="size-3.5" />
+        <RotateCcw aria-hidden />
       </ZoomStep>
     </fieldset>
   )
@@ -147,7 +147,7 @@ function CommandRow({
       }}
     >
       <span className={labelClassName}>{label}</span>
-      {submenu === true ? <ChevronRight aria-hidden className="size-3.5 shrink-0 opacity-50" /> : null}
+      {submenu === true ? <ChevronRight aria-hidden className=" opacity-50" /> : null}
     </DropdownMenuItem>
   )
 }
@@ -164,7 +164,7 @@ export function BrowserOverflowMenu({
   return (
     <MenuShell
       className="w-64"
-      icon={<MoreHorizontal aria-hidden className="size-4" />}
+      icon={<MoreHorizontal aria-hidden />}
       label="更多操作"
       onOpenChange={onOpenChange}
       open={open}
@@ -205,9 +205,9 @@ export function BrowserOverflowMenu({
               onReopen(index)
             }}
           >
-            <History aria-hidden className="size-3.5 shrink-0 opacity-50" />
+            <History aria-hidden className=" opacity-50" />
             <span className={labelClassName}>{tab.title}</span>
-            <ChevronRight aria-hidden className="size-3.5 shrink-0 opacity-50" />
+            <ChevronRight aria-hidden className=" opacity-50" />
           </DropdownMenuItem>
         ))
       )}

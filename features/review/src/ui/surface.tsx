@@ -38,7 +38,7 @@ export function ReviewPanel({
   if (gateway === null) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-        <FileDiff aria-hidden className="size-8 opacity-30" />
+        <FileDiff aria-hidden className=" opacity-30" />
         <p className="text-sm font-medium">还没有工作区</p>
         <p className="text-xs opacity-50">先添加一个工作区，这里会展示它的 git 改动。</p>
       </div>

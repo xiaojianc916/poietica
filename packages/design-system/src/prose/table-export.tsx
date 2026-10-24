@@ -38,16 +38,11 @@ export function ExportableTable({ children, className, node: _node, ...props }: 
           onClick={copyMarkdown}
           type="button"
         >
-          <CopyStateIcon aria-hidden="true" size={14} />
+          <CopyStateIcon aria-hidden="true" />
         </button>
       </div>
       <div className="overflow-x-auto overflow-y-auto">
-        <table
-          {...props}
-          className={`w-full divide-y divide-border ${className ?? ''}`}
-          data-streamdown="table"
-          ref={table}
-        >
+        <table {...props} className={`w-full divide-y ${className ?? ''}`} data-streamdown="table" ref={table}>
           {children}
         </table>
       </div>

@@ -86,7 +86,7 @@ function HelpMenu(): ReactNode {
         aria-label="帮助"
         className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground data-[popup-open]:bg-sidebar-accent data-[popup-open]:text-foreground"
       >
-        <CircleQuestionMark aria-hidden="true" className="size-4" />
+        <CircleQuestionMark aria-hidden="true" />
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end" className="min-w-40" side="top">

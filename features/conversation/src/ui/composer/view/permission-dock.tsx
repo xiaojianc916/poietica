@@ -70,7 +70,7 @@ export const PermissionDock = memo(function PermissionDock({ item, onResolve, wa
       <div aria-busy={isSubmitting} className="assistant-approval__bar" key={item.requestId}>
         {/* 前导字形与队列行同一格：这一条也是「一件事待你答」，不是另一张卡。 */}
         <span aria-hidden className="assistant-approval__lead">
-          <Hand size={14} />
+          <Hand />
         </span>
 
         {waiting > 1 ? <span className="assistant-approval__count">1/{waiting}</span> : null}
@@ -94,7 +94,7 @@ export const PermissionDock = memo(function PermissionDock({ item, onResolve, wa
                     }}
                     type="button"
                   >
-                    <answer.Icon aria-hidden size={14} />
+                    <answer.Icon aria-hidden />
                   </button>
                 }
               />

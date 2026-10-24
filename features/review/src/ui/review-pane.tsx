@@ -73,7 +73,7 @@ const SWITCHES: readonly {
   { icon: Pilcrow, name: 'hideWhitespace', off: '隐藏空白字符', on: '显示空白字符' },
 ]
 const ICON_CLASS =
-  'review-toolbar-action flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:opacity-100'
+  'review-toolbar-action flex size-6  items-center justify-center rounded-md opacity-60 hover:opacity-100'
 const ROW_CLASS = 'min-w-0 flex-1 truncate'
 export interface ReviewPaneProps {
   readonly gateway: ReviewGateway
@@ -89,7 +89,7 @@ export function ReviewPane({ gateway, report }: ReviewPaneProps) {
   if (reading.phase === 'notARepository') {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-        <FileText aria-hidden className="size-8 opacity-30" />
+        <FileText aria-hidden className=" opacity-30" />
         <p className="text-sm font-medium">当前 workspace 不在 Git 仓库中</p>
         <p className="text-xs opacity-50">打开一个 Git 仓库目录后，这里会展示当前 workspace 作用域内的改动。</p>
       </div>
@@ -162,11 +162,11 @@ function Toolbar({
 }) {
   const allOpen = reading.files.length > 0 && state.openFiles.size >= reading.files.length
   return (
-    <div className="review-rule flex h-[var(--ui-control-height-sm)] shrink-0 items-center gap-2 px-2.5">
+    <div className="review-rule flex h-[var(--ui-control-height-sm)] items-center gap-2 px-2.5">
       <Bases base={state.base} reading={reading} store={store} />
       {/* 与卡头右侧那一处同档：整条工具条上只有这一对加减数，两处不一样大就是缺陷。 */}
       <Tally stat={reading.stat} />
-      <div className="ml-auto flex shrink-0 items-center gap-0.5">
+      <div className="ml-auto flex items-center gap-0.5">
         <Overflow state={state} store={store} />
         <IconButton
           label={allOpen ? '折叠全部差异' : '展开全部差异'}
@@ -174,14 +174,10 @@ function Toolbar({
             store.setAllOpen(!allOpen)
           }}
         >
-          {allOpen ? (
-            <FoldVertical aria-hidden className="size-4" />
-          ) : (
-            <UnfoldVertical aria-hidden className="size-4" />
-          )}
+          {allOpen ? <FoldVertical aria-hidden /> : <UnfoldVertical aria-hidden />}
         </IconButton>
         <IconButton label="变更文件树" onClick={store.toggleTree} pressed={state.treeOpen}>
-          <Folders aria-hidden className="size-4" />
+          <Folders aria-hidden />
         </IconButton>
         <Commit reading={reading} state={state} store={store} />
       </div>
@@ -216,10 +212,10 @@ function Bases({
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="比较基准"
-        className="review-toolbar-action flex h-6 shrink-0 items-center gap-1 rounded-md px-2 text-xs"
+        className="review-toolbar-action flex h-6 items-center gap-1 rounded-md px-2 text-xs"
       >
         <span className="max-w-28 truncate">{picked?.label ?? '未提交'}</span>
-        <ChevronDown aria-hidden className="size-2.5 shrink-0 opacity-40" />
+        <ChevronDown aria-hidden className=" opacity-40" />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-40">
         {sources.map((source) => (
@@ -253,7 +249,7 @@ function Overflow({ state, store }: { readonly state: ReviewState; readonly stor
   return (
     <DropdownMenu>
       <DropdownMenuTrigger aria-label="更多操作" className={ICON_CLASS}>
-        <MoreHorizontal aria-hidden className="size-4" />
+        <MoreHorizontal aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
         <DropdownMenuItem onClick={store.refresh}>
@@ -295,7 +291,7 @@ function Commit({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="review-toolbar-action ml-1 flex h-6 shrink-0 items-center gap-1 rounded-md border border-current/15 px-2 text-xs disabled:opacity-50"
+        className="review-toolbar-action ml-1 flex h-6 items-center gap-1 rounded-md border px-2 text-xs disabled:opacity-50"
         disabled={state.busy}
       >
         <GithubMark className="opacity-60" />
@@ -337,9 +333,9 @@ function Commit({
           />
           <span
             aria-hidden
-            className="grid size-4 shrink-0 place-items-center rounded-full border border-current/30 peer-focus-visible:ring-2 peer-focus-visible:ring-ring"
+            className="grid place-items-center rounded-full border peer-focus-visible:ring-2 peer-focus-visible:ring-ring"
           >
-            {state.stageAll ? <Check aria-hidden className="size-3" /> : null}
+            {state.stageAll ? <Check aria-hidden /> : null}
           </span>
           <span className="min-w-0 flex-1">包含未暂存的更改</span>
           <Tally dense stat={reading.unstaged} />
@@ -412,8 +408,8 @@ function Card({
             }}
             type="button"
           >
-            <FileTypeMark className="size-3.5 shrink-0" name={file.path} />
-            <span className="shrink-0 text-sm">
+            <FileTypeMark name={file.path} />
+            <span className=" text-sm">
               <bdi>{fileName}</bdi>
             </span>
             {fileDir ? (
@@ -484,9 +480,9 @@ function Tree({
           {/* 筛选是输入框而不是工具条：一条圆角药丸圈住图标与输入。左内边距 8 + 8 让
            * 放大镜落在树行图标的竖线上；右侧留 8px 给清除键 —— 再小它的方形悬浮底
            * 就顶出药丸的弧。 */}
-          <div className="flex shrink-0 px-2 py-2">
+          <div className="flex px-2 py-2">
             <div className="review-filter flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-full pr-2 pl-2.5">
-              <Search aria-hidden className="size-3.5 shrink-0 text-placeholder" />
+              <Search aria-hidden className=" text-placeholder" />
               <input
                 aria-label="筛选文件"
                 className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-placeholder"
@@ -504,7 +500,7 @@ function Tree({
                     store.setQuery('')
                   }}
                 >
-                  <X aria-hidden className="size-3.5" />
+                  <X aria-hidden />
                 </IconButton>
               </span>
             </div>
@@ -571,7 +567,7 @@ function ChangeMark({ status }: { readonly status: FileChange }) {
   return (
     <span
       aria-label={label}
-      className="review-mark flex size-[13px] shrink-0 items-center justify-center rounded-[4px]"
+      className="review-mark flex size-[13px] items-center justify-center rounded-[4px]"
       data-status={status}
       role="img"
     >
@@ -619,7 +615,7 @@ function Tally({
   readonly stat: DiffStat
 }) {
   return (
-    <span className={cn('flex shrink-0 items-center gap-1.5 tabular-nums', dense ? 'text-[11px]' : 'text-[13px]')}>
+    <span className={cn('flex items-center gap-1.5 tabular-nums', dense ? 'text-[11px]' : 'text-[13px]')}>
       <span className="text-emerald-500">+{stat.added}</span>
       <span className="text-rose-500">−{stat.removed}</span>
     </span>

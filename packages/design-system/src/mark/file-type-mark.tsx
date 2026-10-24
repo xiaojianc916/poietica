@@ -310,7 +310,12 @@ export function knownFileMarkOf(name: string): FileMarkId | undefined {
   return undefined
 }
 
-export function FileTypeMark({ className, name }: { readonly className: string; readonly name: string }) {
+/*
+ * className 只收组件 CSS 的类规则（无层，压得过 :where(img[data-file-mark]) 那条默认）；
+ * 尺寸/flex 工具类会被默认压住、从不生效（Q53 清理时已把死工具类调用点删掉）。要改尺寸，
+ * 改容器上的 --ui-icon 或写类规则。
+ */
+export function FileTypeMark({ className, name }: { readonly className?: string; readonly name: string }) {
   return (
     <img
       alt=""

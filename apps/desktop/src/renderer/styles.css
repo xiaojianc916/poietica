@@ -68,10 +68,14 @@
  * macOS 补偿在 Windows 上只关闭 ClearType，净损失，不留。
  *
  * border-color 必须留：Tailwind v4 把默认边框色改成了 currentColor，这条是有意的
- * 行为覆盖，不是重复。
+ * 行为覆盖，不是重复。放进 @layer base（Q53 裁决）：默认只当「默认」，元素上写的
+ * border-<色> 工具类要能赢过它 —— 不要把 ::before / ::after 加进选择器，那会把
+ * 伪元素的默认边框色从 currentColor 改成 divider，等于改视觉。
  */
-* {
-  border-color: var(--ui-divider);
+@layer base {
+  * {
+    border-color: var(--ui-divider);
+  }
 }
 
 /*

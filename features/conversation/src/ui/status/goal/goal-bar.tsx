@@ -183,7 +183,7 @@ function GoalBarView({ goal, actions }: GoalBarViewProps) {
                 void commit()
               }}
             >
-              <Check aria-hidden size={14} />
+              <Check aria-hidden />
             </ActionButton>
             <ActionButton
               disabled={pending}
@@ -193,7 +193,7 @@ function GoalBarView({ goal, actions }: GoalBarViewProps) {
                 setEditing(false)
               }}
             >
-              <X aria-hidden size={14} />
+              <X aria-hidden />
             </ActionButton>
           </div>
         </div>
@@ -205,7 +205,7 @@ function GoalBarView({ goal, actions }: GoalBarViewProps) {
     <div className="goal-bar__dock" data-goal-bar>
       <div className="goal-bar">
         <span className="goal-bar__glyph">
-          <Goal aria-hidden size={14} />
+          <Goal aria-hidden />
         </span>
         <span className="goal-bar__label">{presentation.label}</span>
         <span className="goal-bar__objective">{goal.objective}</span>
@@ -223,7 +223,7 @@ function GoalBarView({ goal, actions }: GoalBarViewProps) {
                 void run({ kind: 'pause' })
               }}
             >
-              <CirclePause aria-hidden size={14} />
+              <CirclePause aria-hidden />
             </ActionButton>
           ) : null}
           {presentation.toggle === 'resume' ? (
@@ -234,7 +234,7 @@ function GoalBarView({ goal, actions }: GoalBarViewProps) {
                 void run({ kind: 'resume' })
               }}
             >
-              <CirclePlay aria-hidden size={14} />
+              <CirclePlay aria-hidden />
             </ActionButton>
           ) : null}
           <ActionButton
@@ -245,7 +245,7 @@ function GoalBarView({ goal, actions }: GoalBarViewProps) {
               setEditing(true)
             }}
           >
-            <Pencil aria-hidden size={14} />
+            <Pencil aria-hidden />
           </ActionButton>
           <ActionButton
             disabled={pending}
@@ -254,7 +254,7 @@ function GoalBarView({ goal, actions }: GoalBarViewProps) {
               void run({ kind: 'clear' })
             }}
           >
-            <Trash2 aria-hidden size={14} />
+            <Trash2 aria-hidden />
           </ActionButton>
         </div>
       </div>

@@ -83,7 +83,7 @@ export function DialogPanel({ item, onAnswer, onDismiss }: DialogPanelProps) {
                   onClick={dismiss}
                   type="button"
                 >
-                  <X aria-hidden="true" size={14} />
+                  <X aria-hidden="true" />
                 </TooltipTrigger>
                 <TooltipContent side="bottom" sideOffset={6}>
                   撤下这一问
@@ -116,7 +116,7 @@ export function DialogPanel({ item, onAnswer, onDismiss }: DialogPanelProps) {
                   >
                     <span className="assistant-question-panel__key">{at + 1}</span>
                     <span className="assistant-question-panel__mark">
-                      <Mark aria-hidden="true" size={16} />
+                      <Mark aria-hidden="true" />
                     </span>
                     <span className="assistant-question-panel__label">{label}</span>
                   </button>

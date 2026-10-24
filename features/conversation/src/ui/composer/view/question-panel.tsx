@@ -159,7 +159,7 @@ function QuestionOptionList({
             >
               <span className="assistant-question-panel__key">{at + 1}</span>
               <span className="assistant-question-panel__mark">
-                <Mark aria-hidden="true" size={16} />
+                <Mark aria-hidden="true" />
               </span>
               <span className="assistant-question-panel__label">{option.label}</span>
             </button>
@@ -173,7 +173,7 @@ function QuestionOptionList({
           >
             <span className="assistant-question-panel__key">{current.options.length + 1}</span>
             <span className="assistant-question-panel__mark">
-              <OtherMark aria-hidden="true" size={16} />
+              <OtherMark aria-hidden="true" />
             </span>
             <span className="assistant-question-panel__label">{current.otherLabel ?? '其他'}</span>
             <input
@@ -308,7 +308,7 @@ export function QuestionPanel({ item, onAnswer, onDismiss }: QuestionPanelProps)
                   onClick={dismiss}
                   type="button"
                 >
-                  <X aria-hidden="true" size={14} />
+                  <X aria-hidden="true" />
                 </TooltipTrigger>
                 <TooltipContent side="bottom" sideOffset={6}>
                   撤下这组题
@@ -351,7 +351,7 @@ export function QuestionPanel({ item, onAnswer, onDismiss }: QuestionPanelProps)
                 onClick={() => turn(-1)}
                 type="button"
               >
-                <ChevronLeft aria-hidden="true" size={16} />
+                <ChevronLeft aria-hidden="true" />
               </button>
               <button
                 aria-label="下一题"
@@ -360,7 +360,7 @@ export function QuestionPanel({ item, onAnswer, onDismiss }: QuestionPanelProps)
                 onClick={() => turn(1)}
                 type="button"
               >
-                <ChevronRight aria-hidden="true" size={16} />
+                <ChevronRight aria-hidden="true" />
               </button>
             </div>
 

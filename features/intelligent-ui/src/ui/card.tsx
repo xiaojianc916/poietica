@@ -295,7 +295,7 @@ function TweakPanel({
               onClick={() => onChange(group.id, Object.fromEntries(group.controls.map((c) => [c.key, c.value])))}
               type="button"
             >
-              <RotateCcw aria-hidden size={12} strokeWidth={1.75} />
+              <RotateCcw aria-hidden />
               重置
             </button>
           </fieldset>
@@ -346,7 +346,6 @@ export function FrameTools({
   readonly capturing: boolean
   readonly placement: ToolPlacement
 }): ReactNode {
-  const icon = placement === 'header' ? 16 : 14
   return (
     <div
       aria-label="界面工具"
@@ -357,18 +356,18 @@ export function FrameTools({
     >
       {onTweak === undefined ? null : (
         <ToolButton label="调整" onClick={onTweak} placement={placement} pressed={tweaking}>
-          <SlidersHorizontal aria-hidden size={icon} strokeWidth={1.75} />
+          <SlidersHorizontal aria-hidden />
         </ToolButton>
       )}
       <ToolButton label="复制为图片" onClick={onCopy} placement={placement}>
-        <ImageIcon aria-hidden size={icon} strokeWidth={1.75} />
+        <ImageIcon aria-hidden />
       </ToolButton>
       <ToolButton label="导出 HTML" onClick={onExport} placement={placement}>
-        <Download aria-hidden size={icon} strokeWidth={1.75} />
+        <Download aria-hidden />
       </ToolButton>
       {onExpand === undefined ? null : (
         <ToolButton label="展开" onClick={onExpand} placement={placement}>
-          <Maximize2 aria-hidden size={icon} strokeWidth={1.75} />
+          <Maximize2 aria-hidden />
         </ToolButton>
       )}
     </div>

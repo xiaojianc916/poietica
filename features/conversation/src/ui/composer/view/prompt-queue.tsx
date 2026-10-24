@@ -27,7 +27,7 @@ function QueueGlyph({ className }: SVGProps<SVGSVGElement>) {
       aria-hidden="true"
       className={className}
       fill="none"
-      strokeWidth={1}
+
       viewBox="0 0 16 16"
       xmlns="http://www.w3.org/2000/svg"
     >

@@ -49,7 +49,7 @@ export function AutomationList({ automations, pending, runsOf, onCreateBlank, on
     <>
       {automations.length === 0 ? (
         <>
-          <div className="mt-8 flex flex-col items-center justify-center gap-5 rounded-2xl border border-divider px-6 py-16">
+          <div className="mt-8 flex flex-col items-center justify-center gap-5 rounded-2xl border px-6 py-16">
             <p className="text-xs text-muted-foreground">还没有定时任务</p>
             <CreateButton onCreateBlank={onCreateBlank} />
           </div>
@@ -86,7 +86,7 @@ export function AutomationList({ automations, pending, runsOf, onCreateBlank, on
               }}
               type="button"
             >
-              <RefreshCw aria-hidden className="size-3.5" />
+              <RefreshCw aria-hidden />
             </button>
             <CreateButton onCreateBlank={onCreateBlank} />
           </div>
@@ -167,7 +167,7 @@ function TaskCard({
   const line = planLine(automation)
   return (
     <li className="flex">
-      <article className="flex w-full flex-col rounded-xl border border-divider bg-[var(--ui-card)] px-4 py-3.5">
+      <article className="flex w-full flex-col rounded-xl border bg-[var(--ui-card)] px-4 py-3.5">
         <div className="flex items-start gap-2">
           <h3 className="min-w-0 flex-1 text-xs font-medium">{automation.title}</h3>
           <TaskMenu
@@ -186,10 +186,10 @@ function TaskCard({
 
         <div className="mt-auto flex items-center gap-2 pt-3 text-xs">
           <span className={cn('flex min-w-0 items-center gap-1.5', paused ? 'text-muted-foreground' : 'text-success')}>
-            <Clock aria-hidden className="size-3.5 shrink-0" />
+            <Clock aria-hidden />
             <span className="truncate">{line}</span>
           </span>
-          <span className="ml-auto shrink-0 rounded-md bg-sidebar-accent px-2 py-0.5 text-muted-foreground">
+          <span className="ml-auto rounded-md bg-sidebar-accent px-2 py-0.5 text-muted-foreground">
             已运行 {runs.length} 次
           </span>
         </div>
@@ -218,10 +218,10 @@ function TaskMenu({
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label={`${automation.title}的操作`}
-        className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+        className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
         type="button"
       >
-        <Ellipsis aria-hidden className="size-3.5" />
+        <Ellipsis aria-hidden />
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end" className="w-44">
@@ -232,7 +232,7 @@ function TaskMenu({
               void store.runNow(automation.id)
             }}
           >
-            <Play aria-hidden className="size-3.5" />
+            <Play aria-hidden />
             立即运行
           </DropdownMenuItem>
         ) : (
@@ -242,7 +242,7 @@ function TaskMenu({
               void store.cancel(active.id)
             }}
           >
-            <Square aria-hidden className="size-3.5" />
+            <Square aria-hidden />
             {cancelling ? '停止待确认' : '停止运行'}
           </DropdownMenuItem>
         )}
@@ -254,11 +254,7 @@ function TaskMenu({
               void store.setEnabled(automation.id, !automation.enabled)
             }}
           >
-            {automation.enabled ? (
-              <Pause aria-hidden className="size-3.5" />
-            ) : (
-              <CirclePlay aria-hidden className="size-3.5" />
-            )}
+            {automation.enabled ? <Pause aria-hidden /> : <CirclePlay aria-hidden />}
             {automation.enabled ? '暂停' : '启用'}
           </DropdownMenuItem>
         )}
@@ -269,7 +265,7 @@ function TaskMenu({
             onOpen(automation.id)
           }}
         >
-          <Pencil aria-hidden className="size-3.5" />
+          <Pencil aria-hidden />
           编辑定时任务
         </DropdownMenuItem>
 
@@ -282,7 +278,7 @@ function TaskMenu({
             onDelete(automation)
           }}
         >
-          <Trash aria-hidden className="size-3.5" />
+          <Trash aria-hidden />
           删除
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -306,8 +302,8 @@ function CreateButton({ onCreateBlank }: { readonly onCreateBlank: () => void })
 function KeepAwakeRow() {
   const [keepAwake, setKeepAwake] = useState(false)
   return (
-    <div className="mt-5 flex items-center gap-2 rounded-2xl border border-divider px-5 py-3.5">
-      <Info aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+    <div className="mt-5 flex items-center gap-2 rounded-2xl border px-5 py-3.5">
+      <Info aria-hidden className=" text-muted-foreground" />
       <span className="text-xs text-muted-foreground">运行会话时保持电脑唤醒</span>
       <Switch
         aria-label="运行会话时保持电脑唤醒"

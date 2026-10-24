@@ -131,21 +131,21 @@ export function FileView({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="files-rule flex h-[var(--ui-control-height-sm)] shrink-0 items-center gap-1 px-2.5">
-        <FileTypeMark className="size-3.5 shrink-0" name={tab.path} />
+      <div className="files-rule flex h-[var(--ui-control-height-sm)] items-center gap-1 px-2.5">
+        <FileTypeMark name={tab.path} />
         <span className="min-w-0 flex-1 truncate text-xs opacity-70" title={tab.path}>
           {tab.path}
         </span>
         {text && !preview ? (
           <IconButton label="自动换行" onClick={() => setWrap((value) => !value)} pressed={wrap}>
-            <TextWrap aria-hidden className="size-3.5" />
+            <TextWrap aria-hidden />
           </IconButton>
         ) : null}
         {markdown && text ? (
           <ViewSwitch className="mx-1" label="查看方式" onValueChange={setMode} options={VIEW_MODES} value={mode} />
         ) : null}
         <IconButton label="重新读取" onClick={reload}>
-          <RefreshCw aria-hidden className="size-3.5" />
+          <RefreshCw aria-hidden />
         </IconButton>
       </div>
       <Body loaded={loaded} opener={opener} owner={owner} preview={preview} reveal={reveal} tab={tab} wrap={wrap} />
@@ -211,7 +211,7 @@ function TextNotices({ content }: { readonly content: Extract<FileContent, { kin
   if (content.encoding === 'lossy') notes.push('不是有效的 UTF-8 / UTF-16，个别字符可能显示不对。')
   if (notes.length === 0) return null
   return (
-    <div className="files-rule shrink-0 px-2.5 py-1.5 text-xs opacity-60">
+    <div className="files-rule px-2.5 py-1.5 text-xs opacity-60">
       {notes.map((note) => (
         <p key={note}>{note}</p>
       ))}
@@ -345,13 +345,13 @@ function ImageView({
           src={src}
         />
       </div>
-      <div className="files-rule files-rule--top flex h-[var(--ui-control-height-sm)] shrink-0 items-center gap-2 px-2.5 text-xs">
+      <div className="files-rule files-rule--top flex h-[var(--ui-control-height-sm)] items-center gap-2 px-2.5 text-xs">
         <span className="min-w-0 flex-1 truncate opacity-60">
           {natural === null ? '' : `${String(natural.width)} × ${String(natural.height)} · `}
           {formatBytes(content.size)}
         </span>
         <IconButton label={fit ? '原始尺寸' : '适应窗格'} onClick={() => setFit((value) => !value)}>
-          {fit ? <Maximize aria-hidden className="size-3.5" /> : <Scan aria-hidden className="size-3.5" />}
+          {fit ? <Maximize aria-hidden /> : <Scan aria-hidden />}
         </IconButton>
       </div>
     </div>

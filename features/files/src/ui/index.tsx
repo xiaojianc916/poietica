@@ -211,7 +211,7 @@ function createFileDockTabs(layout: LayoutService, tabs: FileTabsStore): DockTab
             id,
             title: basenameOf(tab.path),
             hint: tab.path,
-            icon: <FileTypeMark className="size-3.5 shrink-0" name={tab.path} />,
+            icon: <FileTypeMark name={tab.path} />,
             active: id === set.activeId,
           },
         ]

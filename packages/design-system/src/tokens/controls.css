@@ -60,32 +60,35 @@
 }
 
 /*
- * 图标的默认几何，特异性为 0。
- *
- * :where() 让任何组件规则都能无痛覆盖，所以这是默认值而不是强制值。
+ * 图标的默认几何，特异性为 0，且只当「默认」（@layer base，Q53 裁决）：svg 上的
+ * size-* 等工具类能赢过它；组件 CSS 的类规则（无层）仍然压得过它，改图标尺寸走
+ * 组件 CSS 或容器上的 --ui-icon。
  *
  * display: block 是必需的：inline 的 svg 参与行盒基线对齐，而本仓存在 19.5px 这类非整数行高，
  * 基线会把图标的 y 推到半个设备像素上。
  *
- * 自绘图形（如 restore-spinner）在自己的类规则里声明 stroke-width，特异性高于 :where()，
- * 不受这里影响 —— 线宽属于它自己的几何。
+ * 自绘图形（如 restore-spinner）在自己的类规则里声明 stroke-width，不受这里影响 —— 线宽属于它自己的几何。
  */
-:where(svg) {
-  display: block;
-  flex: none;
-  inline-size: var(--ui-icon);
-  block-size: var(--ui-icon);
-  stroke-width: var(--ui-icon-stroke);
+@layer base {
+  :where(svg) {
+    display: block;
+    flex: none;
+    inline-size: var(--ui-icon);
+    block-size: var(--ui-icon);
+    stroke-width: var(--ui-icon-stroke);
+  }
 }
 
 /*
  * 文件类型图标换成 img 之后要自己拿尺寸：:where(svg) 管不到它，而 img 默认按固有尺寸铺开。
- * 盒子与字形同一条 --ui-icon，调用方给的 className 仍然能盖过去。
+ * 盒子与字形同一条 --ui-icon；尺寸类不收 className（工具类会被这条压住，见 file-type-mark.tsx）。
  */
-:where(img[data-file-mark]) {
-  display: block;
-  flex: none;
-  inline-size: var(--ui-icon);
-  block-size: var(--ui-icon);
-  object-fit: contain;
+@layer base {
+  :where(img[data-file-mark]) {
+    display: block;
+    flex: none;
+    inline-size: var(--ui-icon);
+    block-size: var(--ui-icon);
+    object-fit: contain;
+  }
 }

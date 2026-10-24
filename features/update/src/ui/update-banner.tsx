@@ -53,7 +53,7 @@ export function UpdateBanner({
   return (
     <Banner
       key={`${notice.version}:${state?.phase ?? 'none'}:${notice.tone ?? 'none'}`}
-      {...(notice.spinning === true ? { icon: <LoaderCircle className="size-4 animate-spin" /> } : {})}
+      {...(notice.spinning === true ? { icon: <LoaderCircle className=" animate-spin" /> } : {})}
       {...(notice.persistent === true ? { holdMs: null } : {})}
       {...(notice.progress === undefined ? {} : { progress: Math.round(notice.progress * 100) })}
       {...(notice.tone === undefined ? {} : { tone: notice.tone })}

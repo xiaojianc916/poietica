@@ -40,7 +40,7 @@ export function Switch({ className, children, size = 'md', ...props }: SwitchPro
         ROOT_SIZE[size],
         'cursor-pointer items-center',
         'rounded-full border',
-        'border-transparent',
+        '',
         'bg-input/70',
         'outline-none',
         'transition-colors',

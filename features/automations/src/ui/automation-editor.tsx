@@ -108,7 +108,7 @@ function EditorBreadcrumb({
       >
         自动化
       </button>
-      <ChevronRight aria-hidden className="size-3.5 text-muted-foreground/60" />
+      <ChevronRight aria-hidden className=" text-muted-foreground/60" />
       <span className="truncate text-foreground">{automation === null ? '新建任务' : automation.title}</span>
     </nav>
   )
@@ -247,7 +247,7 @@ function EditorToolbar({
                 aria-label="更多操作"
                 render={<Button className="w-8 px-0" size="sm" type="button" variant="soft" />}
               >
-                <Ellipsis aria-hidden className="size-3.5" />
+                <Ellipsis aria-hidden />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
                 {hasSchedule ? (
@@ -256,17 +256,13 @@ function EditorToolbar({
                       onToggleEnabled(!enabled)
                     }}
                   >
-                    {enabled ? (
-                      <CirclePause aria-hidden className="size-3.5" />
-                    ) : (
-                      <CirclePlay aria-hidden className="size-3.5" />
-                    )}
+                    {enabled ? <CirclePause aria-hidden /> : <CirclePlay aria-hidden />}
                     {enabled ? '暂停' : '启用'}
                   </DropdownMenuItem>
                 ) : null}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem danger disabled={active !== null} onClick={onDelete}>
-                  <Trash aria-hidden className="size-3.5" />
+                  <Trash aria-hidden />
                   删除
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -394,7 +390,7 @@ function RunOptionsField({
 }) {
   return (
     <Field label="运行方式">
-      <div className="divide-y divide-divider/60 rounded-xl border border-divider bg-popover">
+      <div className="divide-y rounded-xl border bg-popover">
         <OptionRow
           help={
             <>
@@ -663,7 +659,7 @@ export function AutomationEditor({
                 {/* 底与「添加计划」同读 --ui-popover；焦点不换框色、不画环。 */}
                 <input
                   autoComplete="off"
-                  className="h-11 w-full rounded-xl border border-divider bg-popover px-4 text-sm outline-none"
+                  className="h-11 w-full rounded-xl border bg-popover px-4 text-sm outline-none"
                   id="automation-title"
                   onChange={(event) => setTitle(event.currentTarget.value)}
                   placeholder="未命名定时任务"

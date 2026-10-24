@@ -61,7 +61,7 @@ export function AuxiliaryNewTabMenu({
   return (
     <MenuShell
       className="min-w-40"
-      icon={<Plus aria-hidden className="size-4" />}
+      icon={<Plus aria-hidden />}
       label="新建标签页"
       onOpenChange={onOpenChange}
       open={open}

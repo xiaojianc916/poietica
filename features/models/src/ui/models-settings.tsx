@@ -218,7 +218,7 @@ function ConfiguredModels({
             onClick={onRefresh}
             type="button"
           >
-            <RotateCw aria-hidden="true" size={16} />
+            <RotateCw aria-hidden="true" />
           </button>
         </div>
         {models.length === 0 ? (
@@ -331,7 +331,7 @@ function ProviderWorkspace({
           type="button"
           variant="soft"
         >
-          <Plus aria-hidden="true" size={14} /> 添加供应商
+          <Plus aria-hidden="true" /> 添加供应商
         </Button>
       </div>
       <div className="models-card">
@@ -415,7 +415,7 @@ function ProviderItem({
           </span>
           <span className="models-provider-meta">
             <span>{method === null ? `${models.length} 个模型` : `${method} · ${models.length} 个模型`}</span>
-            <ChevronDown aria-hidden="true" className="models-provider-chevron" size={14} />
+            <ChevronDown aria-hidden="true" className="models-provider-chevron" />
           </span>
         </AccordionTrigger>
       </AccordionHeader>
@@ -477,7 +477,7 @@ function AddProviderItem({
       <AccordionHeader className="models-accordion-header">
         <AccordionTrigger className="models-accordion-trigger">
           <strong>添加供应商</strong>
-          <ChevronDown aria-hidden="true" className="models-provider-chevron" size={14} />
+          <ChevronDown aria-hidden="true" className="models-provider-chevron" />
         </AccordionTrigger>
       </AccordionHeader>
       <AccordionPanel className="models-accordion-panel">
@@ -565,7 +565,7 @@ function CatalogAddTab({
     return (
       <div className="models-add-tab">
         <button className="models-catalog-back" onClick={() => setSelected(null)} type="button">
-          <ArrowLeft aria-hidden="true" size={14} /> 返回目录列表
+          <ArrowLeft aria-hidden="true" /> 返回目录列表
         </button>
         <div className="models-add-heading">
           <strong>{selected.name}</strong>
@@ -967,7 +967,7 @@ function ModelListEditor({
                 onClick={() => onRemove(model.key)}
                 type="button"
               >
-                <Trash2 aria-hidden="true" size={15} />
+                <Trash2 aria-hidden="true" />
               </button>
             </div>
           )
@@ -975,7 +975,7 @@ function ModelListEditor({
       </div>
       <div className="models-model-grid__add">
         <Button onClick={() => onAdd()} size="xs" type="button" variant="soft">
-          <Plus aria-hidden="true" size={14} /> 添加模型
+          <Plus aria-hidden="true" /> 添加模型
         </Button>
       </div>
       <span aria-live="polite" className="models-model-message">

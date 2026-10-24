@@ -32,7 +32,7 @@ export function Banners(): ReactElement | null {
           })}
       {...(notice.severity === 'success' || notice.severity === 'error' ? { tone: notice.severity } : {})}
       holdMs={notice.holdMs}
-      icon={notice.severity === 'warning' ? <TriangleAlert className="size-4" /> : <Info className="size-4" />}
+      icon={notice.severity === 'warning' ? <TriangleAlert /> : <Info />}
       key={notice.id}
       onDone={() => {
         kernelServices.banners.dismiss(notice.id)

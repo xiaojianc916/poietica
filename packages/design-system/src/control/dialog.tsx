@@ -85,7 +85,7 @@ export function Dialog({
         />
       }
     >
-      <X aria-hidden="true" className="size-3" />
+      <X aria-hidden="true" />
     </BaseDialog.Close>
   ) : null
 

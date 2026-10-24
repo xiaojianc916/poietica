@@ -25,7 +25,7 @@ const VARIANT: Record<ButtonVariant, string> = {
    * 危险键同一档浓度。Tailwind 的工具类写不出主题相关的这一层。
    */
   dangerSoft: 'ui-button--danger-soft',
-  outline: 'border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground',
+  outline: 'border  bg-background shadow-sm hover:bg-accent hover:text-accent-foreground',
   secondary: 'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80',
   /* soft：无边框无投影，填充跟着 divider token 走，所以它和分割线永远同一个灰阶。 */
   soft: 'bg-divider text-foreground hover:bg-divider/70',

@@ -14,7 +14,7 @@ export interface AutomationRunHistoryProps {
 export function AutomationRunHistory({ runs, title, onOpenThread, onCancel }: AutomationRunHistoryProps) {
   if (runs.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border border-divider px-6 py-28">
+      <div className="flex flex-col items-center justify-center rounded-2xl border px-6 py-28">
         <p className="text-xs text-muted-foreground">没有运行记录</p>
       </div>
     )
@@ -22,7 +22,7 @@ export function AutomationRunHistory({ runs, title, onOpenThread, onCancel }: Au
   return (
     <div>
       <p className="mb-3 text-xs text-muted-foreground">这里只显示保留的最近运行记录；对话正文单独保留。</p>
-      <ul className="divide-y divide-divider/60 overflow-hidden rounded-xl border border-divider bg-background">
+      <ul className="divide-y overflow-hidden rounded-xl border bg-background">
         {runs.map((run) => (
           <RunRow key={run.id} onCancel={onCancel} onOpenThread={onOpenThread} run={run} title={title} />
         ))}

@@ -97,14 +97,14 @@ function ScheduleMenu({
       <DropdownMenuTrigger
         className={
           empty
-            ? 'flex h-11 w-full items-center gap-2 rounded-xl border border-divider bg-popover px-4 text-sm text-muted-foreground hover:bg-[var(--ui-popup-highlight)]'
+            ? 'flex h-11 w-full items-center gap-2 rounded-xl border  bg-popover px-4 text-sm text-muted-foreground hover:bg-[var(--ui-popup-highlight)]'
             : 'inline-flex h-7 items-center gap-1 rounded-full bg-sidebar-accent/60 pl-3 pr-2 text-xs text-foreground hover:bg-sidebar-accent data-[popup-open]:bg-sidebar-accent'
         }
         type="button"
       >
-        {empty ? <Plus aria-hidden className="size-4" /> : null}
+        {empty ? <Plus aria-hidden /> : null}
         <span>{empty ? '添加计划' : LABELS[selected ?? 'daily']}</span>
-        {empty ? null : <ChevronDown aria-hidden className="size-3.5 opacity-60" />}
+        {empty ? null : <ChevronDown aria-hidden className=" opacity-60" />}
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-48">
         {OPTIONS.map((kind) => (
@@ -183,7 +183,7 @@ function TimePicker({ onChange, time }: { readonly onChange: (time: string) => v
         type="button"
       >
         <span>{time}</span>
-        <ChevronDown aria-hidden className="size-3.5 text-muted-foreground" />
+        <ChevronDown aria-hidden className=" text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-auto min-w-0 p-1">
         <div className="flex gap-1">
@@ -228,7 +228,7 @@ function WeekdayPicker({
         type="button"
       >
         <span className="truncate">{label}</span>
-        <ChevronDown aria-hidden className="size-3.5 text-muted-foreground" />
+        <ChevronDown aria-hidden className=" text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-36">
         {WEEKDAY_ORDER.map((day) => {
@@ -244,7 +244,7 @@ function WeekdayPicker({
               }}
             >
               <span className="min-w-0 flex-1">{WEEKDAY_LABELS[day]}</span>
-              {active ? <Check aria-hidden className="size-3.5" /> : null}
+              {active ? <Check aria-hidden /> : null}
             </DropdownMenuItem>
           )
         })}
@@ -301,7 +301,7 @@ function HourlyMinutePicker({
         type="button"
       >
         <span>{selected} 分</span>
-        <ChevronDown aria-hidden className="size-3.5 text-muted-foreground" />
+        <ChevronDown aria-hidden className=" text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-auto min-w-0 p-1">
         <TimeColumn
@@ -409,7 +409,7 @@ function ScheduleRow({
   }
   const repeating = schedule.at === null && kind !== 'custom' && kind !== 'once'
   return (
-    <div className="flex min-h-9 flex-nowrap items-center gap-1 overflow-hidden rounded-xl border border-divider bg-popover py-1 pl-[7px] pr-2">
+    <div className="flex min-h-9 flex-nowrap items-center gap-1 overflow-hidden rounded-xl border bg-popover py-1 pl-[7px] pr-2">
       <ScheduleMenu empty={false} onPick={onPick} selected={kind} />
       {schedule.at !== null ? <OnceInput at={schedule.at} feedback={feedback} onChange={onChange} /> : null}
       {schedule.at === null && kind === 'custom' ? (
@@ -450,7 +450,7 @@ function ScheduleRow({
         onClick={onClear}
         type="button"
       >
-        <X aria-hidden className="size-3.5" />
+        <X aria-hidden />
       </button>
     </div>
   )

@@ -143,12 +143,12 @@ function AuxiliaryTab({
       title={hint}
       type="button"
     >
-      <span aria-hidden className="auxiliary-tab-icon relative size-4 shrink-0 self-center">
+      <span aria-hidden className="auxiliary-tab-icon relative shrink-0 self-center">
         <span className="auxiliary-tab-icon__glyph pointer-events-none absolute inset-0 transition-opacity">
           {icon}
         </span>
         <X
-          className="auxiliary-tab-icon__close pointer-events-none absolute inset-0 size-4 opacity-0 transition-opacity"
+          className="auxiliary-tab-icon__close pointer-events-none absolute inset-0 opacity-0 transition-opacity"
           data-close-tab
         />
       </span>
@@ -484,7 +484,7 @@ function AuxiliaryTabStrip({
           title={fullscreen ? '退出全屏显示' : '全屏显示'}
           type="button"
         >
-          {fullscreen ? <Minimize2 aria-hidden className="size-4" /> : <Maximize2 aria-hidden className="size-4" />}
+          {fullscreen ? <Minimize2 aria-hidden /> : <Maximize2 aria-hidden />}
         </button>
       </div>
       {/* 加号菜单是 DropdownMenuContent 浮层（挂 body、不占布局），这里不垫让位块（R-49，同 R-43）：那块带 bg-muted/30 的占位
@@ -515,7 +515,7 @@ function AuxiliaryLauncher({
               }}
               type="button"
             >
-              <span aria-hidden className="flex size-4 shrink-0 items-center justify-center">
+              <span aria-hidden className="flex shrink-0 items-center justify-center">
                 {offer.icon}
               </span>
               <span className="min-w-0">

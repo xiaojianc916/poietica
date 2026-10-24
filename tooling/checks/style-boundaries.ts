@@ -104,7 +104,7 @@ const EXCEPTIONS: readonly Exception[] = [
 /** S10 的全仓预算（lucide 文件里的死图标属性）：现状即基准，Q53 裁决前只防新增。
  * 口径：凡 import lucide-react 的 TSX 文件里的 size={ / strokeWidth={ 属性全算——比 skill
  * 盘点脚本的「图标元素」口径略宽（当前多 1 处非图标的 size prop），预算按闸门口径登记。 */
-const S10_BUDGET = { size: 49, strokeWidth: 10 }
+const S10_BUDGET = { size: 0, strokeWidth: 0 }
 
 const cssFiles: string[] = []
 const tsxFiles: string[] = []

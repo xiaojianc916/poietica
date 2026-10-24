@@ -100,9 +100,9 @@ function RowBody({ row, trailing }: { readonly row: FileTreeRow; readonly traili
     return (
       <>
         {row.expanded === true ? (
-          <ChevronDown aria-hidden className="size-4 shrink-0 opacity-40" />
+          <ChevronDown aria-hidden className=" opacity-40" />
         ) : (
-          <ChevronRight aria-hidden className="size-4 shrink-0 opacity-40" />
+          <ChevronRight aria-hidden className=" opacity-40" />
         )}
         <span className="file-tree__label min-w-0 flex-1 truncate text-[13px] font-medium opacity-70">{row.label}</span>
         {trailing}
@@ -111,8 +111,8 @@ function RowBody({ row, trailing }: { readonly row: FileTreeRow; readonly traili
   }
   return (
     <>
-      {row.depth === 0 ? null : <span aria-hidden className="w-4 shrink-0" />}
-      <FileTypeMark className="size-3.5 shrink-0" name={row.key} />
+      {row.depth === 0 ? null : <span aria-hidden className="w-4 " />}
+      <FileTypeMark name={row.key} />
       <span className="file-tree__label min-w-0 flex-1 truncate text-xs">{row.label}</span>
       {trailing}
     </>

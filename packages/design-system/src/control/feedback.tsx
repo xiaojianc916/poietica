@@ -10,7 +10,7 @@ import { Button } from './button'
  * 好看提前拿掉它。
  */
 export function InlineSpinner() {
-  return <Spinner aria-hidden="true" className="size-4 animate-spin text-muted-foreground" />
+  return <Spinner aria-hidden="true" className=" animate-spin text-muted-foreground" />
 }
 
 export function LoadingState({ label = '正在加载…' }: { readonly label?: string }) {
@@ -36,7 +36,7 @@ export function ErrorState({
   return (
     <section className="grid min-h-40 place-items-center px-6 text-center" role="alert">
       <div>
-        <DangerCircle aria-hidden="true" className="mx-auto size-8 text-destructive" />
+        <DangerCircle aria-hidden="true" className="mx-auto text-destructive" />
 
         <h3 className="mt-3 text-sm font-semibold">{title}</h3>
 

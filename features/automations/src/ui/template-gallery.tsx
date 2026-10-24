@@ -16,7 +16,7 @@ export interface TemplateGalleryProps {
 
 export function TemplateGallery({ onPick }: TemplateGalleryProps) {
   return (
-    <div className="mt-10 border-t border-divider pt-8">
+    <div className="mt-10 border-t pt-8">
       <h2 className="text-xs text-muted-foreground">定时任务模板</h2>
 
       <ul className="mt-3 grid grid-cols-2 gap-3">
@@ -26,7 +26,7 @@ export function TemplateGallery({ onPick }: TemplateGalleryProps) {
             <li className="flex" key={template.id}>
               <button
                 aria-label={`使用模板：${template.title}`}
-                className="flex w-full flex-col rounded-xl border border-divider bg-[var(--ui-card)] px-4 py-3.5 text-left transition-colors hover:bg-[var(--ui-popup-highlight)]"
+                className="flex w-full flex-col rounded-xl border bg-[var(--ui-card)] px-4 py-3.5 text-left transition-colors hover:bg-[var(--ui-popup-highlight)]"
                 onClick={() => {
                   onPick(template)
                 }}

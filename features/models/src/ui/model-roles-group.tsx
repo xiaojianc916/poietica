@@ -65,7 +65,7 @@ export function ModelRolesGroup({ api }: { readonly api: ModelsApi }): React.Rea
                 </span>
                 <span className="model-roles__summary">
                   {assigned > 0 ? `已指定 ${assigned} 项` : null}
-                  <ChevronDown aria-hidden="true" className="model-roles__chevron" size={14} />
+                  <ChevronDown aria-hidden="true" className="model-roles__chevron" />
                 </span>
               </AccordionTrigger>
             </AccordionHeader>

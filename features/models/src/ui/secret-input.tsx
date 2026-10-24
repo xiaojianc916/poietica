@@ -20,7 +20,7 @@ export function SecretInput({ className, disabled, ...props }: SecretInputProps)
         onClick={() => setRevealed((value) => !value)}
         type="button"
       >
-        {revealed ? <EyeOff aria-hidden="true" size={15} /> : <Eye aria-hidden="true" size={15} />}
+        {revealed ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
       </button>
     </span>
   )

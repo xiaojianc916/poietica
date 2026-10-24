@@ -55,11 +55,10 @@ export function StateDot({
         aria-hidden="true"
         className={cn('ui-state-dot', 'ui-state-dot--ongoing', className)}
         data-state="ongoing"
-        height={edge}
+
         style={{ width: edge, height: edge }}
         ref={syncSpinner}
         viewBox="0 0 24 24"
-        width={edge}
       >
         <g className="ui-state-dot__motion">
           <circle className="ui-state-dot__track" cx="12" cy="12" r="9.5" />

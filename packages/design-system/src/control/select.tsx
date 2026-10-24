@@ -213,7 +213,7 @@ export function Select<TValue extends string = string>({
                   <BaseSelect.ItemText className={VALUE}>{option.label}</BaseSelect.ItemText>
 
                   <BaseSelect.ItemIndicator className="ml-auto shrink-0">
-                    <Check aria-hidden="true" className="size-4" />
+                    <Check aria-hidden="true" />
                   </BaseSelect.ItemIndicator>
                 </BaseSelect.Item>
               ))}

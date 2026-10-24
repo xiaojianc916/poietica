@@ -174,7 +174,7 @@ export function McpSettingsPage({ api }: { readonly api: ExtensionsApi }) {
             searchRegistry(needle)
           }}
         >
-          <Search aria-hidden="true" size={15} />
+          <Search aria-hidden="true" />
           <input
             aria-label="搜索 MCP 服务器"
             onChange={(event) => setNeedle(event.target.value)}
@@ -192,7 +192,7 @@ export function McpSettingsPage({ api }: { readonly api: ExtensionsApi }) {
         <span className="mcp__count">已安装</span>
         <div className="mcp__toolbar">
           <button aria-label="导入 JSON" className="mcp__icon-btn" onClick={() => setTab('json')} type="button">
-            <Download aria-hidden="true" size={14} />
+            <Download aria-hidden="true" />
           </button>
           <button
             aria-label="刷新"
@@ -202,11 +202,11 @@ export function McpSettingsPage({ api }: { readonly api: ExtensionsApi }) {
             type="button"
           >
             <span className={busy ? 'mcp__spin' : undefined}>
-              <RotateCw aria-hidden="true" size={14} />
+              <RotateCw aria-hidden="true" />
             </span>
           </button>
           <Button disabled={busy} onClick={() => setTab('form')} size="sm" type="button" variant="soft">
-            <Plus aria-hidden="true" size={13} />
+            <Plus aria-hidden="true" />
             新建
           </Button>
         </div>
@@ -233,11 +233,11 @@ export function McpSettingsPage({ api }: { readonly api: ExtensionsApi }) {
           <p>手动新建服务器，或导入已有配置。</p>
           <div className="mcp__empty-actions">
             <button className="mcp__primary mcp__primary--lg" onClick={() => setTab('form')} type="button">
-              <Plus aria-hidden="true" size={14} />
+              <Plus aria-hidden="true" />
               新建 MCP 服务器
             </button>
             <button className="mcp__outline" onClick={() => setTab('json')} type="button">
-              <Download aria-hidden="true" size={14} />
+              <Download aria-hidden="true" />
               导入
             </button>
           </div>
@@ -319,15 +319,15 @@ function ScopePill() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="mcp__scope">
-        <Monitor aria-hidden="true" size={14} />
+        <Monitor aria-hidden="true" />
         用户
-        <ChevronDown aria-hidden="true" size={13} />
+        <ChevronDown aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="mcp__scope-menu">
         <DropdownMenuItem onClick={() => undefined}>
-          <Monitor aria-hidden="true" size={14} />
+          <Monitor aria-hidden="true" />
           用户
-          <Check aria-hidden="true" size={14} />
+          <Check aria-hidden="true" />
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled>
@@ -783,7 +783,7 @@ export function McpFields({ entry, error }: { readonly entry: McpEntry; readonly
           type="button"
         >
           <span className={envOpen ? 'mcp-form__chevron mcp-form__chevron--open' : 'mcp-form__chevron'}>
-            <ChevronDown aria-hidden="true" size={13} />
+            <ChevronDown aria-hidden="true" />
           </span>
           环境变量（可选）
         </button>

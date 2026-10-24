@@ -124,7 +124,7 @@ function BrowserToolbar({
             }
           }}
         >
-          <ArrowLeft aria-hidden className="size-4" />
+          <ArrowLeft aria-hidden />
         </ToolbarButton>
         <ToolbarButton
           disabled={!canDrive || activeTab?.canGoForward !== true}
@@ -135,7 +135,7 @@ function BrowserToolbar({
             }
           }}
         >
-          <ArrowRight aria-hidden className="size-4" />
+          <ArrowRight aria-hidden />
         </ToolbarButton>
         {/*
          * 07 页 §12E 把「刷新/停止」写成同一枚按钮的两种状态：装载中下发 stop，其余刷新。
@@ -150,7 +150,7 @@ function BrowserToolbar({
             }
           }}
         >
-          {loading ? <Square aria-hidden className="size-4" /> : <RotateCw aria-hidden className="size-4" />}
+          {loading ? <Square aria-hidden /> : <RotateCw aria-hidden />}
         </ToolbarButton>
 
         <AddressInput activeTab={activeTab} api={api} report={report} />
@@ -166,7 +166,7 @@ function BrowserToolbar({
           }}
           pressed={picking}
         >
-          <SquareDashedMousePointer aria-hidden className="size-4" />
+          <SquareDashedMousePointer aria-hidden />
         </ToolbarButton>
 
         <BrowserOverflowMenu
@@ -213,7 +213,7 @@ function AddressInput({
   return (
     <input
       aria-label="地址栏"
-      className="h-7 min-w-0 flex-1 rounded-md border border-current/10 bg-transparent px-2.5 text-xs outline-none placeholder:opacity-50 focus:border-current/25"
+      className="h-7 min-w-0 flex-1 rounded-md border bg-transparent px-2.5 text-xs outline-none placeholder:opacity-50 "
       data-browser-address=""
       onBlur={() => {
         editing.current = false
@@ -347,7 +347,7 @@ function Viewport({
     >
       {showEmpty ? (
         <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-          <Globe aria-hidden className="size-8 opacity-30" />
+          <Globe aria-hidden className=" opacity-30" />
           <p className="text-sm font-medium">浏览器</p>
           <p className="text-xs opacity-50">粘贴或输入 URL 以打开网页。</p>
         </div>
