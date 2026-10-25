@@ -15134,6 +15134,12 @@
           "hasSession": {
             "type": "boolean"
           },
+          "sessionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "forkedFrom": {
             "anyOf": [
               {
@@ -15172,6 +15178,7 @@
           "state",
           "pendingInteraction",
           "hasSession",
+          "sessionId",
           "forkedFrom",
           "pinned",
           "archived",
@@ -15340,6 +15347,12 @@
           "hasSession": {
             "type": "boolean"
           },
+          "sessionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "forkedFrom": {
             "anyOf": [
               {
@@ -15378,6 +15391,7 @@
           "state",
           "pendingInteraction",
           "hasSession",
+          "sessionId",
           "forkedFrom",
           "pinned",
           "archived",
@@ -15468,6 +15482,12 @@
           "hasSession": {
             "type": "boolean"
           },
+          "sessionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "forkedFrom": {
             "anyOf": [
               {
@@ -15506,6 +15526,7 @@
           "state",
           "pendingInteraction",
           "hasSession",
+          "sessionId",
           "forkedFrom",
           "pinned",
           "archived",
@@ -15603,6 +15624,12 @@
                 "hasSession": {
                   "type": "boolean"
                 },
+                "sessionId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
                 "forkedFrom": {
                   "anyOf": [
                     {
@@ -15641,6 +15668,7 @@
                 "state",
                 "pendingInteraction",
                 "hasSession",
+                "sessionId",
                 "forkedFrom",
                 "pinned",
                 "archived",
@@ -15738,6 +15766,12 @@
           "hasSession": {
             "type": "boolean"
           },
+          "sessionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "forkedFrom": {
             "anyOf": [
               {
@@ -15776,6 +15810,7 @@
           "state",
           "pendingInteraction",
           "hasSession",
+          "sessionId",
           "forkedFrom",
           "pinned",
           "archived",
@@ -15870,6 +15905,12 @@
           "hasSession": {
             "type": "boolean"
           },
+          "sessionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "forkedFrom": {
             "anyOf": [
               {
@@ -15908,6 +15949,7 @@
           "state",
           "pendingInteraction",
           "hasSession",
+          "sessionId",
           "forkedFrom",
           "pinned",
           "archived",
@@ -16002,6 +16044,12 @@
           "hasSession": {
             "type": "boolean"
           },
+          "sessionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "forkedFrom": {
             "anyOf": [
               {
@@ -16040,6 +16088,7 @@
           "state",
           "pendingInteraction",
           "hasSession",
+          "sessionId",
           "forkedFrom",
           "pinned",
           "archived",
@@ -16134,6 +16183,12 @@
           "hasSession": {
             "type": "boolean"
           },
+          "sessionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "forkedFrom": {
             "anyOf": [
               {
@@ -16172,6 +16227,7 @@
           "state",
           "pendingInteraction",
           "hasSession",
+          "sessionId",
           "forkedFrom",
           "pinned",
           "archived",
@@ -28208,6 +28264,12 @@
           "hasSession": {
             "type": "boolean"
           },
+          "sessionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "forkedFrom": {
             "anyOf": [
               {
@@ -28246,6 +28308,7 @@
           "state",
           "pendingInteraction",
           "hasSession",
+          "sessionId",
           "forkedFrom",
           "pinned",
           "archived",

@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@poietica/design-system'
 import { useContributions } from '@poietica/ui-kernel'
-import { ChevronDown, Download, Laptop, Link2, Pencil, Pin, PinOff } from 'lucide-react'
+import { ChevronDown, Copy, Download, Laptop, Link2, Pencil, Pin, PinOff } from 'lucide-react'
 import { type ReactNode, useCallback, useRef, useState } from 'react'
 import type { Thread } from '../../../contract'
 import { threadActions } from '../../../ui-api'
@@ -24,6 +24,8 @@ export interface ThreadTitleMenuProps {
   readonly onExport?: ((threadId: string) => void) | undefined
   /** 用 omp 的分享生成会话链接并复制；空会话由 Core 报 thread_empty */
   readonly onShare?: ((threadId: string) => void) | undefined
+  /** 复制这条对话的 omp Session ID（`omp --resume <id>` 认它）。还没有会话文件时没有 id，那一项不画 */
+  readonly onCopySessionId?: ((threadId: string) => void) | undefined
   /**
    * 从外面进改名（斜杠命令 `/rename`）：每变一次就进一次就地改名，与点标题同一个编辑框。
    * 计数而不是布尔：改完再敲一次 `/rename` 也得再进一次。
@@ -140,6 +142,7 @@ function TitleLabel({
 function ThreadActionsMenu({
   canRename,
   onBeginRename,
+  onCopySessionId,
   onExport,
   onPin,
   onShare,
@@ -147,6 +150,7 @@ function ThreadActionsMenu({
 }: {
   readonly canRename: boolean
   readonly onBeginRename: (() => void) | undefined
+  readonly onCopySessionId: ((threadId: string) => void) | undefined
   readonly onExport: ((threadId: string) => void) | undefined
   readonly onPin: ((threadId: string, pinned: boolean) => void) | undefined
   readonly onShare: ((threadId: string) => void) | undefined
@@ -193,7 +197,7 @@ function ThreadActionsMenu({
             }}
           >
             <PinGlyph aria-hidden="true" />
-            <span>{isPinned ? '取消固定' : '固定'}</span>
+            <span>{isPinned ? '取消置顶' : '置顶会话'}</span>
           </DropdownMenuItem>
         )}
 
@@ -233,6 +237,22 @@ function ThreadActionsMenu({
           </DropdownMenuItem>
         )}
 
+        {/*
+         * 复制 Session ID：与 DSH 同一档位置（菜单末尾、贡献动作之前）、同一句文案。
+         * id 缺席就不画 —— 还没发过话的对话没有 omp 会话，那一格没有东西可复制。
+         */}
+        {onCopySessionId === undefined || thread.sessionId === null ? null : (
+          <DropdownMenuItem
+            className="assistant-thread-menu__item"
+            onClick={() => {
+              onCopySessionId(thread.id)
+            }}
+          >
+            <Copy aria-hidden="true" />
+            <span>复制 Session ID</span>
+          </DropdownMenuItem>
+        )}
+
         {contributed.length === 0 ? null : (
           <>
             <DropdownMenuSeparator />
@@ -265,6 +285,7 @@ function ThreadActionsMenu({
 }
 
 export function ThreadTitleMenu({
+  onCopySessionId,
   onExport,
   onPin,
   onRename,
@@ -323,6 +344,7 @@ export function ThreadTitleMenu({
         <ThreadActionsMenu
           canRename={onRename !== undefined}
           onBeginRename={onRename === undefined ? undefined : beginRename}
+          onCopySessionId={onCopySessionId}
           onExport={onExport}
           onPin={onPin}
           onShare={onShare}

@@ -16,6 +16,7 @@ function thread(id: string, state: Thread['state']): Thread {
     state,
     pendingInteraction: null,
     hasSession: true,
+    sessionId: 's1',
     forkedFrom: null,
     pinned: false,
     archived: false,

@@ -12,7 +12,7 @@ export interface ThreadRow {
   origin: 'user' | 'automation'
   /**
    * omp 会话 id 与文件路径：库里的 CHECK 要求两者同时为空或同时有值，所以只在这一处一起写
-   * （不暴露给实体：Thread 只有 hasSession）。
+   * （实体上 id 以 sessionId 露出去，供「复制 Session ID」用；文件路径仍然不出这个进程）。
    */
   sessionId: string | null
   sessionFile: string | null
@@ -106,6 +106,7 @@ export function threadOf(
     state,
     pendingInteraction,
     hasSession: row.sessionFile !== null,
+    sessionId: row.sessionId,
     forkedFrom: row.forkedFrom,
     pinned: row.pinned,
     archived: row.archived,

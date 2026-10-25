@@ -60,6 +60,7 @@ export function createConversationContributions(setup: ConversationSetup, action
     archiveThread,
     archived,
     collapsed,
+    copySessionId,
     exportThread,
     newThread,
     openThread,
@@ -426,6 +427,7 @@ export function createConversationContributions(setup: ConversationSetup, action
             prefill={held.threadId === threadId ? held.text : undefined}
             onGoalAction={(action) => runGoalAction(api, threadId, action)}
             onExportThread={(id) => void exportThread(id)}
+            onCopySessionId={(id) => void copySessionId(id)}
             onShareThread={(id) => void shareThread(id)}
             onPinThread={(id, pinned) => {
               void api

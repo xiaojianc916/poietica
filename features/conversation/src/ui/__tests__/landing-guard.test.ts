@@ -24,6 +24,7 @@ function thread(id: string, archived = false): Thread {
     state: 'idle',
     pendingInteraction: null,
     hasSession: true,
+    sessionId: 's1',
     forkedFrom: null,
     pinned: false,
     archived,

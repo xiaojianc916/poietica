@@ -34,6 +34,11 @@ export const Thread = z.object({
    */
   pendingInteraction: PendingInteraction.nullable(),
   hasSession: z.boolean(), // 是否已绑定 omp 会话文件
+  /**
+   * omp 给这条会话签发的 id（会话头里那一个，`omp --resume <id>` 认它）。还没有会话文件时是 null。
+   * 它不是线程 id：线程 id 是本仓自己铸的，omp 不认识。
+   */
+  sessionId: z.string().nullable(),
   forkedFrom: ThreadId.nullable(),
   pinned: z.boolean(),
   archived: z.boolean(),

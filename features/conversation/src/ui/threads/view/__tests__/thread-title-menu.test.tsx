@@ -47,6 +47,7 @@ function threadOf(over: Partial<Thread> = {}): Thread {
     state: 'idle',
     pendingInteraction: null,
     hasSession: false,
+    sessionId: null,
     forkedFrom: null,
     pinned: false,
     archived: false,
@@ -112,14 +113,15 @@ describe('会话页左上角标题菜单', () => {
     expect(screen.queryByText('新对话')).toBeNull()
   })
 
-  test('菜单是固定 / 重命名 / 导出会话 / 复制会话链接，之后接贡献的动作', async () => {
+  test('菜单是固定 / 重命名 / 导出会话 / 复制会话链接 / 复制 Session ID，之后接贡献的动作', async () => {
     await mount(
       <ThreadTitleMenu
+        onCopySessionId={() => undefined}
         onExport={() => undefined}
         onPin={() => undefined}
         onRename={() => undefined}
         onShare={() => undefined}
-        thread={threadOf()}
+        thread={threadOf({ hasSession: true, sessionId: 's1' })}
       />,
       true,
     )
@@ -128,15 +130,52 @@ describe('会话页左上角标题菜单', () => {
       fireEvent.click(screen.getByLabelText('对话操作'))
     })
 
-    expect(screen.getByText('固定')).toBeDefined()
+    expect(screen.getByText('置顶会话')).toBeDefined()
     expect(screen.getByText('重命名')).toBeDefined()
     expect(screen.getByText('导出会话')).toBeDefined()
     expect(screen.getByText('复制会话链接')).toBeDefined()
+    expect(screen.getByText('复制 Session ID')).toBeDefined()
+    /* 与另外几项一样带字形：一列里空一格会被读成另一种层级。 */
+    expect(screen.getByText('复制 Session ID').closest('button')?.querySelector('svg')).not.toBeNull()
     expect(screen.getByText('以此对话创建定时任务')).toBeDefined()
     /*
      * 贡献项自带字形，菜单里要跟着画：这一行若无图标，与另外三项排在一起时会被读成另一种层级。
      */
     expect(screen.getByText('以此对话创建定时任务').closest('button')?.querySelector('svg')).not.toBeNull()
+  })
+
+  test('点「复制 Session ID」把这条对话的 id 交回去', async () => {
+    const copied: string[] = []
+    await mount(
+      <ThreadTitleMenu
+        onCopySessionId={(threadId) => {
+          copied.push(threadId)
+        }}
+        thread={threadOf({ hasSession: true, sessionId: 'omp-abc' })}
+      />,
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('对话操作'))
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('复制 Session ID'))
+    })
+
+    /* 交的是线程号（调用方按它去线程库取 id），不是把 id 塞进这里。 */
+    expect(copied).toEqual(['t1'])
+  })
+
+  /* 还没发过话的对话没有 omp 会话：那一格没有东西可复制，与「给不出的动作一律不画」同一条。 */
+  test('没有 Session ID 时不画「复制 Session ID」', async () => {
+    await mount(<ThreadTitleMenu onCopySessionId={() => undefined} thread={threadOf()} />)
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('对话操作'))
+    })
+
+    expect(screen.queryByText('复制 Session ID')).toBeNull()
   })
 
   test('点重命名换成就地输入框，提交时交回新标题', async () => {

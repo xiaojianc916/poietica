@@ -22,6 +22,11 @@ export interface ConversationActions {
   readonly exportThread: (threadId: string) => Promise<void>
   /** omp 的分享：拿到链接后复制到剪贴板（空会话由 Core 报 thread_empty，横幅说清楚） */
   readonly shareThread: (threadId: string) => Promise<void>
+  /**
+   * 复制这条对话的 omp Session ID（`omp --resume <id>` 认它）。没有会话文件时没有 id，
+   * 报一句人话而不是复制一个空串。
+   */
+  readonly copySessionId: (threadId: string) => Promise<void>
   readonly showArchived: () => void
   readonly notify: (threadId: string, body: string, kind: 'completion' | 'needs-confirm') => void
   readonly runningThreadIds: () => ReadonlySet<string>
@@ -179,6 +184,25 @@ export function createConversationActions(setup: ConversationSetup): Conversatio
   }
 
   /*
+   * 复制 Session ID：id 是 omp 签发的，读线程库那一份就够 —— 不必问 Core。
+   * 还没有会话文件时线程行上的 id 是 null（两条一起为空），这时复制会得到一个空串，所以直接说清楚。
+   */
+  const copySessionId = async (threadId: string): Promise<void> => {
+    const thread = stores.threads.byId(threadId)
+    if (thread?.sessionId == null) {
+      banners.show({ severity: 'warning', title: '这条对话还没有 Session ID，先发一句话' })
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(thread.sessionId)
+      banners.show({ severity: 'success', title: 'Session ID 已复制' })
+    } catch (cause) {
+      ctx.logger.warn('session id copy failed', { threadId, error: String(cause) })
+      banners.show({ severity: 'warning', title: '复制失败，请重试' })
+    }
+  }
+
+  /*
    * 「新建对话」= **打开入口页**，不是当场建一条线程：号由入口页发出第一句话时的 `prepare()` 铸，**没有**「先建空线程」这一步。
    * 原先这里直接 `createThread` + `openThread`：点一次加号就落一条标题为「新对话」的空线程（真机实测：点两下，库里多两条 `title_source = pending` 的行）。
    * 不点名工作区就是「当前那个」；点了名就先切过去。
@@ -212,6 +236,7 @@ export function createConversationActions(setup: ConversationSetup): Conversatio
     archiveThread,
     archived,
     collapsed,
+    copySessionId,
     draftPin,
     drafts,
     exportThread,

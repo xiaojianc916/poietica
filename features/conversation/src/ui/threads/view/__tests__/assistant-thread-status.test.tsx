@@ -126,6 +126,7 @@ describe('会话行：状态记号', () => {
       state: 'idle',
       pendingInteraction: null,
       hasSession: true,
+      sessionId: 's1',
       forkedFrom: null,
       pinned: false,
       archived: false,

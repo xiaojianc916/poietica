@@ -70,6 +70,7 @@ export function stubConversation(): ConversationService & {
         state: 'idle',
         pendingInteraction: null,
         hasSession: false,
+        sessionId: null,
         forkedFrom: null,
         pinned: false,
         archived: false,

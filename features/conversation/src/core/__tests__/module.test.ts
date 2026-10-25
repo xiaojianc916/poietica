@@ -57,6 +57,8 @@ describe('conversation core 模块', () => {
   test('CV-1 threads.create 后 hasSession 为 false；第一次 turns.submit 后为 true，会话文件已绑定', async () => {
     const { api, thread, h, finish } = await started()
     expect(thread.hasSession).toBe(false)
+    /* 还没发过话 = omp 还没签发会话，Session ID 此时是 null（菜单据此不画「复制 Session ID」）。 */
+    expect(thread.sessionId).toBeNull()
     expect(thread.state).toBe('idle')
     expect(thread.titleSource).toBe('pending')
 
@@ -71,6 +73,8 @@ describe('conversation core 模块', () => {
     await runOneBeat(h)
     const after = await api.call('threads.get', { threadId: thread.id })
     expect(after.hasSession).toBe(true)
+    /* 绑上会话文件的同时 omp 的会话 id 也要露出来：那是「复制 Session ID」唯一的数据来源。 */
+    expect(after.sessionId).toBeString()
     expect(after.title).toBe('你好')
     expect(after.titleSource).toBe('auto')
     await finish()

@@ -68,6 +68,8 @@ export interface AssistantSurfaceProps {
   readonly onRenameThread?: ((threadId: string, title: string) => void) | undefined
   readonly onExportThread?: ((threadId: string) => void) | undefined
   readonly onShareThread?: ((threadId: string) => void) | undefined
+  /** 复制这条对话的 omp Session ID（菜单里那一项）。 */
+  readonly onCopySessionId?: ((threadId: string) => void) | undefined
   readonly controls: readonly SessionConfigControl[]
   readonly controlsPending?: boolean | undefined
   readonly controlsFailure?: string | undefined
@@ -267,6 +269,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   isNew,
   onComposeIntent,
   onExportThread,
+  onCopySessionId,
   onFork,
   onShareThread,
   onGoalAction = NO_GOAL_ACTIONS,
@@ -455,6 +458,7 @@ export const AssistantSurface = memo(function AssistantSurface({
         <ThreadTitleMenu
           onExport={onExportThread}
           onPin={onPinThread}
+          onCopySessionId={onCopySessionId}
           onShare={onShareThread}
           onRename={onRenameThread}
           renameRequest={slash.renameRequest}

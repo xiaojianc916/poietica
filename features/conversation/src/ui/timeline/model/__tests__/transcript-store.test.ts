@@ -94,6 +94,7 @@ function thread(id: string): Thread {
     state: 'idle',
     pendingInteraction: null,
     hasSession: false,
+    sessionId: null,
     forkedFrom: null,
     pinned: false,
     archived: false,
