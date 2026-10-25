@@ -43,6 +43,8 @@ export interface ConversationCoreDeps {
   /** 斜杠命令的输出与命令表变化（commands.output / commands.changed） */
   readonly emitCommandOutput: (p: { threadId: string; text: string; tone: CommandOutputTone }) => void
   readonly emitCommandsChanged: (p: { threadId: string }) => void
+  /** 工具写了一处文件（引擎写的那一刻报）：Core 事件，账单归 review */
+  readonly emitFileChanged: (p: { threadId: string } & import('@poietica/engine').FileChange) => void
   /** 侧边提问（右坞辅助对话）的三条通知：side.topic / side.delta / side.notice */
   readonly emitSideTopic: (p: { threadId: string; topic: SideTopic }) => void
   readonly emitSideDelta: (p: {
@@ -217,6 +219,7 @@ export class ConversationCore {
       emitSideTopic: d.emitSideTopic,
       emitSideDelta: d.emitSideDelta,
       emitSideNotice: d.emitSideNotice,
+      emitFileChanged: d.emitFileChanged,
       emitInteractionRequested: d.emitInteractionRequested,
       emitInteractionResolved: d.emitInteractionResolved,
       emitTurnSettled: d.emitTurnSettled,

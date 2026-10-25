@@ -164,6 +164,7 @@ test('T5 守卫：旧会话的迟到事件不许改现在的标题（sessionFile
     emitSideTopic: () => undefined,
     emitSideDelta: () => undefined,
     emitSideNotice: () => undefined,
+    emitFileChanged: () => undefined,
     emitContextUsage: () => undefined,
     emitInteractionRequested: () => undefined,
     emitInteractionResolved: () => undefined,

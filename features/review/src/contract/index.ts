@@ -10,6 +10,8 @@ import {
   GithubRepository,
   GitStatus,
   ReviewFile,
+  TurnChanges,
+  TurnRewindPreview,
 } from './entities'
 import { reviewErrors } from './errors'
 
@@ -20,7 +22,7 @@ const empty = z.object({})
 
 export const reviewContract = defineContract({
   id: 'review',
-  namespaces: ['git', 'github'],
+  namespaces: ['git', 'github', 'review'],
   methods: [
     defineMethod({
       name: 'git.status',
@@ -193,6 +195,28 @@ export const reviewContract = defineContract({
       timeoutMs: 60_000,
       description: '合并这个 PR（方法由调用方选：merge / squash / rebase）',
     }),
+
+    defineMethod({
+      name: 'review.turnChanges',
+      owner: 'core',
+      params: z.object({ threadId: z.string().min(1) }),
+      result: TurnChanges,
+      description: '这条线程每一轮改过哪些文件（turns 升序；行数是这一轮的真实增减，撤销后仍报原值）',
+    }),
+    defineMethod({
+      name: 'review.previewTurnRewind',
+      owner: 'core',
+      params: z.object({ threadId: z.string().min(1), turn: z.number().int().positive() }),
+      result: TurnRewindPreview,
+      description: '撤销前的检查：按盘上当前内容与账本里的 after 比对，列出安全与不安全的文件；canApply = 没有不安全的',
+    }),
+    defineMethod({
+      name: 'review.applyTurnRewind',
+      owner: 'core',
+      params: z.object({ threadId: z.string().min(1), turn: z.number().int().positive() }),
+      result: z.object({ turn: z.number().int().positive(), reverted: z.literal(true) }),
+      description: '撤销这一轮的文件改动（只回退工作区，聊天历史不动）；有文件被外部改过时整轮拒绝 → rewind_unsafe',
+    }),
   ],
   notifications: [
     defineNotification({
@@ -200,6 +224,12 @@ export const reviewContract = defineContract({
       owner: 'core',
       params: z.object({ workspaceId: z.string().min(1) }),
       description: '仓库有变化（300ms 去抖后）',
+    }),
+    defineNotification({
+      name: 'review.turnChangesChanged',
+      owner: 'core',
+      params: z.object({ threadId: z.string().min(1) }),
+      description: '这一轮的文件账变了（落账或撤销之后）：界面重读 review.turnChanges',
     }),
   ],
   errors: reviewErrors,

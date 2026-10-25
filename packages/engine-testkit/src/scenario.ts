@@ -10,6 +10,8 @@ export type ScenarioStep =
       readonly interaction: DistributiveOmit<Interaction, 'id' | 'createdAt' | 'timeoutAt'>
     } // 等待 respond 后继续
   | { readonly kind: 'usage'; readonly usage: Omit<UsageSample, 'at'> }
+  /* 工具写了一个文件：真引擎在写的那一刻报前后正文，替身在这里报同样的一份 */
+  | { readonly kind: 'file'; readonly path: string; readonly before: string | null; readonly after: string }
   | { readonly kind: 'fail'; readonly code: string; readonly message: string }
 
 export type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
@@ -27,4 +29,12 @@ export const callTool = (name: string, args: unknown, result = ''): ScenarioStep
   name,
   args,
   result,
+})
+
+/** 工具写了一个文件（撤销那条路的事实源）：before 为 null = 写之前它不存在 */
+export const writeFile = (path: string, before: string | null, after: string): ScenarioStep => ({
+  kind: 'file',
+  path,
+  before,
+  after,
 })

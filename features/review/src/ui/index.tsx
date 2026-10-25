@@ -1,10 +1,16 @@
-import { composerContextItems, workspaceGitProviders } from '@poietica/feature-conversation/ui-api'
+import {
+  composerContextItems,
+  turnChangesProviders,
+  workspaceGitProviders,
+} from '@poietica/feature-conversation/ui-api'
 import { WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
 import { BannersToken, builtinPoints, defineUiFeature, LayoutToken } from '@poietica/ui-kernel'
 import { FileDiff, GitCompareArrows } from 'lucide-react'
+import { createTurnChangesApi } from './api'
 import { ComposerBranchChip } from './composer-branch'
 import { coreSessionOf } from './core-session'
 import { BranchStatusItem, CodeReviewNavRow, CodeReviewSurface, ReviewPanel } from './surface'
+import { createTurnChangesHolder, TurnChangesSource } from './turn-changes-source'
 import { WorkspaceGitSource } from './workspace-git-source'
 
 const PANEL_ID = 'review.panel'
@@ -82,6 +88,36 @@ export default defineUiFeature({
         <WorkspaceGitSource ctx={ctx} report={report}>
           {children}
         </WorkspaceGitSource>
+      ),
+    })
+
+    /* 每轮回复下方那条「N 个文件已更改 / 撤销」的事实源。账本属于 review，conversation 只画那一条；
+     * 与上面那一格同一形制。holder 挂在装配这一层：落账通知只有一处订阅，Core 重启时也由这里整体作废 ——
+     * 组件里做不到，那一层随对话切换挂上卸下。 */
+    const turnChangesGateway = createTurnChangesApi(ctx)
+    const turnChanges = createTurnChangesHolder({ gateway: turnChangesGateway, logger: ctx.logger })
+    const offTurnChanges = turnChanges.start()
+    ctx.lifecycle.onCoreReady(() => {
+      turnChanges.reset()
+    })
+    ctx.lifecycle.onDispose(() => {
+      offTurnChanges()
+      turnChanges.stop()
+    })
+
+    ctx.contribute(turnChangesProviders, {
+      id: 'review.turnChanges',
+      order: 10,
+      component: ({ children }) => (
+        <TurnChangesSource
+          gateway={turnChangesGateway}
+          holder={turnChanges}
+          onFailure={(cause) => {
+            banners.error(cause, '撤销失败')
+          }}
+        >
+          {children}
+        </TurnChangesSource>
       ),
     })
 

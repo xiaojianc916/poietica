@@ -22,6 +22,21 @@ export {
   workspaceGitContext,
   workspaceGitProviders,
 } from './git-status'
+/*
+ * 每轮回复下方那条「N 个文件已更改 / 撤销」的数据落点（见 ./turn-changes.ts 的头注）。
+ *
+ * 与上面那一格同一形制、同一条理由：账本属于 review，conversation 只画。
+ */
+export {
+  type TurnChangesApi,
+  type TurnChangesFile,
+  type TurnChangesProviderItem,
+  type TurnChangesView,
+  turnChangesContext,
+  turnChangesProviders,
+  useTurnChanges,
+  useTurnChangesOf,
+} from './turn-changes'
 /**
  * 输入框下方那一行的其它 chip。
  *

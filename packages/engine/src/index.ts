@@ -25,6 +25,7 @@ export type {
 export type {
   EngineSession,
   EngineSessionEvent,
+  FileChange,
   OpenSessionSpec,
   PageOptions,
   QueueOutcome,

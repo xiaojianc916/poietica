@@ -27,6 +27,27 @@ export interface TurnSettled {
 export const turnSettled: CoreEvent<TurnSettled> = defineCoreEvent<TurnSettled>('conversation', 'turnSettled')
 
 /**
+ * 这一轮的某个文件被工具写过（引擎在写的那一刻记下前后正文，见 `@poietica/engine` 的 `FileChange`）。
+ *
+ * conversation 不存它、不解释它，只把它交出去：**撤销一轮的改动必须有写之前的正文**，而写完之后
+ * 工作区里只剩新内容，谁事后去读都拿不回来。文件的账与撤销归 review（它认识工作区与磁盘）。
+ */
+export interface TurnFileChanged {
+  readonly threadId: string
+  /** 轮号（时间线 turn.ordinal，从 1 起）。 */
+  readonly turn: number
+  readonly path: string
+  /** 写之前那一份；null = 写之前这个文件不存在（撤销就是删掉它）。 */
+  readonly before: string | null
+  /** 写之后那一份；null = 这次把它删了（撤销就是写回来）。 */
+  readonly after: string | null
+}
+export const turnFileChanged: CoreEvent<TurnFileChanged> = defineCoreEvent<TurnFileChanged>(
+  'conversation',
+  'turnFileChanged',
+)
+
+/**
  * 一句话没能交给 omp（冷打开失败、引擎在开轮前拒收、被判 dropped、Core 重启）。
  *
  * 「Core 即时回显」之后，提交有独立于轮次的生命周期：`failed` 这个结局**不经过任何一轮**，

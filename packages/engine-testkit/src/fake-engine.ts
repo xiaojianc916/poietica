@@ -372,7 +372,7 @@ class FakeSession implements EngineSession {
         this.setState('idle', { code: step.code, message: step.message })
         return
       }
-      const ops = await this.apply(step, turn)
+      const ops = await this.apply(step, turn, ordinal)
       this.push(ops)
     }
     if (this.disposed) return
@@ -387,7 +387,7 @@ class FakeSession implements EngineSession {
     this.reportContextUsage()
   }
 
-  private async apply(step: ScenarioStep, turn: string): Promise<TranscriptOperation[]> {
+  private async apply(step: ScenarioStep, turn: string, ordinal: number): Promise<TranscriptOperation[]> {
     switch (step.kind) {
       case 'text':
       case 'thinking': {
@@ -460,6 +460,10 @@ class FakeSession implements EngineSession {
         this.emit({ type: 'contextUsage', usage: this.o.contextUsage() })
         return []
       }
+      case 'file':
+        /* 轮号是时间线那个 ordinal（从 1 起），不是 turnId 字符串 */
+        this.emit({ type: 'fileChanged', turn: ordinal, path: step.path, before: step.before, after: step.after })
+        return []
       case 'fail':
         // fail 在 run() 里直接结束这一轮，不会走到这里
         return []

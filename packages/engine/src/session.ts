@@ -127,6 +127,29 @@ export type EngineSessionEvent =
       readonly delta: string
     }
   | { readonly type: 'sideNotice'; readonly message: string }
+  /*
+   * 工具写了一个文件。**写的那一刻**报，之后再也没有第二次机会：工作区里只剩新内容，谁事后去读都拿不回旧的那一份。
+   * 撤销一轮的改动靠这一条（见 FileChange），与时间线无关 —— 它不改屏幕。
+   */
+  | ({ readonly type: 'fileChanged' } & FileChange)
+
+/**
+ * 一次工具写入的前后正文。
+ *
+ * 撤销一轮的改动只要有它 —— 写完之后再读，文件里只剩 after 了。`before` 为 null 表示
+ * 写之前这个文件不存在（撤销就是删掉它）。行数不在这里算：那是 `@poietica/design-system/diff`
+ * 那一条管线的活，收账的一方自己数。
+ */
+export interface FileChange {
+  /** 这一笔落在哪一轮（时间线的 turn.ordinal，从 1 起）：撤销按轮整批退。 */
+  readonly turn: number
+  /** 工具真正写的那个绝对路径。 */
+  readonly path: string
+  /** 写之前那一份；null = 写之前这个文件不存在（撤销就是删掉它）。 */
+  readonly before: string | null
+  /** 写之后那一份；null = 这次把它删了（撤销就是把它写回来）。 */
+  readonly after: string | null
+}
 
 export interface EngineSession {
   readonly sessionId: string

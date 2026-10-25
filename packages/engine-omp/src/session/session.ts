@@ -4,6 +4,7 @@ import {
   EngineErrorCode,
   type EngineSession,
   type EngineSessionEvent,
+  type FileChange,
   type Interaction,
   type InteractionAnswer,
   interactionCardOf,
@@ -1027,6 +1028,14 @@ export class OmpSession implements EngineSession {
 
   timelineReset(agentId: string): void {
     this.emit({ type: 'timelineReset', agentId })
+  }
+
+  /**
+   * 工具写了一个文件（omp-session-adapter 的 file-changes 收尾时调用）：`emit` 是 private，这里留出口。
+   * 轮号取投影器当下那个：收账的一方按（对话, 轮）记账，撤销也要按它整轮退。
+   */
+  emitFileChanged(change: FileChange): void {
+    this.emit({ type: 'fileChanged', ...change })
   }
 
   /** 一轮结束（omp 的 agent_end）：结局由最后一条 assistant 消息决出 */

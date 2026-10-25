@@ -13699,6 +13699,225 @@
       }
     },
     {
+      "name": "review.applyTurnRewind",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "撤销这一轮的文件改动（只回退工作区，聊天历史不动）；有文件被外部改过时整轮拒绝 → rewind_unsafe",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "turn": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "threadId",
+          "turn"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "turn": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "reverted": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "turn",
+          "reverted"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "review.previewTurnRewind",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "撤销前的检查：按盘上当前内容与账本里的 after 比对，列出安全与不安全的文件；canApply = 没有不安全的",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "turn": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "threadId",
+          "turn"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "safe": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "unsafe": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string",
+                  "enum": [
+                    "externally_modified",
+                    "missing"
+                  ]
+                }
+              },
+              "required": [
+                "path",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "canApply": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "safe",
+          "unsafe",
+          "canApply"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "review.turnChanges",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "这条线程每一轮改过哪些文件（turns 升序；行数是这一轮的真实增减，撤销后仍报原值）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "threadId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "turns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "turn": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "fileCount": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "added": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "removed": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "reverted": {
+                  "type": "boolean"
+                },
+                "files": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "added": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "removed": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "added",
+                      "removed"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "turn",
+                "fileCount",
+                "added",
+                "removed",
+                "reverted",
+                "files"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "turns"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "shell.openExternal",
       "owner": "host",
       "timeoutMs": 30000,
@@ -27759,6 +27978,25 @@
       }
     },
     {
+      "name": "review.turnChangesChanged",
+      "owner": "core",
+      "description": "这一轮的文件账变了（落账或撤销之后）：界面重读 review.turnChanges",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "side.delta",
       "owner": "core",
       "description": "正在答的侧边提问又流出一截（offset = 这一截之前已有的 UTF-16 码元数）",
@@ -33042,6 +33280,14 @@
     {
       "code": "review.pull_request_missing",
       "message": "这个 pull request 已经不在了"
+    },
+    {
+      "code": "review.rewind_not_available",
+      "message": "这一轮没有可以撤销的改动"
+    },
+    {
+      "code": "review.rewind_unsafe",
+      "message": "这些文件在此期间被改过，不能撤销"
     },
     {
       "code": "terminal.cwd_not_found",

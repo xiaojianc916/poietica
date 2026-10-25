@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { EngineErrorCode } from '@poietica/engine'
-import { createFakeEngine, type FakeEngine, type ScenarioScript } from '@poietica/engine-testkit'
+import { createFakeEngine, type FakeEngine, type ScenarioScript, writeFile } from '@poietica/engine-testkit'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { Workspace } from '@poietica/feature-workspaces/contract'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
@@ -83,6 +83,8 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
   const queues: { threadId: string; queue: QueueView }[] = []
   const threadRemovedEvents: string[] = []
   const states: { threadId: string; state: string }[] = []
+  const fileChanges: { threadId: string; turn: number; path: string; before: string | null; after: string | null }[] =
+    []
 
   const engine: FakeEngine = overrides.engine ?? createFakeEngine()
   engine.freezeTools()
@@ -143,6 +145,10 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
     emitUserMessage: (p) => {
       messages.push(p)
     },
+    /* 工具的写账交出去（照 turnSettled 那条：转发这一层自身就该被钉住，不是靠订阅方去测） */
+    emitFileChanged: (p) => {
+      fileChanges.push({ ...p })
+    },
   })
 
   return {
@@ -165,6 +171,7 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
     queues,
     threadRemovedEvents,
     states,
+    fileChanges,
     hub,
   }
 }
@@ -294,6 +301,7 @@ describe('conversation core（不经内核的直连测试）', () => {
       emitSideTopic: () => undefined,
       emitSideDelta: () => undefined,
       emitSideNotice: () => undefined,
+      emitFileChanged: () => undefined,
       emitContextUsage: () => undefined,
       emitUserMessage: () => undefined,
     })
@@ -619,6 +627,31 @@ describe('conversation core（不经内核的直连测试）', () => {
     expect(core.turns.peek(row.id)).toBeUndefined()
     const caught = hub.catchUp(row.id, 'main', epoch, 0)
     expect(caught.complete).toBe(false)
+
+    await core.dispose()
+    db.close()
+    await dir.dispose()
+  })
+
+  /*
+   * 工具写文件的账：引擎在写的那一刻报（before 只有那一刻拿得到），conversation 原样交出去。
+   * 这一层只做转发 —— 存账与撤销归 review，但「转没转」得在这里钉住，否则改坏它没人发现。
+   */
+  test('引擎报 fileChanged：带轮号与本轮对话号原样转给 Core 事件', async () => {
+    const { core, fileChanges, dir, db } = await makeCore({
+      engine: createFakeEngine({ script: () => [writeFile('src/a.ts', 'old\n', 'new\n')] }),
+    })
+    const row = core.threads.create({ workspaceId: 'ws1' })
+    await submit(core, row.id, '改一下')
+    await waitFor(() => fileChanges.length > 0, { message: 'fileChanged 没有被转出去' })
+
+    expect(fileChanges[0]).toEqual({
+      threadId: row.id,
+      turn: 1,
+      path: 'src/a.ts',
+      before: 'old\n',
+      after: 'new\n',
+    })
 
     await core.dispose()
     db.close()
@@ -1030,6 +1063,7 @@ describe('conversation core（不经内核的直连测试）', () => {
         emitSideTopic: () => undefined,
         emitSideDelta: () => undefined,
         emitSideNotice: () => undefined,
+        emitFileChanged: () => undefined,
         emitContextUsage: () => undefined,
         emitInteractionRequested: () => undefined,
         emitInteractionResolved: () => undefined,

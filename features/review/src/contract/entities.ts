@@ -144,3 +144,42 @@ export type GithubComment = z.infer<typeof GithubComment>
 
 export const GithubMergeMethod = z.enum(['merge', 'squash', 'rebase'])
 export type GithubMergeMethod = z.infer<typeof GithubMergeMethod>
+
+/* ── 一轮文件改动的账本与撤销：AI 回复下方那条「N 个文件已更改 / 撤销」的事实 ────────────────
+ * 账本只从引擎写盘那一刻的 before/after 来（conversation 的 turnFileChanged），撤销只回退工作区文件，
+ * 聊天历史一行不动。行数在读取时由 before/after 现算，撤销之后仍报原值。 */
+
+/** 一轮里的一个文件：相对工作区根、正斜杠（界面直接显示）。 */
+export const TurnFileChange = z.object({
+  path: z.string(),
+  added: z.number().int(),
+  removed: z.number().int(),
+})
+export type TurnFileChange = z.infer<typeof TurnFileChange>
+
+export const TurnChangesEntry = z.object({
+  turn: z.number().int().positive(),
+  fileCount: z.number().int(),
+  added: z.number().int(),
+  removed: z.number().int(),
+  /** 这一轮是否已经撤销过（撤销后行数仍报原值，界面靠它置灰）。 */
+  reverted: z.boolean(),
+  files: z.array(TurnFileChange),
+})
+export type TurnChangesEntry = z.infer<typeof TurnChangesEntry>
+
+/** 一条线程的全部轮次，turns 升序。 */
+export const TurnChanges = z.object({ turns: z.array(TurnChangesEntry) })
+export type TurnChanges = z.infer<typeof TurnChanges>
+
+/** 撤销一个文件为什么不能自动做：期间被外面改过，或盘上已经不在了。 */
+export const TurnRewindObstacle = z.enum(['externally_modified', 'missing'])
+export type TurnRewindObstacle = z.infer<typeof TurnRewindObstacle>
+
+/** 撤销前的检查：canApply = 没有任何 unsafe（有就整轮拒绝，不做部分写回）。 */
+export const TurnRewindPreview = z.object({
+  safe: z.array(z.object({ path: z.string() })),
+  unsafe: z.array(z.object({ path: z.string(), reason: TurnRewindObstacle })),
+  canApply: z.boolean(),
+})
+export type TurnRewindPreview = z.infer<typeof TurnRewindPreview>

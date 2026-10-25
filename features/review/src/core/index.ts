@@ -1,17 +1,27 @@
 import { defineCoreModule } from '@poietica/core-kernel'
+import { ConversationServiceToken, threadRemoved, turnFileChanged } from '@poietica/feature-conversation/core-api'
 import { type WorkspaceRemoved, WorkspacesServiceToken, workspaceRemoved } from '@poietica/feature-workspaces/core-api'
+import { AppError } from '@poietica/foundation'
 import { createGit } from '@poietica/git'
 import { reviewContract } from '../contract'
+import { reviewErrors } from '../contract/errors'
+import { migrations } from './migrations'
 import { createGithubService, type GithubService } from './pr'
+import { createTurnRewind } from './rewind'
 import { createReviewService, type ReviewService } from './service'
+import { createTurnFileLedger } from './turn-files'
+import { createTurnFilesRepository } from './turn-files-repository'
 import { createReviewWatcher, repositoryWatcher } from './watch'
 
 export default defineCoreModule({
   id: 'review',
   contract: reviewContract,
-  dependsOn: ['workspaces'],
+  /* conversation：一轮改过哪些文件是它发出来的（turnFileChanged），线程 → 工作区也从它问。 */
+  dependsOn: ['workspaces', 'conversation'],
+  migrations,
   setup(ctx) {
     const workspaces = ctx.services.get(WorkspacesServiceToken)
+    const conversation = ctx.services.get(ConversationServiceToken)
     const service: ReviewService = createReviewService({
       gitFor: (cwd) => createGit({ cwd }),
       logger: ctx.logger,
@@ -36,6 +46,22 @@ export default defineCoreModule({
     /* 每次调用都问一遍，工作区被移走后自然报 workspaces.not_found。 */
     const pathOf = (workspaceId: string): string => workspaces.requireUsable(workspaceId).path
 
+    /* 一轮文件改动的账：只从引擎写盘那一刻的事实来，撤销时按账退回工作区。 */
+    const rewind = createTurnRewind({
+      repo: createTurnFilesRepository(ctx.db),
+      logger: ctx.logger,
+      emitChanged: (threadId) => {
+        ctx.rpc.emit('review.turnChangesChanged', { threadId })
+      },
+    })
+    const ledger = createTurnFileLedger({
+      rewind,
+      logger: ctx.logger,
+      /* 线程已被删时 get 回 null（那时这一笔没有主人，丢弃）。 */
+      workspaceIdOf: (threadId) => conversation.get(threadId)?.workspaceId ?? null,
+      pathOf,
+    })
+
     ctx.disposables.add({ dispose: () => watcher.dispose() })
     ctx.lifecycle.onShutdown(() => watcher.dispose())
     /* 工作区被移走：它的监听一并停掉（界面那边的 unwatch 可能永远不会来了）。 */
@@ -44,6 +70,8 @@ export default defineCoreModule({
         watcher.forget(e.workspaceId)
       }),
     )
+    ctx.disposables.add(ctx.events.on(turnFileChanged, (fact) => ledger.record(fact)))
+    ctx.disposables.add(ctx.events.on(threadRemoved, ({ threadId }) => rewind.forgetThread(threadId)))
 
     ctx.rpc.handle('git.status', (p) => service.status(pathOf(p.workspaceId)))
     ctx.rpc.handle('git.branches', (p) => service.branches(pathOf(p.workspaceId)))
@@ -86,6 +114,23 @@ export default defineCoreModule({
     ctx.rpc.handle('github.mergePullRequest', (p) =>
       github.merge(pathOf(p.workspaceId), p.number, p.method).then(() => ({})),
     )
+
+    /* 回复下方那条「N 个文件已更改 / 撤销」：按 threadId 寻址，工作区路径从线程上问。 */
+    const rootOfThread = (threadId: string): string => {
+      const thread = conversation.get(threadId)
+      if (thread === null) {
+        throw new AppError(reviewErrors.rewind_not_available, '这条对话已经不在了', { threadId })
+      }
+      return pathOf(thread.workspaceId)
+    }
+    ctx.rpc.handle('review.turnChanges', (p) => {
+      const thread = conversation.get(p.threadId)
+      /* 线程已删：没有账可报（不是错误 —— 界面刚收到 threadRemoved 时可能还问一次）。 */
+      if (thread === null) return { turns: [] }
+      return rewind.list(p.threadId, pathOf(thread.workspaceId))
+    })
+    ctx.rpc.handle('review.previewTurnRewind', (p) => rewind.preview(p.threadId, p.turn, rootOfThread(p.threadId)))
+    ctx.rpc.handle('review.applyTurnRewind', (p) => rewind.apply(p.threadId, p.turn, rootOfThread(p.threadId)))
 
     /* 按 workspaceId 摘，不再问路径：工作区已被移走时也摘得掉（移走那一刻 forget 已经停过，这里是空操作）。 */
     ctx.rpc.handle('git.unwatch', (p) => {

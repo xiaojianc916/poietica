@@ -445,6 +445,7 @@
         "@poietica/foundation": "workspace:*",
         "@poietica/git": "workspace:*",
         "@poietica/process-kit": "workspace:*",
+        "@poietica/storage-sqlite": "workspace:*",
         "@poietica/ui-kernel": "workspace:*",
         "lucide-react": "catalog:",
         "react": "catalog:",

@@ -15,4 +15,5 @@ export {
   type ScenarioStep,
   type ScenarioTurn,
   say,
+  writeFile,
 } from './scenario'

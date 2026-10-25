@@ -1,0 +1,198 @@
+/*
+ * 一轮回复下面那条「N 个文件已更改 / 撤销」。几何照 zcode 那一张截图：
+ * 圆角细边框一条，左侧箭头 + 摘要，右侧撤销键；展开后逐行列出相对路径与各自的增删。
+ *
+ * 边框与文字色全部走 design-system 的令牌（分隔线、次要墨、增删那一对），这里不写任何
+ * 色值：深浅两套主题各自定义，写死一格必然在一套主题下读不出来。
+ */
+.turn-changes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  margin-block-start: 0.5rem;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  /* 上沿那一格与正文之间留一点呼吸；下面两行（展开清单）自己带内边距。 */
+  padding: 0.125rem;
+}
+
+/* 收成一行时它就是一条：末行胶囊的悬停底铺满整条，不留内缩的缺口。 */
+.turn-changes__head {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-block-size: var(--ui-control-height-sm);
+}
+
+/*
+ * 箭头与摘要同属一颗键：整条都能点开，「哪一枚是开关」不该由人猜。
+ * 内边距按字形与文字各让一格，圆角收一档 —— 它压在卡里，不能与卡同一个圆角。
+ */
+.turn-changes__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex: 1;
+  min-inline-size: 0;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: var(--ui-radius-md);
+  background: transparent;
+  color: var(--cp-timeline-quiet-text);
+  font: inherit;
+  font-size: var(--ui-prose-size-aux);
+  line-height: var(--ui-line-height-tight);
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--ui-duration-fast) var(--cp-motion-ease);
+}
+
+.turn-changes__toggle:hover,
+.turn-changes__toggle:focus-visible {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+/* 图标盒与文字盒等高，不靠手工偏移对齐基线。 */
+.turn-changes__chevron {
+  display: block;
+  flex: none;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  /* 收起时朝右（下箭头逆时针转 90°）；展开后转回朝下 —— 与封条那条箭头同一套角度。 */
+  rotate: -90deg;
+  transition: rotate var(--cp-motion-swift) cubic-bezier(0.2, 0, 0, 1);
+}
+
+.turn-changes__toggle[aria-expanded='true'] .turn-changes__chevron {
+  rotate: 0deg;
+}
+
+.turn-changes__summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--cp-ink);
+}
+
+/*
+ * 已撤销的那一轮整条退到背景里：它还在，但已经不再是一件待办。
+ * 只走既有的次要墨与透明度，不给它另发明一套「已完成」的视觉 —— 撤销键本身的禁用态
+ * 已经把「这件事办完了」说清楚了。
+ */
+.turn-changes[data-reverted='true'] {
+  opacity: 0.72;
+}
+
+.turn-changes[data-reverted='true'] .turn-changes__summary {
+  color: var(--cp-timeline-quiet-text);
+}
+
+/*
+ * 增删数字：等宽 + tabular-nums，一列相邻的几轮读下来数字对齐成一条。
+ * 取色只读 diff 那一对令牌（深色主题另有更艳的一档，见 assistant.css）。
+ */
+.turn-changes__stat {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.375rem;
+  font-family: var(--cp-font-mono);
+  font-size: var(--ui-prose-size-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.turn-changes__added {
+  color: var(--cp-diff-added-text);
+}
+
+.turn-changes__removed {
+  color: var(--cp-diff-removed-text);
+}
+
+/*
+ * 撤销键：文字钮，不是图标钮 —— 「撤销」两个字比一个回箭头说得清楚，而这一条上只有它一个
+ * 危险动作，不必再借字形去省位置。
+ */
+.turn-changes__rewind {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: none;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: var(--ui-radius-md);
+  background: transparent;
+  color: var(--cp-timeline-quiet-text);
+  font: inherit;
+  font-size: var(--ui-prose-size-meta);
+  line-height: var(--ui-line-height-tight);
+  cursor: pointer;
+  transition:
+    background-color var(--ui-duration-fast) var(--cp-motion-ease),
+    color var(--ui-duration-fast) var(--cp-motion-ease);
+}
+
+.turn-changes__rewind:hover:not(:disabled),
+.turn-changes__rewind:focus-visible:not(:disabled) {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+.turn-changes__rewind:disabled {
+  cursor: default;
+  color: var(--cp-timeline-quiet-text);
+  opacity: 0.6;
+}
+
+.turn-changes__rewind-icon {
+  display: block;
+  flex: none;
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+}
+
+/* 展开后那一份文件清单：贴着卡的内侧铺开，上沿一道发丝线作为「这是另一段」的分界。 */
+.turn-changes__files {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0.25rem 0 0;
+  border-block-start: 1px solid var(--cp-hairline);
+  list-style: none;
+}
+
+.turn-changes__file {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  font-size: var(--ui-prose-size-meta);
+  line-height: var(--ui-line-height-tight);
+}
+
+/* 路径占满剩下的宽度，增删跟在后面对齐：连续几个文件读下来数字成一列。 */
+.turn-changes__path {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--cp-timeline-quiet-text);
+  font-family: var(--cp-font-mono);
+  /* 长路径宁可省略也不折行：一折行，那一列数字就散了。 */
+  direction: ltr;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .turn-changes__toggle,
+  .turn-changes__rewind {
+    transition: none;
+  }
+
+  .turn-changes__chevron {
+    transition: none;
+  }
+}

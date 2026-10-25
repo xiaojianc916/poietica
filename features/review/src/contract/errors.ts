@@ -12,4 +12,7 @@ export const reviewErrors = defineErrors('review', {
   pull_request_missing: '这个 pull request 已经不在了',
   merge_refused: 'GitHub 拒绝这次合并',
   no_composer: '当前页面没有可用的输入框',
+  /* 撤销一轮的文件改动：这一轮没有可撤的账（或已经撤过）；以及「有文件在此期间被别人改过」。 */
+  rewind_not_available: '这一轮没有可以撤销的改动',
+  rewind_unsafe: '这些文件在此期间被改过，不能撤销',
 })

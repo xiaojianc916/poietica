@@ -64,6 +64,7 @@ async function makeCore(options: { readonly contextUsage?: ContextUsage } = {}) 
     emitSideTopic: () => undefined,
     emitSideDelta: () => undefined,
     emitSideNotice: () => undefined,
+    emitFileChanged: () => undefined,
     emitContextUsage: () => undefined,
     emitInteractionRequested: () => undefined,
     emitInteractionResolved: () => undefined,

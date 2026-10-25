@@ -1,8 +1,9 @@
 import { useProseSettled } from '@poietica/design-system/prose'
 import { useContributions } from '@poietica/ui-kernel'
 import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
-import { toolCallRenderers } from '../../../ui-api'
+import { toolCallRenderers, useTurnChanges, useTurnChangesOf } from '../../../ui-api'
 import type { TurnMark } from '../../shared/model/thread'
+import { delegateAddress } from '../delegate-channel'
 import { AgentActivityFeed, type FeedPort, type RowRhythm } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
 import { useTranscripts } from '../model/transcripts-context'
@@ -22,13 +23,21 @@ import { TimelineSeat } from './timeline-seat'
 
 const REPLY_ACTIONS_PX = 32
 
+/**
+ * 文件改动条收起时占的高度。高度正本在 turn-changes.css（32px 行高 + 8px 上距 + 2px 边
+ * + 2×2px 内距），这里只是首屏估高用的近似值 —— 真高由虚拟器量。
+ */
+const TURN_CHANGES_PX = 44
+
 /** 人亲手改过的开合必须合成一份：分开存的话封条改的是另一份，滚动区看不见，会把整屏当成模型在吐字。 */
 interface Disclosure {
   readonly items: ReadonlySet<string>
   readonly seals: ReadonlyMap<number, boolean>
+  /** 摊开了文件清单的轮：展开长高也是人点出来的，虚拟器据此把量补进 scrollTop。 */
+  readonly changes: ReadonlySet<number>
 }
 
-const NOTHING: Disclosure = { items: new Set(), seals: new Map() }
+const NOTHING: Disclosure = { changes: new Set(), items: new Set(), seals: new Map() }
 
 function nearestLandingRow(
   projection: Presentation,
@@ -137,14 +146,26 @@ function SettledTranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite
 
   if (seen !== sessionKey) {
     setSeen(sessionKey)
-    setDisclosure((current) => ({ items: current.items, seals: NOTHING.seals }))
+    setDisclosure((current) => ({ ...current, seals: NOTHING.seals, changes: NOTHING.changes }))
   }
 
   const chooseTurn = useCallback((turn: number, isOpen: boolean) => {
     setDisclosure((current) => ({
-      items: current.items,
+      ...current,
       seals: new Map(current.seals).set(turn, isOpen),
     }))
+  }, [])
+
+  const toggleChanges = useCallback((turn: number) => {
+    setDisclosure((current) => {
+      const changes = new Set(current.changes)
+
+      if (!changes.delete(turn)) {
+        changes.add(turn)
+      }
+
+      return { ...current, changes }
+    })
   }, [])
 
   const toggleOpen = useCallback((id: string) => {
@@ -155,11 +176,41 @@ function SettledTranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite
         items.add(id)
       }
 
-      return { items, seals: current.seals }
+      return { ...current, items }
     })
   }, [])
 
-  const { items, seals } = disclosure
+  const { changes, items, seals } = disclosure
+
+  /*
+   * 文件账挂在**对话**上，不挂在通道上：子代理改的文件记在主对话那一轮，通道那一格自己没有账。
+   * 所以先把通道键折回对话号 —— 与 transcript-store 的 addressOf 同一条规则。
+   */
+  const conversation = delegateAddress(sessionKey)?.conversation ?? sessionKey
+  const turnChanges = useTurnChangesOf(conversation)
+  const changesApi = useTurnChanges()
+  const [rewinding, setRewinding] = useState<number | null>(null)
+
+  const changesByTurn = useMemo(() => new Map(turnChanges.map((view) => [view.turn, view])), [turnChanges])
+
+  /*
+   * 撤销的整条路（确认框 → 写回 → 刷账）都在提供方那一层；这里只记「哪一轮正在退」，
+   * 好让那颗键在办完之前保持不可用 —— 连点两次会把同一轮写回两遍。
+   */
+  const rewind = useCallback(
+    (turn: number) => {
+      if (changesApi === null) {
+        return
+      }
+
+      setRewinding(turn)
+      /* 失败已经由提供方报到横幅上；这里只等它办完，好把那颗键放开。 */
+      void changesApi.rewind(conversation, turn).finally(() => {
+        setRewinding((current) => (current === turn ? null : current))
+      })
+    },
+    [changesApi, conversation],
+  )
 
   /* 判据跟着贡献走，引用稳定，投影的缓存按它判命中。投影本身不在这里包 useMemo：依赖每帧换引用，包了也永远不命中。 */
   const renderers = useContributions(toolCallRenderers)
@@ -179,9 +230,20 @@ function SettledTranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite
       }
 
       const replyAction = feed.replyAt(index)
+      /* 账只挂在有回复操作行的那一行：没有正文的轮没有「回复下方」这个位置。 */
+      const changesView = replyAction === undefined ? undefined : changesByTurn.get(row.item.turn)
 
       return (
         <TimelineSeat
+          {...(changesView === undefined
+            ? {}
+            : {
+                changes: changesView,
+                changesBusy: rewinding === changesView.turn,
+                changesOpen: changes.has(changesView.turn),
+                onRewindTurn: rewind,
+                onToggleChanges: () => toggleChanges(changesView.turn),
+              })}
           group={feed.groupAt(index)}
           onFork={onFork}
           onRewrite={onRewrite}
@@ -198,16 +260,35 @@ function SettledTranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite
         />
       )
     },
-    [chooseTurn, feed, items, onFork, onRewrite, sessionKey, toggleOpen],
+    [
+      changes,
+      changesByTurn,
+      chooseTurn,
+      feed,
+      items,
+      onFork,
+      onRewrite,
+      rewind,
+      rewinding,
+      sessionKey,
+      toggleChanges,
+      toggleOpen,
+    ],
   )
 
   const estimateRowAt = useCallback(
     (index: number) => {
       const estimate = estimateRow(feed.rowAt(index))
-      /* 高度正本在 reply-actions.css（4px 间距 + 28px 行高）。 */
-      return feed.replyAt(index) === undefined ? estimate : estimate + REPLY_ACTIONS_PX
+      const changesView =
+        feed.replyAt(index) === undefined ? undefined : changesByTurn.get(feed.rowAt(index)?.item.turn ?? -1)
+      /* 高度正本在 reply-actions.css（4px 间距 + 28px 行高）与 turn-changes.css。 */
+      return (
+        estimate +
+        (feed.replyAt(index) === undefined ? 0 : REPLY_ACTIONS_PX) +
+        (changesView === undefined ? 0 : TURN_CHANGES_PX)
+      )
     },
-    [estimateRow, feed],
+    [changesByTurn, estimateRow, feed],
   )
   const rowRhythmAt = useCallback((index: number) => rowRhythmOf(feed.rowAt(index)), [feed])
 

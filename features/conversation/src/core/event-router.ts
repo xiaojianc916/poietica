@@ -3,6 +3,7 @@ import type {
   ContextUsage,
   Controls,
   EngineSessionEvent,
+  FileChange,
   Posture,
   SideTopic,
   UsageSample,
@@ -65,6 +66,8 @@ export interface EventRouterDeps {
   readonly emitUsageSampled: (p: { threadId: string; sample: UsageSample; at: number }) => void
   readonly emitCommandOutput: (p: { threadId: string; text: string; tone: CommandOutputTone }) => void
   readonly emitCommandsChanged: (p: { threadId: string }) => void
+  /** 工具写了一处文件（引擎写的那一刻报）：原样交给 Core 事件，文件的账归 review 记 */
+  readonly emitFileChanged: (p: { threadId: string } & FileChange) => void
   /** 侧边提问（右坞辅助对话）：原样转成 side.* 通知 —— 它们不进时间线、不碰回合运行时 */
   readonly emitSideTopic: (p: { threadId: string; topic: SideTopic }) => void
   readonly emitSideDelta: (p: {
@@ -191,6 +194,19 @@ export class EventRouter {
         break
       case 'sideNotice':
         this.d.emitSideNotice({ threadId, message: event.message })
+        break
+      /*
+       * 工具写文件的账。不进时间线、不改屏幕：它只回答「这一轮改过哪些文件」，
+       * 而那句话由回复下方那一条去说（review 记的账 + 它自己的撤销）。
+       */
+      case 'fileChanged':
+        this.d.emitFileChanged({
+          threadId,
+          turn: event.turn,
+          path: event.path,
+          before: event.before,
+          after: event.after,
+        })
         break
     }
   }

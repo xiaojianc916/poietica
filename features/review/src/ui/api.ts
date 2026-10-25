@@ -13,6 +13,7 @@ import {
   reviewContract,
 } from '../contract'
 import { coreSessionOf } from './core-session'
+import type { TurnChangesGateway } from './turn-changes-source'
 
 /** `ctx.rpc(reviewContract)` 的薄封装。契约以 workspaceId 为键而审查面按仓库根寻址，所以「哪个工作区」固定在组合根这一层。 */
 export function createReviewApi(ctx: UiFeatureContext, workspaceId: string) {
@@ -56,6 +57,28 @@ export function createReviewApi(ctx: UiFeatureContext, workspaceId: string) {
     onChanged: (listener: () => void) =>
       rpc.on('git.changed', (p: { workspaceId: string }) => {
         if (p.workspaceId === workspaceId) listener()
+      }),
+  }
+}
+
+/**
+ * 每轮回复下方那条改动条的薄封装（`review.turnChanges` 一族）。**按对话寻址**，与上面那个闭包
+ * 按工作区寻址不同 —— 账记在对话上，撤销时才由 core 按对话查出所属工作区。
+ *
+ * 方法名只出现在这里：组件与 Provider 都不拼 RPC 名字。
+ */
+export function createTurnChangesApi(ctx: UiFeatureContext): TurnChangesGateway {
+  const rpc = ctx.rpc(reviewContract)
+
+  return {
+    list: async (threadId) => (await rpc.call('review.turnChanges', { threadId })).turns,
+    preview: (threadId, turn) => rpc.call('review.previewTurnRewind', { threadId, turn }),
+    apply: async (threadId, turn) => {
+      await rpc.call('review.applyTurnRewind', { threadId, turn })
+    },
+    onChanged: (listener) =>
+      rpc.on('review.turnChangesChanged', (p) => {
+        listener(p.threadId)
       }),
   }
 }

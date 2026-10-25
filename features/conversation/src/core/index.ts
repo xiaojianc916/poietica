@@ -7,6 +7,7 @@ import {
   submissionFailed,
   TurnContextRegistryToken,
   threadRemoved,
+  turnFileChanged,
   turnSettled,
   usageSampled,
   userMessageSubmitted,
@@ -55,6 +56,7 @@ export default defineCoreModule({
       emitSideTopic: (p) => ctx.rpc.emit('side.topic', p),
       emitSideDelta: (p) => ctx.rpc.emit('side.delta', p),
       emitSideNotice: (p) => ctx.rpc.emit('side.notice', p),
+      emitFileChanged: (p) => ctx.events.emit(turnFileChanged, p),
       emitInteractionRequested: (p) => ctx.rpc.emit('interactions.requested', p),
       emitInteractionResolved: (p) => ctx.rpc.emit('interactions.resolved', p),
       emitSubmissionChanged: (submission) =>

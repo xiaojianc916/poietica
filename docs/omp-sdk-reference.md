@@ -1300,3 +1300,35 @@ Facts poietica relies on:
 - `options.mcpTools !== undefined` counts as a changed cache shape (`forkCacheShapeChanged`, `src/sdk.ts:1911`) and drops the `providerPromptCacheKey` a resumed fork would inherit. Poietica therefore passes only `mcpManager` and refreshes the tools after creation, which is the path omp's own deferred discovery takes.
 - `setOnPromptsChanged` replays at once for servers that already have prompts. `disconnectAll` aborts handshakes in flight, but a discovery still reading configs can connect afterwards, so the owner disconnects again once discovery settles (omp's deferred path does the same).
 - Config files are read through a process-wide content cache (`src/capability/fs.ts`) that only `mcp/config-writer` invalidates. Reusing a manager is decided by comparing `loadAllMCPConfigs` output (≈1 ms warm), so it sees exactly what a fresh discovery would see. Tests that write `mcp.json` directly must call `invalidate` from `@oh-my-pi/pi-coding-agent/capability/fs`.
+
+## Q. File writes: before/after text lives in the tool result, not on disk
+
+Revoking a turn's file edits needs the text that was there **before** the write (omp knowledge #23, `packages/engine-omp/src/session/file-changes.ts`). It exists in exactly one place and only after the fact: the edit tool's result details. Nothing on the session or filesystem surface hands it back once the file is rewritten.
+
+```ts
+// from: TUIROOT/dist/types/tools/edit.d.ts:4-51 — EditToolPerFileResult (one per changed file)
+export interface EditToolPerFileResult {
+    path: string;
+    oldText?: string;
+    newText?: string;
+    snapshotsPruned?: boolean;
+}
+```
+
+```ts
+// from: TUIROOT/dist/types/tools/edit.d.ts:4-78 — EditToolDetails (single-path edits carry the pair at top level too)
+export interface EditToolDetails {
+    perFileResults?: EditToolPerFileResult[];
+    oldText?: string;
+    newText?: string;
+    snapshotsPruned?: boolean;
+}
+```
+
+Facts poietica relies on:
+
+- `oldText` is absent for a create (`op: "create"`) and `newText` is absent for a delete — neither means "empty file". A consumer that reads a missing side as `""` will replace a new file with an empty one on undo.
+- A multi-file edit puts one entry per file in `perFileResults`; a single-path edit repeats the same pair at the top level. Reading only `perFileResults` misses single-file edits.
+- `pruneOversizedEditSnapshots` drops `oldText`/`newText` from entries once they get large and sets `snapshotsPruned`; that flag is the only way to tell "pruned" from "not applicable".
+- The `write` tool's details carry no content at all (`WriteToolResultEvent.details: undefined`), so its after-side must be read from disk. The before-side has to be captured **before** the tool runs — `tool_execution_start` is the last moment it is still there.
+- omp writes files only through its own tools (`write`, `edit`, `ast_edit`, `apply_patch`); `bash`/`eval` editing files leave no trace here.

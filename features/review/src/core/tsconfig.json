@@ -6,6 +6,9 @@
       "path": "../../../../packages/core-kernel"
     },
     {
+      "path": "../../../../packages/design-system"
+    },
+    {
       "path": "../../../../packages/foundation"
     },
     {
@@ -13,6 +16,12 @@
     },
     {
       "path": "../../../../packages/process-kit"
+    },
+    {
+      "path": "../../../../packages/storage-sqlite"
+    },
+    {
+      "path": "../../../conversation/src/core-api"
     },
     {
       "path": "../../../workspaces/src/core-api"

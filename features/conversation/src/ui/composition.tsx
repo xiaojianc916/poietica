@@ -1,7 +1,7 @@
 import { type ProseFileLinks, ProseFileLinksContext } from '@poietica/design-system/prose'
 import { FeatureScope, useContributions } from '@poietica/ui-kernel'
 import { type ReactNode, useMemo } from 'react'
-import { composerProviders, fileReferenceOpeners, workspaceGitProviders } from '../ui-api'
+import { composerProviders, fileReferenceOpeners, turnChangesProviders, workspaceGitProviders } from '../ui-api'
 import { AttachmentIntakeContext } from './composer/attachment'
 import { ComposerDrafts } from './composer/drafts'
 import { ComposerDraftsContext } from './composer/drafts-context'
@@ -89,6 +89,17 @@ export function ConversationProviders({
     children,
   )
 
+  /* 每轮回复下方那条文件改动条的事实源，同样由 review 贡献一个 Provider（见 ui-api/turn-changes）。 */
+  const changeProviders = useContributions(turnChangesProviders)
+  const withChanges = changeProviders.reduceRight<ReactNode>(
+    (inner, { featureId, item }) => (
+      <FeatureScope featureId={featureId}>
+        <item.component>{inner}</item.component>
+      </FeatureScope>
+    ),
+    withGit,
+  )
+
   const fileLinks = useFileLinks(fileScope)
   const providers = useContributions(composerProviders)
   const provided = providers.reduceRight<ReactNode>(
@@ -97,7 +108,7 @@ export function ConversationProviders({
         <item.component>{inner}</item.component>
       </FeatureScope>
     ),
-    withGit,
+    withChanges,
   )
 
   return (

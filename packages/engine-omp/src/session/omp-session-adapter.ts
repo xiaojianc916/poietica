@@ -33,6 +33,7 @@ import { TodoMirror } from '../projector/todos'
 import type { SettingsScope } from '../settings-access'
 import { type OmpUsageStatisticsLike, toContextUsage } from './context-usage'
 import { describeError, EventFaults } from './event-faults'
+import { captureBefore, changesOf, writePathsOf } from './file-changes'
 import { createGoalHost, type GoalHost } from './goal-host'
 import type { GoalCapableSession, PlanArtifactSession, PlanCapableSession } from './plan-goal'
 import {
@@ -473,6 +474,44 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
   void agentIdNote(sessionKey)
   // omp 知识 #8：必须接上 setPromptDropped —— 不接的话 omp 丢弃用户输入（例如压缩期间）时消息会凭空消失
   session.setPromptDropped((prompt) => ompSession.emitPromptDropped(prompt.text))
+  /*
+   * 写文件的工具：开工前抄正文、收尾时配对。键是工具调用号，收一条删一条 —— 与队列账本一样，
+   * 按调用索引的东西必须有删除路径。存的是**还没兑现的**那一次读：工具跑得快时收尾先到，
+   * 等一个 Promise 比等一个可能还没写进去的 Map 可靠。
+   */
+  interface PendingWrite {
+    /** 这一笔属于哪一轮：**开工那一刻**定下来，收尾时读的不一定是同一轮（压缩、续跑都能换轮） */
+    readonly turn: number
+    readonly before: Promise<ReadonlyMap<string, string | null | undefined>>
+  }
+  const pendingWrites = new Map<string, PendingWrite>()
+  const fileChanges: ToolFileChanges = {
+    capture(toolCallId, toolName, args) {
+      const paths = writePathsOf(toolName, args)
+      if (paths.length === 0) return
+      /* 同一次调用的 start 只该来一次；真来了第二次（重放）也不能让旧的那一份盖掉新的 */
+      if (pendingWrites.has(toolCallId)) return
+      const cwd = session.sessionManager.getCwd()
+      pendingWrites.set(toolCallId, {
+        turn: projector.turnOrdinal,
+        before: captureBefore(cwd, paths).catch((error: unknown) => {
+          input.logger.warn('file change capture failed', { tool: toolName, error: describeError(error) })
+          return new Map<string, string | null | undefined>()
+        }),
+      })
+    },
+    async settle(toolCallId, toolName, result) {
+      const held = pendingWrites.get(toolCallId)
+      pendingWrites.delete(toolCallId)
+      if (held === undefined) return
+      try {
+        const changes = await changesOf(session.sessionManager.getCwd(), toolName, result, await held.before)
+        for (const change of changes) ompSession.emitFileChanged({ turn: held.turn, ...change })
+      } catch (error) {
+        input.logger.warn('file change settle failed', { tool: toolName, error: describeError(error) })
+      }
+    },
+  }
   /* `faults` 是事件泵的要害：分流不能包在吞掉一切的 catch 里，异常被咽下就既不记日志、也不上屏 */
   const pump: EventPump = {
     session: ompSession,
@@ -483,6 +522,7 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
     logger: input.logger,
     streamsInput: (toolName) => input.tools.get(toolName)?.streamInput === true,
     settleWatch,
+    fileChanges,
     afterEvent: (type) => {
       /*
        * 待办与后台作业都没有自己的增量事件：todo 工具在 execute 里直接改 omp 的 phases，后台作业在
@@ -528,6 +568,8 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
       settleWatchGeneration += 1
       if (jobTimer !== null) clearTimeout(jobTimer)
       jobTimer = null
+      /* 开跑前抄正文的那几条异步读：会话关了它们也不会兑现，留着就是按调用号索引的一堆死条目 */
+      pendingWrites.clear()
     }),
     ompSession.attachBroker(),
     /* omp 知识 #17：回调**不带名字**（要自己读 getSessionName），订阅**没有回放** */
@@ -940,6 +982,24 @@ interface EventPump {
   readonly streamsInput: (toolName: string) => boolean
   /** 非终态 `agent_end` 的收尾看门狗（omp 的 `#finishWhenRunSettles` 同一套判据） */
   readonly settleWatch: SettleWatch
+  /** 工具开跑前抄下的文件正文（键是工具调用号）：收尾时算这一回改了哪些文件用 */
+  readonly fileChanges: ToolFileChanges
+}
+
+/**
+ * 工具写文件的前后正文账。
+ *
+ * 读旧内容只有一次机会：**工具开跑之前**。写完之后工作区里只剩新内容，事后去读拿不回那一份，
+ * 所以这里在 `tool_execution_start` 上抢读，在 `tool_execution_end` 上配对交出去。
+ * 键是工具调用号；一次调用收尾就删一条，不按会话长期留（工具调用表只增不减就是内存泄漏）。
+ */
+interface ToolFileChanges {
+  capture(toolCallId: string, toolName: string, args: unknown): void
+  settle(
+    toolCallId: string,
+    toolName: string,
+    result: { readonly details?: unknown; readonly isError: boolean },
+  ): Promise<void>
 }
 
 interface SettleWatch {
@@ -1047,6 +1107,8 @@ function applyToolEvent(eventType: string, event: Record<string, unknown>, pump:
   const toolCallId = String(event.toolCallId)
   const toolName = String(event.toolName)
   if (eventType === 'tool_execution_start') {
+    /* 抢在工具动文件之前抄下旧正文（file-changes.ts 的头注）：这个 await 不能省，写完之后就拿不到了 */
+    pump.fileChanges.capture(toolCallId, toolName, event.args)
     session.requestTimeline(
       projector.toolStart({
         toolCallId,
@@ -1072,6 +1134,11 @@ function applyToolEvent(eventType: string, event: Record<string, unknown>, pump:
     }),
   )
   session.onToolEnd(toolCallId, toolName)
+  const result = event.result as { readonly details?: unknown; readonly isError?: unknown } | undefined
+  void pump.fileChanges.settle(toolCallId, toolName, {
+    details: result?.details,
+    isError: result?.isError === true || event.isError === true,
+  })
 }
 
 /** omp 的通知：info 只进日志（那是 TUI 状态栏的东西），上屏才是对话内容 */
