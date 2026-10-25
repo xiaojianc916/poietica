@@ -1,10 +1,10 @@
 # AGENTS.md — Poietica 工作守则
 
-给 AI 与人类贡献者。先读这一页，细节以 `docs/ARCHITECTURE.md` 为准；两者冲突时以代码与 `bun run  all` 为准，并把冲突记进 `docs/refactor-log.md`。
+细节以 `docs/ARCHITECTURE.md` 为准；两者冲突时以代码与 `bun run  all` 为准，并把冲突记进 `docs/refactor-log.md`。
 
 ## 1. 项目速览
 
-- Windows 本地 AI agent 桌面应用（AGPL-3.0）。三个进程：**UI**（Electron 渲染进程，React）↔ **Host**（Electron 主进程）↔ **Core**（`poietica-core.exe`，Bun 编译）。
+- Windows 本地 AI agent 桌面应用。三个进程：**UI**（Electron 渲染进程，React）↔ **Host**（Electron 主进程）↔ **Core**（`poietica-core.exe`，Bun 编译）。
 - UI↔Host 走 IPC `poietica:rpc`，Host↔Core 走 stdio（`\x1e` 分帧），两段都是 JSON-RPC 2.0。Core → Host 的帧拆成「信封 `\x1f` 载荷」：Host 只解析信封做路由，载荷以 JSON 文本原样转交、由页面解析（`packages/rpc/src/frame-bytes.ts`）；Host 代码要用 Core 载荷的值一律经 `jsonValue()`。Host 的 `CoreSupervisor` 负责看护 Core：Core 会崩溃、会重启，UI 必须能重新同步。
 - 每个进程一个微内核（`core-kernel` / `host-kernel` / `ui-kernel`），功能以模块或贡献的形式插进去。外壳（`workbench`）只渲染贡献点，不认识任何具体功能。
 - agent 引擎是 omp（Oh My Pi，`@oh-my-pi/*` 的版本锁在根 `package.json` 的 catalog），只经 `@poietica/engine` 端口接入，唯一实现是 `packages/engine-omp`。omp 随包发布，数据落在 `%APPDATA%\Poietica\omp\`，与用户机器上的全局 omp 完全隔离。
@@ -146,7 +146,7 @@ L0  foundation
 - **路径**：数据路径只来自 `DataLayout`（`@poietica/runtime-layout`）；拼路径一律用 `node:path`，禁止手写 `\\` 或 `/`。
 - **存储**：SQL 只写在功能 `core/` 下的仓储文件（`repository.ts` / `*-repository.ts` / `repo.ts`）和 `migrations.ts` 里；表名以功能 id 为前缀（`-` 换成 `_`），内核会校验。JSON 文件统一走 `@poietica/fs-kit` 的 `createJsonDocument`。每份事实只存一处：对话正文只在 omp 会话文件里，其余数据各有唯一主人（见 ARCHITECTURE §7）。
 - **系统能力**（文件对话框、开链接、通知等）走 platform 功能的契约，不在功能里重复实现。
-- 注释、界面文案、提交说明用**中文**。注释写「为什么」，不写「做了什么」。
+- 注释、界面文案、提交说明用**中文**。注释写「为什么」，不写「做了什么」，代码风格：简洁、陈述式，使用破折号连接从句。
 
 ## 8. 运行时正确性：这个仓库最容易出错的地方
 
