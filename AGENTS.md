@@ -57,7 +57,7 @@ L0  foundation
 ## 4. 边界铁律（全部有闸门，违反就是 check 红）
 
 1. **只有 `packages/engine-omp` 能 import `@oh-my-pi/*`**（`apps/core/scripts` 的构建脚本除外）；也只有 `apps/core` 能依赖 `engine-omp`。业务只认 `@poietica/engine` 的接口。
-2. **功能之间只经 `contract` / `core-api` / `ui-api` 协作**，绝不 import 别的功能的 `core` / `host` / `ui`；且只能依赖**级别更低**的功能（`tooling/depcruise/feature-tiers.json`：平台 < 基础状态 < 能力 < 主干 < 插件，插件之间互不依赖）。同进程内只有三种合法协作方式：服务令牌、进程内事件（`ctx.events`）、UI 贡献点。
+2. **功能之间只经 `contract` / `core-api` / `ui-api` 协作**，绝不 import 别的功能的 `core` / `host` / `ui`；且只能依赖**级别更低**的功能（`tooling/depcruise/feature-tiers.json`：平台 < 基础状态 < 能力 < 主干 < 插件，插件之间互不依赖）。同进程内只有三种合法协作方式：服务令牌、进程内事件（`ctx.events`）、UI 贡献点。`core-api` 的服务令牌只在 Core 进程里有主人，所以**只有 `core` 子入口能跨功能 import 它**（`feature-core-api-cross-process`）；UI 与 Host 侧协作走 `ui-api` / `contract`。
 3. **子入口的运行时纯度**：`ui` 不碰 electron、node-pty 和 Node core 模块；`core` 不碰 react、electron、zustand；`host` 不碰 react、zustand、`bun:`；`contract` / `core-api` 只依赖 contract-kit、foundation、transcript、engine、zod 和功能 contract。
 4. **平台包和内核不认识功能**（`protocol` 例外，且只能 import 功能的 contract）；功能包不依赖 workbench、protocol、apps。
 5. **只能 import 本包 `package.json` 声明过的依赖**。第三方版本只写在根 `package.json` 的 `catalog`，子包写 `"catalog:"`；改了依赖要跑 `bun install`。反过来，声明过的工作区依赖（`@poietica/*`）必须真被用到，只有测试用的放 `devDependencies`（闸门 `manifest-deps`）：isolated linker 按清单放行，清单多一条，第一层强制就松一条。

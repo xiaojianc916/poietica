@@ -153,6 +153,15 @@ module.exports = {
       to: { path: '^features/$1/src/(core|core-api|host)/' },
     },
     {
+      name: 'feature-core-api-cross-process',
+      severity: 'error',
+      comment:
+        '`core-api` 只在 Core 进程内用：只有 core 子入口可以 import 别的功能的 core-api（docs/ARCHITECTURE.md §3 子入口表）。' +
+        'UI / Host / contract 跨功能只认 contract 与 ui-api —— 那三个子入口看不见 Core 的进程，拿到服务令牌也没人注册。',
+      from: { path: '^features/([^/]+)/src/(ui|ui-api|host|contract)/', pathNot: TEST },
+      to: { path: '^features/[^/]+/src/core-api/', pathNot: '^features/$1/' },
+    },
+    {
       name: 'feature-subentry-ui-runtime',
       severity: 'error',
       comment: 'UI 子入口不得依赖 electron / node-pty / electron-updater（测试文件除外，见 TEST 的说明）',
@@ -170,13 +179,15 @@ module.exports = {
     {
       name: 'conversation-area-via-index',
       severity: 'error',
-      comment: 'conversation 的区与区之间只经 <区>/index 互引（docs/ARCHITECTURE.md §4.3）',
+      comment:
+        'conversation 的区与区之间只经 <区>/index 互引（docs/ARCHITECTURE.md §4.3）。setup 是装配层、没有 index，所以它只出不进：' +
+        '组合根（ui/index.tsx）直接取它的段落，各区一律不得反向 import setup 内部。',
       from: {
         path: '^features/conversation/src/ui/(threads|composer|timeline|session|status|home|setup)/',
         pathNot: TEST,
       },
       to: {
-        path: '^features/conversation/src/ui/(threads|composer|timeline|session|status|home)/',
+        path: '^features/conversation/src/ui/(threads|composer|timeline|session|status|home|setup)/',
         pathNot: ['^features/conversation/src/ui/$1/', '^features/conversation/src/ui/[^/]+/index\\.tsx?$'],
       },
     },

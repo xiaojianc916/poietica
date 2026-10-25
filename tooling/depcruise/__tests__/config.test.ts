@@ -119,4 +119,46 @@ describe('depcruise 配置的自检', () => {
 
     expect(violationsOf(result, 'conversation-shared-is-leaf')).toEqual([`${directory}/direct.ts`])
   })
+
+  /*
+   * setup 是装配层，没有 index：只出不进。曾经 to 列表漏掉 setup，于是 timeline 直取
+   * ../setup/context 这种反向穿透不报错（refactor-log「内聚与边界审计」声称已覆盖，配置里没有）。
+   */
+  test('真实解析：区不得反向 import setup 内部；setup 自己仍可经各区 index', async () => {
+    const result = await cruiseFixture('features/conversation/src/ui', {
+      'timeline/into-setup.ts': "import { SetupContext } from '../setup/context'\nvoid SetupContext\n",
+      'setup/into-area.ts': "import { HomeSurface } from '../home'\nvoid HomeSurface\n",
+      'setup/context.ts': 'export const SetupContext = true\n',
+      'home/index.ts': 'export const HomeSurface = true\n',
+    })
+
+    expect(violationsOf(result, 'conversation-area-via-index')).toEqual([
+      'features/conversation/src/ui/timeline/into-setup.ts',
+    ])
+  })
+
+  /*
+   * core-api 的令牌只在 Core 进程的注册表里有主人。ui / ui-api / host / contract 拿它只会得到
+   * 一个永远没人注册的令牌 —— 曾经没有任何规则拦这条路（ui 侧的 feature-subentry-ui 只管本功能）。
+   */
+  test('真实解析：core-api 只在 core 子入口跨功能可用，ui / ui-api / host / contract 被拒', async () => {
+    const importFrom = (specifier: string) => `import { FakeServiceToken } from '${specifier}'\nvoid FakeServiceToken\n`
+    const result = await cruiseFixture('features', {
+      'attachments/src/core-api/index.ts': 'export const FakeServiceToken = true\n',
+      'conversation/src/core/legal.ts': importFrom('../../../attachments/src/core-api'),
+      'conversation/src/core-api/own.ts': importFrom('../contract'),
+      'conversation/src/ui/illegal.ts': importFrom('../../../attachments/src/core-api'),
+      'conversation/src/ui-api/illegal.ts': importFrom('../../../attachments/src/core-api'),
+      'conversation/src/host/illegal.ts': importFrom('../../../attachments/src/core-api'),
+      'conversation/src/contract/illegal.ts': importFrom('../../../attachments/src/core-api'),
+      'conversation/src/contract/index.ts': 'export const Dummy = true\n',
+    })
+
+    expect(violationsOf(result, 'feature-core-api-cross-process')).toEqual([
+      'features/conversation/src/contract/illegal.ts',
+      'features/conversation/src/host/illegal.ts',
+      'features/conversation/src/ui-api/illegal.ts',
+      'features/conversation/src/ui/illegal.ts',
+    ])
+  })
 })

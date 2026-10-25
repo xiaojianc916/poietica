@@ -142,9 +142,17 @@
 ### 内聚与边界审计（2026-10-25）
 
 - **跨功能调用走已有服务**：browser 拾取交付改用 `AttachmentsUiToken`，不再绕过它编码并直调 attachments RPC；intelligent-ui 经 platform 选保存路径，Host 只写 HTML（协议 49）。系统对话框仍归 platform，不把系统能力复制进插件。
-- **conversation 的 setup 也受区域边界约束**：组合根只经各区 `index` 取公开项，闸门补进 setup；shared 的相对导入按解析后的落点检查，留在 shared 内的 `../timeline` 合法，真正越出 shared 才拒绝。
+- **conversation 的 setup 也受区域边界约束**：组合根只经各区 `index` 取公开项，闸门补进 setup；shared 的相对导入按解析后的落点检查，留在 shared 内的 `../timeline` 合法，真正越出 shared 才拒绝。**勘误（2026-10-25 复核）**：当时只说「闸门补进 setup」，实际改的是 `conversation-shared-imports.ts` 的落点判定，`depcruise` 的 `conversation-area-via-index` 只在 `from` 列表里加了 `setup`、`to` 列表漏了它 —— 于是 setup → 各区被管住、各区 → setup 内部没人拦（`timeline/into-setup.ts` 这样的反向穿透实测报 0 违规）。已在同日的「子入口边界补洞」里补齐。
 - **状态与工具各有唯一主人**：workspaces 用真实功能 store 替换闭包与伪造 StoreApi；`transportPair` 归 `@poietica/rpc/testing`，test-kit 不再反向依赖 rpc；usage 删除无人调用的重复读取方法，files 复用 git 的 NUL 列表解析。
 - **本轮不做**：不合并功能包、不改 Host 内核产品装配、不合并三个资源处理器。后两者的路径授权、MIME、缓存策略不同，强行抽公共大接口会掩盖真正差异。
+
+### 子入口边界补洞（2026-10-25）
+
+复核「解耦到什么程度」时实测出两个 `depcruise` 缺口，都是**现在没有代码踩、规则也拦不住**的类型：
+
+- **区 → setup 内部**：`conversation-area-via-index` 的 `to` 列表补上 `setup`。setup 是装配层、没有 `index`，所以它有出无进：组合根 `ui/index.tsx` 直接取各段落（不在区的路径里，不受影响），各区不得反向 import 它。setup → 各区的 `index` 仍然合法。
+- **跨功能 `core-api`**：新增 `feature-core-api-cross-process`。服务令牌只由 Core 进程的模块注册，`ui` / `ui-api` / `host` / `contract` 拿到的是一个永远没人注册的令牌；原 `feature-subentry-ui` 只管「本功能的 core/host」，跨功能这一维没人管，实测 `features/usage/src/ui` 里写 `import ... from '@poietica/feature-conversation/core-api'` 时 depcruise 报 0 违规、`bun check -b` 报 0 类型错误（`bun run refs` 还会替它把 tsconfig reference 补上，等于把缺口焊进地基）。现在四个子入口一律拒；`core` 子入口跨功能用 core-api 照旧合法（产品代码里 7 个功能依赖这个方向）。
+- 两条规则各配一条自检用例（`tooling/depcruise/__tests__/config.test.ts`），都做过「临时把规则改回原样 → 用例变红」的反向验证。产品代码里这两类边本来就是 0 处，所以全仓结果不变（1535 模块 / 5513 条边，0 违规）。
 
 ### omp 18.12.6 升级核对（2026-10-24）
 

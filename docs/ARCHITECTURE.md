@@ -121,11 +121,16 @@ UI → Host → Core 方向不变（消息对象 / 整条 JSON 行）。
   conversation，再经类型被擦掉的服务令牌（`MarkdownRendererToken`、`SkillDocumentToken`）漏给别的功能。
 - 只被一个功能用的界面留在那个功能里，哪怕它很大（例如 conversation 的吉祥物）。
 
+**`core-api` 只在 Core 进程内流转。** 服务令牌由 Core 的模块注册，`ui` / `ui-api` / `host` / `contract`
+看不到那个注册表，import 跨功能的 `core-api` 只能拿到一个永远没人注册的令牌（depcruise
+`feature-core-api-cross-process`）。UI 之间协作走 `ui-api` 的令牌与贡献点，Host 走 `contract` 里的方法与通知。
+
 **功能内部按区分目录。** 一个功能大到有多个区域时，每个区一个目录，区里自带状态与视图，区与区之间只能经
 `<区>/index` 互相引用；`shared/` 收跨区的模型、词表与基础件，且**不得反向依赖任何区**。conversation 是
 第一个这样组织的功能（`ui/{threads,composer,timeline,session,status,home,shared}`），两条规则由 depcruise
-的 `conversation-area-via-index` 与 `conversation-shared-is-leaf` 把关。跨功能共享的界面仍然下沉到
-design-system，不进区里。
+的 `conversation-area-via-index` 与 `conversation-shared-is-leaf` 把关。`setup/` 是装配层（组合根
+`ui/index.tsx` 逐段调它），没有 `index`，所以它只出不进：各区不得反向 import 它的段落；它与各区之间
+同样受 `conversation-area-via-index` 管辖。跨功能共享的界面仍然下沉到 design-system，不进区里。
 
 ## 5. 契约与协议
 
