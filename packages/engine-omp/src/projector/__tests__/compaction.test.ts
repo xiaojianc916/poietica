@@ -36,15 +36,19 @@ function compactionRows(ops: ReturnType<LiveProjector['marker']>[]) {
 }
 
 describe('压缩标记（legacy compaction-events.test.ts）', () => {
-  test('开门与关门是同一条标记，不是两条', () => {
-    const p = projector()
-    const { rows } = compactionRows([
-      p.marker({ markerId: 'compaction-1', marker: 'compaction', payload: { state: 'running' } }),
-      p.marker({ markerId: 'compaction-1', marker: 'compaction', payload: { state: 'completed' } }),
-    ])
-    // 换号就会在屏幕上多出一行；这里钉的是「号认得出是一件事」
+  test('开门与关门是同一条标记，时刻也留在开门处', () => {
+    let now = T0
+    const p = new LiveProjector({ now: () => now })
+    const opened = p.compactionStart({ reason: 'threshold', action: 'context-full' })
+    now += 15_000
+    const { rows } = compactionRows([opened, p.compactionEnd({ state: 'completed' })])
+    // 换号会在屏幕上多出一行；换时刻会让完成那一行越过压缩期间的工具调用。
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ markerId: 'compaction-1', payload: { state: 'completed' } })
+    expect(rows[0]).toMatchObject({
+      markerId: 'compaction-live-1',
+      at: new Date(T0).toISOString(),
+      payload: { state: 'completed' },
+    })
   })
 
   test('第二次压缩另起一行', () => {

@@ -187,7 +187,7 @@ export class LiveProjector {
 
   /** 增量那条路上压缩格的流水号，与开着的那一格（还没关门） */
   private compactionSeq = 0
-  private compactionOpen: string | null = null
+  private compactionOpen: { readonly id: string; readonly at: string } | null = null
 
   /** 开着的那一格自动重试：一次重试过程只占一格，记着它落在哪、到此为止的进展；收口就清掉 */
   private retrySlot: RetrySlot | null = null
@@ -881,9 +881,11 @@ export class LiveProjector {
    */
   compactionStart(input: { readonly reason?: unknown; readonly action?: unknown }): TranscriptOperation[] {
     const markerId = this.nextCompactionId()
-    this.compactionOpen = markerId
+    const at = this.now()
+    this.compactionOpen = { id: markerId, at }
     return this.marker({
       markerId,
+      at,
       marker: 'compaction',
       payload: {
         state: 'running',
@@ -898,10 +900,11 @@ export class LiveProjector {
    * 没见过开门（订阅晚于开门）也照样落一格：关门那一刻的结果比「什么都不说」强。
    */
   compactionEnd(payload: Record<string, unknown> | null): TranscriptOperation[] {
-    const markerId = this.compactionOpen ?? this.nextCompactionId()
+    const open = this.compactionOpen ?? { id: this.nextCompactionId(), at: this.now() }
     this.compactionOpen = null
-    if (payload === null) return [{ op: 'items.remove', ids: [markerId] }]
-    return this.marker({ markerId, marker: 'compaction', payload })
+    if (payload === null) return [{ op: 'items.remove', ids: [open.id] }]
+    /* 同一格只换状态与用量；时刻留在开门处，收口不能把它挪到后续工具调用下面。 */
+    return this.marker({ markerId: open.id, marker: 'compaction', payload, at: open.at })
   }
 
   private nextCompactionId(): string {
@@ -914,6 +917,7 @@ export class LiveProjector {
     readonly markerId: string
     readonly marker: string
     readonly payload?: unknown
+    readonly at?: string
   }): TranscriptOperation[] {
     return [
       {
@@ -922,7 +926,7 @@ export class LiveProjector {
           kind: 'marker',
           markerId: input.markerId,
           marker: input.marker,
-          at: this.now(),
+          at: input.at ?? this.now(),
           ...(input.payload === undefined ? {} : { payload: input.payload }),
         },
       },
