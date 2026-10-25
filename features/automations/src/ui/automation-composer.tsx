@@ -83,7 +83,7 @@ function ModelMenu({
               <span className="text-xs text-muted-foreground">
                 {choices?.defaultLabel === null || choices === null
                   ? '跟随设置里的默认模型'
-                  : `跟随设置里的默认模型（现在是 ${choices.defaultLabel}）`}
+                  : `（${choices.defaultLabel}）`}
               </span>
             </span>
             <DropdownMenuRadioItemIndicator>
