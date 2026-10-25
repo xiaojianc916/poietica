@@ -11,6 +11,7 @@
 
 /* 行几何全读 --ui-row-* 一族（不读编排器的控件尺寸）：会话行与导航行是同一种行，两处各读一套就会不同高。 */
 .assistant-threads {
+  position: relative;
   display: flex;
   block-size: 100%;
   min-block-size: 0;
@@ -170,6 +171,15 @@
 /* 高度在动所以必须裁剪；时长与曲线在 thread-disclosure.tsx。 */
 .thread-disclosure {
   overflow: hidden;
+}
+
+/*
+ * 行补间期间放开这一层裁剪（标记由 animated-rows.tsx 在提交后打上、250ms 后撤掉）。
+ * 删掉一行时下面几行要从旧位置滑上来，而盒子的高度已经先缩到新值 —— 不放开的整段滑行都被切掉，
+ * 看上去就是「突然跳下去」。收起/展开组时走的是「换视图」那一支，不补间，所以两者不会撞在一起。
+ */
+.assistant-threads[data-moving='true'] .thread-disclosure {
+  overflow: visible;
 }
 
 /* 行高读侧边栏的 --ui-row-height，不读编排器的控件尺寸：两处各读一套，同一列上下两段就不同高。 */

@@ -14,6 +14,7 @@ import type { Thread } from '../../../contract'
 import { byIsoDescending } from '../../shared/model/thread-order'
 import { useHorizon, useNow } from '../../shared/primitives/clock'
 import { ArchiveIcon, ChevronDownIcon, ComposeIcon, PinIcon } from '../../shared/primitives/icons'
+import { AnimatedRows } from './animated-rows'
 import { datedGroupsOf, instantsOf, nextChangeIn, paintedGroupsOf } from './relative-time'
 import { ThreadDisclosure } from './thread-disclosure'
 import type { ArchivedFilter } from './thread-view'
@@ -252,6 +253,7 @@ const ThreadRow = memo(function ThreadRow({
       className="assistant-thread"
       data-active={isActive ? 'true' : undefined}
       data-muted={thread.isMuted === true ? 'true' : undefined}
+      data-row-key={`thread:${thread.id}`}
       onPointerEnter={marquee.enter}
       onPointerLeave={marquee.leave}
     >
@@ -334,7 +336,7 @@ function WorkspaceHeader({ workspaceId, name, isOpen, onCreate, onToggle, onRemo
   const Glyph = isOpen ? FolderOpen : FolderClosed
 
   return (
-    <div className="assistant-threads__group-header">
+    <div className="assistant-threads__group-header" data-row-key={`workspace:${workspaceId}`}>
       <button
         aria-expanded={isOpen}
         className="assistant-threads__toggle"
@@ -484,6 +486,9 @@ export function AssistantThreadList({
   /* 只活本次会话故不落盘；要活过重启的收起状态由宿主传。 */
   const [shown, setShown] = useState<ReadonlyMap<string, number>>(NO_PAGES)
 
+  /* 补间要量滚动盒在视口里的位置，退场影子也按它算坐标（它同时是这个列表的定位祖先，见 assistant-threads.css）。 */
+  const scrollRef = useRef<HTMLElement>(null)
+
   const showMore = useCallback((workspaceId: string) => {
     setShown((held) => new Map(held).set(workspaceId, (held.get(workspaceId) ?? DEFAULT_VISIBLE) + PAGE))
   }, [])
@@ -521,8 +526,39 @@ export function AssistantThreadList({
     />
   )
 
+  /*
+   * 补间的启用条件（正本 AnimatedRows 的 ready / resetKey / rowKeys 三条）。
+   *
+   * - ready：读取落定、占位骨架已撤。首屏那一批不该一行一行地淡进来。
+   * - resetKey：这几种变化是「换一份视图」而不是「同一份视图里多/少一条」，补间只会读成抖动 ——
+   *   搜索词、分组方式、归档筛选、展开其余、收起全部、收起某个项目。任一项换值即立即落定。
+   * - rowKeys：按 DOM 顺序摊平所有带 data-row-key 的行。键序列没变，一个矩形都不量。
+   */
+  const animatedReady = !showPlaceholders && notice === null
+  const animationResetKey = [
+    archivedFilter,
+    groupBy,
+    query,
+    String(isPinOpen),
+    String(isRepositoriesOpen),
+    [...collapsedWorkspaces].sort().join(','),
+    [...shown.entries()]
+      .map(([id, limit]) => `${id}:${String(limit)}`)
+      .sort()
+      .join(','),
+  ].join('|')
+
+  const rowKeys = [
+    ...(pinned.length === 0 ? [] : pinned.map(({ thread }) => `thread:${thread.id}`)),
+    ...repositories.flatMap((group) => [
+      ...(group.name === null ? [] : [`workspace:${group.id}`]),
+      ...group.members.slice(0, shown.get(group.id) ?? DEFAULT_VISIBLE).map(({ thread }) => `thread:${thread.id}`),
+    ]),
+  ]
+
   return (
-    <nav aria-label="AI 会话记录" className="assistant-threads" data-assistant-skin>
+    <nav aria-label="AI 会话记录" className="assistant-threads" data-assistant-skin ref={scrollRef}>
+      <AnimatedRows ready={animatedReady} resetKey={animationResetKey} rowKeys={rowKeys} scroller={scrollRef} />
       {pinned.length === 0 ? null : (
         <section className="assistant-threads__section">
           <ThreadSectionHeader
