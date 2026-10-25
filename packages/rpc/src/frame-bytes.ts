@@ -45,7 +45,7 @@ export class FrameByteDecoder {
   private headLength = 0
   private prefixAt = -1
   private payload: PayloadState | null = null
-  /** 当前行累计字节数（超长判断） */
+  /** 超长判断用 */
   private lineLength = 0
   /** 正在丢弃一条超长或坏掉的行，直到下一个换行 */
   private discarding = false

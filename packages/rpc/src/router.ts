@@ -14,7 +14,7 @@ export class Router {
     { def: AnyMethod; fn: (p: unknown, c: InboundContext) => Promise<unknown> }
   >()
 
-  /** 注册一个方法的实现。def 来自契约；参数在这里用 zod 校验，handler 拿到的一定是合法的 output 类型。 */
+  /** def 来自契约；参数在这里用 zod 校验，handler 拿到的一定是合法的 output 类型。 */
   register(def: AnyMethod, fn: (params: unknown, ctx: InboundContext) => unknown): Disposable {
     if (this.handlers.has(def.name)) throw new AppError(SystemErrorCode.conflict, `${def.name} 重复注册`)
     this.handlers.set(def.name, {

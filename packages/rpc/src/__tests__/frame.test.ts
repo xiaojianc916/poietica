@@ -166,7 +166,6 @@ describe('坏帧的协议行为（05 §4）', () => {
     expect(strays).toHaveLength(1)
     expect(strays[0]?.startsWith('[bad frame]')).toBe(true)
     expect(notifications).toEqual(['demo.before', 'demo.after'])
-    /* 两条通知与一条坏帧都不产生任何回复。 */
     expect(writes).toEqual([])
 
     /* 坏帧之后的请求照常得到回复，且回复里没有 -32700。 */

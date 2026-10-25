@@ -34,9 +34,7 @@ function pinSpinner(element: SVGSVGElement): void {
 /**
  * 一枚状态点。装饰性图形，状态文字由调用方放在同一行的读屏文本里。
  *
- * @param state 五档状态之一
  * @param size 外径；ongoing 默认 14px，其余默认 10px
- * @param className 布局位置
  */
 export function StateDot({
   state,

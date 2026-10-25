@@ -77,15 +77,6 @@ export function repairAppShortcuts(o: RepairAppShortcutsOptions): string[] {
 }
 
 /**
- * 启动时的一次性自愈：把“声称我们身份、target 已经丢失”的快捷方式改回正确指向。
- *
- * 为什么只在开发版做：安装版的快捷方式由 NSIS 写，指向的是安装目录里的
- * Poietica.exe，不会跟着 node_modules 换版本；而开发版指向 electron.exe，换一次依赖就断一次。
- *
- * 任何异常都只记日志不抛：图标丑不能挡住启动。
- */
-
-/**
  * 启动时的一次性自愈：把「声称我们身份、target 已经丢失」的快捷方式改回正确指向。
  *
  * 只在开发版做：安装版的快捷方式由 NSIS 写，指向安装目录里的 Poietica.exe，

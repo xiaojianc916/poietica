@@ -18,10 +18,6 @@ function truncate(s: string): string {
   return s.length > MAX_STRING ? `${s.slice(0, MAX_STRING)}…[truncated ${s.length - MAX_STRING}]` : s
 }
 
-/**
- * 返回脱敏后的深拷贝（输入不被修改）。同时：Error 转成 {name, message, stack}；超长字符串截断；
- * 超过 6 层的对象替换为 '[depth]'；循环引用替换为 '[circular]'；bigint 转字符串；函数与 symbol 丢弃。
- */
 /** walk 的哨兵：叶子那一格已经就地算完，不用再往下走 */
 const MISS = Symbol('miss')
 
@@ -50,6 +46,10 @@ function objectOf(source: object, walk: (item: unknown, key: string) => unknown)
   return out
 }
 
+/**
+ * 返回脱敏后的深拷贝（输入不被修改）。同时：Error 转成 {name, message, stack}；超长字符串截断；
+ * 超过 6 层的对象替换为 '[depth]'；循环引用替换为 '[circular]'；bigint 转字符串；函数与 symbol 丢弃。
+ */
 export function redactSecrets(value: unknown): unknown {
   const seen = new WeakSet<object>()
   const walk = (v: unknown, depth: number, key: string | null): unknown => {

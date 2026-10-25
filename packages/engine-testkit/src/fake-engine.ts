@@ -853,14 +853,10 @@ class FakeSession implements EngineSession {
   }
 }
 
-/**
- * 替身的命令表：只放一致性用例用得到的那几条（形状与 omp 折算出来的一致）。
- * `session` 是本地命令（只出一段文字），`retry` 交给 agent（开一轮）—— 两种结局各有一条可测。
- */
-/** 替身的角色表：omp MODEL_ROLES 的前几格（chat 区三格 + kind 区一格），够覆盖「两区」与「未知角色」两件事 */
 /** 替身认的档位（omp 的档位全序；`off` 不是「一档」） */
 const FAKE_THINKING_LEVELS: readonly string[] = Object.freeze(['minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
 
+/** 替身的角色表：omp MODEL_ROLES 的前几格（chat 区三格 + kind 区一格），够覆盖「两区」与「未知角色」两件事 */
 const FAKE_ROLES: readonly { role: string; name: string; section: 'chat' | 'kind' }[] = Object.freeze([
   { role: 'default', name: 'Default', section: 'chat' },
   { role: 'smol', name: 'Fast', section: 'chat' },
@@ -868,6 +864,8 @@ const FAKE_ROLES: readonly { role: string; name: string; section: 'chat' | 'kind
   { role: 'image', name: 'Image generation', section: 'kind' },
 ])
 
+/** 替身的命令表：只放一致性用例用得到的那几条（形状与 omp 折算出来的一致）。
+ *  `session` 是本地命令（只出一段文字），`retry` 交给 agent（开一轮）—— 两种结局各有一条可测。 */
 const FAKE_COMMANDS: readonly SlashCommand[] = Object.freeze([
   {
     name: 'compact',
