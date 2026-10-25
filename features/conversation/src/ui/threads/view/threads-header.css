@@ -4,7 +4,8 @@
  *
  * - 条   靠右、末尾对齐，间距取 --ui-row-gap 的一半（正本 4 / 它那条栏的 8）
  * - 钮   28 见方（与侧栏那几枚图标钮同尺寸）、圆角 --ui-radius-md；悬停同它们一样铺底并提亮字色
- * - 搜索 收起时只占那一枚的宽，展开时吃掉剩余宽度；宽度与内边距一起补间（正本 .search → .searchExpanded）
+ * - 搜索 收起时只占那一枚的宽，展开时吃掉剩余宽度；宽度与底色一起补间（正本 .search → .searchExpanded）。
+ *         展开态只有一块底，没有框线 —— 侧栏深色下就是 #202020，比它更暗的边读成脏边。
  */
 
 /* 动作这一侧吃掉剩余宽度，静息时两端对齐把三枚按钮顶到右缘（正本 sectionHeader 的 justify-content: flex-end）。 */
@@ -54,17 +55,21 @@
   max-inline-size: var(--threads-header-button);
   flex: 0 1 auto;
   align-items: center;
-  border: var(--ui-hairline) solid transparent;
   border-radius: var(--ui-radius-sm);
   transition:
     max-inline-size var(--ui-duration-normal) var(--ui-ease-standard),
-    border-color var(--ui-duration-normal) var(--ui-ease-standard);
+    background-color var(--ui-duration-normal) var(--ui-ease-standard);
 }
 
+/* 展开后只给一块底，不画边：侧栏在深色下本身就是 #202020，比它更暗的一圈线读成一道脏边。
+ * 底读输入框那一档（深色 #2b2b2b，比侧栏抬一档；浅色纯白，压在 #f3f3f3 的侧栏上）：
+ * 这正是全仓输入框的面，也刚好与 #202020 谐调 —— 不齐平到消失，也不跳成另一块板。
+ * 内缩取一格外框线：原先那圈边的宽度由它顶上，两端图标的位置与有边时一格不差。 */
 .threads-header__search[data-expanded='true'] {
   max-inline-size: 100%;
   flex: 1 1 auto;
-  border-color: var(--ui-divider-subtle);
+  padding-inline: var(--ui-hairline);
+  background: var(--ui-input-surface);
 }
 
 .threads-header__search-button {
@@ -93,11 +98,7 @@
   color: var(--ui-foreground);
 }
 
-/* 展开时那一圈边占掉两格宽，按钮内缩补回来，图标才不会往右跳一格；那一格此时也归输入框，悬停不再铺底（正本 .searchExpanded .searchButton:hover）。 */
-.threads-header__search[data-expanded='true'] .threads-header__search-button {
-  margin-inline-start: calc(var(--ui-hairline) * -1);
-}
-
+/* 展开后那一格归输入框（正本 .searchExpanded .searchButton:hover）：悬停不铺底，免得在填好的输入区里再压出一块。 */
 .threads-header__search[data-expanded='true'] .threads-header__search-button:hover {
   background: transparent;
   color: var(--cp-ink-muted);
@@ -127,7 +128,7 @@
   color: var(--cp-placeholder);
 }
 
-/* 清除键比它所在那一格小一档（正本 24 / 28），才收得进展开后那圈边里。 */
+/* 清除键比它所在那一格小一档（正本 24 / 28），收起时那点余量就是它与字段右缘的空。 */
 .threads-header__clear {
   display: inline-flex;
   block-size: calc(var(--threads-header-button) - 4px);
