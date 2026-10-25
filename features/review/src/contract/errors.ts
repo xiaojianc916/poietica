@@ -15,4 +15,6 @@ export const reviewErrors = defineErrors('review', {
   /* 撤销一轮的文件改动：这一轮没有可撤的账（或已经撤过）；以及「有文件在此期间被别人改过」。 */
   rewind_not_available: '这一轮没有可以撤销的改动',
   rewind_unsafe: '这些文件在此期间被改过，不能撤销',
+  /* 右坞那一格 diff：点开的那一行不在这一轮的账里（多半是别的轮、或账已经清掉）。 */
+  turn_file_missing: '这一轮没有改过这个文件',
 })

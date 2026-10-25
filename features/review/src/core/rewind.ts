@@ -34,6 +34,18 @@ export interface TurnRewind {
   }): void
   /** 一条线程的全部轮次（升序）；workspaceRoot 用来把绝对路径转回界面显示的相对路径。 */
   list(threadId: string, workspaceRoot: string): TurnChanges
+  /**
+   * 这一轮某文件改前改后的正文（右坞那一格 diff 的两半）。
+   *
+   * 按**显示路径**找：界面手里的是相对路径（正斜杠），账本里存的是绝对路径。撤销之后照样
+   * 交原来的两半 —— 人点开「已撤销」那一轮该看的是「当初改成了什么」，不是一片空白。
+   */
+  patch(
+    threadId: string,
+    turn: number,
+    workspaceRoot: string,
+    shownPath: string,
+  ): { before: string | null; after: string | null }
   preview(threadId: string, turn: number, workspaceRoot: string): Promise<TurnRewindPreview>
   /** 撤销一轮：有任何不安全就整轮拒绝，不做部分写回。 */
   apply(threadId: string, turn: number, workspaceRoot: string): Promise<{ turn: number; reverted: true }>
@@ -223,6 +235,18 @@ export function createTurnRewind(d: TurnRewindDeps): TurnRewind {
     },
 
     list,
+
+    patch(threadId, turn, workspaceRoot, shownPath) {
+      const wanted = shownPath.replaceAll('\\', '/')
+      const row = d.repo.listByTurn(threadId, turn).find((held) => displayPath(workspaceRoot, held.path) === wanted)
+
+      if (row === undefined) {
+        throw new AppError(reviewErrors.turn_file_missing, '这一轮没有改过这个文件', { turn, path: shownPath })
+      }
+
+      return { before: row.before, after: row.after }
+    },
+
     preview,
 
     async apply(threadId, turn, workspaceRoot) {

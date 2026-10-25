@@ -1,5 +1,13 @@
-import { defineContributionPoint } from '@poietica/ui-kernel'
-import { type ComponentType, createContext, type ReactNode, useCallback, useContext, useSyncExternalStore } from 'react'
+import { defineContributionPoint, useContributions } from '@poietica/ui-kernel'
+import {
+  type ComponentType,
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useMemo,
+  useSyncExternalStore,
+} from 'react'
 
 /*
  * 一轮回复下面那条「N 个文件已更改 / 撤销」的数据落点。
@@ -46,6 +54,47 @@ export interface TurnChangesApi {
   subscribe(threadId: string, listener: () => void): () => void
   /** 这一轮没有可撤销的账（空轮、已经撤销过）或写回失败时抛出；失败由调用方报到横幅上。 */
   rewind(threadId: string, turn: number): Promise<void>
+  /**
+   * 这一轮某文件改前改后的正文。
+   *
+   * 只有账本主人（review）手里有这两半：写完之后磁盘上只剩 after，事后去读拿不回 before。
+   * 点文件行开右坞 diff 时先取它，再交给 turnDiffOpeners 里那个落点。
+   */
+  patch(threadId: string, turn: number, path: string): Promise<{ before: string | null; after: string | null }>
+}
+
+/**
+ * 「把这一轮这个文件的改动开到右坞」这件事本身的投递口。
+ *
+ * conversation 只发出这个意图（点的是它画的那一行），落点归 files —— 右坞的文件面板是它的格。
+ * 与 composerProviders 同一形制：这里留贡献点，谁认识坞谁来接手；一个都没有时文件行画成
+ * 不可点（不画一个点了没反应的链接）。
+ */
+export interface TurnDiffRequest {
+  /** 哪条对话（右坞按它分账）。 */
+  readonly threadId: string
+  readonly turn: number
+  /** 相对工作区根、正斜杠 —— 与 TurnChangesFile.path 同一份写法。 */
+  readonly path: string
+  /** 改前改后的正文：账本里那两半，由 review 取。 */
+  readonly before: string | null
+  readonly after: string | null
+}
+export interface TurnDiffOpener {
+  readonly id: string
+  readonly order: number
+  open(request: TurnDiffRequest): void
+}
+export const turnDiffOpeners = defineContributionPoint<TurnDiffOpener>('conversation.turnDiffOpeners')
+
+/** 此刻接手的那个落点（order 最小的）；一个都没装时为 null —— 文件行据此画成不可点。 */
+export function useTurnDiffOpener(): TurnDiffOpener | null {
+  const openers = useContributions(turnDiffOpeners)
+
+  return useMemo(
+    () => [...openers].sort((left, right) => left.item.order - right.item.order)[0]?.item ?? null,
+    [openers],
+  )
 }
 
 /** 没有提供者时是 null，不是抛错：单测夹具、没装 review 功能的宿主都拿得到「这条 UI 不存在」这个合法答案。 */

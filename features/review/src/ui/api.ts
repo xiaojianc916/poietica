@@ -73,6 +73,7 @@ export function createTurnChangesApi(ctx: UiFeatureContext): TurnChangesGateway 
 
   return {
     list: async (threadId) => (await rpc.call('review.turnChanges', { threadId })).turns,
+    patch: (threadId, turn, path) => rpc.call('review.turnFilePatch', { threadId, turn, path }),
     preview: (threadId, turn) => rpc.call('review.previewTurnRewind', { threadId, turn }),
     apply: async (threadId, turn) => {
       await rpc.call('review.applyTurnRewind', { threadId, turn })

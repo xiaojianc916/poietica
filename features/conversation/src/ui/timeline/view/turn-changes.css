@@ -15,7 +15,8 @@
   overflow: hidden;
   inline-size: 100%;
   max-inline-size: 100%;
-  margin-block-start: 0.5rem;
+  /* 与上面那段回复正文之间留一档呼吸：压实了会读成正文的最后一段，而不是「这一轮之外的一笔账」。 */
+  margin-block-start: 1rem;
   border: 1px solid var(--ui-card-frame);
   border-radius: var(--ui-radius-xl);
   background: var(--ui-card);
@@ -181,6 +182,24 @@
   padding: 0.5rem;
   font-size: var(--ui-prose-size);
   line-height: var(--ui-line-height-tight);
+}
+
+/* 能点开右坞 diff 的那一行：按钮长成行本身，悬停给个回执（与头部同一条墨）。 */
+.turn-changes__file--open {
+  inline-size: 100%;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--ui-duration-fast) var(--cp-motion-ease);
+}
+
+.turn-changes__file--open:hover,
+.turn-changes__file--open:focus-visible {
+  background: var(--cp-hover);
 }
 
 /*

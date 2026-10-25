@@ -11,6 +11,7 @@ import {
   GitStatus,
   ReviewFile,
   TurnChanges,
+  TurnFilePatch,
   TurnRewindPreview,
 } from './entities'
 import { reviewErrors } from './errors'
@@ -202,6 +203,18 @@ export const reviewContract = defineContract({
       params: z.object({ threadId: z.string().min(1) }),
       result: TurnChanges,
       description: '这条线程每一轮改过哪些文件（turns 升序；行数是这一轮的真实增减，撤销后仍报原值）',
+    }),
+    defineMethod({
+      name: 'review.turnFilePatch',
+      owner: 'core',
+      params: z.object({
+        threadId: z.string().min(1),
+        turn: z.number().int().positive(),
+        path: z.string().min(1),
+      }),
+      result: TurnFilePatch,
+      description:
+        '这一轮某文件改前改后的正文（右坞那一格 diff 的两半）；撤销之后仍交原来的两半，没有这一笔 → turn_file_missing',
     }),
     defineMethod({
       name: 'review.previewTurnRewind',

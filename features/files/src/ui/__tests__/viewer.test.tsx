@@ -6,7 +6,25 @@ import { FileView } from '../viewer'
 
 afterEach(cleanup)
 
-const opener: FileOpener = { openListed: () => undefined, openReference: () => undefined }
+const opener: FileOpener = {
+  openDiff: () => undefined,
+  openListed: () => undefined,
+  openReference: () => undefined,
+}
+
+/* 账本那一格：正文两半都在 tab.diff 里，磁盘上是写完之后的样子（这里故意读不到）。 */
+const diffTab = {
+  id: 'file-1',
+  workspaceId: 'w1',
+  path: 'src/a.ts',
+  diff: { before: 'one\ntwo\n', after: 'one\nTWO\n', turn: 2 },
+}
+const unreadable = {
+  read: async () => {
+    throw new Error('改动那一格不该读磁盘')
+  },
+  onChanged: () => ({ dispose: () => undefined }),
+}
 
 function textOf(path: string, text: string): FileContent {
   return { kind: 'text', path, size: text.length, mtimeMs: 1, text, encoding: 'utf-8', truncated: false }
@@ -64,5 +82,21 @@ describe('文件查看器', () => {
       expect(view.getByRole('region', { name: '文件内容' }).textContent).toContain('# 标题')
     })
     expect(view.getByRole('button', { name: '自动换行' })).toBeDefined()
+  })
+
+  test('改动那一格：画账本里的两半，不读磁盘', async () => {
+    const view = render(<FileView api={unreadable} opener={opener} owner="t1" reveal={undefined} tab={diffTab} />)
+
+    /* 着色是异步的（paint 交回后换一份上色版）：等它落定，免掉 act 警告。 */
+    await waitFor(() => {
+      expect(view.getByRole('region', { name: '文件改动' }).textContent).toContain('TWO')
+    })
+    const region = view.getByRole('region', { name: '文件改动' })
+    /* 改前那一行与改后那一行都在行带里：两半都来自 tab.diff。 */
+    expect(region.textContent).toContain('one')
+    /* 标题那一条说明这是哪一轮的改动。 */
+    expect(view.container.textContent).toContain('第 2 轮')
+    /* 全文那一格才有的东西不该出现：这里没有「重新读取」（改动是账本里的事实，不是文件现况）。 */
+    expect(view.queryByRole('button', { name: '重新读取' })).toBeNull()
   })
 })

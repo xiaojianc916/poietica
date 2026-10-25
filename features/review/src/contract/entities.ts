@@ -176,6 +176,20 @@ export type TurnChanges = z.infer<typeof TurnChanges>
 export const TurnRewindObstacle = z.enum(['externally_modified', 'missing'])
 export type TurnRewindObstacle = z.infer<typeof TurnRewindObstacle>
 
+/**
+ * 某一轮里一个文件改前改后的正文：右坞那一格 diff 要的就是这两半。
+ *
+ * 撤销之后这里**仍然交原来的两半**（账不删）：人点开「已撤销」那一轮的文件行，
+ * 该看的是「当初改成了什么」，不是一片空白。
+ */
+export const TurnFilePatch = z.object({
+  /** 改之前那一份；null = 那时这个文件还不存在。 */
+  before: z.string().nullable(),
+  /** 改之后那一份；null = 这一笔把它删了。 */
+  after: z.string().nullable(),
+})
+export type TurnFilePatch = z.infer<typeof TurnFilePatch>
+
 /** 撤销前的检查：canApply = 没有任何 unsafe（有就整轮拒绝，不做部分写回）。 */
 export const TurnRewindPreview = z.object({
   safe: z.array(z.object({ path: z.string() })),

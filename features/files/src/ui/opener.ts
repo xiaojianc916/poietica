@@ -2,7 +2,7 @@ import type { WorkspacesUi } from '@poietica/feature-workspaces/ui-api'
 import type { Logger } from '@poietica/foundation'
 import type { BannerService, LayoutService } from '@poietica/ui-kernel'
 import type { FilesApi } from './api'
-import type { FileTabsStore } from './tabs'
+import type { FileDiff, FileTabsStore } from './tabs'
 
 /** 右坞两格的 id：树（pane，进启动器）与查看器（标签组，只能由代码打开）。 */
 export const TREE_PANEL_ID = 'files.tree'
@@ -21,6 +21,11 @@ export interface FileOpenRequest {
 export interface FileOpener {
   /** 树里点的：路径已是工作区内的相对路径，直接开。 */
   openListed(owner: string, workspaceId: string, path: string): void
+  /**
+   * 开一格「这一轮把它改成了什么」：正文两半由调用方给（账本在 review 手里），
+   * 这里只负责把它摆进右坞的查看器。
+   */
+  openDiff(owner: string, workspaceId: string, path: string, diff: FileDiff): void
   /** 正文里写的：先让 Core 解析（相对 / 绝对、是否在工作区内、是文件还是目录），再开或在树里定位。 */
   openReference(request: FileOpenRequest): void
 }
@@ -45,6 +50,11 @@ export function createFileOpener(d: {
   return {
     openListed(owner, workspaceId, path) {
       show(owner, workspaceId, path, null, null)
+    },
+    openDiff(owner, workspaceId, path, diff) {
+      d.tabs.open(owner, workspaceId, path, null, null, diff)
+      d.layout.focusPane(owner, VIEWER_PANEL_ID)
+      d.layout.setDockOpen(owner, true)
     },
     openReference(request) {
       const owner = request.owner ?? d.layout.current().auxiliary.activeOwner

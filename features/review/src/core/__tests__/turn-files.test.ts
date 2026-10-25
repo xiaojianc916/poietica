@@ -296,3 +296,53 @@ describe('review 撤销一轮：写回与状态', () => {
     await b.dispose()
   })
 })
+
+describe('review 右坞那一格 diff 的正文', () => {
+  test('按显示路径取这一轮的两半：新建时 before 为 null，删除时 after 为 null', async () => {
+    const b = await bench()
+    b.record({ turn: 1, path: path.join('src', 'a.ts'), before: null, after: 'one\ntwo\n' })
+    b.record({ turn: 1, path: 'gone.ts', before: 'bye\n', after: null })
+
+    expect(b.rewind.patch('t1', 1, b.root, 'src/a.ts')).toEqual({ before: null, after: 'one\ntwo\n' })
+    expect(b.rewind.patch('t1', 1, b.root, 'gone.ts')).toEqual({ before: 'bye\n', after: null })
+    await b.dispose()
+  })
+
+  test('同一轮改多次：交的是最初 before 与最终 after（与摘要行报的是同一份差）', async () => {
+    const b = await bench()
+    b.record({ turn: 1, path: 'a.txt', before: 'one\n', after: 'one\ntwo\n' })
+    b.record({ turn: 1, path: 'a.txt', before: 'one\ntwo\n', after: 'one\nTWO\n' })
+
+    expect(b.rewind.patch('t1', 1, b.root, 'a.txt')).toEqual({ before: 'one\n', after: 'one\nTWO\n' })
+    await b.dispose()
+  })
+
+  test('撤销之后照样交原来的两半：点开「已撤销」那一轮该看的是当初改成了什么', async () => {
+    const b = await bench()
+    const file = path.join(b.root, 'a.txt')
+    await fs.writeFile(file, 'new\n', 'utf8')
+    b.record({ turn: 1, path: 'a.txt', before: 'old\n', after: 'new\n' })
+    await b.rewind.apply('t1', 1, b.root)
+
+    expect(await fs.readFile(file, 'utf8')).toBe('old\n')
+    expect(b.rewind.patch('t1', 1, b.root, 'a.txt')).toEqual({ before: 'old\n', after: 'new\n' })
+    await b.dispose()
+  })
+
+  test('这一轮没改过它 → turn_file_missing（不是交一份空 diff）', async () => {
+    const b = await bench()
+    b.record({ turn: 1, path: 'a.txt', before: null, after: 'x\n' })
+
+    expect(() => b.rewind.patch('t1', 1, b.root, 'b.txt')).toThrow()
+    expect(() => b.rewind.patch('t1', 2, b.root, 'a.txt')).toThrow()
+    await b.dispose()
+  })
+
+  test('交进来的路径是反斜杠写法也认（界面与账本各用各的分隔符）', async () => {
+    const b = await bench()
+    b.record({ turn: 1, path: path.join('src', 'deep.ts'), before: null, after: 'x\n' })
+
+    expect(b.rewind.patch('t1', 1, b.root, 'src\\deep.ts')).toEqual({ before: null, after: 'x\n' })
+    await b.dispose()
+  })
+})

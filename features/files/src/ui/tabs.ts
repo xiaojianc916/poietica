@@ -8,10 +8,27 @@
  * 在所有归属里共用一个号；没有任何归属再引用它时号与文件记录一起删掉，两张表都不会只增不减。
  */
 
+/**
+ * 这一格打开的是「这一轮把它改成了什么」，而不是文件当前的全文。
+ *
+ * 由打开它的那一方（review 的改动条）给出：账本里的 before/after 只有它手里有，
+ * 文件面板自己去磁盘上读只能读到写完之后的样子。
+ */
+export interface FileDiff {
+  /** 改之前那一份；null = 那时这个文件还不存在。 */
+  readonly before: string | null
+  /** 改之后那一份；null = 这一笔把它删了。 */
+  readonly after: string | null
+  /** 打开它的那一轮（只用来在标题上说明这是哪一轮的改动）。 */
+  readonly turn: number
+}
+
 export interface FileTab {
   readonly id: string
   readonly workspaceId: string
   readonly path: string
+  /** 在场时这一格画改动而不是全文（见 FileDiff）。 */
+  readonly diff?: FileDiff
 }
 
 export interface FileTabSet {
@@ -44,15 +61,21 @@ export class FileTabsStore {
   private readonly listeners = new Set<Listener>()
   private serial = 0
 
-  /** 打开（去重）并选中；带行号时记一次「滚到这一行」。交回标签号。 */
+  /**
+   * 打开（去重）并选中；带行号时记一次「滚到这一行」。交回标签号。
+   *
+   * `diff` 在场时这一格画改动：此时**连路径一起**去重 —— 同一个文件的「全文」与「某一轮的改动」
+   * 是两件不同的事，合成一格会让先开的那个悄悄覆盖后开的。
+   */
   open(
     owner: string,
     workspaceId: string,
     path: string,
     line: number | null = null,
     column: number | null = null,
+    diff?: FileDiff,
   ): string {
-    const id = this.idOf(workspaceId, path)
+    const id = this.idOf(workspaceId, path, diff)
     const current = this.byOwner.get(owner)
     const ids = current?.ids.includes(id) === true ? current.ids : [...(current?.ids ?? []), id]
     if (line !== null) {
@@ -134,14 +157,20 @@ export class FileTabsStore {
     }
   }
 
-  private idOf(workspaceId: string, path: string): string {
-    const key = fileKey(workspaceId, path)
+  private idOf(workspaceId: string, path: string, diff?: FileDiff): string {
+    /* 改动那一格按「哪一轮」分开：同一个文件在三条不同的轮里各有一份 diff。 */
+    const key =
+      diff === undefined ? fileKey(workspaceId, path) : `${fileKey(workspaceId, path)}\u0000diff${String(diff.turn)}`
     const held = this.ids.get(key)
-    if (held !== undefined) return held
+    if (held !== undefined) {
+      /* 同一轮再点一次：内容可能已重读，换上新的一份。 */
+      if (diff !== undefined) this.tabs.set(held, { id: held, workspaceId, path, diff })
+      return held
+    }
     this.serial += 1
     const id = `file-${String(this.serial)}`
     this.ids.set(key, id)
-    this.tabs.set(id, { id, workspaceId, path })
+    this.tabs.set(id, diff === undefined ? { id, workspaceId, path } : { id, workspaceId, path, diff })
     return id
   }
 
@@ -154,7 +183,11 @@ export class FileTabsStore {
     for (const [id, tab] of [...this.tabs]) {
       if (used.has(id)) continue
       this.tabs.delete(id)
+      /* 号表按 diff 分过键：清的时候要把两个键都试一遍（全文那个与各轮改动那些）。 */
       this.ids.delete(fileKey(tab.workspaceId, tab.path))
+      if (tab.diff !== undefined) {
+        this.ids.delete(`${fileKey(tab.workspaceId, tab.path)}\u0000diff${String(tab.diff.turn)}`)
+      }
     }
   }
 

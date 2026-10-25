@@ -1,5 +1,5 @@
 import { cn, FileTypeMark, formatBytes, ViewSwitch, type ViewSwitchOption } from '@poietica/design-system'
-import { type DiffFile, paint, wholeFile } from '@poietica/design-system/diff'
+import { computeFile, type DiffFile, paint, wholeFile } from '@poietica/design-system/diff'
 import { DiffBody } from '@poietica/design-system/diff/surface'
 import { isAbsoluteFilePath, Prose, type ProseFileLinks, ProseFileLinksContext } from '@poietica/design-system/prose'
 import { useLayout } from '@poietica/ui-kernel'
@@ -9,7 +9,7 @@ import { type FileContent, filesErrors, workspaceFileUrl } from '../contract'
 import { type FilesApi, touches } from './api'
 import type { FileOpener } from './opener'
 import { joinPath, parentDirectory } from './relative-path'
-import type { FileReveal, FileTab, FileTabsStore } from './tabs'
+import type { FileDiff, FileReveal, FileTab, FileTabsStore } from './tabs'
 import { IconButton, Note, Placeholder } from './tree-pane'
 import './files.css'
 
@@ -122,6 +122,26 @@ export function FileView({
   readonly reveal: FileReveal | undefined
   readonly tab: FileTab
 }) {
+  /* 改动那一格不读磁盘：正文两半都在账本里（见 FileDiff），读回来的只会是写完之后的样子。 */
+  if (tab.diff !== undefined) {
+    return <DiffView diff={tab.diff} path={tab.path} />
+  }
+  return <ContentView api={api} opener={opener} owner={owner} reveal={reveal} tab={tab} />
+}
+
+function ContentView({
+  api,
+  opener,
+  owner,
+  reveal,
+  tab,
+}: {
+  readonly api: Pick<FilesApi, 'read' | 'onChanged'>
+  readonly opener: FileOpener
+  readonly owner: string
+  readonly reveal: FileReveal | undefined
+  readonly tab: FileTab
+}) {
   const { loaded, reload } = useFileContent(api, tab)
   const [wrap, setWrap] = useState(false)
   const markdown = MARKDOWN.test(tab.path)
@@ -149,6 +169,64 @@ export function FileView({
         </IconButton>
       </div>
       <Body loaded={loaded} opener={opener} owner={owner} preview={preview} reveal={reveal} tab={tab} wrap={wrap} />
+    </div>
+  )
+}
+
+/**
+ * 一格改动：这一轮把这个文件从哪改到哪。
+ *
+ * 行怎么切、行号怎么编、词级强调都在 design-system/diff 里 —— 与审查面板、工具抽屉同一条管线，
+ * 所以这里只负责「有哪两份正文」和那一圈工具条。
+ */
+function DiffView({ diff, path }: { readonly diff: FileDiff; readonly path: string }) {
+  const scroller = useRef<HTMLDivElement | null>(null)
+  const [wrap, setWrap] = useState(false)
+  /* before 为 null = 那时这个文件还不存在（整份都是新增）；after 为 null = 这一笔把它删了。 */
+  const plain = useMemo(() => computeFile(path, diff.before ?? '', diff.after ?? ''), [diff, path])
+  const [file, setFile] = useState(plain)
+
+  useEffect(() => {
+    let live = true
+    setFile(plain)
+    const total = (diff.before?.length ?? 0) + (diff.after?.length ?? 0)
+    if (total > PAINT_BYTES || plain.rows.length > PAINT_LINES) return
+    /* 着色失败就当没上色：行带仍在。 */
+    paint([plain]).then(
+      (painted) => {
+        if (live) setFile(painted[0] ?? plain)
+      },
+      () => undefined,
+    )
+    return () => {
+      live = false
+    }
+  }, [diff, plain])
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="files-rule flex h-[var(--ui-control-height-sm)] shrink-0 items-center gap-1 px-2.5">
+        <FileTypeMark name={path} />
+        <span className="min-w-0 flex-1 truncate text-xs opacity-70" title={path}>
+          {path}
+        </span>
+        <span className="shrink-0 text-xs tabular-nums opacity-60">
+          第 {diff.turn} 轮{diff.before === null ? ' · 新建' : null}
+          {diff.after === null ? ' · 删除' : null}
+        </span>
+        <IconButton label="自动换行" onClick={() => setWrap((value) => !value)} pressed={wrap}>
+          <TextWrap aria-hidden />
+        </IconButton>
+      </div>
+      {file.rows.length === 0 ? (
+        <Placeholder title="这一轮没有可对比的正文">它可能是二进制文件，或内容没有变化。</Placeholder>
+      ) : (
+        <section aria-label="文件改动" className="files-code-scroll min-h-0 flex-1 overflow-auto" ref={scroller}>
+          <div className={wrap ? 'relative' : 'relative w-max min-w-full'}>
+            <DiffBody file={file} gaps={false} scrollX={false} scroller={scroller} wrap={wrap} />
+          </div>
+        </section>
+      )}
     </div>
   )
 }

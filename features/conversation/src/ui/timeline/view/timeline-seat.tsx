@@ -29,6 +29,8 @@ export interface TimelineSeatProps {
   readonly changesOpen?: boolean | undefined
   readonly onToggleChanges?: (() => void) | undefined
   readonly onRewindTurn?: ((turn: number) => void) | undefined
+  /** 点这一轮改过的某个文件：把它的改动开到右坞（没装 files 功能时缺席）。 */
+  readonly onOpenDiff?: ((path: string) => void) | undefined
   readonly open: ReadonlySet<string>
   readonly onToggle: (id: string) => void
   readonly onSealToggle: (turn: number, isOpen: boolean) => void
@@ -46,6 +48,7 @@ export const TimelineSeat = memo(function TimelineSeat({
   onSealToggle,
   onToggle,
   onToggleChanges,
+  onOpenDiff,
   onRewindTurn,
   open,
   replyKeepTurns,
@@ -86,6 +89,7 @@ export const TimelineSeat = memo(function TimelineSeat({
       <TurnChangesBar
         {...(changesBusy === undefined ? {} : { busy: changesBusy })}
         expanded={changesOpen ?? false}
+        onOpenDiff={onOpenDiff}
         onRewind={() => onRewindTurn?.(changes.turn)}
         onToggle={() => onToggleChanges?.()}
         view={changes}

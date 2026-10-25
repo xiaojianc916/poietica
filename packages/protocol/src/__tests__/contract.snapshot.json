@@ -13918,6 +13918,59 @@
       }
     },
     {
+      "name": "review.turnFilePatch",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "这一轮某文件改前改后的正文（右坞那一格 diff 的两半）；撤销之后仍交原来的两半，没有这一笔 → turn_file_missing",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "turn": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "threadId",
+          "turn",
+          "path"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "before": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "after": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "before",
+          "after"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "shell.openExternal",
       "owner": "host",
       "timeoutMs": 30000,
@@ -33288,6 +33341,10 @@
     {
       "code": "review.rewind_unsafe",
       "message": "这些文件在此期间被改过，不能撤销"
+    },
+    {
+      "code": "review.turn_file_missing",
+      "message": "这一轮没有改过这个文件"
     },
     {
       "code": "terminal.cwd_not_found",

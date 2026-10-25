@@ -1,5 +1,5 @@
 import { FileTypeMark } from '@poietica/design-system'
-import { fileReferenceOpeners } from '@poietica/feature-conversation/ui-api'
+import { fileReferenceOpeners, turnDiffOpeners } from '@poietica/feature-conversation/ui-api'
 import { WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
 import {
   BannersToken,
@@ -92,6 +92,27 @@ export default defineUiFeature({
           column: request.column,
           owner: request.threadId,
           workspaceId: request.workspaceId,
+        })
+      },
+    })
+
+    /*
+     * 回复下方那条改动条里的文件行点了：把「这一轮把它改成了什么」开到右坞。
+     * 正文两半由 conversation 那边先向 review 取好再交过来（见 TurnDiffRequest），
+     * 这里只认坞与标签 —— 文件面板是这一功能的格。
+     */
+    ctx.contribute(turnDiffOpeners, {
+      id: 'files.turnDiff',
+      order: 10,
+      open: (request) => {
+        const workspaceId = workspaces.store.getState().activeId
+        if (workspaceId === null) {
+          return
+        }
+        opener.openDiff(request.threadId, workspaceId, request.path, {
+          before: request.before,
+          after: request.after,
+          turn: request.turn,
         })
       },
     })

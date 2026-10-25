@@ -42,6 +42,7 @@ function fakeGateway(): TurnChangesGateway & { readonly listCalls: () => number 
       return Promise.resolve(ROWS)
     },
     listCalls: () => list,
+    patch: () => Promise.resolve({ before: null, after: null }),
     preview: () => Promise.resolve(SAFE),
     apply: () => Promise.resolve(),
     onChanged: () => ({ dispose: () => undefined }),

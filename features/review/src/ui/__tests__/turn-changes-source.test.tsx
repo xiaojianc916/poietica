@@ -68,6 +68,7 @@ function fakeGateway(
       calls.list.push(threadId)
       return Promise.resolve(rows)
     },
+    patch: () => Promise.resolve({ before: null, after: null }),
     preview: (threadId, turn) => {
       calls.preview.push({ threadId, turn })
       return preview()
@@ -256,6 +257,7 @@ describe('改动条的账本', () => {
       apply: () => Promise.resolve(),
       onChanged: () => ({ dispose: () => undefined }),
       onThreadRemoved: () => ({ dispose: () => undefined }),
+      patch: () => Promise.resolve({ before: null, after: null }),
     }
     const holder = createTurnChangesHolder({ gateway, logger })
     const off = holder.subscribe('t1', () => undefined)

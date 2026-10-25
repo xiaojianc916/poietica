@@ -1,7 +1,7 @@
 import { useProseSettled } from '@poietica/design-system/prose'
 import { useContributions } from '@poietica/ui-kernel'
 import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
-import { toolCallRenderers, useTurnChanges, useTurnChangesOf } from '../../../ui-api'
+import { toolCallRenderers, useTurnChanges, useTurnChangesOf, useTurnDiffOpener } from '../../../ui-api'
 import type { TurnMark } from '../../shared/model/thread'
 import { delegateAddress } from '../delegate-channel'
 import { AgentActivityFeed, type FeedPort, type RowRhythm } from '../feed/agent-activity-feed'
@@ -24,10 +24,10 @@ import { TimelineSeat } from './timeline-seat'
 const REPLY_ACTIONS_PX = 32
 
 /**
- * 文件改动条收起时占的高度。高度正本在 turn-changes.css（32px 行高 + 8px 上距 + 2px 边
- * + 2×2px 内距），这里只是首屏估高用的近似值 —— 真高由虚拟器量。
+ * 文件改动条收起时占的高度。高度正本在 turn-changes.css（40px 行高 + 16px 上距 + 2px 边框），
+ * 这里只是首屏估高用的近似值 —— 真高由虚拟器量。
  */
-const TURN_CHANGES_PX = 44
+const TURN_CHANGES_PX = 58
 
 /** 人亲手改过的开合必须合成一份：分开存的话封条改的是另一份，滚动区看不见，会把整屏当成模型在吐字。 */
 interface Disclosure {
@@ -194,6 +194,31 @@ function SettledTranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite
   const changesByTurn = useMemo(() => new Map(turnChanges.map((view) => [view.turn, view])), [turnChanges])
 
   /*
+   * 点文件行开右坞 diff：落点在 files（坞里的文件面板是它的格），这里只发出「看这一轮这个文件」。
+   * 没装 files 时 opener 为 null，文件行于是画成纯文本。
+   */
+  const diffOpener = useTurnDiffOpener()
+  const openDiff = useCallback(
+    (turn: number, path: string) => {
+      if (diffOpener === null || changesApi === null) {
+        return
+      }
+
+      /*
+       * 两半正文只有账本主人手里有（写完之后磁盘上只剩 after）：先向提供方取，再交给坞。
+       * 取不到（这一轮没记过它、Core 刚换代）就什么都不做 —— 提供方那边已经报过横幅。
+       */
+      void changesApi.patch(conversation, turn, path).then(
+        (patch) => {
+          diffOpener.open({ threadId: conversation, turn, path, before: patch.before, after: patch.after })
+        },
+        () => undefined,
+      )
+    },
+    [changesApi, conversation, diffOpener],
+  )
+
+  /*
    * 撤销的整条路（确认框 → 写回 → 刷账）都在提供方那一层；这里只记「哪一轮正在退」，
    * 好让那颗键在办完之前保持不可用 —— 连点两次会把同一轮写回两遍。
    */
@@ -241,6 +266,7 @@ function SettledTranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite
                 changes: changesView,
                 changesBusy: rewinding === changesView.turn,
                 changesOpen: changes.has(changesView.turn),
+                onOpenDiff: (path: string) => openDiff(changesView.turn, path),
                 onRewindTurn: rewind,
                 onToggleChanges: () => toggleChanges(changesView.turn),
               })}
@@ -268,6 +294,7 @@ function SettledTranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite
       items,
       onFork,
       onRewrite,
+      openDiff,
       rewind,
       rewinding,
       sessionKey,

@@ -32,10 +32,14 @@ export {
   type TurnChangesFile,
   type TurnChangesProviderItem,
   type TurnChangesView,
+  type TurnDiffOpener,
+  type TurnDiffRequest,
   turnChangesContext,
   turnChangesProviders,
+  turnDiffOpeners,
   useTurnChanges,
   useTurnChangesOf,
+  useTurnDiffOpener,
 } from './turn-changes'
 /**
  * 输入框下方那一行的其它 chip。

@@ -30,6 +30,8 @@ export interface TurnRewindPreview {
 /** review 契约的薄封装。方法名只出现在这一层与 api.ts 之间，组件不认识 RPC。 */
 export interface TurnChangesGateway {
   list(threadId: string): Promise<readonly TurnChangesView[]>
+  /** 这一轮某文件改前改后的正文（右坞那一格 diff 的两半）。 */
+  patch(threadId: string, turn: number, path: string): Promise<{ before: string | null; after: string | null }>
   preview(threadId: string, turn: number): Promise<TurnRewindPreview>
   /** 有文件在此期间被改过时整体拒绝（不做部分写回），按契约抛 review.rewind_unsafe。 */
   apply(threadId: string, turn: number): Promise<void>
@@ -299,9 +301,14 @@ export function TurnChangesSource({ children, gateway, holder, onFailure }: Turn
     [gateway, holder],
   )
 
+  const patch = useCallback(
+    (threadId: string, turn: number, path: string) => gateway.patch(threadId, turn, path),
+    [gateway],
+  )
+
   const api = useMemo<TurnChangesApi>(
-    () => ({ changesOf: holder.changesOf, rewind, subscribe: holder.subscribe }),
-    [holder, rewind],
+    () => ({ changesOf: holder.changesOf, patch, rewind, subscribe: holder.subscribe }),
+    [holder, patch, rewind],
   )
 
   return (

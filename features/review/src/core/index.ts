@@ -131,6 +131,8 @@ export default defineCoreModule({
     })
     ctx.rpc.handle('review.previewTurnRewind', (p) => rewind.preview(p.threadId, p.turn, rootOfThread(p.threadId)))
     ctx.rpc.handle('review.applyTurnRewind', (p) => rewind.apply(p.threadId, p.turn, rootOfThread(p.threadId)))
+    /* 右坞那一格 diff：账本里的两半正文（不读磁盘 —— 读回来的是写完之后的样子）。 */
+    ctx.rpc.handle('review.turnFilePatch', (p) => rewind.patch(p.threadId, p.turn, rootOfThread(p.threadId), p.path))
 
     /* 按 workspaceId 摘，不再问路径：工作区已被移走时也摘得掉（移走那一刻 forget 已经停过，这里是空操作）。 */
     ctx.rpc.handle('git.unwatch', (p) => {

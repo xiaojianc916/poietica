@@ -28,9 +28,20 @@ function view(overrides: Partial<TurnChangesView> = {}): TurnChangesView {
 }
 
 /* 回调都注明返回 void：默认值是空函数，测试里换成 push 也不会改变推断出来的类型 */
-function mount(overrides: Partial<TurnChangesView> = {}, expanded = false, onRewind: () => void = () => undefined) {
+function mount(
+  overrides: Partial<TurnChangesView> = {},
+  expanded = false,
+  onRewind: () => void = () => undefined,
+  onOpenDiff?: (path: string) => void,
+) {
   return render(
-    <TurnChangesBar expanded={expanded} onRewind={onRewind} onToggle={() => undefined} view={view(overrides)} />,
+    <TurnChangesBar
+      expanded={expanded}
+      onOpenDiff={onOpenDiff}
+      onRewind={onRewind}
+      onToggle={() => undefined}
+      view={view(overrides)}
+    />,
   )
 }
 
@@ -92,6 +103,30 @@ describe('改动条的展开', () => {
 
     expect(row?.querySelector('.turn-changes__added')).toBeNull()
     expect(row?.querySelector('.turn-changes__removed')?.textContent).toBe('-4')
+  })
+
+  test('文件行点开把路径交出去：右坞那一格 diff 由收下它的功能去开', () => {
+    const opened: string[] = []
+    const container = mount(
+      {},
+      true,
+      () => undefined,
+      (path) => opened.push(path),
+    ).container
+    const rows = [...container.querySelectorAll<HTMLButtonElement>('.turn-changes__file--open')]
+
+    expect(rows).toHaveLength(2)
+    fireEvent.click(rows[0] as HTMLButtonElement)
+    /* 交出去的是相对路径（与摘要里显示的是同一份写法），由 files 那边换算成坞里的标签。 */
+    expect(opened).toEqual(['features/review/src/ui/api.ts'])
+  })
+
+  test('没人认领「开 diff」时文件行是纯文本：不留一个点了没反应的按钮', () => {
+    const container = mount({}, true).container
+
+    expect(container.querySelectorAll('.turn-changes__file')).toHaveLength(2)
+    expect(container.querySelectorAll('.turn-changes__file--open')).toHaveLength(0)
+    expect(container.querySelectorAll('.turn-changes__files button')).toHaveLength(0)
   })
 
   test('点摘要那一格把开合交出去（开关自己不管状态）', () => {
