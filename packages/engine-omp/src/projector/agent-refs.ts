@@ -1,12 +1,10 @@
 import type { AgentRef } from '@poietica/transcript'
 
 /*
- * 派发工具帧 → 它派出去的子代理（`agentRefs`）。
- *
- * 为什么从工具结果的 details 读、不从总线读：omp 的 task 工具在流式中间结果（tool_execution_update 的 partialResult）
- * 与最终结果里都带 `details.progress[] / details.results[]`，每一项的 `id` 就是子代理的号（与生命周期帧的 id、
- * 子代理会话文件名同一个值）。总线上的帧只在这一次运行里有，重开会话之后只剩会话文件里的工具结果 ——
- * 从 details 读，实时那条路与历史那条路给出同一份 agentRefs，屏幕上「点开子代理」在重开前后是同一个入口。
+ * 派发工具帧 → 它派出去的子代理（`agentRefs`）。从工具结果的 details 读、不从总线读：
+ * omp 的 task 工具在流式中间结果与最终结果里都带 `details.progress[] / details.results[]`，
+ * 每项的 `id` 就是子代理的号；总线上的帧只在这一次运行里有，重开之后只剩会话文件里的工具结果 ——
+ * 从 details 读，实时与历史两条路给出同一份 agentRefs，重开前后「点开子代理」是同一个入口。
  */
 
 /** 只有 omp 的 task 工具会派子代理（tools/task 的 `readonly name = "task"`） */

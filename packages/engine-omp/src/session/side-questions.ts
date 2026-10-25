@@ -5,14 +5,11 @@ import { describeError } from './event-faults'
 
 /**
  * 侧边提问（omp 的 `/btw`）：把 omp 的 RpcBtwController 接到端口的 askSide / cancelSide / sideTopics 上。
- *
- * omp 知识 #21：`/btw` 走 `AgentSession.runEphemeralTurn` —— 拿会话的模型、系统提示与**此刻的历史快照**（含主轮正在流式输出的
- * 那一截）问一句，与主轮共用提示缓存，**不写会话历史、从不执行工具**（提示词里写着 NEVER use tools）。话题存在
- * `<artifactsDir>/btw-history/entry-<id>.json`，与 TUI / RPC 宿主读写同一份：删会话一起删，分叉一起复制（session-files.ts）。
- * 控制器同一时刻只答一问，开问在第一笔落盘之后返回，答案从下一个宏任务起经 `btw_delta` 流出、经 `btw_record` 收口。
- *
- * 这一层只做三件事：把 omp 的记录摊平成端口的 `SideTopic`；在 omp 之前把「忙 / 话题不存在 / 没有模型」判掉并报成
- * 带码的 AppError（omp 只抛裸 Error，按字面匹配它的文案太脆）；给每一截流式输出配上 `offset` 与问题下标。
+ * omp 知识 #21：`/btw` 走 `AgentSession.runEphemeralTurn` —— 拿会话的模型、系统提示与此刻的历史快照
+ * 问一句，与主轮共用提示缓存，不写会话历史、从不执行工具。话题存在
+ * `<artifactsDir>/btw-history/entry-<id>.json`，与 TUI / RPC 宿主读写同一份：删会话一起删，分叉一起复制。
+ * 这一层只做三件事：把 omp 的记录摊平成端口的 `SideTopic`；在 omp 之前把「忙 / 话题不存在 / 没有模型」
+ * 判掉并报成带码的 AppError（omp 只抛裸 Error，按字面匹配太脆）；给每截流式输出配 `offset` 与问题下标。
  */
 
 /** RpcBtwController 的输出帧（rpc-btw.ts 的 RpcBtwOutputFrame；那个类型没有导出，按结构抄一份） */

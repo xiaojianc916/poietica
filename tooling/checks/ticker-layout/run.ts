@@ -16,13 +16,10 @@ import { SCENARIO_IDS, STREAMS, type Stream } from './streams'
 
 /*
  * 思考行的真实布局检查：`bun run check:ticker [场景 id]`
- *
- * 要真实的 GPU 与窗口，所以不放进 `bun run all`。改 timeline/rolling-line*、ticker-*、
- * roll-scheduler*、flow-row.css 时必须跑一次 —— 要钉的两条性质（最新的字有没有被裁、放得下时
- * 句首有没有被吃）在 happy-dom 里量不出来，v1 就栽在这一条上。
- *
- * 流程：Bun.build 把 harness 打成一个 html → electron 逐场景跑、逐帧采样、存三张截图 →
- * 这里用纯函数算指标、比阈值。退出码 0 全过 / 1 有不合格 / 2 环境不合格。
+ * 要真实 GPU 与窗口，不放进 `bun run all`；改 timeline/rolling-line*、ticker-*、roll-scheduler*、
+ * flow-row.css 时必须跑一次 —— 要钉的两条性质（最新的字有没有被裁、放得下时句首有没有被吃）
+ * happy-dom 量不出来，v1 就栽在这一条上。流程：Bun.build 打成 html → electron 逐场景逐帧采样
+ * → 这里算指标、比阈值。退出码 0 全过 / 1 有不合格 / 2 环境不合格。
  */
 
 const ROOT = path.resolve(import.meta.dir, '../../..')

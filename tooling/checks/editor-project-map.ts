@@ -1,18 +1,10 @@
 /**
  * 编辑器工程映射的闸门：每个测试文件都要有一个「往上找得到、且包含它」的 tsconfig 工程，
- * 且该工程解析后的 types 里有 "bun"。
- *
- * 背景（refactor-log 偏差 #17 与 2026-10-09 那条）：tooling/tsconfig/base.json 一律 exclude 测试文件
- * （测试的规则更松，也不进 bun check -b），于是测试文件不属于任何 project —— VS Code / Trae 按
- * 「最近的、且包含它的 tsconfig」往上找，找不到就回落到没有类型定义的推断工程：
- * 第一行 import { … } from 'bun:test' 报 TS2307、Bun 报 TS2868。仓库自己的 bun run  all
- * （bun check -p tsconfig.tests.json）一直是绿的，红的是编辑器。
- *
- * 判据（两种写法，看工程与容器目录是否同名）：
- *   • 容器目录（packages/、features/、apps/）放一个 extends 根 tsconfig.tests.json 的
- *     tsconfig.json，include 只收测试 glob；
- *   • 工程自己就在容器目录（tooling/、scripts/）：在自己的 tsconfig.json 里覆盖 exclude，
- *     只排产物目录，把测试留在工程里。
+ * 且该工程解析后的 types 里有 "bun"。背景：base.json 一律 exclude 测试文件（也不进 bun check -b），
+ * 找不到工程的编辑器就回落到没有类型定义的推断工程 —— bun run all 一直绿，红的是编辑器
+ * （refactor-log 偏差 #17）。判据两种写法：容器目录（packages/、features/、apps/）放一个只收
+ * 测试 glob 的 tsconfig.json；工程自己就在容器目录（tooling/、scripts/）的，在自己的 tsconfig.json
+ * 里覆盖 exclude、把测试留在工程里。
  *
  * 用法：bun run tooling/checks/editor-project-map.ts（由 bun run lint 调用）
  */

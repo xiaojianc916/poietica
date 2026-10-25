@@ -219,12 +219,11 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
   /* 子代理通道要往 ompSession 上发，而 ompSession 要用它答 page / 停止 / 引导：同 planner 一样先声明、后接上 */
   let subagents: SubagentHost | null = null
   /*
-   * omp 知识 #19：屏幕上的经过 = omp 的**显示经过**（压缩只在原处留一格摘要，前文都在），不是 `session.messages`：
-   * 那是模型上下文，压缩之后只剩「摘要 + 保留的尾巴」（审查 R-21-1）。分页与落座必须读同一份，
-   * 否则落座的号比屏幕上的少，下一句话会盖掉已有的轮。
-   * 开着一轮时让 omp 保留悬挂调用：正在跑的那次工具调用还没有结果，剥掉它屏幕上那一行就没了；
-   * 封了口的轮里的悬挂调用由历史投影自己剥（与 omp 同一个口径）。
-   * 形状里没有这个方法（测试替身）才退回模型上下文。
+   * omp 知识 #19：屏幕上的经过 = omp 的**显示经过**（压缩只在原处留一格摘要，前文都在），
+   * 不是 session.messages —— 那是模型上下文，压缩之后只剩「摘要 + 保留的尾巴」（审查 R-21-1）；
+   * 分页与落座必须读同一份，否则落座的号比屏幕上的少，下一句话会盖掉已有的轮。
+   * 开着一轮时让 omp 保留悬挂调用（正在跑的工具还没结果，剥掉屏幕上那一行就没了）；
+   * 封了口的轮里的悬挂调用由历史投影自己剥。形状里没有这个方法（测试替身）才退回模型上下文。
    */
   const transcriptOf = (): readonly OmpMessage[] =>
     session.buildTranscriptSessionContext === undefined
@@ -1159,15 +1158,11 @@ function degradeTool(eventType: string, event: Record<string, unknown>, toolCall
 }
 
 /**
- * `agent_end` 的两种结局。
- *
- * omp 从 18.10 起在 `agent_end` 上带 `isTerminal` / `awaitingAsyncWork`。`isTerminal === false` 有两种：
- * - `awaitingAsyncWork === true`：模型把控制权交回，只等后台作业的结果；
- * - 其余：排程暂停 —— retry / compaction continuation / stop-time reminders / queued input 之后还有东西要跑。
- *
- * 两种都是**同一个 run 还没结束**（omp 的 TUI 对两者都不做收尾），后续内容属于开着的那一轮。所以此时不收轮，
- * 只结清这一段的读数与异常账；收不收由看门狗决定 —— 它等排程 / 后台活真的没了才按终态收，或等新一轮的
- * `agent_start` 把自己作废。终态 `agent_end` 并不保证会来（abort 能把排好的重试 / 压缩续跑取消在开跑之前）。
+ * `agent_end` 的两种结局。omp 从 18.10 起带 `isTerminal` / `awaitingAsyncWork`：非终态有两种
+ * （等后台作业的结果；排程暂停 —— retry / 压缩续跑 / 定时提醒 / 排队输入之后还有东西要跑），
+ * 都是**同一个 run 还没结束**（omp 的 TUI 对两者都不收尾），后续内容属于开着的那一轮。
+ * 所以此时不收轮、只结清读数与异常账；收不收由看门狗决定 —— 等排程 / 后台活真的没了才按终态收，
+ * 或等新一轮 agent_start 把自己作废。终态 agent_end 并不保证会来（abort 能把它取消在开跑之前）。
  */
 function settleAgentEnd(event: Record<string, unknown>, pump: EventPump): void {
   if (event.isTerminal === false) {

@@ -3,17 +3,10 @@ import { Dialog } from './dialog'
 import './confirmation-dialog.css'
 
 /*
- * 确认框，几何照 zcode 的 AlertDialog（packages/ui/src/components/ui/alert-dialog.tsx）与
- * ConfirmDialog（packages/ui/src/ConfirmDialog.tsx）的组合：
- *
- *   卡     圆角 16、无边框、popover/98 底、内边距 20、块间距 20、上限 28rem；存在感由
- *          一级 elevation（--ui-shadow-xl，对应 zcode 的 shadow-2xl）给
- *   标题   16 / 600
- *   说明   14 / 24、次要字色、保留换行
- *   页脚   右对齐、按钮间距 8，取消在前、确认在后
- *
- * 确认是这一步唯一要做的事，所以不给右上角关闭钮：取消走页脚那颗按钮、Escape 与（非 busy 时的）
- * 遮罩。按钮高读 controls 令牌的 36，与 zcode 的 h-9 同一档。
+ * 确认框，几何照 zcode 的 AlertDialog 与 ConfirmDialog 的组合：卡圆角 16、无边框、popover/98 底、
+ * 内边距 20、块间距 20、上限 28rem，存在感由一级 elevation（--ui-shadow-xl）给；标题 16/600、
+ * 说明 14/24 次要字色且保留换行；页脚右对齐、间距 8，取消在前、确认在后。
+ * 确认是这一步唯一要做的事，不给右上角关闭钮：取消走页脚按钮、Escape 与（非 busy 时的）遮罩。
  */
 const DIALOG_CLASS_NAME = [
   'max-w-md',

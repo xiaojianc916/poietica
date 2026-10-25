@@ -13,14 +13,10 @@ import { wrapOmpSession } from '../omp-session-adapter'
 const ABC_SHA = sha256Hex(Buffer.from('ABC'))
 
 /*
- * 排队 / 插话这条链路的十条判据（R-01）。
- *
- * 假的 omp AgentSession 有两个真数组当队列（steering / followUp）：`steer` / `followUp` /
- * `promptCustomMessage` 往数组里 push 并发一帧 queue_update；`removeQueuedMessage` 删第一个
- * 匹配、返回是否删到、同样发帧。测试自己用 `fold()` / `messageStart()` 放帧，模拟 omp 把
- * 队头折进上下文 —— queue_update 与 message_start 的先后顺序正是认领最容易出错的地方（Q7）。
- *
- * 被测对象是**真的适配器 + 真的 OmpSession**：这条链路的六个缺陷全都跨这两层。
+ * 排队 / 插话这条链路的十条判据（R-01）。假的 omp AgentSession 有两个真数组当队列
+ * （steering / followUp），push 并发 queue_update；测试自己用 `fold()` / `messageStart()`
+ * 放帧模拟 omp 把队头折进上下文 —— queue_update 与 message_start 的先后正是认领最容易
+ * 出错的地方（Q7）。被测对象是**真的适配器 + 真的 OmpSession**：这条链路的六个缺陷全都跨这两层。
  */
 const NOW = 1_700_000_000_000
 

@@ -7,11 +7,9 @@ import { createRoot } from 'react-dom/client'
 import { uiFeatures } from './features'
 
 /*
- * 量一次系统滚动条多宽，写成 --desktop-scrollbar-size。
- *
- * 会话里输入框下方那条实色带、页头那道雾，都靠它让开滚动条（surface.css 两处
- * inset-inline）；CSS 说不出这个宽度，漏掉这一步两处都兜底成 0px，实色带便铺满
- * 整宽、压住滚动条。量法照 legacy：一个离屏的强制滚动盒，边框盒宽减内容盒宽。
+ * 量一次系统滚动条多宽，写成 --desktop-scrollbar-size：surface.css 两处 inset-inline
+ * 靠它让开滚动条，漏掉这一步兜底成 0px、实色带铺满整宽压住滚动条。量法照 legacy：
+ * 一个离屏的强制滚动盒，边框盒宽减内容盒宽。
  */
 const scrollbarProbe = document.createElement('div')
 scrollbarProbe.style.position = 'absolute'

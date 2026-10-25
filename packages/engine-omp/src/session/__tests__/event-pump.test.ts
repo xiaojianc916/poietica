@@ -10,14 +10,10 @@ import { hashMediaRef } from '../../projector/media'
 import { wrapOmpSession } from '../omp-session-adapter'
 
 /*
- * 事件泵的十一条判据（R-02）：一次投影异常只影响它自己负责的那一行，事件泵照常处理
- * 后面的事件，收尾一定发生。
- *
- * 被测对象是**真的适配器 + 真的 OmpSession + 真的 EventFaults**，只把 omp 的 AgentSession
- * 换成假会话（搭法同 R-01 的 queue.test.ts）：事件自己放，warn 自己收。
- *
- * 每条用例都额外断言没有发出任何 timelineReset（R-02 的 E0）—— 开着轮时整页重取会与
- * 增量投影的编号打架，这条修复明确不这么做。
+ * 事件泵的十一条判据（R-02）：一次投影异常只影响它自己负责的那一行，事件泵照常处理后面的
+ * 事件，收尾一定发生。被测对象是**真的适配器 + 真的 OmpSession + 真的 EventFaults**，只把
+ * omp 的 AgentSession 换成假会话（搭法同 queue.test.ts）。每条用例都额外断言没有发出任何
+ * timelineReset（R-02 的 E0）—— 开着轮时整页重取会与增量投影的编号打架，这条修复明确不这么做。
  */
 
 interface LogRecord {

@@ -107,20 +107,13 @@ type ScreenBlock =
   | { readonly kind: 'tool'; readonly callId: string; readonly name: string; readonly arguments: unknown }
 
 /**
- * 历史分页。
- *
- * **一轮从「人说的话」开始，到下一句开轮的人话为止**——与增量那条路同一个判据。跑着的时候送进去的话
- * （插话 steer、排队 followUp 在同一次运行里被吃掉的）不开轮，落进当前那一轮，见 `interjects`。一次 omp turn 里模型会跑好几趟，
- * 「一条消息一格」会把一次对话拆成好几行；这里按人话归拢，assistant 消息各占一个段，工具结果并回发起它的那次调用。
- *
- * 分页直接从 omp 的会话消息算，Core 不保存第二份正文，所以不存在两份数据不一致的问题。
- *
- * `messages` 必须是**显示经过**（omp 的 `buildTranscriptSessionContext({ collapseCompactedHistory: false })`），
- * 不是模型上下文（`session.messages`）：压缩之后模型上下文只剩「摘要 + 保留的尾巴」，拿它分页，
- * 屏幕上压缩之前的对话就全没了、轮号也从 1 重数（审查 R-21-1）。
- *
- * 压缩**不开轮**：它挂在发生时开着的那一轮后面（增量那条路也不为它开轮），轮号因此与增量那条路一致；
- * 一次 omp turn 里中途压缩，压缩之后的段仍归这一轮，而不是被吞进一格看不见正文的「压缩轮」。
+ * 历史分页。**一轮从「人说的话」开始，到下一句开轮的人话为止** —— 与增量那条路同一个判据：
+ * 跑着的时候送进去的话（插话、排队）不开轮、落进当前那一轮（见 `interjects`）；一次 omp turn 里
+ * 模型会跑好几趟，按人话归拢、assistant 各占一段、工具结果并回发起它的调用。分页直接从 omp 的
+ * 会话消息算，Core 不保存第二份正文。`messages` 必须是**显示经过**（omp 的
+ * `buildTranscriptSessionContext({ collapseCompactedHistory: false })`），不是模型上下文 ——
+ * 压缩之后后者只剩「摘要 + 保留的尾巴」，拿它分页压缩前的对话全没了、轮号也从 1 重数（审查 R-21-1）。
+ * 压缩**不开轮**：挂在发生时开着的那一轮后面，轮号因此与增量那条路一致。
  */
 export function projectHistoryPage(
   messages: readonly OmpMessage[],
@@ -305,15 +298,12 @@ function blankTurn(opening: OmpMessage, prompt: OmpMessage | null): OpenTurn {
 }
 
 /**
- * 这句人话是不是在这一轮**跑着的时候**送进来的（插话）。增量那条路的判据是「送达那一刻有没有一轮开着」
- * （`LiveProjector.steeredFrame`）：开着就落进这一轮成一句插话，不开新轮、不另起封条。重开之后的屏幕
- * 必须与当时一致，所以这里从落了盘的消息里还原同一件事：
- *
- * - **上一段被叫停或出错了**：那次运行已经结束，排着的话会由 omp 另起一次运行 —— 实时那边是新的一轮；
- * - **omp 打了插话标**（`steering: true`）：只有跑着时排进插话队列的话才有；
- * - **提交时刻早于这次运行最后一次动静**：人话的 `timestamp` 是**提交**那一刻，不是送达那一刻。
- *   排队（followUp）那条路没有标，但它在跑着的时候就提交了，送达却在之后 —— 新开一轮的话只能在
- *   上一轮收完之后才发得出来（界面在跑着时一律走排队），时刻一定更晚。
+ * 这句人话是不是在这一轮**跑着的时候**送进来的（插话）。增量那条路的判据是「送达那一刻有没有一轮
+ * 开着」，重开之后的屏幕必须与当时一致，所以这里从落盘的消息里还原同一件事：
+ * 上一段被叫停 / 出错了 → 运行已结束，排着的话 omp 会另起一次运行（新的一轮）；
+ * omp 打了插话标（steering: true）→ 只有跑着时排进插话队列的话才有；
+ * 提交时刻早于这次运行最后一次动静 → 人话的 timestamp 是提交那一刻，排队那条路没有标但提交一定
+ * 在送达之前（新开一轮的话只能在上一轮收完之后发出来，时刻一定更晚）。
  */
 function interjects(open: OpenTurn, message: OmpMessage): boolean {
   if (open.lastStop === 'aborted' || open.lastStop === 'error') return false
@@ -325,11 +315,10 @@ function interjects(open: OpenTurn, message: OmpMessage): boolean {
 }
 
 /**
- * 一条消息在分轮上的角色：开一轮的两种（人话 / 目标续跑）、压缩摘要（挂在当前这一轮后面，不开轮）、
- * 只记时刻的（heard：工具结果与系统通知，不上屏，只记它到达的时刻）、不进屏幕的（skip）、其余的（null，落进当前这一轮）。
- *
- * 目标续跑的开场消息是 display:false 的 custom 消息，但它**开一轮**（审查 R-11）—— * 增量那条路在同一处开轮（LiveProjector.goalContinuationTurn）；这里不认它，续跑的输出就会
- * 并进上一句人话那一轮，重开之后屏幕上的轮数、轮号都与刚才跑的时候对不上。
+ * 一条消息在分轮上的角色：开一轮的两种（人话 / 目标续跑）、压缩摘要（挂在当前轮后，不开轮）、
+ * 只记时刻的（heard：工具结果与系统通知，不上屏）、不进屏幕的（skip）、其余落进当前这一轮（null）。
+ * 目标续跑的开场消息是 display:false 的 custom 消息，但它**开一轮**（审查 R-11，增量那条路在同一处
+ * 开轮）—— 这里不认它，续跑的输出会并进上一句人话那一轮，重开之后轮数、轮号都对不上。
  */
 function roleOf(message: OmpMessage): 'prompt' | 'continuation' | 'compaction' | 'heard' | 'skip' | null {
   if (isGoalContinuationMessage(message)) return 'continuation'
@@ -354,12 +343,10 @@ function resultsOf(messages: readonly OmpMessage[]): Map<string, ScreenResult> {
 
 /**
  * omp 写给**模型**看的系统通知（审查 R-25）：后台任务做完了（`async-result`）、受管进程退出了
- * （`launch-completion`）、迟到的 LSP 诊断（`lsp-late-diagnostic`）。它们是 role:custom、display:true ——
- * omp 的终端界面给它们各画一张专用卡片，不是正文；正文是 `<system-notice>` 包着的任务原始输出。
- * 不认它的话它就落进「这一轮里的一段」，整段原文（命令输出、脚本源码）被画成助手说的话。
- * 实时那条路本来就不画它（它没有流式正文），这里不画，重开之后与当时一致。
- *
- * 除了这三个类型，**正文以 harness 标签开头**的 custom 消息也算（`<system-…>` / `<irc>`，omp 的
+ * （`launch-completion`）、迟到的 LSP 诊断（`lsp-late-diagnostic`）—— role:custom、display:true，
+ * 正文是 `<system-notice>` 包着的任务原始输出。不认它的话整段原文会被画成助手说的话；
+ * 实时那条路本来就不画（它没有流式正文），这里不画，重开之后与当时一致。
+ * 此外**正文以 harness 标签开头**的 custom 消息也算（`<system-…>` / `<irc>`，omp 的
  * `harness-tags.ts` 同一套名字）：系统提示词告诉模型这种块是外壳写的，不是谁说的话。
  */
 const HARNESS_NOTICE_TYPES: ReadonlySet<string> = new Set(['async-result', 'launch-completion', 'lsp-late-diagnostic'])

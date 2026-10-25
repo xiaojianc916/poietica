@@ -57,15 +57,11 @@ export function isGoalContinuationMessage(message: {
 }
 
 /**
- * 一句话交给 omp 时的正文：用户原文 + 每个文件一行 `@"<绝对路径>" (<文件名>)`。投递正文与显示正文是两件事：
- * 屏幕上画原文，与 omp 的一切匹配（队列对账、插话认领）用这一份。
- *
- * 路径**必须加引号**：omp 不加引号的 `@` 记号只取到空白为止，数据目录里有空格（`Poietica Dev`、带空格的用户名）
- * 时它只认到半截路径，文件自动读不进来，重开时这一行也认不出来，整串路径就画进了气泡。Windows 路径里不会有 `"`。
- *
- * 文件名跟在路径后面，是因为会话文件里**只有这一句**会落盘：附件按内容寻址存放，路径里没有名字，
- * 重开之后气泡上那几枚文件记号只能从这里读回来（`splitWireText` 是它的逆，两处改一处必须改另一处）。
- * 名字里的 `@` 换成全角，免得被认成又一个记号。
+ * 一句话交给 omp 时的正文：用户原文 + 每个文件一行 `@"<绝对路径>" (<文件名>)`。投递正文与显示正文
+ * 是两件事：屏幕画原文，与 omp 的一切匹配（队列对账、插话认领）用这一份。路径**必须加引号** ——
+ * omp 的 `@` 记号只取到空白为止，路径带空格时只认半截、文件读不进来（Windows 路径里不会有 `"`）。
+ * 文件名跟在路径后面，是因为会话文件里只有这一句落盘、附件按内容寻址没有名字，重开之后气泡上的
+ * 文件记号只能从这里读回（`splitWireText` 是它的逆，两处改一处必须改另一处）；名字里的 `@` 换全角。
  */
 export function wireTextOf(input: Pick<SubmitInput, 'text' | 'files' | 'context'>): string {
   const referenced = input.files.map((file) => `@"${file.path}" (${wireNameOf(file.name)})`).join('\n')
@@ -75,13 +71,10 @@ export function wireTextOf(input: Pick<SubmitInput, 'text' | 'files' | 'context'
 }
 
 /**
- * omp 队列快照（`getQueuedMessages` / `queue_update`）里这一项的样子 —— 与投递正文**不是**同一份字符串：
- * omp 的 `queueChipText`（`src/session/queued-messages.ts:100-107`）取消息里第一段文字，
- * 没有文字、只带图的 user 消息报成 `[Image]`。
- *
- * 队列对账（`reconcileQueue`）必须按它比：按投递正文比，纯图那一句在下一帧 `queue_update` 里就对不上，
- * 被当成「omp 已经取走」—— 提前报送达、提交行被删、队列条上那一行消失，而 omp 里它其实还排着。
- * 另两处仍然认投递正文：撤回（`removeQueuedMessage`）先按 omp 记下的原文比；`message_start` 认领读的是消息正文。
+ * omp 队列快照里这一项的样子 —— 与投递正文**不是**同一份字符串：omp 的 `queueChipText` 取消息里
+ * 第一段文字，没有文字、只带图的 user 消息报成 `[Image]`。队列对账必须按它比：按投递正文比，纯图
+ * 那一句在下一帧 queue_update 里就对不上，被当成「omp 已取走」—— 提前报送达、队列条上消失。
+ * 撤回与 message_start 认领仍认投递正文。
  */
 export const QUEUE_IMAGE_CHIP = '[Image]'
 
@@ -91,14 +84,10 @@ export function queueChipOf(wireText: string, imageCount: number): string {
 }
 
 /*
- * 附带上下文（`SubmitInput.context`）在投递正文里的写法：文件引用之后，每块一段
- *
- *   <poietica-context source="intelligent-ui">
- *   …正文…
- *   </poietica-context>
- *
- * 开闭标签各占整行。正文里的 `<` 换成 `&lt;`：任何一行都不可能被认成标签，`splitWireText` 从末尾倒着摘也就摘不错；
- * 来源名只留小写字母、数字与连字符，拼不出引号。会话文件里落盘的就是这一份，重开时由 `splitWireText` 摘掉。
+ * 附带上下文（`SubmitInput.context`）在投递正文里的写法：文件引用之后每块一段
+ * `<poietica-context source="…">…</poietica-context>`，开闭标签各占整行。
+ * 正文里的 `<` 换成 `&lt;`：任何一行都不可能被认成标签，`splitWireText` 从末尾倒着摘也就摘不错；
+ * 来源名只留小写字母、数字与连字符。会话文件里落盘的就是这一份，重开时由 `splitWireText` 摘掉。
  */
 const CONTEXT_OPEN = /^<poietica-context source="[a-z0-9-]+">$/u
 const CONTEXT_CLOSE = '</poietica-context>'

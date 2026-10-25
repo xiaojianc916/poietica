@@ -174,10 +174,8 @@ export class CoreSupervisor {
 
   /**
    * 优雅停止：core.shutdown → 最多等 STOP_GRACE_MS → killTree。
-   *
-   * **只管本代 Core 这一棵进程树**，不再顺手枚举系统进程收 omp 后台进程（那一步是 {@link reapOrphans}）。
-   * 两件事以前绑在一起：stop 每次都要跑一遍 PowerShell 的 Win32_Process 枚举，退出路径白白多等一截，
-   * restart() 更是「stop 枚举一次 + start 前 reapBeforeLaunch 再枚举一次」。
+   * 只管本代 Core 这一棵进程树，不顺手枚举系统进程收 omp 后台进程（那一步是 {@link reapOrphans}）
+   * —— 两件事以前绑在一起，stop 每次都要跑一遍 PowerShell 进程枚举，退出路径白白多等一截。
    */
   async stop(): Promise<void> {
     this.restartTimer?.dispose()
@@ -204,11 +202,10 @@ export class CoreSupervisor {
 
   /**
    * 关停后收拾本代 Core 派发的 omp 后台进程（detached 的 daemon broker、lsp mux、blob broker……）。
-   *
-   * 它们**不在** Core 的进程树里，taskkill /T 收不到；不止血的话，每次正常退出都会在后台留一个
-   * 占着 core.exe 的进程 —— 这正是 0.5.10 覆盖安装失败、装成「新 Host + 旧 Core」的直接原因。
-   * 只在**真的退出应用**时由退出协调器调用（与 Host 钩子并发，窗口此时已经藏起来了），不在崩溃重启 / restart 时做：
-   * 那两路新 Core 起来前都会先 reapBeforeLaunch 一次，再枚举一遍是纯开销。永不抛错。
+   * 它们不在 Core 的进程树里，taskkill /T 收不到；不止血的话每次正常退出都在后台留一个占着
+   * core.exe 的进程 —— 这正是 0.5.10 覆盖安装失败、装成「新 Host + 旧 Core」的直接原因。
+   * 只在真的退出应用时由退出协调器调用；崩溃重启 / restart 不做（那两路新 Core 起来前都会先
+   * reapBeforeLaunch 一次，再枚举是纯开销）。永不抛错。
    */
   async reapOrphans(): Promise<void> {
     if (this.state !== 'stopped') {

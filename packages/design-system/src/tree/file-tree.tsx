@@ -17,16 +17,14 @@ import { treeKeyEffect } from './tree-keys'
 import './file-tree.css'
 
 /*
- * 文件树：审查的变更树与右坞「文件」面板共用的那一棵（原 review-pane.tsx 的 Tree / FolderRow / FileRow，缩进、引导线、
- * 字号与图标逐条照搬）。它只认行模型与回调：行从哪来（变更清单 / 目录懒加载）、点了文件做什么，都是消费方的事。
- *
- * 文件图标用 FileTypeMark（项目内联的 Material Icon Theme），目录只有开合箭头 —— 那套图标里没有收文件夹字形，
- * 与审查树一直以来的样子一致。
- *
- * 行是虚拟化的（@tanstack/react-virtual，与 DiffBody 同一个虚拟器）：展开几层大目录就是上万行，代价要随视口走、不随行数走。
- * 所以这棵树自己就是滚动口 —— 虚拟器要在挂载的同一次提交里拿到滚动元素，祖先的 ref 那时还没挂上（判例见 diff/surface.tsx）。
- * 行不全在 DOM 里，无障碍树就靠 aria-level / aria-setsize / aria-posinset 自报位置；漫游焦点那一行无论滚到哪都留着
- * （rangeExtractor 把它并进渲染范围），Tab 进出树、焦点所在的行被滚出视口，都不会把焦点丢回 body。
+ * 文件树：审查的变更树与右坞「文件」面板共用的那一棵（原 review-pane.tsx 的 Tree / FolderRow /
+ * FileRow 逐条照搬）。只认行模型与回调：行从哪来、点了文件做什么，都是消费方的事。文件图标用
+ * FileTypeMark，目录只有开合箭头（那套图标里没有文件夹字形）。
+ * 行是虚拟化的（@tanstack/react-virtual，与 DiffBody 同一个虚拟器）：展开几层大目录就是上万行，
+ * 代价要随视口走。所以这棵树自己就是滚动口 —— 虚拟器要在挂载的同一次提交里拿到滚动元素，祖先的
+ * ref 那时还没挂上（判例见 diff/surface.tsx）。行不全在 DOM 里，无障碍树靠 aria-level /
+ * aria-setsize / aria-posinset 自报位置；漫游焦点那一行无论滚到哪都留着（rangeExtractor），
+ * Tab 进出树都不会把焦点丢回 body。
  */
 
 export interface FileTreeRow {

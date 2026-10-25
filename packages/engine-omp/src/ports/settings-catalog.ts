@@ -1,11 +1,8 @@
 /**
- * 产品开放的 omp 设置键清单：分组、中文标签与说明。键与选项以 **omp 自己的标识符**为准（path 是稳定标识符，
- * 英文 label 是会自动改词的散文），中文只换「给人看的那一列」。
- *
- * 四件事各答各的（**不要**把其中一件折进另一件）：进不进目录（`isProductSetting`：类型落进契约的四档、且跟
- * 这台桌面软件有关 —— 终端渲染、CLI 子命令这些读取点在我们的边车进程里根本跑不到，画出来就是骗人）；
- * 行画不画（`ownedElsewhereOf`）；归哪一页（`sectionOf`）；给人看的那一列（查不到就把 omp 的英文原样交回，
- * 绝不返回空串 —— 缺一条翻译最多是不好看，缺一格设置是缺陷）。
+ * 产品开放的 omp 设置键清单：分组、中文标签与说明。键与选项以 **omp 自己的标识符**为准（path 是
+ * 稳定标识符，英文 label 是会改词的散文），中文只换「给人看的那一列」。四件事各答各的，不要折进彼此：
+ * 进不进目录（isProductSetting）、行画不画（ownedElsewhereOf）、归哪一页（sectionOf）、给人看的那一列
+ * （查不到交回 omp 原文，绝不返回空串 —— 缺一条翻译最多是不好看，缺一格设置是缺陷）。
  */
 
 /** 分节的中文名。键是 omp 的英文 group 原文；查不到就原样交回英文（产品名与协议名刻意不译） */
@@ -916,14 +913,11 @@ export const SETTING_DESCRIPTIONS: Readonly<Record<string, string>> = {
 }
 
 /*
- * 跟这台桌面软件无关的格子。判据是「我们这条边车进程跑不跑得到它的读取点」：终端渲染、CLI 子命令、
- * 启动向导、终端键盘与语音这些读取点在我们的进程里根本跑不到，画出来就是让人以为改了会变。分节级的
- * 判据**不用**（分节的边界不等于有没有用）。列表按前缀、逐路径两段。
- *
- * 两处**刻意不在名单里**，误删会让别的格子永远消失：`display.collapseCompacted` 读的是传给
- * buildSessionContext 的选项，而我们也走那条读取路径，删掉就是证据不足地替它判断；`plan.*` / `goal.*`
- * 没有按前缀砍整族 —— `plan.autosave` 照常上屏，`plan.enabled` / `goal.enabled` 走 owned，
- * 砍掉会把它们从目录里整个抽掉，于是读它们的两条 condition 永远为假。
+ * 跟这台桌面软件无关的格子。判据是「我们这条边车进程跑不跑得到它的读取点」；分节级的判据不用
+ * （分节的边界不等于有没有用），列表按前缀、逐路径两段。
+ * 两处**刻意不在名单里**：`display.collapseCompacted` 读的是 buildSessionContext 的选项、我们也走
+ * 那条路径（删掉是证据不足地替它判断）；`plan.*` / `goal.*` 不按前缀砍整族 —— plan.autosave 照常
+ * 上屏，plan.enabled / goal.enabled 走 owned，砍掉会让读它们的两条 condition 永远为假。
  */
 const IRRELEVANT_PREFIXES: readonly string[] = [
   'tui.',
@@ -1103,13 +1097,11 @@ export function groupLabelOf(group: string): string {
 }
 
 /*
- * 「个性化」那一页的归属。判据只能按 path 名单，**因为上游没有这一栏**：「个性化」是产品的一个切面，
- * personality 与思考那几格散在 model 栏的 Prompt / Thinking 两个 group 里；拿 group 当判据会把整节搬走，
- * 而那些节里住着别的格子。
- *
+ * 「个性化」那一页的归属。判据只能按 path 名单 —— 上游没有这一栏，personality 与思考那几格散在
+ * model 栏的 Prompt / Thinking 两个 group 里，拿 group 当判据会把整节搬走。
  * **采样那一组刻意在名单外**（temperature / topP / topK / minP / presencePenalty / repetitionPenalty /
- * textVerbosity）：它们是逐供应商的调参旋钮，产品不摆这个界面，但 omp 构造 Agent 时逐个读、值照旧生效，
- * 只是没有任何一页画它们的行。`tier.*` 同样在名单外：它们说的是请求发往哪个服务档位，不是模型怎么写。
+ * textVerbosity）：逐供应商的调参旋钮，产品不摆界面但 omp 逐个读、值照旧生效。`tier.*` 同样在名单外：
+ * 它们说的是请求发往哪个服务档位，不是模型怎么写。
  */
 const PERSONA: readonly string[] = [
   /** 系统提示词怎么写：人设、技能清单、模型名、工作区树、工具描述 */

@@ -287,12 +287,10 @@ async function boot(
   hub.attachWindow(win.webContents)
   win.on('session-end', () => supervisor.killNow()) // Windows 注销 / 关机：来不及优雅退出，直接杀 Core
   /*
-   * 启动 Core（不等待）→ onReady。
-   *
-   * Core 是启动关键路径上最长的一段（清残留 + 起进程 + 引擎 + 迁移），窗口一挂上总机就放它走，不再排在全部
-   * onReady 之后。它要的东西此刻都齐了：Host 方法在 setup 里注册完（Core 能回调），日志级别在 beforeWindow 里
-   * 读进偏好（启动参数 --log-level 用的就是它），窗口已挂到总机（Core 的通知有人收）。onReady 里关心 Core 状态的
-   * 模块按「订阅 + 先补一次当前状态」写，Core 先于它们 ready 也不会漏（browser、preferences）。
+   * 启动 Core（不等待）→ onReady。Core 是启动关键路径上最长的一段（清残留 + 起进程 + 引擎 + 迁移），
+   * 窗口一挂上总机就放它走，不排在全部 onReady 之后 —— 它要的东西此刻都齐了（Host 方法注册完、
+   * 日志级别已读进偏好、窗口已挂总机）。onReady 里关心 Core 状态的模块按「订阅 + 先补一次当前状态」写，
+   * Core 先于它们 ready 也不会漏。
    */
   void supervisor.start()
   for (const fn of onReady) {

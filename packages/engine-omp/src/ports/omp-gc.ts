@@ -49,12 +49,10 @@ export interface OmpMediaGcOptions {
 
 /**
  * 会话媒体回收（SessionFilesPort.collectGarbage 的实现）：拉起 `<core> gc --agent-dir <dir>`
- * （bootstrap/maintenance.ts），等它跑完，读它打印的 JSON。
- *
- * omp 的规则原样生效：标记 = 会话目录（含子代理的会话、归档目录）里所有 `blob:sha256:` 引用；没被引用、且 5 分钟内
- * 没写过的 blob 删掉；有 gc 锁，两个进程不会同时扫。Core 自己按内容寻址补写的小图（session/media-store.ts 的
- * blobMediaRef）不在会话文件里引用，会被当成垃圾回收 —— 那正是对的：它们的字节内联在会话文件里，下次投影这条会话时
- * blobMediaRef 会再写一份，而本进程刚写过的都在 5 分钟宽限之内。
+ * （bootstrap/maintenance.ts），等它跑完、读它打印的 JSON。omp 的规则原样生效：标记 = 会话目录里
+ * 所有 `blob:sha256:` 引用，没被引用且 5 分钟内没写过的删掉，有 gc 锁。Core 自己补写的小图
+ * （media-store 的 blobMediaRef）不在会话文件里引用、会被回收 —— 那正是对的：字节内联在会话文件里，
+ * 下次投影时会再写一份，本进程刚写过的都在 5 分钟宽限之内。
  */
 export function ompMediaGc(
   agentDir: string,

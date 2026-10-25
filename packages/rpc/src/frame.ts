@@ -9,12 +9,10 @@ export const FRAME_PREFIX = '\x1e'
 export const PAYLOAD_SEPARATOR = '\x1f'
 
 /**
- * 一段**未解析**的 JSON 文本（params / result）。
- *
- * Host 是总机：Core → UI 的载荷它只转交、从来不看。Host 读 Core stdout 的字节解码器（`frame-bytes.ts`）只解析
- * 几十字节的信封做路由，载荷只解成字符串、留成 RawJson；转交给 UI 时以字符串经 IPC 送达页面，由页面 JSON.parse
- * —— Electron 主线程上不再 JSON.parse、不再结构化克隆一棵对象树。
- * 真要用到值的地方（core.ready、Host 自己发起的 core 调用、Core 调 Host 的方法……）调 {@link jsonValue}。
+ * 一段**未解析**的 JSON 文本（params / result）。Host 是总机：Core → UI 的载荷只转交、从来不看
+ * —— 字节解码器（frame-bytes.ts）只解析信封做路由，载荷留成 RawJson、以字符串经 IPC 送达页面，
+ * 由页面 JSON.parse（主线程上不再 JSON.parse、不再结构化克隆对象树）。
+ * 真要用到值的地方调 {@link jsonValue}。
  */
 export class RawJson {
   private parsed: { readonly value: unknown } | undefined

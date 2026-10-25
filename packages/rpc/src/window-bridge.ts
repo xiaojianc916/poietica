@@ -15,14 +15,10 @@ export interface WindowBridge {
 
 /**
  * preload 通过 contextBridge 暴露给页面的唯一对象（线上形态）。
- *
- * Host → UI 有两种消息：
- * - **转交的 Core 消息**：Host 只看信封，载荷以 JSON 文本送来（`relayParts`）：listener 收到「信封对象 +
- *   载荷 JSON 文本」。字符串跨 contextBridge 不拷贝（隔离 world 与页面 world 同在一个 V8 isolate），页面在自己的
- *   world 里 JSON.parse（{@link joinRelayParts}）—— 不再有「主线程 JSON.parse + 结构化克隆一棵对象树、
- *   渲染进程反序列化、再让 contextBridge 逐个属性深拷贝一遍」。
- * - **Host 自己发的消息**（core.status、终端输出……）：仍是结构化克隆的对象，payloadJson 为 undefined。
- * UI → Host 不变：消息对象。
+ * Host → UI 有两种消息：转交的 Core 消息拆成「信封对象 + 载荷 JSON 文本」两个参数 ——
+ * 字符串跨 contextBridge 不拷贝（两个 world 同一个 V8 isolate），页面在自己的 world 里
+ * JSON.parse（{@link joinRelayParts}），不再有整棵对象树的多层克隆；Host 自己发的消息
+ * （core.status、终端输出……）仍是结构化克隆的对象，payloadJson 为 undefined。UI → Host 不变：消息对象。
  */
 export interface PreloadBridge {
   send(message: RpcMessage): void

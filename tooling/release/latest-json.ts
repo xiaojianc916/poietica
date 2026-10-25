@@ -1,17 +1,10 @@
 #!/usr/bin/env bun
 /**
- * 把 electron-builder 已经产出的 `latest.yml` 补成发布资产。
- *
- * electron-builder 自己会写 latest.yml（版本、路径、sha512），electron-updater 认的
- * 就是它。这里不再手搓第二份清单 —— 手抄一份 latest.json 等于给更新通道建第二个事实，
- * 而两边一旦不一致，客户端会去拉一个不存在的地址。
- *
- * 这一步做两件事，都是 electron-builder 不做、而发布必须有的：
- *   1. 校验 latest.yml 指向的正是刚构建出来的那个安装包（版本、文件名都要对得上）。
- *   2. 把 sha512（base64）换算成十六进制写进 SHA256SUMS.txt 旁边那份校验和清单。
- *
- * 仓库地址不在这里重复声明：它从 electron-builder.yml 的 publish 段读 —— 那正是
- * 客户端真正会去拉的地址，两边不可能再各写各的。
+ * 把 electron-builder 已产出的 `latest.yml` 补成发布资产（electron-updater 认的就是它，
+ * 不再手搓第二份清单 —— 两边不一致，客户端会去拉一个不存在的地址）。做 electron-builder
+ * 不做而发布必须有的两件事：校验 latest.yml 指向的正是刚构建的安装包；把 sha512（base64）
+ * 换算成十六进制写进 SHA256SUMS.txt 旁边的校验和清单。仓库地址从 electron-builder.yml 的
+ * publish 段读，不重复声明。
  *
  *   bun run latest-json <bundleDir> <outDir> <tag>
  */

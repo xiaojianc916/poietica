@@ -23,15 +23,11 @@ import type {
 export interface SessionFilesPort {
   exists(sessionFile: string): Promise<boolean>
   /**
-   * **没开着的**会话的一页时间线（读写分离，性能方案 P1）：只读会话文件 —— 不建会话、不装工具与扩展、不拉 MCP、
-   * 不抢单写者锁、不写任何文件。看一眼历史对话不该付「冷启动一整个 agent 运行时」的价。
-   *
-   * 交出的页与「把这条会话重新打开、再 `EngineSession.page()`」**同一页**（一致性用例 C-READ-PAGE 钉住）：
-   * 同一套分轮与投影、同一份待办；非正常退出留下的半截轮按 omp 重开时的修补口径在内存里补齐（文件不动）。
-   * 没开着的会话一定没有开着的轮，所以这里没有「正在流式的那一截」—— **开着的会话以它自己的 `page()` 为准**，
-   * 调用方只在会话池里没有这条会话时才走这里。
-   *
-   * `agentId` 口径同 `EngineSession.page`：`'main'` 是主对话，认不出的子代理号交空页、不抛；
+   * **没开着的**会话的一页时间线（读写分离，性能方案 P1）：只读会话文件 —— 不建会话、不装工具与
+   * 扩展、不抢单写者锁；看一眼历史对话不该付「冷启动一整个 agent 运行时」的价。交出的页与
+   * 「重开会话再 `EngineSession.page()`」同一页（一致性用例 C-READ-PAGE），非正常退出的半截轮按
+   * omp 重开时的修补口径在内存补齐、文件不动。开着的会话以它自己的 `page()` 为准，只在会话池里
+   * 没有这条会话时才走这里；`agentId` 口径同 `EngineSession.page`，认不出的子代理号交空页、
    * 文件不存在报 `engine.session_file_missing`。
    */
   readPage(

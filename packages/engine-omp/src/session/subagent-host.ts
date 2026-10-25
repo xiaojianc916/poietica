@@ -9,12 +9,10 @@ import type { OmpMessage } from '../projector/history'
 import { SubagentChannels } from './subagent-channels'
 
 /*
- * 子代理的宿主面：通道（实时 + 整页）、停止、引导。
- *
- * **全走 omp 自己给 RPC 宿主的那几条路**，不自己拼：
- * - 名册与会话文件：`RpcSubagentRegistry`（它自己订生命周期 / 进度帧，记住已结束子代理的会话文件，最多 256 条）；
- * - 停止：`handleRpcCancelSubagent` —— 先立墓碑再 abort，父轮收下的是「被停了」，不会把半截结果当成功收走；
- * - 引导：`handleRpcSteerSubagent` —— Agent Hub 聊天同一条路（ensureLive + prompt steer），这句话记进子代理自己的会话。
+ * 子代理的宿主面：通道（实时 + 整页）、停止、引导。**全走 omp 自己给 RPC 宿主的那几条路**，不自己拼：
+ * 名册与会话文件走 `RpcSubagentRegistry`（它自己订生命周期 / 进度帧，记住已结束子代理的会话文件）；
+ * 停止走 `handleRpcCancelSubagent`（先立墓碑再 abort，父轮收下的是「被停了」，不会把半截结果当成功）；
+ * 引导走 `handleRpcSteerSubagent`（Agent Hub 聊天同一条路，这句话记进子代理自己的会话）。
  * 自己拿 AgentRegistry 找会话再 abort / prompt，就绕过了归属校验（同名子代理可能属于别的会话）与墓碑。
  */
 

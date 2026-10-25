@@ -10,14 +10,10 @@ let snapshot: ReadonlySet<string> | null = null
 export interface LaunchEnv {
   readonly keys: readonly string[]
   /**
-   * 先导入 pi-utils（它在求值时加载 .env），再删除快照之后新出现的键与 omp 认可的环境凭据键；
-   * 返回被删除的**键名**（绝不返回值）。
-   *
-   * 触发 .env 加载的这次导入只能写在这里：`apps/core` 不得 import `@oh-my-pi/*`，
-   * 所以这一步收进本方法。
-   *
-   * 隔离变量的键**永远不删**：它们是在快照之后由 prepareIsolation 写进去的，不是注入；
-   * 删掉会让 natives 加载器回落到 ~/.omp（XDG_DATA_HOME 就是被这一条误伤过）。
+   * 先导入 pi-utils（它在求值时加载 .env，这次导入只能写在这里 —— apps/core 不得 import
+   * `@oh-my-pi/*`），再删除快照之后新出现的键与 omp 认可的环境凭据键；返回被删的**键名**，绝不返回值。
+   * 隔离变量的键**永远不删**：它们是快照之后由 prepareIsolation 写进去的，不是注入；
+   * 删掉会让 natives 加载器回落到 ~/.omp（XDG_DATA_HOME 就是被这条误伤过）。
    */
   scrubInjected(): Promise<readonly string[]>
 }

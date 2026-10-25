@@ -1,10 +1,8 @@
 #!/usr/bin/env bun
 /**
- * 按客户端真正会去访问的那条地址，验证刚刚发布的版本已经出现在更新通道上。
- *
- * 客户端（electron-updater）启动后拉的是仓库 latest release 上的 latest.yml，
- * 所以这里不查 API、不查 tag 列表，就查那一个地址与它指向的资产 —— 验的是
- * 「用户机器上会发生的事」，不是「GitHub 上看起来对」。
+ * 按客户端真正会去访问的那条地址，验证刚发布的版本已经出现在更新通道上：
+ * electron-updater 拉的是仓库 latest release 上的 latest.yml，就查那一个地址与它指向的资产，
+ * 验的是「用户机器上会发生的事」。
  *
  * 用法：bun run verify:channel <tag>
  */
@@ -17,9 +15,8 @@ const ATTEMPTS = 18
 const RETRY_MS = 5_000
 
 /**
- * 本仓的 bun preset 不带 DOM lib，全局 `Response` 于是落在 bun-types 的
- * `UseLibDomIfAvailable` 上、成员是残缺的（没有 ok / status / text）。
- * 与 features/python/src/core/index.ts 同一个理由：按结构声明我们要用的那几格。
+ * 本仓的 bun preset 不带 DOM lib，全局 `Response` 成员是残缺的（没有 ok / status / text）；
+ * 按结构声明我们要用的那几格（与 features/python/src/core/index.ts 同一个理由）。
  */
 type HttpResponse = {
   readonly ok: boolean

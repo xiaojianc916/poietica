@@ -31,15 +31,12 @@ interface PendingLine {
 }
 
 /**
- * 追加写 JSONL，**按批同步落盘**：普通记录攒 `flushMs` 再一次 writeSync，error 级记录立刻连同前面攒着的一起写。
- *
- * 为什么不再每条 writeSync：Host 的 sink 跑在 Electron 主线程上，每条日志一次系统调用（杀软实时扫描时更慢），
- * 突发的几百条日志会直接变成界面卡顿；批量写把系统调用降到每 250ms 至多一次。崩溃安全的取舍：
- * error 级记录（崩溃原因都在这一级）当场落盘，`flush()` 交给进程退出钩子；只有被强杀时才可能丢掉最后 250ms 的
- * info / debug。
- *
- * 轮转：file → file.1 → file.2 …，超出 keep 的最旧文件删除；一批记录跨过上限时在行边界上切开，当前文件不超过
- * maxBytes（单行本身超长除外）。写入失败（磁盘满、文件被占用）时丢弃这一批并在 stderr 打印一次提示，之后静默。
+ * 追加写 JSONL，**按批同步落盘**：普通记录攒 `flushMs` 再一次 writeSync，error 级记录立刻连同
+ * 前面攒着的一起写。Host 的 sink 跑在 Electron 主线程上，每条日志一次系统调用（杀软实时扫描时更慢），
+ * 突发几百条就是界面卡顿；崩溃安全的取舍是 error 级当场落盘、flush() 交给退出钩子，只有被强杀
+ * 才可能丢掉最后 250ms 的 info / debug。
+ * 轮转：file → file.1 → file.2 …，超出 keep 删最旧；一批记录跨过上限时在行边界切开，当前文件不超过
+ * maxBytes。写入失败（磁盘满、文件被占用）丢弃这一批并在 stderr 提示一次，之后静默。
  */
 export function jsonlFileSink(o: JsonlFileSinkOptions): JsonlFileSink {
   const maxBytes = o.maxBytes ?? 5 * 1024 * 1024

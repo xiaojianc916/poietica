@@ -11,22 +11,13 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
 /*
- * 侧栏线程列表的选择器**必须交回稳定引用**（真机实测故障）。
- *
- * 原实现把「row 形状」直接写进 useFeatureStoreShallow 的选择器里：`s.items.map(thread => ({...}))`
- * 每次调用都造一个新的行数组、每个元素也是新对象。useShallow 比的是**数组元素**
- * （zustand 的 shallow：数组走 compareIterables，逐项 Object.is），于是每帧都判「变了」——
- * 一条线程都没有时它返回空数组、总判相等，看不出来；**发出第一句话、列表长出第一行之后**，
- * React 立刻进入 "Maximum update depth exceeded"，整个 conversation 的侧栏那一段被错误边界
- * 接管（截图里就是「“conversation” 出现错误」）。
- *
- * 这一条测试就是那个相位：先渲染（此时列表为空），再让 threads.list 回一条线程并重渲染。
- * 修好之前它在第二阶段抛错（错误边界会渲染 [data-feature-error]）；修好之后 DOM 里既没有
- * 错误边界，也真的有那一行。
- *
- * 装配 conversation 与它声明的那三个依赖（workspaces / preferences / platform），而不是
- * 复刻一份 —— 要钉的正是 ui/index.tsx 里那一段选择器，而它住在 conversation 功能的装配层。
- * 不把全部功能拉进来：其余功能的 onCoreReady 各有自己的第一次读盘，测的就不是这一条了。
+ * 侧栏线程列表的选择器**必须交回稳定引用**（真机实测故障）。原实现把「row 形状」直接写进
+ * useFeatureStoreShallow 的选择器里，每次调用都造新的行数组，useShallow 逐项比较后每帧都判
+ * 「变了」—— 列表为空时看不出来，发出第一句话、长出第一行之后 React 立刻
+ * "Maximum update depth exceeded"，侧栏被错误边界接管。这条测试就是那个相位：先渲染（列表空），
+ * 再让 threads.list 回一条线程重渲染；修好之前第二阶段抛错，修好之后既没有错误边界也真有那一行。
+ * 装配 conversation 与它声明的三个依赖，不把全部功能拉进来 —— 要钉的是 conversation 装配层里
+ * 那一段选择器，其余功能的 onCoreReady 各有第一次读盘，拉进来测的就不是这一条了。
  */
 
 const THREAD = {
@@ -58,14 +49,9 @@ const WORKSPACE = {
 const calls: string[] = []
 
 /**
- * 按方法回话的假 bridge。
- *
- * `threads.list` 回一条线程 —— 这是触发那一次重渲染的唯一一件事。
- *
- * 其余几格要照**契约的形状**给：`core.getStatus` 一旦是 ready，各功能的 onCoreReady
- * 就会真的去读自己的那一份（preferences 读 prefs.get / uiState.get / keymap.get，
- * workspaces 读 workspaces.list）。给 `{}` 会让它们当场抛错（workspaces 的 items 是
- * undefined，conversation 的 HomeSurface 一渲染就炸），测出来的就不是我们要钉的那一条了。
+ * 按方法回话的假 bridge。`threads.list` 回一条线程 —— 触发那次重渲染的唯一一件事。
+ * 其余几格要照**契约的形状**给：core.getStatus 一旦 ready，各功能的 onCoreReady 就会真去读
+ * 自己的那一份，给 `{}` 会让它们当场抛错，测出来的就不是要钉的那一条了。
  */
 function testBridge(): WindowBridge {
   const listeners = new Set<(m: RpcMessage) => void>()
@@ -157,14 +143,10 @@ describe('侧栏线程列表的选择器', () => {
   })
 
   /*
-   * 工作区组头右侧的加号 = **打开入口页**，不是当场建一条空线程。
-   *
-   * legacy 的同一格（`assistant-sidebar-panel.tsx` 的 `create`）先 setActiveWorkspaceRoot
-   * 再打开 'ai' 表面；号由入口页发出第一句话时的 prepare() 铸。原先这里直接
-   * createThread + openThread，点两下库里就多两条 title_source='pending' 的空行。
-   *
-   * 判据两条：① 点完之后路由停在入口页（页面上有那只输入框）；② 全程**没有**
-   * `threads.create` 发出去 —— 这是这条缺陷唯一能钉死的地方，光看界面看不出来。
+   * 工作区组头右侧的加号 = **打开入口页**，不是当场建一条空线程（号由入口页发出第一句话时的
+   * prepare() 铸；原先直接 createThread + openThread，点两下就多两条 title_source='pending' 的空行）。
+   * 判据：① 点完之后路由停在入口页；② 全程**没有** `threads.create` 发出去 ——
+   * 这是这条缺陷唯一能钉死的地方，光看界面看不出来。
    */
   test('工作区组头的加号打开入口页，不预建空线程', async () => {
     const host = document.createElement('div')

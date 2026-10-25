@@ -2,19 +2,13 @@ import type { ContextUsage, SessionTokenUsage } from '@poietica/engine'
 
 /*
  * omp 的上下文读数、构成与会话用量 → 引擎端口的 ContextUsage。**纯映射**，不认识 omp 类型：
- * 上游那三格按结构收窄，单测因此不用起会话。
- *
- * 两处形状差异是这次修复的要害（真机故障「输入框没有用量显示」）： *
- * omp 的 getContextUsage() 报的是 { tokens, contextWindow, percent }（pi-tui 的
- * status-line/types），而旧代码按 { usedTokens, windowTokens } 去读 —— 两个字段名都不存在， * 于是恒为 undefined、恒被判成「会话还没报过」，圆环永远不画。percent 不取：它是
- * omp 自己按窗口算的整数百分比，本仓的读数一律由 used/size 现算（面板与圆环同一处算法，
- * 见 context-gauge 的 gaugeLayout），取两份会在四舍五入上打架。
- *
- * 构成明细取 omp 自己的 computeContextBreakdown（/context 面板那一份），不自己按
- * getContextBreakdown 那五格折 —— omp 把「技能」从系统提示词里减出去，自己折就会与它在屏幕上显示的那份对不上。
- *
- * 会话用量取 omp 的 sessionManager.getUsageStatistics()（/usage 与 ACP usage_update 的同一份），
- * 不取 getSessionStats().tokens：后者只数**当前上下文窗口**里的消息，压缩一次就掉回去，不是「这个会话花了多少」。
+ * 上游那三格按结构收窄，单测因此不用起会话。三处口径都是实测钉出来的（真机故障「输入框没有用量显示」：
+ * 旧代码按 { usedTokens, windowTokens } 读 omp 的 { tokens, contextWindow }，字段名不存在、圆环永远不画）：
+ * - 读数取 getContextUsage()，percent 不取（本仓一律由 used/size 现算，取两份会在四舍五入上打架）；
+ * - 构成取 omp 自己的 computeContextBreakdown（/context 面板那一份）—— omp 把「技能」从系统提示词里
+ *   减出去，自己折就会与屏幕上显示的对不上；
+ * - 会话用量取 sessionManager.getUsageStatistics()（/usage 与 ACP usage_update 的同一份）——
+ *   getSessionStats().tokens 只数当前窗口里的消息，压缩一次就掉回去。
  */
 
 /** omp 的 ContextUsage（按结构收窄，不绑 omp 深层类型） */
@@ -75,14 +69,9 @@ export function toSessionTokenUsage(stats: OmpUsageStatisticsLike | undefined): 
 }
 
 /**
- * 读数、构成与会话用量。
- *
- * **没有分母就整体交 null**：`ContextGauge` 按 `size <= 0` 不画（正本同此），所以
- * 「窗口未知」在这一层收敛成一种写法，屏幕那侧不必再判一次。报 0 会画出一颗永远空的圆环，
- * 那比不画更像故障。
- *
- * 两条来源都认，且顺序固定：先 `getContextUsage`（状态行那一份），缺了才退构成里那两格。
- * 两条都缺就是 null —— 不编数。
+ * 读数、构成与会话用量。**没有分母就整体交 null**：ContextGauge 按 `size <= 0` 不画（正本同此），
+ * 「窗口未知」在这一层收敛成一种写法，报 0 会画出一颗永远空的圆环，比不画更像故障。
+ * 两条来源顺序固定：先 getContextUsage，缺了才退构成里那两格；两条都缺就是 null —— 不编数。
  */
 export function toContextUsage(
   usage: OmpContextUsageLike | undefined,

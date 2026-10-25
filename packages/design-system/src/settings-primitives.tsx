@@ -2,13 +2,9 @@ import type { ReactNode } from 'react'
 import { Switch } from './control/switch'
 
 /*
- * 设置页排版词汇：页、组、行、开关行。形状照 legacy settings-primitives.tsx（API 与类名一字未
- * 改，别动）。
- *
- * 落在 design-system 而不是 workbench：设置页由各功能自己写，而 `features-no-shell` 明文禁止
- * 功能包依赖 workbench。这些词汇是多个平级功能共用的基座 —— 与 tokens/rows.css 里「一行的
- * 形状」同一个判据。workbench 只负责设置界面的**外壳**（导航 + 内容栅格）。
- *
+ * 设置页排版词汇：页、组、行、开关行。形状照 legacy settings-primitives.tsx（API 与类名一字未改，别动）。
+ * 落在 design-system 而不是 workbench：设置页由各功能自己写，而 `features-no-shell` 明文禁止功能包
+ * 依赖 workbench —— 这些词汇是多个平级功能共用的基座，workbench 只负责设置界面的外壳（导航 + 内容栅格）。
  * 样式只在 design-system 的 settings.css 一处；类名 settings-* 与 legacy 同名。
  */
 

@@ -79,12 +79,9 @@ export function cimListScript(imageName: string | undefined): string {
 
 export interface ListProcessesOptions {
   /**
-   * 只要这个映像名的进程（大小写不敏感，例如 `poietica-core.exe`）。给了就分两步走：
-   * 1. `tasklist /FI "IMAGENAME eq …"` 先问「有没有」—— 系统自带的原生小程序，几十毫秒；
-   * 2. 真有同名进程才起 PowerShell，并用 WQL 过滤只取这几行的路径与命令行。
-   *
-   * 常态（上一代 Core 退得干干净净）只付第一步：PowerShell 光是起进程、加载 CIM 模块就要 0.5s 上下，
-   * 开机后第一次更久（refactor-log：「listProcesses 每次约 0.5s」）。tasklist 问不了时照旧走第二步，不会因此漏清。
+   * 只要这个映像名的进程（大小写不敏感）。给了就分两步：tasklist 先问「有没有」（系统自带，
+   * 几十毫秒），真有同名才起 PowerShell 用 WQL 取路径与命令行 —— 常态（上一代退干净）只付
+   * 第一步，PowerShell 起进程加 CIM 模块要 0.5s 上下。tasklist 问不了时照旧走第二步，不会漏清。
    */
   readonly imageName?: string
 }
@@ -148,14 +145,11 @@ function queryCim(imageName: string | undefined): Promise<ProcessInfo[]> {
 }
 
 /**
- * 列出系统进程。只有 Windows 实现：本产品只发布 Windows（AGENTS §1），其它平台返回空表，
- * 调用方的「清理残留」会退化成空操作，而不是抛错。
- *
- * 为什么要枚举而不是查 pid 文件：omp 的 daemon broker 是以 `detached: true` 起的
- * `poietica-core.exe __omp_worker_*`，它不在任何 Core 的进程树里（taskkill /T 够不着），
- * 跨版本一直活着，占着 exe 映像、SQLite 与命名管道（见 refactor-log R-37）。
- * 只关心某一个映像名时传 `imageName`（见 {@link ListProcessesOptions}）：代价跟着「有没有同名进程」走，而不是整张进程表。
- * 永不 reject：枚举失败当「没看到进程」，由调用方自己决定要不要重试。
+ * 列出系统进程。只有 Windows 实现：本产品只发布 Windows，其它平台返回空表，
+ * 调用方的「清理残留」退化成空操作而不是抛错。要枚举而不是查 pid 文件，是因为 omp 的 daemon
+ * broker 以 `detached: true` 起在 Core 的进程树之外（taskkill /T 够不着），跨版本活着、占着
+ * exe 映像、SQLite 与命名管道（refactor-log R-37）。传 `imageName` 时代价跟着「有没有同名进程」
+ * 走。永不 reject：枚举失败当「没看到进程」。
  */
 export async function listProcesses(o: ListProcessesOptions = {}): Promise<ProcessInfo[]> {
   if (process.platform !== 'win32') return []

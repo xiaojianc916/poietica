@@ -70,13 +70,10 @@ export class SessionFactory {
   }
 
   /**
-   * 预热：在同一条串行链上建一个**内存会话**再立刻丢掉，把进程里第一次 createAgentSession 的冷启动付在用户发话之前。
-   *
-   * 实测（Linux、脚本模型）：进程内第一次开会话约 240–300ms，之后约 50ms，差额是 omp 一次性的模块求值、
-   * 设置初始化与工具装配，与 cwd 无关。新对话的第一句没有任何预热（入口页还没有线程号），这笔账原样落在首字延迟上。
-   *
-   * 预热会话不碰任何有外部效果的东西：内存 SessionManager（不写会话文件）、不拉 MCP、不起 LSP、不开自动起名、
-   * 不发现用户扩展（用户扩展的工厂可能有副作用，不该为预热多跑一遍）。失败只记 debug —— 预热不改变任何结果，
+   * 预热：在同一条串行链上建一个**内存会话**再立刻丢掉，把进程里第一次 createAgentSession 的
+   * 冷启动（实测 240–300ms，之后约 50ms：omp 一次性的模块求值、设置初始化与工具装配）付在用户
+   * 发话之前 —— 新对话的第一句没有任何预热，这笔账原样落在首字延迟上。预热会话不碰任何有外部
+   * 效果的东西（不写会话文件、不拉 MCP、不起 LSP、不开自动起名、不发现用户扩展）；失败只记 debug，
    * 真正的 open 照常走自己的路径。
    */
   warm(cwd: string): Promise<void> {
@@ -204,11 +201,9 @@ export class SessionFactory {
 
   /**
    * 新会话建好就落盘（omp `SessionManager.ensureOnDisk`，ACP 的 session/new 同此处理）。
-   *
-   * omp 默认要等到**第一条助手回复**才写文件（omp 知识 #14），但 Core 在会话打开那一刻就把签发的路径绑到线程行上。
-   * 两者之间的窗口里出任何事 —— 上游报错、用户取消、只改了设置、空闲驱逐 —— 行里就留下一个永远不会出现的文件：
-   * 之后再打开报 session_file_missing，删除也删不掉（真实故障）。在这里落盘，换来一条不变量：**行上绑着的路径，文件一定在**。
-   * 副作用只有一个空会话头（与 omp 自己 ACP 那一支一致），用户那句话即使没得到回复也留在了文件里。
+   * omp 默认要等第一条助手回复才写文件（omp 知识 #14），但 Core 在打开那一刻就把路径绑到线程行上
+   * —— 中间出任何事，行里就留下一个永远不会出现的文件：打开报 session_file_missing、删除也删不掉
+   * （真实故障）。在这里落盘，换来一条不变量：**行上绑着的路径，文件一定在**；副作用只有一个空会话头。
    */
   private async materialize(manager: unknown, session: EngineSession): Promise<void> {
     const ensure = (manager as { ensureOnDisk?: () => Promise<void> }).ensureOnDisk

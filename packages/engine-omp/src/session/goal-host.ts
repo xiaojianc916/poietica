@@ -9,19 +9,12 @@ import { overrideSetting, readSetting, type SettingsScope } from '../settings-ac
 import { GOAL_CONTINUATION_TYPE } from './prompt'
 
 /*
- * 目标模式的宿主职责（审查 R-11）。
- *
- * omp 把目标的「持久生命周期」（建 / 续 / 停 / 弃、计量、落盘）放在 GoalRuntime 里，三个宿主共用；
- * 而「宿主职责」——goal 工具在活动集里的去留、完成 / 放弃之后的收尾、重开会话时把目标接回来、
- * 两轮之间自动续跑——TUI 写在 InteractiveMode 里，RPC 宿主写在 RpcGoalController 里。
- * Poietica 是第四个宿主，这一层负责补上这些宿主职责。
- *
- * 这里**不自己实现**这些判断，直接用 omp 导出的 RpcGoalController（与 `omp --mode rpc` 同一份代码），
- * 只在两处接线：
- *   1. 续跑那一轮要变成 Poietica 的一轮（状态 running、时间线开一轮）——拦它交给会话的
- *      promptCustomMessage，先问 OmpSession 能不能开（reserveContinuation）；
- *   2. 目标是随一句话一起建的（输入框「目标」开关 + 发送）——建好之后第一轮必须是人的那一句，
- *      不能让控制器抢先开一轮续跑（awaitingFirstTurn）。
+ * 目标模式的宿主职责（审查 R-11）。omp 把目标的持久生命周期放在 GoalRuntime 里，而宿主职责
+ * （goal 工具在活动集里的去留、完成 / 放弃后的收尾、重开会话时把目标接回来、两轮之间自动续跑）
+ * 各宿主自己写 —— Poietica 是第四个宿主，这一层补上这些职责。**不自己实现**判断，直接用 omp 的
+ * RpcGoalController（与 `omp --mode rpc` 同一份代码），只在两处接线：
+ * 1. 续跑那一轮要变成 Poietica 的一轮 —— 拦它交给 promptCustomMessage，先问 OmpSession 能不能开；
+ * 2. 目标随一句话一起建 —— 建好之后第一轮必须是人的那一句，不能让控制器抢先开续跑轮（awaitingFirstTurn）。
  */
 
 const CONTINUATION_MODES_PATH = 'goal.continuationModes'

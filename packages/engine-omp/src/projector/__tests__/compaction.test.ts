@@ -6,17 +6,10 @@ import { SUPERSEDED_SUMMARY } from '../compaction'
 import { LiveProjector } from '../live'
 
 /*
- * 压缩的桥侧。
- *
- * 缘起是一个真实的缺陷：omp 的压缩事件从前掉进 default: break —— 上下文被压缩时屏幕上
- * 什么都不说，人看到的是自己前几句莫名其妙没了。
- *
- * 判据里最重要的一条是「号要稳」：开门与关门共用同一个 markerId。换号会在屏幕上多出
- * 一行，而人读到的会是「上下文被压了两次」这种不存在的历史。
- *
- * 这里钉的是**投影器自己**产出的 marker（LiveProjector.marker / compactionStart / compactionEnd），
- * 也就是适配器那两个 case 落下来的同一格；token 数（tokensBefore / tokensAfter）由关门那一格带上
- * （审查 R-21：从前关门只带状态，完成那一行永远说不出压了多少）。
+ * 压缩的桥侧。缘起是真实缺陷：omp 的压缩事件从前掉进 default: break，上下文被压缩时屏幕上
+ * 什么都不说。判据里最重要的一条是「号要稳」：开门与关门共用同一个 markerId —— 换号会在屏幕上
+ * 多出一行，人读到的是「上下文被压了两次」这种不存在的历史。这里钉的是**投影器自己**产出的
+ * marker；token 数由关门那一格带上（审查 R-21：从前关门只带状态，完成那一行说不出压了多少）。
  */
 const T0 = 1_700_000_000_000
 

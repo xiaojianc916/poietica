@@ -1,15 +1,10 @@
 import type { Interaction } from '@poietica/engine'
 
 /**
- * 题组 ↔ 发起它的那次 ask 调用（Q1-E）。
- *
- * omp 的 ask 工具调 `askDialog(questions, { timeout, signal })` 时**不带调用号**（tools/ask.ts 的 `_toolCallId`
- * 没往下传），调用号只在 `tool_execution_start` / `_end` 事件里。时间线要把答过的题组折进那次调用的产出，
- * 认的正是这个号 —— 缺了它，答过的题组哪一页都锚不上、直接不上屏。
- *
- * 两边谁先到不确定：pi-agent-core 先 push 了 start 再执行工具，但订阅者经异步流收事件，askDialog 可能先到。
- * 所以双向延迟认领：调用先到就排进「等题」，题先到就排进「等号」，后到的一方按先来先配。
- * 一次 ask 执行只问一次 askDialog，一个号只配一组题；调用结束还没配上的号作废。
+ * 题组 ↔ 发起它的那次 ask 调用（Q1-E）。omp 的 ask 工具调 askDialog 时不带调用号（只有
+ * tool_execution_start/_end 事件里有），时间线要把答过的题组折进那次调用的产出，认的正是这个号。
+ * 两边谁先到不确定（订阅者经异步流收事件），所以双向延迟认领：先到的一方排队，后到的按先来先配；
+ * 一次 ask 只问一次 askDialog，调用结束还没配上的号作废。
  */
 export class AskCallTracker {
   /** 已开始、还没配上题组的 ask 调用号，按开始先后 */

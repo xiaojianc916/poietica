@@ -35,13 +35,9 @@ export interface SelectProps<TValue extends string = string> {
 }
 
 /*
- * 触发器照 zcode 的 SelectTrigger 默认档（variant=input, size=default）：
- *   h-7 rounded-md pl-2 pr-1 text-ui-base/relaxed
- *   底 bg-input（--color-input-surface），框 --color-input-border、悬停 --color-input-border-hover
- *   （两支走 control/menu.css 的无层规则），聚焦换 --color-input-focused
- *   箭头 [&_svg]:size-3.5
- * 尺寸与字色一律用同一支输入框令牌，触发器因此与同一排的输入框同高同底。
- *
+ * 触发器照 zcode 的 SelectTrigger 默认档：h-7 rounded-md pl-2 pr-1，底 bg-input、框
+ * --color-input-border（悬停 -hover、聚焦 -focused，两支走 control/menu.css 的无层规则），
+ * 箭头 size-3.5 —— 尺寸与字色一律用同一支输入框令牌，与同一排的输入框同高同底。
  * cn 靠后的类覆盖靠前的冲突类，调用点的 className 因此排在最后。
  */
 const TRIGGER = cn(

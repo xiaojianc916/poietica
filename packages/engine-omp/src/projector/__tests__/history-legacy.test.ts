@@ -244,13 +244,10 @@ describe('技能轮（legacy skill-turn.test.ts）', () => {
 })
 
 /*
- * 压缩。
- *
- * 缘由：上下文被压缩时屏幕上什么都不说，人看到的是自己前几句莫名其妙没了。
- * history 这一侧把压缩摘要铺成一行 marker，挂在发生时开着的那一轮后面（不开轮，审查 R-21）；
- * 号是 compaction-<轮>-<这一轮第几次>，两次压缩各占一行。
- * tokensBefore / cancelled 那两档由 live 的开门关门事件产出，而那一侧没有生产者
- * （omp 的事件表与实现不一致），所以这里只钉历史真正带得出来的那几格。
+ * 压缩。缘由：上下文被压缩时屏幕上什么都不说。history 这一侧把压缩摘要铺成一行 marker，
+ * 挂在发生时开着的那一轮后面（不开轮，审查 R-21）；号是 compaction-<轮>-<第几次>。
+ * tokensBefore / cancelled 由 live 的开门关门事件产出、那一侧没有生产者（omp 的事件表与实现
+ * 不一致），所以这里只钉历史真正带得出来的那几格。
  */
 describe('压缩标记（legacy compaction-events.test.ts）', () => {
   test('压缩那一条铺成一行 marker；第一句人话之前的归第 0 轮', () => {

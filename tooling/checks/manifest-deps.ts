@@ -1,19 +1,12 @@
 /**
- * 依赖清单如实的闸门：package.json 声明的工作区依赖（@poietica/*）必须与源码对得上。
- *
- * depcruise 的 `not-to-undeclared` 只管一个方向——「用了没声明」。反方向没人管：
- * 声明了却没用、只在测试里用却写进 dependencies。这些多出来的边不影响构建，却让依赖清单
- * （评审读的、`bun run refs` 与 depcruise 之外最直观的分层图）比真实图更耦合，
- * 审查分层时会被误判；删掉某条真实依赖后清单也不会提醒。本检查补上反方向：
- *
- *   1. dependencies / peerDependencies 里的包，产品代码（非测试文件）必须用到；
- *      只有测试用到的应放 devDependencies。
+ * 依赖清单如实的闸门：声明的工作区依赖（@poietica/*）必须与源码对得上。depcruise 的
+ * `not-to-undeclared` 只管「用了没声明」，这里补反方向 —— 多出来的边不影响构建，却让
+ * 依赖清单比真实图更耦合：
+ *   1. dependencies / peerDependencies 里的包，产品代码必须用到；只有测试用到的放 devDependencies。
  *   2. devDependencies 里的工作区包，必须至少被某个文件用到。
- *
- * 「用到」= import / export from / 动态 import / require 的说明符，或 `/// <reference path>`
- * 指向该包目录下的文件。测试文件的判定与 depcruise 的 TEST 一致：__tests__/ 目录或 *.test.ts(x)。
- * 只看工作区包：外部包常经 CSS、类型、构建插件间接使用，静态扫描判不准。
- * 不经 import 的真实依赖（构建产物依赖）登记在 ARTIFACT，附理由。
+ * 「用到」= import / export from / 动态 import / require 的说明符，或指向该包的 `/// <reference path>`。
+ * 只看工作区包（外部包常经 CSS、类型、构建插件间接使用，静态扫描判不准）；
+ * 不经 import 的真实依赖登记在 ARTIFACT，附理由。
  *
  * 用法：`bun run tooling/checks/manifest-deps.ts`（由 `bun run lint` 调用）
  */

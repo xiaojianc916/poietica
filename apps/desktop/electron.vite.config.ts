@@ -7,35 +7,23 @@ import type { Plugin, Rollup } from 'vite'
 type OutputChunk = Rollup.OutputChunk
 
 /**
- * electron-vite 会分别构建 main、preload、renderer 三份产物，每份的要求不同：
- *
- * - main 用 build.externalizeDeps（electron-vite 6 起默认开启，v5 的 externalizeDepsPlugin
- *   已废弃）：它只外部化 dependencies 里的包（最终只有 @lydell/node-pty 与 electron-updater），
- *   再加上 electron 本身；其余依赖都在 devDependencies，会被打进 bundle。工作区包的 exports
- *   指向 TS 源码，正因为如此它们必须放 devDependencies 被打包，不能外部化。
- *
- *   **v5 的老问题**：当时 externalizeDepsPlugin 只认「离构建根最近的那个 package.json」，
- *   @lydell/node-pty 从 features/terminal 的源码进来时不在那张表里，于是被内联 —— 它的
- *   requireBinary() 改成从 out/main 找 @lydell/node-pty-win32-x64/conpty.node，找不到，
- *   terminal.open 一律 spawn_failed。v6 的 externalizeDeps 作用在模块 id 上，不再依赖
- *   谁引入的，原先补在 ssr.external 上的那一条随之删掉（dev 下 terminal.open 实测通过）。
- * - preload 关掉 externalizeDeps，输出 cjs 单文件：sandbox 模式下的 preload 只能是
- *   CommonJS，而且除了 electron 的少数模块不能 require 任何东西。
+ * 三份产物各有一份要求：
+ * - main 用 build.externalizeDeps：只外部化 dependencies 里的包（最终只有 @lydell/node-pty 与
+ *   electron-updater）；工作区包的 exports 指向 TS 源码，所以必须放 devDependencies 被打包。
+ *   v5 的 externalizeDepsPlugin 只认「离构建根最近的 package.json」，从 features/terminal 进来的
+ *   @lydell/node-pty 被内联后 requireBinary() 找不到 conpty.node，terminal.open 一律 spawn_failed；
+ *   v6 作用在模块 id 上，不再依赖谁引入的，ssr.external 补丁随之删掉。
+ * - preload 关掉 externalizeDeps，输出 cjs 单文件：sandbox 模式下除 electron 少数模块外不能 require。
  * - renderer 用 React 插件，加上 cspPlugin 把 index.html 的 %POIETICA_CSP% 换成对应环境的 CSP。
  */
 
 /**
- * 开发版：与安装版同一张策略表（06 页 §4.8），只额外放开 Vite HMR 需要的两处 ——
+ * 开发版：与安装版同一张策略表（06 页 §4.8），只放开 Vite HMR 需要的两处 ——
  * `script-src` 的 'unsafe-inline'（React 刷新前导脚本）与 `connect-src` 的 localhost websocket。
- *
- * img-src 里放行 avatars.githubusercontent.com：代码审查页要画 GitHub 的作者头像，而这张表是
- * 白名单 —— 不给这一条，图片会被 Chromium 静默拦掉（页面只是没有头像，控制台才有一条 CSP 报告）。
- * 只放行这一个头像主机，不放行任意 https。
- *
- * 'wasm-unsafe-eval' 是产品需要，不是开发版特权：diff 的语法着色走 shiki，它的
- * oniguruma 引擎是 WebAssembly；不给这条，Chromium 直接拒绝编译 WASM，着色静默
- * 退化成一堆没有颜色的正文（真机上就是这么冒出来的）。它只放行 WASM 编译，不等于
- * 'unsafe-eval'，两者别混。审查面板的 worker 与工具抽屉的主线程都吃这张表。
+ * img-src 只放行 avatars.githubusercontent.com 这一个头像主机（审查页要画 GitHub 头像，白名单
+ * 不给这条图片会被静默拦掉）。'wasm-unsafe-eval' 是产品需要不是开发版特权：shiki 的 oniguruma
+ * 引擎是 WebAssembly，不给这条着色静默退化成无色正文（真机实测）；它只放行 WASM 编译，别与
+ * 'unsafe-eval' 混。审查面板的 worker 与工具抽屉的主线程都吃这张表。
  */
 const DEV_CSP = [
   "default-src 'self'",
@@ -78,17 +66,10 @@ function cspPlugin(isDev: boolean): Plugin {
 }
 
 /*
- * 首屏入口闭包的守卫（性能审查 P-06）。
- *
- * 入口分块及其静态 import 链上的所有分块，渲染进程都要下载、解析、编译、求值完才能画第一帧。
- * 下面这些模块只在交互之后、或第一段正文上屏时才用得到（公式、终端、看大图、正文排版），已经改成
- * 动态 import；谁再把它们静态带回入口，构建直接失败 —— 而不是等用户觉得启动又慢了。
- *
- * 正文排版（性能方案 P5）：`@poietica/design-system/prose` 只是轻壳，实现 prose.tsx 连同 streamdown、
- * remark / rehype 链（parse5 来自 rehype-raw）、shiki、pele 约 2.4MB 在独立分块里，首帧之后才预取。
- * 守卫按实现文件与最重的几个包各记一条：哪一条被带回来，报错里就直接是哪一条。
- *
- * 体积只告警不失败：功能正常增长不该卡住构建，但每次越线都应该有人看一眼是谁涨的。
+ * 首屏入口闭包的守卫（性能审查 P-06）：入口静态闭包要在画第一帧前下载、编译、求值完，
+ * 下面这些只在交互后或正文上屏时才用到的模块（公式、终端、看大图、正文排版）已改成动态 import，
+ * 谁再静态带回入口，构建直接失败。正文排版（性能方案 P5）约 2.4MB 在独立分块里首帧后预取；
+ * 守卫按实现文件与最重的几个包各记一条，报错里直接是哪一条。体积只告警不失败。
  */
 const DEFERRED_MODULES = [
   '/node_modules/katex/',
@@ -165,16 +146,8 @@ export default defineConfig(({ mode }) => {
   return {
     main: {
       build: {
-        // externalizeDeps 是 electron-vite 6 的默认值；显式写出来是因为这条行为决定
-        // dependencies 是「运行时 require」还是「打进 bundle」，不该靠默认值兜底。
-        /*
-         * 顺带解决了 v5 的老问题：当时 externalizeDepsPlugin 只认「离构建根最近的那个
-         * package.json」，@lydell/node-pty 从 features/terminal 的源码进来时不在那张表里，
-         * 于是被内联 —— 它的 requireBinary() 改成从 out/main 找
-         * @lydell/node-pty-win32-x64/conpty.node，找不到，terminal.open 一律 spawn_failed。
-         * v6 的 externalizeDeps 走 rolldown 的 external，作用在模块 id 上，不再依赖
-         * 谁引入的，所以原先那条 ssr.external 补丁可以删了（dev 下 terminal.open 实测通过）。
-         */
+        // electron-vite 6 起默认开启；显式写出来是因为这条行为决定 dependencies 是
+        // 「运行时 require」还是「打进 bundle」，不该靠默认值兜底。
         externalizeDeps: true,
         outDir: path.join(__dirname, 'out/main'),
         lib: { entry: path.join(__dirname, 'src/main/index.ts'), formats: ['cjs'], fileName: () => 'index.cjs' },
@@ -201,12 +174,9 @@ export default defineConfig(({ mode }) => {
     renderer: {
       root: path.join(__dirname, 'src/renderer'),
       /*
-       * 开发期不要 Vite 自带的那个红色错误浮层。
-       *
-       * 它是 vite 的默认行为（全屏遮罩 + 栈），不属于本产品的界面语言：本仓的错误面有三层，
-       * 各管各的 —— 内核把功能装载失败收进 `kernel.failures` 并由外壳画成横幅里的「N 个功能
-       * 加载失败」；UI 内核的 FeatureErrorBoundary 把某个功能渲染期的异常收在它自己的格子里
-       * （06 页 §5.3）；Core 侧的问题走平台横幅。这层遮罩一盖，那三处全都看不见了。
+       * 开发期关掉 Vite 自带的红色错误浮层：它是全屏遮罩 + 栈，不属于本产品的界面语言。
+       * 本仓的错误面有三层（kernel.failures 横幅、FeatureErrorBoundary、平台横幅），
+       * 这层遮罩一盖全都看不见了。
        */
       server: { hmr: { overlay: false } },
       // tailwindcss() 必须注册：`@import "tailwindcss"` 靠这个插件扫描源码、生成工具类。

@@ -1,11 +1,8 @@
 #!/usr/bin/env bun
 /**
- * 把发布版本一次写进声明处。唯一来源是 `apps/desktop/package.json`（15 页 §10.1），
- * `apps/core/package.json` 与根 `package.json` 由它派生：Host 与 Core 总是一起发布，
- * 两半版本不一致只会意味着装坏了；根包 private、无发布语义，但版本号留着同样会误导。
- *
- * 每个文件走同一条管线：定位那一个顶层 version 键，逐字节替换它的值，别的一个字不动 ——
- * 整份重序列化会把仓库里的排版（空行、字段次序）搅乱，而这些文件是人工维护的。
+ * 把发布版本一次写进声明处。唯一来源是 `apps/desktop/package.json`，apps/core 与根
+ * package.json 由它派生（Host 与 Core 总是一起发布）。每个文件走同一条管线：定位顶层
+ * version 键、逐字节替换它的值，别的一个字不动 —— 整份重序列化会搅乱人工维护的排版。
  *
  *   bun run version:set 0.5.1
  */
@@ -23,11 +20,7 @@ if (!SEMVER.test(version ?? '')) {
   process.exit(2)
 }
 
-/*
- * 顶层那一个 version 键：JSON 的第一层，靠两格缩进锚定 ——
- * 依赖里同名的 version 字段（以及嵌套对象）不会被误伤。
- * 三个文件都是人工维护、顶层两格缩进，共用同一条正则。
- */
+/* 顶层那一个 version 键，靠两格缩进锚定 —— 依赖里同名的字段与嵌套对象不会被误伤。 */
 const PATTERN = /(^ {2}"version":\s*")[^"]+(")/m
 
 for (const file of VERSION_FILES) {
@@ -42,9 +35,8 @@ for (const file of VERSION_FILES) {
 }
 
 /*
- * 锁文件跟着重算。它不是手写声明，而是包管理器自己的产物：
- * 跳过这一步，发布提交里就会留下一个旧版本的 bun.lock —— 那正是 legacy v0.4.3
- * 发布后工作区里那个改不完的文件。命令失败即停：一个没跟上的锁文件不该被静悄悄放过。
+ * 锁文件跟着重算（包管理器的产物，不是手写声明）：跳过这一步，发布提交里就留下旧版本的
+ * bun.lock（legacy v0.4.3 实测）。失败即停：没跟上的锁文件不该被静悄悄放过。
  */
 for (const file of LOCK_FILES) {
   const [program, ...args] = LOCK_COMMANDS[file]

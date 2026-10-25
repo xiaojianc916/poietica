@@ -84,10 +84,9 @@ async function createRealEngine(
 }
 
 /**
- * 探针版专用：只有编译期注入 POIETICA_PROBE_BUILD="1" 时，args.probeMockModel 才可能为真
- * （parseCoreArgs 在正式版遇到 --probe-mock-model 会报未知参数、退出码 2）。
- * 正式版里这个条件是编译期常量 false，整个分支连同下面的动态 import 会被打包器剔除，
- * 所以正式 exe 里没有任何测试代码。
+ * 探针版专用：只有编译期注入 POIETICA_PROBE_BUILD="1" 时 args.probeMockModel 才可能为真
+ * （正式版遇到 --probe-mock-model 报未知参数、退出码 2）。正式版里这个条件是编译期常量 false，
+ * 整个分支连同下面的动态 import 被打包器剔除 —— 正式 exe 里没有任何测试代码。
  */
 async function createProbeEngine(
   layout: Parameters<typeof createCoreKernel>[0]['layout'],

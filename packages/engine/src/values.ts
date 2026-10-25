@@ -286,11 +286,11 @@ export type SettingSection = z.infer<typeof SettingSection>
 
 /*
  * 一格设置的描述符。只收引擎端口能如实回答的那些：
- *   - `group` 是 **omp 自己的分节键**，不是给人看的那一列 —— 界面按它建分组，换成中文会把两节合成一格且屏幕上看不出哪里错了；
- *   - `options` 的 `value` 是写回 agent 的标识，`label` 是给人看的；
- *   - `value` 在凭据类设置上恒为 null（值出了 agent 的进程就不再是我们的盘），配没配由 `hasValue` 说；
- *   - `owned` 说的是「这一行别处已经有控件」，与 `section` 正交：值照报，行不画；
- *   - `condition` 是判据的**名字**，求值在界面那一侧 —— 判据要用此刻的设置，而那正是界面上这份目录的 value。
+ * - `group` 是 **omp 自己的分节键**，不是给人看的那一列（换中文会把两节合成一格且屏幕上看不出）；
+ * - `options` 的 `value` 是写回 agent 的标识，`label` 是给人看的；
+ * - `value` 在凭据类设置上恒为 null（值出了 agent 的进程就不再是我们的盘），配没配由 `hasValue` 说；
+ * - `owned` 说「这一行别处已有控件」，与 `section` 正交：值照报，行不画；
+ * - `condition` 是判据的**名字**，求值在界面那一侧（判据要用此刻的设置，正是界面上这份目录的 value）。
  */
 export const SettingDescriptor = z.object({
   path: z.string(),

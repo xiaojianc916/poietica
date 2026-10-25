@@ -2,16 +2,10 @@ import { describe, expect, test } from 'bun:test'
 import { toContextUsage, toSessionTokenUsage } from '../context-usage'
 
 /*
- * omp 的上下文读数 → 引擎端口。
- *
- * 这里的**字段名**是真机故障「输入框没有用量显示」的根因：omp 的 getContextUsage() 报的是
- * { tokens, contextWindow }（pi-tui 的 status-line/types），而适配器按
- * { usedTokens, windowTokens } 去读 —— 两个名字都不存在，于是恒为 undefined、恒被判成
- * 「会话还没报过」，那颗圆环永远不画。第一条用例拿真实 SDK 形状喂进去，按旧名读会红。
- *
- * 构成明细取自 omp 自己的 computeContextBreakdown（/context 面板那一份）。本文件只钉
- * **映射**：哪个字段进哪一格、缺了退哪里。面板上的读数与分段算法在 features/conversation
- * 的 context-gauge 里另有其测试。
+ * omp 的上下文读数 → 引擎端口。**字段名**是真机故障「输入框没有用量显示」的根因：omp 报的是
+ * { tokens, contextWindow }，旧代码按 { usedTokens, windowTokens } 读 —— 名字不存在、恒判成
+ * 「还没报过」，圆环永远不画。第一条用例拿真实 SDK 形状喂进去，按旧名读会红。本文件只钉
+ * **映射**（哪个字段进哪格、缺了退哪里）；面板上的读数与分段算法在 conversation 的 context-gauge。
  */
 
 /** 真实 SDK 的返回形状（pi-tui 的 ContextUsage） */

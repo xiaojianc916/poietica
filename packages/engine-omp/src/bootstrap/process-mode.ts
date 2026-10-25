@@ -7,13 +7,11 @@ import { type EarlyMessagePort, holdEarlyMessages, ompCliSelfDispatches } from '
 /*
  * omp 知识 #1（审查 R-20-2 修订）：
  * - declareWorkerHostEntry() 必须在模块顶层同步调用；
- * - omp 的 cli.ts **会自己派发 worker 选择子**：模块顶层 `isProcessEntry = import.meta.main || process.env.PI_COMPILED === "true"`，
- *   `if (isProcessEntry || !Bun.isMainThread) runCli(process.argv.slice(2))`。编译版（build 里 define 了 PI_COMPILED）与
- *   任何 worker 线程里，import cli 这一下就已经派发了；我们再 runCli 一次 = 同一个 worker 起两份。eval 子进程里两个
- *   JsRuntime 同吃一条 run 消息 → 「Cannot run code while another same-realm JS runtime is running」；broker 子进程里两个
- *   broker 抢同一根命名管道。所以只在 cli **不会**自派发时（开发版的主线程子进程）由我们派发；
- * - worker 线程里父线程 spawn 后立刻发的 init 握手只在入口模块顶层求值结束时冲刷一次。cli 自派发时会自己
- *   installWorkerInbox，但那已在冲刷之后；我们在同步前缀里先挂 `holdEarlyMessages` 接住它，再原样交给 omp 的收件箱。
+ * - omp 的 cli.ts 会自己派发 worker 选择子（顶层 isProcessEntry 判断）：编译版与任何 worker 线程里，
+ *   import cli 这一下就已经派发了，我们再 runCli 一次 = 同一个 worker 起两份（两个 JsRuntime 同吃一条
+ *   run 消息、两个 broker 抢同一根命名管道）。所以只在 cli 不会自派发时（开发版的主线程子进程）由我们派发；
+ * - worker 线程里父线程立刻发的 init 握手只在入口模块顶层求值结束时冲刷一次，cli 自派发的
+ *   installWorkerInbox 已在那之后 —— 同步前缀里先挂 `holdEarlyMessages` 接住，再原样交给 omp 的收件箱。
  */
 declareWorkerHostEntry()
 

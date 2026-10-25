@@ -40,37 +40,25 @@ export function bumped(version: string): Bump {
 }
 
 /**
- * 语义化版本的先后（SemVer §11）：交给 Bun 的官方实现（`Bun.semver.order`，
- * 数字标识符按数值比、非数字按字典序、构建元数据不参与）。
- *
- * 只在比较这一刻放宽：发布链认不认这个版本号，仍由上面的 SEMVER 正则判
- * （`v1.2.3`、`01.2.3` 这类会被 Bun 当合法收下，产品不接受）。
+ * 语义化版本的先后交给 Bun 的官方实现（Bun.semver.order）。只在比较这一刻放宽：
+ * 发布链认不认这个版本号仍由上面的 SEMVER 正则判（`v1.2.3`、`01.2.3` 会被 Bun 当合法收下，产品不接受）。
  */
 export function compareVersions(left: string, right: string): number {
   return Bun.semver.order(left, right)
 }
 
 /**
- * 版本号的唯一来源是 `apps/desktop/package.json` 的 version（15 页 §10.1）。
- * Host 与 Core 总是一起发布，一个安装包里两半版本不一致只会意味着装坏了 ——
- * 所以 `apps/core/package.json` 必须与它相同，set-version/check-versions 以它为键。
- *
- * 根 `package.json` 也在列表里：它没有发布语义（private），但它同样写着版本号，
- * 不跟着走就会在仓库里留一个永远停在旧版本的假象（实测停在 0.5.0，而 apps 已到 0.5.6）。
- *
- * Core 的版本另有一处派生落点：`bun run core:build` 把 coreVersion 写进
- * `apps/core/dist/core-manifest.json`，由 verify-dist 与发布链核对，同样不在这个列表里。
+ * 版本号的唯一来源是 `apps/desktop/package.json` 的 version；Host 与 Core 总是一起发布，
+ * apps/core 与根 package.json 必须跟它一致（根包 private，但版本号留着不同样会误导）。
+ * Core 另有一处派生落点：core-manifest.json（由 core:build 写、verify-dist 核对），不在这个列表里。
  */
 export const VERSION_SOURCE = 'apps/desktop/package.json'
 
 export const VERSION_FILES = ['package.json', 'apps/desktop/package.json', 'apps/core/package.json'] as const
 
 /**
- * 锁文件记着一份仓内包的版本（bun.lock 记 apps/desktop 与 apps/core）。它由包管理器
- * 重算，不手改 —— 手写解析等于给锁文件造第二个事实。
- *
- * 漏掉它的代价在 legacy 上实测过：v0.4.3 的发布提交里留下一个旧版本的 Cargo.lock，
- * 而签回与精确 add 都只认 VERSION_FILES —— 发布之后仓库一直带着一个改不完的改动。
+ * 锁文件由包管理器重算、不手改（手写解析等于造第二个事实）。漏掉它的代价实测过：
+ * legacy v0.4.3 的发布提交留下旧版 Cargo.lock，而签回与精确 add 只认 VERSION_FILES。
  */
 export const LOCK_FILES = ['bun.lock'] as const
 

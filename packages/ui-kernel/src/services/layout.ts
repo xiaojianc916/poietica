@@ -8,11 +8,8 @@ export interface PanelDockState {
 
 /**
  * 右坞的归属状态。坞的开合、格清单与选中格都**按归属分账**（见 {@link DockPanesState}），这里只放跨归属的三格：
- *
- * - `activeOwner`：当前前台，由外壳按路由写（表面贡献的 `dockOwner`），是唯一的写者；
- * - `owner`：坞里此刻画的是谁的内容（派生）。前台的坞开着就是前台；前台的坞没开时保持上一位 ——
- *   收起 / 换前台的过渡期间坞里的内容不换人，不会先闪一下启动器再滑走。归属被遗忘时清空；
- * - `fullscreen`：瞬时全屏态，不落盘；坞离场（收起或换前台）即作废。
+ * `activeOwner` 当前前台（外壳按路由写，唯一的写者）；`owner` 坞里此刻画谁的内容（派生）——
+ * 前台的坞没开时保持上一位，收起 / 换前台的过渡期间内容不换人；`fullscreen` 瞬时全屏态，不落盘。
  */
 export interface AuxiliaryState {
   readonly owner: string | null
@@ -110,12 +107,10 @@ export interface LayoutGeometry {
 const fit = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value))
 
 /**
- * 意图 + 外壳宽 → 有效几何。LayoutState 里的宽度是**意图**（用户拖出来的值），不随窗口或另一侧的开合改写；
- * 放不下时只在这里让位，放得下了原样回来。产品上限是常量，不随另一侧开合加减（以前侧栏收起会给右栏上限加回侧栏宽，
- * 「最大」本身随开合漂移，开合来回一遍就回不到原样）；另一侧只经「窗口还剩多少」影响上限，宽窗口下开合上限纹丝不动。
- *
- * 让位次序只有一条：右栏先缩（到下限为止），侧栏再缩（到下限为止），两侧都在下限仍放不下才轮到主列地板
- * （栅格的 minmax(0, 1fr) 吃掉差额）。拖拽沿用同一次序：侧栏拖到主列地板后继续推右栏，右栏拖到地板即止。
+ * 意图 + 外壳宽 → 有效几何。LayoutState 里的宽度是**意图**（用户拖出来的值），不随窗口或另一侧
+ * 的开合改写；放不下时只在这里让位，放得下了原样回来。产品上限是常量、不随另一侧开合加减
+ * （以前侧栏收起会给右栏上限加回侧栏宽，「最大」本身随开合漂移，来回一遍回不到原样）。
+ * 让位次序只有一条：右栏先缩、侧栏再缩（各到下限为止），仍放不下才轮到主列地板；拖拽同一次序。
  */
 export function resolveLayoutGeometry(state: LayoutState, viewportWidth: number | null): LayoutGeometry {
   const [sidebarMin, sidebarMax] = LAYOUT_LIMITS.sidebar

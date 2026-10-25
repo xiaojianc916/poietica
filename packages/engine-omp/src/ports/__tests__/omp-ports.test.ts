@@ -11,10 +11,8 @@ import { ompPorts } from '../omp-ports'
 
 /*
  * 组合根这一层的两条硬要求（都在真机上翻过车）：
- *
- * 1. `reload` 回调必须调**真实存在**的方法。omp 的 ModelRegistry 没有 `reload()`（旧代码
- *    `registry.reload?.()` 每次都静默落到 undefined），于是写完 models.yml 之后目录不更新：
- *    用户手动加的服务商在「模型」页里要等重启才出现（omp 知识 #18）。
+ * 1. `reload` 回调必须调**真实存在**的方法 —— omp 的 ModelRegistry 没有 `reload()`，旧代码
+ *    `registry.reload?.()` 静默落到 undefined，写完 models.yml 目录不更新（omp 知识 #18）；
  * 2. `providers()` 的 configured 要跟 omp 自己的鉴权判据同源（见 models.ts 的端口注释）。
  */
 

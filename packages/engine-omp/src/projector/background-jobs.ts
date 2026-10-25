@@ -2,13 +2,9 @@ import type { TranscriptOperation, TranscriptTask } from '@poietica/transcript'
 
 /*
  * omp 的后台作业（AsyncJobManager：`bash` 后台命令、`eval` 后台单元）→ transcript 的 task 行（kind shell / tool，detached）。
- *
- * omp 不为作业的变化发事件（只有完成后的投递），能拿到的是 `session.getAsyncJobSnapshot()` 这张现成的表 ——
- * 与 omp 自己的状态栏、/jobs 面板读的是同一份。所以这里是**按快照对账**：调用方在有作业跑着时定时取一次、
- * 在工具收口 / 一轮结束时再取一次，交进来；投影结果真的变了才发 op（与 SubagentLedger 同一个去重口径）。
- *
- * `task` 类作业是后台子代理：它们归「智能体」那一节（SubagentLedger 从生命周期帧出行），这里不列，
- * 否则同一个子代理会在两节里各出现一次。
+ * omp 不为作业的变化发事件，能拿到的是 `session.getAsyncJobSnapshot()`（与 omp 自己的状态栏、/jobs 面板同一份），
+ * 所以这里是**按快照对账**：调用方定时 / 在收口点取一次交进来，结果真的变了才发 op（与 SubagentLedger 同一去重口径）。
+ * `task` 类作业是后台子代理，归「智能体」那一节（SubagentLedger），这里不列，否则同一个子代理出现两次。
  */
 
 /** 快照里的一项（omp AsyncJobSnapshotItem 的结构收窄；认不出的格当缺席） */

@@ -4,12 +4,9 @@ import { LiveProjector } from '../live'
 import { framesOf, iso, projector, snapshot } from './fixtures/live'
 
 /*
- * 屏幕侧那一半：断言意图一条不删，只把输入换成 LiveProjector 的接口。
- *
- * 两处旧接口有、新接口表达不了的（在完成汇报里点名，不在这里假绿）：
- *   - 旧的 userTurn 能直接指定「屏幕上已有那一格」的号；新接口只有 seat(n)（下一号 = n + 1），
- *     等价表达见「指定座位开轮」那一条。
- *   - 旧的 skills 每一项带 args（写进 origin 的 skillArgs）；新接口只收技能名。
+ * 屏幕侧那一半：断言意图一条不删，只把输入换成 LiveProjector 的接口。两处旧接口有、新接口
+ * 表达不了的（在完成汇报里点名，不在这里假绿）：旧的 userTurn 能直接指定已有格的号，新接口
+ * 只有 seat(n)（等价表达见「指定座位开轮」）；旧的 skills 每项带 args，新接口只收技能名。
  */
 describe('正文、工具与轮终的完整链（legacy projection.test.ts）', () => {
   test('正文逐段追加：offset 逐条接得上，applyOps 不抛缺口，prompt 不被流式覆盖', () => {

@@ -24,20 +24,14 @@ interface PayloadState {
 }
 
 /**
- * Host 读 Core stdout 的解码器：**按字节**切帧，只解析信封，载荷留成 {@link RawJson}（未解析的 JSON 文本）。
- *
- * 旧做法是 `stdout.setEncoding('utf8')` + 文本解码器：每一帧在 Electron 主线程上经 StringDecoder 解 UTF-8、
- * 拼行、整段 JSON.parse，再交给 IPC 结构化克隆一棵对象树 —— 而 Host 只需要信封里的 id / method。这里：
- * - 在字节上找 `\n`（Buffer 的 indexOf 是 memchr）、找 `\x1e` 与第一个 `\x1f`，只 JSON.parse 信封那几十个字节；
- * - 载荷只做 UTF-8 → 字符串（TextDecoder，simdutf），不解析：转交给 UI 时字符串的结构化克隆是一次 memcpy；
- * - 跨多个块的大帧，信封一到就进入载荷态，之后每到一块就解码一块（流式 TextDecoder），不在行尾先把几 MB
- *   字节拼起来再一次性解码 —— 主线程上不出现与帧大小成正比的整块拷贝 + 整段解码。
- *
- * 语义与文本解码器一致：只认 `\n`、去掉行尾 `\r`、空白行忽略、前缀之前的杂散文本与非帧行交给 onStray、
- * 坏帧报 `[bad frame]`、非 JSON-RPC 报 `[not jsonrpc]`、超长报一次 `[frame overflow]` 并丢弃到下一个换行。
- * 不带 `\x1f` 的帧按完整 JSON-RPC 消息全量解析（没有载荷的消息：错误回复、不带 params 的通知）。
- * 诊断样本（≤200 字节）取自当时手上的字节：跨块大帧的坏信封在信封到达时就报，样本可能短于整行解码时
- * （以前的 `[frame overflow]` 样本同样随切块而异）。
+ * Host 读 Core stdout 的解码器：**按字节**切帧，只解析信封，载荷留成 {@link RawJson}。
+ * 旧做法整帧解 UTF-8、拼行、JSON.parse、再结构化克隆一棵对象树，而 Host 只需要信封里的 id / method：
+ * 这里在字节上找 `\n` 与 `\x1e`/`\x1f`、只 parse 信封那几十个字节；载荷只做 UTF-8 → 字符串
+ * （转交 UI 时字符串的克隆是一次 memcpy）；大帧信封一到就进载荷态、每到一块解码一块，
+ * 主线程上不出现与帧大小成正比的整块拷贝。
+ * 语义与文本解码器一致：只认 `\n`、去 `\r`、空白行忽略、杂散与非帧行交 onStray、
+ * 坏帧 `[bad frame]`、非 JSON-RPC `[not jsonrpc]`、超长报一次 `[frame overflow]` 并丢弃到下一换行；
+ * 不带 `\x1f` 的帧按完整 JSON-RPC 消息全量解析。诊断样本（≤200 字节）取自当时手上的字节，跨块大帧可能短于整行。
  */
 export class FrameByteDecoder {
   /** 当前行里还没进入载荷态的字节（行首起）；`prefixAt` 是其中 `\x1e` 的位置（-1：还没见到） */

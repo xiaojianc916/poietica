@@ -1,10 +1,8 @@
 #!/usr/bin/env bun
 /**
  * 在本机完成一次发布：bun release [patch|minor|major|版本号] [--yes] [--draft]
- *
- * 构建、上传、验通道全部在本地用 gh 完成：不依赖仓库 Secret、不等 CI 排队，失败立刻回滚；
- * 代价是构建的十几分钟里终端得开着。这是**唯一**的发布链：`.github/workflows/` 下只有 CI，
- * 不按 tag 发版（推 tag 只用于留档，不触发任何自动化）。
+ * 构建、上传、验通道全部本地用 gh 完成，不依赖仓库 Secret、不等 CI。这是唯一的发布链：
+ * `.github/workflows/` 下只有 CI，不按 tag 发版（推 tag 只用于留档）。
  */
 
 import { spawnSync } from 'node:child_process'
@@ -68,10 +66,8 @@ function capture(...argv: string[]): string | null {
 const tryRun = (...argv: string[]): void => spawn(argv, 'log')
 
 /**
- * **一次提问开一个 readline，问完就关**。
- *
- * gh auth login 这类命令要独占终端，常驻的 readline 会一直占着 stdin，两个读者互相吃键；
- * 而 readline 一旦 close 就暂停了 stdin，「关掉再重开」会让下一个问题永远等不到回车（实测卡死）。
+ * 一次提问开一个 readline，问完就关 —— gh auth login 要独占终端，常驻 readline 会占着 stdin
+ * 互相吃键；而 readline 一旦 close 就暂停 stdin，「关掉再重开」会让下一个问题等不到回车（实测卡死）。
  */
 async function ask(question: string): Promise<string> {
   const terminal = createInterface({ input: process.stdin, output: process.stdout })
@@ -343,12 +339,10 @@ function applyVersion(target: string): void {
 }
 
 /**
- * 打出来的包里 node_modules 只该有运行时真正 import 的那几个。
- *
- * 打包器另有一个只认否定模式的 matcher，会把生产依赖树整棵塞进 asar：谁往 apps/desktop 的
- * dependencies 里放一个渲染层依赖，安装包就悄悄胖几十 MB，而构建照样绿。这个闸门让那次误加
- * 在打包后立刻现形。`@lydell/node-pty` 被 features/terminal/src/host 动态加载，electron-updater
- * 只在打包版由 features/update/src/host 加载；其余依赖都已被 electron-vite 内联进 out/**。
+ * 打出来的包里 node_modules 只该有运行时真正 import 的那几个 —— 打包器的否定模式 matcher
+ * 会把生产依赖树整棵塞进 asar，谁误加一个渲染层依赖，安装包悄悄胖几十 MB 而构建照样绿，
+ * 这个闸门让它打包后立刻现形。`@lydell/node-pty` 由 terminal 的 host 动态加载，electron-updater
+ * 由 update 的 host 加载；其余依赖都已被 electron-vite 内联进 out/**。
  */
 const RUNTIME_DEPENDENCIES = ['@lydell/node-pty', 'electron-updater']
 
@@ -534,11 +528,10 @@ async function buildAndStage(target: string, tag: string, current: string): Prom
 }
 
 /**
- * 差分下载要两份块索引：这一版的，与上一个版本的那一份。旧的那份从上一个 release 取回来、按原名字
- * 放进这一版的资产里：客户端按「新版本资产名里把版本号换成旧版本号」拼地址（electron-updater 的
- * providers/Provider.ts），拼出来仍落在这一版的 tag 目录下。它没法用这一版的块索引顶替 ——
- * 块索引是内容寻址的，顶替的后果不是报错，是客户端照一份错的比对表拼出文件、末了 sha512 校验不过、
- * 退回整包下载，比不做差分还慢。取不到不算失败：这一版就是第一个带块索引的版本时，客户端整包下载一次。
+ * 差分下载要两份块索引：旧的那份从上一个 release 取回来、按原名字放进这一版资产里（客户端按
+ * 「新版本资产名里把版本号换成旧版本号」拼地址，electron-updater 的 providers/Provider.ts）。
+ * 不能用这一版的块索引顶替 —— 块索引内容寻址，顶替的后果是客户端照错的比对表拼文件、末了
+ * sha512 校验不过、退回整包下载。取不到不算失败：第一个带块索引的版本本就没有旧的。
  */
 async function stagePreviousBlockmap(previousVersion: string): Promise<void> {
   const previousTag = `v${previousVersion}`

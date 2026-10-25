@@ -238,13 +238,9 @@ async function requireNamed(manager: SessionManager, title: string): Promise<voi
 
 /**
  * 只留屏幕上的前 `keep` 轮：在副本上把叶子挪到第 `keep + 1` 轮开场消息之前，并且**落盘**。
- *
- * 轮怎么分只有一个产地 —— `turnOpenings`，与时间线的历史分页同一套（它读的也是同一份「显示经过」）。
- * 所以屏幕上的第 n 轮就是这里的第 n 轮：目标续跑、技能、压缩、插话都不需要另外数一遍。
- *
- * 只 `branch()` 是不够的：它只改内存里的叶子，omp 重开会话时按**最后一条物理记录**还原叶子，
- * 副本关掉再打开就又是整条历史。`branchWithSummary` 追加一条空摘要的分支记录（omp 自己
- * `discardEntryDurably` 也是这样做的），叶子因此落在磁盘上；空摘要既不上屏也不进模型上下文。
+ * 轮怎么分只有一个产地（`turnOpenings`，与历史分页同一套），屏幕上的第 n 轮就是这里的第 n 轮。
+ * 只 `branch()` 不够：它只改内存里的叶子，omp 重开按最后一条物理记录还原叶子，重开就又是整条
+ * 历史 —— `branchWithSummary` 追加一条空摘要的分支记录把叶子钉在磁盘上（空摘要不上屏也不进上下文）。
  */
 function keepFirstTurns(manager: SessionManager, keep: number): void {
   const transcript = manager.buildSessionContext({ transcript: true, collapseCompactedHistory: false })

@@ -12,11 +12,9 @@ import { createRoot, type Root } from 'react-dom/client'
 
 /*
  * R-04 S12：Core 每次重启都会重跑 onCoreReady，而**读盘**那两步只能做一次。
- *
- * `composer.hydrate` 是 `{...当前, ...盘上}` 的合并：重启那一刻用户输入框里最近
- * 300ms（UI 去抖）+ 500ms（Host 去抖）内敲的字还没落盘，再读一次盘上的旧版本会把
- * 它们覆盖回去（R-04 §1.5）。这一条把「第二次 ready 不再读 draft」钉在装配层，
- * 因为这一段逻辑住在 ui/index.tsx，单测碰不到。
+ * `composer.hydrate` 是 `{...当前, ...盘上}` 的合并：重启那一刻最近 300ms（UI 去抖）+ 500ms
+ * （Host 去抖）内敲的字还没落盘，再读一次盘会把它们覆盖回去（R-04 §1.5）。这一条把
+ * 「第二次 ready 不再读 draft」钉在装配层 —— 这段逻辑住在 ui/index.tsx，单测碰不到。
  */
 
 function testBridge(stored: Readonly<Record<string, unknown>> = {}) {

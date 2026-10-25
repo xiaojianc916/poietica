@@ -5,13 +5,10 @@ import './prose.css'
 import type { ProseProps } from './prose'
 
 /*
- * 正文渲染的轻壳（性能方案 P5）。实现（./prose）连同 streamdown、remark / rehype 链、parse5、shiki 与 pele
- * 约 2.4MB，原先经这个子入口被会话时间线、计划坞、工具卡等静态带进首屏入口闭包：入口页一个字的正文都不画，
- * 每次启动也要先把它们下载、编译、求值完才画得出第一帧。现在实现在独立分块里，由宿主在首帧之后空闲时预取
- * （prefetchProseWhenIdle）；真有来不及的那一下，按源码原样显示、到达后换成排版 —— 与公式插件同一处置（math-plugin.ts）。
- *
- * 样式留在轻壳上：两份 CSS 仍随入口进主样式表、位置不变，覆盖次序与拆分前逐条相同。放进分块的话它会晚插进
- * <head>，反过来压住原本排在它后面的同权重规则（R-49 的 terminal-pane.css 就是为这个随 xterm.css 一起加载）。
+ * 正文渲染的轻壳（性能方案 P5）：实现（./prose）连同 streamdown、remark / rehype 链、parse5、
+ * shiki 与 pele 约 2.4MB，在独立分块里由宿主首帧后空闲预取；真来不及的那一下按源码原样显示、
+ * 到达后换成排版（与公式插件同一处置）。样式留在轻壳上：两份 CSS 仍随入口进主样式表，覆盖次序
+ * 与拆分前相同 —— 放进分块会晚插进 <head>，反过来压住后面的同权重规则（R-49 同此）。
  */
 
 type ProseModule = typeof import('./prose')

@@ -1,25 +1,15 @@
 /*
  * 浮层族的共用词汇：表面、定位层、菜单卡、菜单行、列标题、分隔线、选中勾。Menu 与 Select 都认
- * 表面与定位层这一份，避免样式与栈序分叉。
- *
- * 菜单这一族照 zcode 的通用菜单（packages/ui/src/components/ui/dropdown-menu.tsx 的
- * DropdownMenuContent / DropdownMenuItem）。zcode 把两件事分得很开：弹窗是 bg-popover + rounded-2xl
- * 的独立一层，菜单是 bg-menu + rounded-lg + 1px 边线的实色卡 —— 菜单从来不是玻璃。
- *
- *   卡   圆角 8（本仓 --ui-radius-md）、1px 描边、实色底、shadow-md、内边距 4、行间 2
+ * 表面与定位层这一份，避免样式与栈序分叉。菜单族照 zcode 的通用菜单；弹窗与菜单分开 —— 弹窗是
+ * bg-popover + rounded-2xl 的独立一层，菜单是 bg-menu + rounded-lg + 1px 边线的实色卡，菜单从来
+ * 不是玻璃（玻璃底会把背后正文透进行间，选项可读性被背景决定；透光的层次留给弹窗）。
+ *   卡   圆角 8（--ui-radius-md）、1px 描边、实色底、shadow-md、内边距 4、行间 2
  *   列   min-width 128、max-width 360
- *   行   最小 28 高、圆角 6（本仓 --ui-radius-sm）、内边距 4/8、字 14/1.625、图标与字间距 8
+ *   行   最小 28 高、圆角 6（--ui-radius-sm）、内边距 4/8、字 14/1.625、图标与字间距 8
  *   标   14、内边距 6/8、三级字色
- *   分隔 高 1、横贯整卡
- *
- * 颜色全部照抄 zcode 的 .theme-zai-light / .theme-zai-dark 真值，不做「与某支令牌同档」的近似：
- *   底   --ui-menu        #ffffff / #2b2b2b（zcode --color-menu）
- *   悬停 --ui-menu-hover  #f0f0f0 / #363636（zcode --color-menu-hover）
- *   线   --ui-menu-border rgba(13,13,13,.1) / rgba(255,255,255,.1)（zcode --color-border，压在深色
- *        菜单底上兑出来就是 #414141）—— 边框与分隔线共用这一支，源码里本来就是同一个值。
- *
- * 菜单为什么不用玻璃底：菜单是贴着一个控件展开的选项表，玻璃底会把背后正文透进行间，选项的
- * 可读性就被背景决定了；透光的层次留给弹窗那一层。
+ * 颜色照抄 zcode 的真值、不做「与某支令牌同档」的近似：底 --ui-menu #ffffff/#2b2b2b、
+ * 悬停 --ui-menu-hover #f0f0f0/#363636、线 --ui-menu-border（zcode --color-border，压在深色菜单
+ * 底上即 #414141）—— 边框与分隔线共用这一支，源码里本来就是同一个值。
  */
 export const popupSurfaceClassName = [
   'overflow-hidden',
@@ -34,15 +24,9 @@ export const popupSurfaceClassName = [
   'shadow-md',
   'outline-none',
   /*
-   * 进出动画照 zcode 的 SelectContent / DropdownMenuContent：
-   *   data-open:animate-in fade-in-0 zoom-in-95
-   *   data-closed:animate-out fade-out-0 zoom-out-95
-   *   data-[side=bottom]:slide-in-from-top-2 …（四条方向各一档，向触发器那一侧滑入）
-   *   duration-100
-   *
-   * 本仓的浮层用 Base UI：方向写在弹层自己的 data-side 上（Positioner 也带着同一份属性），
-   * 起始/结束态是 data-starting-style / data-ending-style。所以这里把同样的三件事——淡、缩、
-   * 从触发器方向滑 8px——按本仓的属性名重写一遍，时长同样是 100。
+   * 进出动画照 zcode 的 SelectContent / DropdownMenuContent：淡、缩、向触发器那一侧滑 8px，时长 100。
+   * 本仓的浮层用 Base UI —— 方向写在弹层自己的 data-side 上，起始/结束态是
+   * data-starting-style / data-ending-style，同样的三件事按本仓的属性名重写一遍。
    */
   'origin-[var(--transform-origin)]',
   'transition-[transform,scale,opacity,translate]',

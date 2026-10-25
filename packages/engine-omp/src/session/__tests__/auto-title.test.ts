@@ -4,14 +4,10 @@ import { fakeOmpSession } from '../../projector/__tests__/fixtures/omp-session'
 
 /*
  * 自动总结标题的端口语义（omp 知识 #17）：omp 自己起名，适配器只把结果**报回来**。
- *
- * 宿主的职责只有两处，各有一条用例：
- *   1. 开会话时把 `autoTitle` 放进 createAgentSession（session-factory），由 `spec.autoTitle` 门禁 ——
- *      这条在 session-factory.test.ts 里用替身直接断言入参，不经过 omp；
- *   2. omp 写进会话名之后由 `onSessionNameChanged` 报回一条 `sessionTitle`（这里，用 fakeOmpSession）。
- *
- * 夹具（fakeOmpSession）照 omp 的真实顺序：先把名字写进 SessionManager，再通知
- * `onSessionNameChanged`（**回调不带名字**）—— 所以这条用例同时证明了「必须自己读 getSessionName」。
+ * 宿主的职责只有两处，各有一条用例：开会话时把 `autoTitle` 放进 createAgentSession
+ * （session-factory.test.ts 用替身断言入参）；omp 写完名字后由 `onSessionNameChanged` 报回
+ * `sessionTitle`（这里）。夹具照 omp 的真实顺序：先写进 SessionManager 再通知（**回调不带
+ * 名字**）—— 这条用例同时证明了「必须自己读 getSessionName」。
  */
 const SUBMIT = { text: '帮我修一下登录页的样式', images: [], files: [], skills: [], deliverAs: 'turn' } as const
 

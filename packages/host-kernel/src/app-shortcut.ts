@@ -3,11 +3,9 @@ import path from 'node:path'
 
 /*
  * Windows 任务栏按键画的是「该 AppUserModelID 对应快捷方式」的那张图；窗口自己的 WM_SETICON
- * 只管窗口本体、Alt+Tab 与任务预览。`setAppDetails` 也压不过**已经存在**的快捷方式。
- *
- * 所以只要某个快捷方式声称是我们的 AUMID、而它的 target 又已经不存在（换过 Electron 版本、
- * 删过目录），任务栏就一律画成通用白纸图，并且按 AUMID 缓存下来 —— 改代码、换图标都不动。
- * 这里只改「身份是我们的、且确实指丢了」的那些：名字、目录、指向别处的快捷方式一概不碰。
+ * 只管窗口本体，`setAppDetails` 也压不过已存在的快捷方式。只要某个快捷方式声称我们的 AUMID
+ * 而 target 已经丢失，任务栏就永远画通用白纸图并按 AUMID 缓存 —— 这里只修「身份是我们的、
+ * 且确实指丢了」的那些，名字、目录、指向别处的一概不碰。
  */
 
 /** `shell.readShortcutLink()` 的返回值里我们关心的部分 */
@@ -78,11 +76,8 @@ export function repairAppShortcuts(o: RepairAppShortcutsOptions): string[] {
 
 /**
  * 启动时的一次性自愈：把「声称我们身份、target 已经丢失」的快捷方式改回正确指向。
- *
- * 只在开发版做：安装版的快捷方式由 NSIS 写，指向安装目录里的 Poietica.exe，
- * 不会跟着 node_modules 换版本；而开发版指向 electron.exe，换一次依赖就断一次。
- *
- * 任何异常都只记日志不抛：图标丑不能挡住启动。
+ * 只在开发版做 —— 安装版的快捷方式由 NSIS 写、指向安装目录；开发版指向 electron.exe，
+ * 换一次依赖就断一次。任何异常只记日志不抛：图标丑不能挡住启动。
  */
 export function repairDevShortcutsOnBoot(o: {
   readonly desired: DesiredAppShortcut

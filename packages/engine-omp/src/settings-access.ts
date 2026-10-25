@@ -103,12 +103,9 @@ export function settingUiOf(path: string): SettingUiMetadata {
 }
 
 /*
- * 选项表的原文。omp 的 `ui.options` 有两种形状与一种「现算」：
- *
- *   - `{value,label,description}`（枚举类的常规形状）；
- *   - 裸字符串（个别格子只给取值）；
- *   - `'runtime'` —— 选项由运行时层算（主题表那类）。我们这一层不编，如实交回 undefined：
- *     编一张空表会让界面画一个选不出东西的下拉。
+ * 选项表的原文。omp 的 `ui.options` 有两种形状与一种「现算」：`{value,label,description}`、
+ * 裸字符串、`'runtime'`（选项由运行时层算 —— 我们这一层不编，如实交回 undefined，
+ * 编一张空表会让界面画一个选不出东西的下拉）。
  */
 function optionsRawOf(raw: unknown): readonly SettingOptionRaw[] | undefined {
   if (!Array.isArray(raw)) return undefined

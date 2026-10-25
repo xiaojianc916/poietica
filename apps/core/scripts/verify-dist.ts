@@ -2,11 +2,9 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
 /*
- * P7 的产物校验（15 页 §10.2）：重新计算 apps/core/dist/ 里每个产物的 sha256，与
- * core-manifest.json 比对，并断言 `probe === false` —— 防的是「探针版被打进安装包」
- * 这件事：探针版接受 `--probe-mock-model`，装到用户机器上就是一个能拿假模型冒充真模型的 Core。
- *
- * 发布链在 `bunx electron-builder` 之前跑它（15 页 §10.5 第 5 步）。
+ * P7 的产物校验（15 页 §10.2）：重算 apps/core/dist/ 每个产物的 sha256 与 core-manifest.json
+ * 比对，并断言 `probe === false` —— 探针版接受 `--probe-mock-model`，打进安装包就是一个能拿
+ * 假模型冒充真模型的 Core。发布链在 `bunx electron-builder` 之前跑它。
  * 用法：`bun apps/core/scripts/verify-dist.ts`
  */
 

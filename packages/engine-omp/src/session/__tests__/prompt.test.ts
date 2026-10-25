@@ -4,17 +4,10 @@ import { AppError } from '@poietica/foundation'
 import { type ExpandSkillOptions, expandSkillMessage, preparePrompt, splitWireText, wireTextOf } from '../prompt'
 
 /*
- * SubmitInput → omp 输入。
- *
- * 输入面收窄了一档（SubmitInput 的 images / files / skills 都是数组，缺席就是空数组），
- * 于是判据落在这里的两件事上：**每一格都可以是空**，以及**没给的东西不编**。
- *
- * provider 定义那几条（ALL_NULL 不炸、空档位表不算有档位、界面 api 取值对齐上游、
- * 空显示名不算名字）的落点在别处：provider 定义现在是 features/models 的 CustomProviderDef
- * 契约（zod：api 只能是三种、models 至少一条、baseUrl 必须是 http(s)），
- * 单测在 ports/__tests__/models-file.test.ts。契约已经把它挡在门外，所以这里不再复刻一份。
- *
- * 这里不起进程、不碰磁盘：读文件与 stat 都是注入的。
+ * SubmitInput → omp 输入。输入面收窄了一档（images / files / skills 都是数组，缺席即空数组），
+ * 判据落在两件事上：**每一格都可以是空**，以及**没给的东西不编**。provider 定义那几条的落点
+ * 在 features/models 的 CustomProviderDef 契约与 ports/__tests__/models-file.test.ts ——
+ * 契约已挡在门外，这里不复刻。不起进程、不碰磁盘：读文件与 stat 都是注入的。
  */
 const INPUT: SubmitInput = {
   text: '这是什么',

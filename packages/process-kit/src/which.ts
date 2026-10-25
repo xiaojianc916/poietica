@@ -27,13 +27,10 @@ async function isFile(p: string): Promise<boolean> {
 
 /**
  * 在 PATH 中查找可执行文件，返回绝对路径；找不到返回 null。
- * name 不带扩展名时按 PATHEXT（默认 .COM;.EXE;.BAT;.CMD）依次尝试；name 含路径分隔符时只检查该路径本身。
- * 不缓存结果（用户可能在应用运行期间安装 git）。
- *
- * **不要换成 `Bun.which`**，三条实测缺口：① 忽略 PATHEXT，扩展名集合写死；② 只看进程启动时的 PATH
- * 快照，运行中改了 `process.env.PATH` 要显式传 `{ PATH }` 才认；③ 不认 PATH 里带引号的条目。
- * 而且调用方有两处（`features/terminal/src/host/shell.ts`）在 Electron 主进程 —— 那里根本没有 `Bun`。
- * 调用方要按自己的 env 查（`createGit` 的 `env` 注入），这个签名正好。
+ * name 不带扩展名时按 PATHEXT 依次尝试；name 含路径分隔符时只检查该路径本身；不缓存结果
+ * （用户可能在应用运行期间安装 git）。
+ * **不要换成 `Bun.which`**，三条实测缺口：忽略 PATHEXT；只看进程启动时的 PATH 快照；
+ * 不认带引号的条目。而且调用方在 Electron 主进程 —— 那里没有 `Bun`，本签名正好按注入的 env 查。
  */
 export async function which(name: string, env: Env = process.env): Promise<string | null> {
   const exts =

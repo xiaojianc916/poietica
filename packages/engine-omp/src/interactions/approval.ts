@@ -2,13 +2,9 @@ import type { InteractionAnswer } from '@poietica/engine'
 import type { InteractionDraft } from './broker'
 
 /*
- * omp 的授权闸门有两条入口：
- * - 18.11.3 起正式的 `uiContext.approve({ full, compact, session?, grants? })`（wrapper / eval prelude 都先试它）；
- * - 没有实现 approve 的宿主走 `uiContext.select(full, approvalChoiceLabels(...))` 回退。
- *
- * 两条都靠标题首行的 `Allow tool:` 与选项集来认。回退那条的选项**不再恒为两颗按钮**：
- * 有 sessionSubject 时是 `["Approve <subject> for this session", "Approve", "Deny"]`；
- * 有 always-ask-cached grants 时是 `[...grant labels, ...always labels, "Approve Once", "Deny"]`。
+ * omp 的授权闸门有两条入口：18.11.3 起正式的 uiContext.approve(...)，与没有实现 approve 的宿主
+ * 走 uiContext.select(full, approvalChoiceLabels(...)) 的回退。两条都靠标题首行的 `Allow tool:` 与
+ * 选项集来认。回退那条的选项**不再恒为两颗按钮**（有 sessionSubject 或 grants 时各有第三、四颗），
  * 认不出就交回 null，由通用问题那条路处置。
  */
 
@@ -62,13 +58,10 @@ function sessionLabelOf(options: readonly string[], onceLabel: string): string |
 }
 
 /*
- * 这道对话框是不是授权闸门。判据（次序无关）：
- * - 标题里有以 `Allow tool:` 开头的行，且冒号后的工具名非空；
- * - 选项里同时有 `Deny` 与一颗明确的「只批这一次」按钮：`Approve` 或 `Approve Once`。
- *
- * 多出来的 grant / session 标签不挡识别：产品这一轮表达不了 always/folder 授权（端口 InteractionAnswer.scope 只有
- * once|session），但只要能答「只批这一次」，就仍然问得下去。没有 once 按钮的对话框认不出 —— 这时交回 null，
- * 不把「一次批准」冒充成上游没有提供的会话放行，也不伪造 `{ grant, always }`。
+ * 这道对话框是不是授权闸门（判据次序无关）：标题里有 `Allow tool:` 开头的行且工具名非空；
+ * 选项里同时有 Deny 与一颗「只批这一次」按钮。多出来的 grant / session 标签不挡识别 ——
+ * 产品表达不了 always/folder 授权，但只要能答「只批这一次」就仍然问得下去。没有 once 按钮的
+ * 认不出，交回 null：不把一次批准冒充成上游没提供的会话放行，也不伪造 `{ grant, always }`。
  */
 export function approvalOf(title: string, options: readonly string[]): ApprovalPrompt | null {
   const tool = approvalToolOf(title)

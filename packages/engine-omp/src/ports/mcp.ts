@@ -137,12 +137,9 @@ export class OmpMcpPort implements McpPort {
   }
 
   /**
-   * 在线目录检索（omp 的 Smithery registry）。空关键词不查 —— 目录方对空查询也是空结果，
-   * 但不必为此发一次网络请求。
-   *
-   * 写进配置的**名字**用 omp 自己的 `toConfigName` 归一：目录里的名字形如
-   * `nexgendata-apify/github-mcp-server`，带斜杠，直接写进 mcp.json 会被
-   * `validateServerName` 拒掉（只许字母数字与 `_ . - :`）。归一之后重名由调用方让用户改。
+   * 在线目录检索（omp 的 Smithery registry）。空关键词不查 —— 不必为已知的空结果发网络请求。
+   * 写进配置的**名字**用 omp 自己的 `toConfigName` 归一：目录名形如 `org/server`，带斜杠会被
+   * `validateServerName` 拒掉；归一后重名由调用方让用户改。
    */
   async catalog(query: string): Promise<z.infer<typeof McpCatalogEntry>[]> {
     const keyword = query.trim()

@@ -3,15 +3,10 @@ import { resolveSessionModel } from '../model-resolve'
 
 /*
  * 真机故障（2026-10-08 用户截图）：新建对话发第一句 → AppError
- * `undefined is not an object (evaluating 'identity.class')`。
- *
- * 根因是会话初始化时把注册表里的模型**瘦身**成 `{provider,id}` 再交给
- * `createAgentSession`，而 SDK 的模型对象要读 `identity.class`、`api`、`baseUrl`
- * 这些格（sdk.ts 的 resolveDelegationBias / streamDispatch 直接取字段）。
- * 这条用例钉住的是「回传的就是注册表里那一条实例本身」。
- *
- * 解析本身委托给 omp 官方的 resolveSessionModelSelector；这里钉的是**经端口转出之后**
- * 仍然成立的判据（实例完整、凭据门槛、解析不出如实交回 null）。
+ * `undefined is not an object (evaluating 'identity.class')`。根因是会话初始化把注册表里的模型
+ * **瘦身**成 `{provider,id}` 再交给 createAgentSession，而 SDK 要读 identity.class、api、baseUrl
+ * 这些格。这条用例钉「回传的就是注册表里那一条实例本身」与**经端口转出之后**仍然成立的判据
+ * （实例完整、凭据门槛、解析不出如实交回 null）。
  */
 
 interface FakeModel {

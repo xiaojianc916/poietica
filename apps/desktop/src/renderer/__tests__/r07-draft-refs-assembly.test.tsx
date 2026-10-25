@@ -8,12 +8,10 @@ import type { RpcMessage, WindowBridge } from '@poietica/rpc'
 import { createUiKernel } from '@poietica/ui-kernel'
 
 /*
- * R-07 U7：conversation 与 attachments 两个 UI 功能一起装载。
- *
- * 这一条钉的是**依赖方向**：conversation → attachments（与 Core 同向，见 tooling/depcruise/feature-tiers.json），
- * attachments 不认识 conversation。草稿引用同步由 conversation 把只读视图交给 attachments 的 `trackDraftRefs`，
- * 正是报告原稿 §3.4 的接法；当初它与「attachments → conversation」的旧方向一合就是环，才临时反过来放。
- * 方向再被翻回去时，`sortModules` 会在 start() 时抛 `kernel.module_graph_invalid`。
+ * R-07 U7：conversation 与 attachments 一起装载。钉的是**依赖方向**：conversation → attachments
+ * （与 Core 同向，见 tooling/depcruise/feature-tiers.json），attachments 不认识 conversation；
+ * 草稿引用同步由 conversation 把只读视图交给 attachments 的 `trackDraftRefs`。方向再被翻回去时，
+ * `sortModules` 会在 start() 抛 `kernel.module_graph_invalid`。
  */
 
 function statusBridge(): WindowBridge {

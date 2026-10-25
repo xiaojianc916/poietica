@@ -41,15 +41,11 @@ import type { AskOptions, InteractionBroker } from './broker'
 import { askQuestionsOf, askResultOf, questionInteraction } from './questions'
 
 /**
- * omp 的 ExtensionUIContext 实现。
- *
- * omp 的授权闸门与提问都经这个接口找人：没有它（或者不完整）时闸门 fail closed，
- * 非 yolo 模式下每一次 write/exec 都抛「requires approval but no interactive UI available」。
- * 所以这不是加功能，是让这条路不堵死。
- *
- * 只有问得出人的那四个对话框（select / confirm / input / editor）与 askDialog 接到 broker 上；
- * 其余成员是交互式 TUI 的面（主题、控件、状态栏），嵌入方没有也不该有 —— 但**必须逐个实现**：
- * 用 `as unknown as ExtensionUIContext` 强转会让 omp 升级时新增的成员静默缺失。
+ * omp 的 ExtensionUIContext 实现。授权闸门与提问都经这个接口找人：没有它时闸门 fail closed，
+ * 非 yolo 模式下每一次 write/exec 都抛「requires approval but no interactive UI available」——
+ * 这不是加功能，是让这条路不堵死。只有问得出人的四个对话框与 askDialog 接到 broker 上；
+ * 其余成员是交互式 TUI 的面，嵌入方没有也不该有 —— 但**必须逐个实现**：
+ * `as unknown as ExtensionUIContext` 强转会让 omp 升级时新增的成员静默缺失。
  */
 export interface UiContextHooks {
   /** 会话级放行：approve 且 scope 为 session 时调用。写的是会话 overlay，不落盘、不串会话 */
@@ -62,10 +58,9 @@ export function createUiContext(broker: InteractionBroker, hooks: UiContextHooks
 }
 
 /**
- * omp 会把成员**摘下来再调**：tools/ask.ts:764 `const richAskDialog = extensionUi.askDialog` 之后裸调
- * `richAskDialog(...)`，extensions/runner.ts:199 也把 `ui.askDialog` 原样转交。类方法一离开实例 `this` 就是
- * undefined，ask 工具每次都抛「undefined is not an object (evaluating 'this.broker')」，错误长进调用产出、
- * 题面板根本不出现。所以原型上的每个方法都钉在实例上；getter（`theme`）不动。
+ * omp 会把成员**摘下来再调**（tools/ask.ts:764、extensions/runner.ts:199 拿到方法引用后裸调）：
+ * 类方法一离开实例 `this` 就是 undefined，ask 工具每次都抛错、题面板根本不出现。
+ * 所以原型上的每个方法都钉在实例上；getter（`theme`）不动。
  */
 function boundMethods<T extends object>(target: T): T {
   const proto: object = Object.getPrototypeOf(target)
@@ -115,16 +110,11 @@ class OmpUiContext implements ExtensionUIContext {
   }
 
   /**
-   * 18.11.3 起的正式授权入口。prompt.full 的第一行就是 `Allow tool: <name>`，与 select 回退那条同一个产地
-   * （tools/approval.ts 的 requestApproval），所以工具名与细节复用同一组解析。
-   *
-   * 答复只走 once / session / deny 三档：
-   * - approve + session → `"session"`（并写会话 overlay，与本产品「本次会话都放行」同义）；
-   * - approve → `"once"`；
-   * - 拒绝、超时、中止 → `"deny"`（fail closed）。
-   *
-   * prompt.grants（always-ask-cached 的文件/目录长期授权）**刻意忽略**：端口的 InteractionAnswer.scope 只有
-   * once|session，表达不了 `{ grant, always }`。omp 文档允许宿主不渲染 grants、只答 once/session/deny；
+   * 18.11.3 起的正式授权入口。prompt.full 的第一行就是 `Allow tool: <name>`，与 select 回退那条
+   * 同一个产地（tools/approval.ts 的 requestApproval），工具名与细节复用同一组解析。
+   * 答复只走三档：approve + session → `"session"`（并写会话 overlay）；approve → `"once"`；
+   * 拒绝、超时、中止 → `"deny"`（fail closed）。
+   * prompt.grants（长期授权）**刻意忽略**：端口的 InteractionAnswer.scope 只有 once|session，
    * 伪造一个我们记不住的 grant 会让上游以为「以后都免问」，而实际下一次仍会再问。
    */
   async approve(

@@ -7,17 +7,11 @@ import { OmpSession, type OmpSessionHost } from '../session'
 import { hostOf, SPEC } from './host-fixture'
 
 /*
- * 控件：另加一轮自己产出的时间线判断「本轮结束后就是空闲」。
- *
- * 关键的一条：思考档位的候选是**这条模型自己的梯子**（omp 的 getAvailableThinkingLevels），
- * 不是一张写死的四档表 —— 写死一张通用表的代码会在这里红。
- *
- * 「收敛」那一段判据（旧版本留下的 off / auto 要收掉、换过模型之后落到默认档）
- * 在这一层没有落点：这里不保存第二份梯子，档位直接来自 omp 自己，
- * 收敛那一趟由 omp 的 applyAutoThinkingLevel 负责，产品侧只把解析结果作为 OpenSessionSpec.thinking 传下去。
- *
- * 被测对象是 OmpSession 自己：用手工组装的 OmpSessionHost（hostOf）驱动，不起进程、不碰磁盘。
- * 这是「被测对象自己的声明」——存根只在测试里，不进产品代码。
+ * 控件：另加一轮自己产出的时间线判断「本轮结束后就是空闲」。关键的一条：思考档位的候选是
+ * **这条模型自己的梯子**（omp 的 getAvailableThinkingLevels），不是写死的四档表 —— 写死通用表
+ * 的代码会在这里红。「收敛」判据（旧版本留下的 off / auto 要收掉）在这一层没有落点：这里不保存
+ * 第二份梯子，收敛由 omp 的 applyAutoThinkingLevel 负责，产品侧只把结果传下去。
+ * 被测对象是 OmpSession 自己：手工组装的 OmpSessionHost（hostOf）驱动，不起进程、不碰磁盘。
  */
 function sessionOf(over: Partial<OmpSessionHost> = {}): OmpSession {
   return new OmpSession(hostOf(over), { sessionId: 's1', sessionFile: 'f1' })

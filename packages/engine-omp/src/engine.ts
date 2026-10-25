@@ -91,14 +91,10 @@ export class OmpEngine implements AgentEngine {
   }
 
   /**
-   * 草稿控件表：**只读**，不开会话、不写设置、不碰文件。
-   *
-   * 三格的来路与会话里那份完全一致：
-   *   - `model.choices`：`registry.getAvailable()`（凭据作用域，与 omp 自己的选择器同源）；
-   *   - `thinking.choices`：当前模型自己的档位梯子（`Model.thinking.efforts`，静态可得）；
-   *   - `posture`：`init.posture ?? 'auto-edit'`（`threads.create` 同一条默认值）。
-   *
-   * `init` 只决定**哪一格被选中**：不改任何全局默认，也不落盘。
+   * 草稿控件表：**只读**，不开会话、不写设置、不碰文件。三格的来路与会话里那份完全一致：
+   * model.choices = registry.getAvailable()（凭据作用域）；thinking.choices = 当前模型自己的
+   * 档位梯子（静态可得）；posture = init.posture ?? 'auto-edit'。`init` 只决定哪一格被选中，
+   * 不改任何全局默认，也不落盘。
    */
   async draftControls(init?: DraftControlInit): Promise<Controls> {
     /*

@@ -11,17 +11,12 @@ import { overrideSetting } from '../../settings-access'
 import { wrapOmpSession } from '../omp-session-adapter'
 
 /*
- * 计划提交的端到端回归。
- *
- * 走的是`**真**`的 omp 解析路径（resolveApprovedPlan + readPlanFile + listPlanFiles）：计划文件
- * 按 agent 的落点摆一份在会话作用域的 artifacts 目录里（`<artifactsDir>/local/`），整条链
- * ——卡片内容、批准后的工具结果、参考路径、退模式、工具集还原、controls 补报、autosave——
- * 一次验完。会话本身是手工搭的假 AgentSession（与 projector 夹具同一条理由：真起一条会话要
- * 模型与密钥，而这里要证的是「桥读了哪一格、交了哪一份」）。
- *
- * 这一条同时钉住一处**真实缺陷**：计划路径只能从 `sessionManager` 读（omp 的
- * artifacts 目录 + sessionId + cwd）。从 AgentSession 上直接读 artifactsDir / cwd 会拿到
- * undefined，`local://` 退到 `os.tmpdir()/omp-local/<id>`，agent 写的计划一份也解不出来。
+ * 计划提交的端到端回归。走的是**真**的 omp 解析路径（resolveApprovedPlan + readPlanFile +
+ * listPlanFiles）：计划文件按 agent 的落点摆在会话作用域的 artifacts 目录里，整条链（卡片内容、
+ * 批准后的工具结果、参考路径、退模式、工具集还原、controls 补报、autosave）一次验完；会话本身是
+ * 手工搭的假 AgentSession（真起会话要模型与密钥，这里要证的是「桥读了哪一格、交了哪一份」）。
+ * 同时钉一处**真实缺陷**：计划路径只能从 sessionManager 读 —— 从 AgentSession 上直接读
+ * artifactsDir / cwd 拿到 undefined，`local://` 退到 tmpdir，agent 写的计划一份也解不出来。
  */
 
 const PLAN_BODY = '# Auth\n\n正文。\n'

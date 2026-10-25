@@ -5,12 +5,9 @@ import path from 'node:path'
 
 /*
  * 代码审查页的真机冒烟：`bun run check:review-page`
- *
- * 为什么必须有这一条：三栏的几件事（谁的滚动条在滚、右栏有没有被挤掉、标题有没有被截断、
- * 检查项的颜色有没有落地）在 happy-dom 里都量不出来 —— 那里没有布局。所以这里用真实 Electron、
- * 真实组件、真 GitHub 数据渲染一遍，再把量到的几何与截图交回人看。
- *
- * 退出码：0 全过 / 1 有不合格 / 2 环境不合格（没 gh / 没登录 / 没 electron）。
+ * 三栏的几件事（谁的滚动条在滚、右栏有没有被挤掉、标题有没有被截断、检查项的颜色有没有落地）
+ * 在 happy-dom 里量不出来 —— 那里没有布局。用真实 Electron、真实组件、真 GitHub 数据渲染一遍，
+ * 量到的几何与截图交回人看。退出码：0 全过 / 1 有不合格 / 2 环境不合格（没 gh / 没登录 / 没 electron）。
  */
 
 /* 本文件在 tooling/checks/review-page/ 下：回三层才是仓库根。 */
@@ -182,9 +179,9 @@ async function componentCss(): Promise<string> {
 }
 
 /*
- * 样式必须真的过一遍 Tailwind —— Bun.build 不认识 @import "tailwindcss"，也不知道 @source 扫描哪些
- * 文件，直接打包出来的产物里一个工具类都没有；那样量出来的版面全是假的（真机上「三栏」会变成三个
- * 堆叠的块）。编译步骤住在 apps/desktop/scripts（@tailwindcss/node 只装在那里），这里以子进程调它。
+ * 样式必须真的过一遍 Tailwind —— Bun.build 不认识 @import "tailwindcss"，也不做 @source
+ * 扫描，产物里一个工具类都没有，量出来的版面全是假的。编译步骤住在 apps/desktop/scripts
+ * （@tailwindcss/node 只装在那里），这里以子进程调它。
  */
 function buildCss(outFile: string): Promise<string> {
   return new Promise((resolve, reject) => {

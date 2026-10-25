@@ -7,14 +7,10 @@ import type { DiffFile, DiffPiece, DiffRow } from './unified-diff'
 import './surface.css'
 
 /*
- * 一份 diff 的行带。
- *
- * 审查面板与工具抽屉画的是同一个模型（unified-diff.ts 的 DiffRow），所以行只有这一份实现。
- * 消费点只决定两件事 —— 横向出口归谁（scrollX），折叠带的开合状态归谁（openGaps 与
- * onToggleGap）。
- *
- * 行带的横向参照是滚动口的可视宽（折叠带要它才不跟着最宽行走）：谁交进 scroller，这里就自己
- * 量它、写进 --diff-row-inline-size，消费点不必再各装一次观察者。
+ * 一份 diff 的行带。审查面板与工具抽屉画的是同一个模型（unified-diff.ts 的 DiffRow），行只有这一份
+ * 实现；消费点只决定两件事 —— 横向出口归谁（scrollX）、折叠带的开合状态归谁（openGaps 与 onToggleGap）。
+ * 行带的横向参照是滚动口的可视宽：谁交进 scroller，这里就自己量它、写进 --diff-row-inline-size，
+ * 消费点不必再各装一次观察者。
  */
 
 type RowStyle = CSSProperties & Record<`--${string}`, string>
@@ -469,14 +465,10 @@ export function DiffBody({
   const host = useRef<HTMLDivElement | null>(null)
 
   /*
-   * 折叠带的宽度锚是滚动口的可视宽，不是行带自己的宽（它是 max-content）。
-   *
-   * cqw 在真实 DOM 里会被降级/覆盖成内容宽，所以只能量。锚挂在这里而不是各消费点：谁交进
-   * scroller，谁就自动拿到正确的折叠带宽度。
-   *
+   * 折叠带的宽度锚是滚动口的可视宽，不是行带自己的宽（它是 max-content）。cqw 在真实 DOM 里
+   * 会被降级/覆盖成内容宽，所以只能量；锚挂在这里，谁交进 scroller 谁就自动拿到正确的宽度。
    * 用 effect 而不是 layout effect：滚动口是这一层的祖先，祖先的 ref 在整棵树提交完才挂上，
-   * layout 阶段读它必然是 null（判例见 virtual-lines.tsx 头注释）。不画折叠带时没有人读这个
-   * 变量，观察者也不必装。
+   * layout 阶段读它必然是 null（判例见 virtual-lines.tsx 头注释）。不画折叠带时观察者也不必装。
    */
   useEffect(() => {
     const el = scroller.current

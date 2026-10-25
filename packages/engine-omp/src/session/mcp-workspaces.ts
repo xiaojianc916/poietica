@@ -68,19 +68,12 @@ interface Workspace {
 }
 
 /**
- * MCP 服务器归工作区（omp 知识 #22）。
- *
- * omp 的 createAgentSession 在 `hasUI: true` 且不给 `mcpManager` 时，会给**每个会话**新建一个 MCPManager、
- * 在后台拉起全部服务器，会话 dispose 时再全部杀掉。服务器的配置是用户级 + 项目级（`.mcp.json`）、
- * roots 报的是 cwd —— 它们是工作区的资源；而 Poietica 的会话随线程表面挂载 / 卸载开关，
- * 于是每切一次对话就把全部 MCP 进程杀掉重启一遍。
- *
- * 这里按 cwd 持有一份共享的 manager，会话只借用：omp 对借来的 manager 不做发现、不断开，
- * 单槽回调（tools / prompts / resources changed）也只由创建者设置 —— 那正是本类的位置。
- * 工具跟随用 omp 给子代理的那套（followMCPTools + createMCPProxyTools），提示命令与资源通知在这里扇出。
- *
- * 复用的判据是指纹：omp 自己的配置解析结果 + 影响发现的设置。指纹变了就换一份新的，
- * 旧的留给还在用它的会话，最后一个会话关掉时释放。
+ * MCP 服务器归工作区（omp 知识 #22）。omp 在不给 mcpManager 时给**每个会话**新建一个
+ * MCPManager、后台拉起全部服务器、dispose 时全杀 —— 而 MCP 配置与 roots 都是工作区的资源，
+ * Poietica 的会话又随线程表面挂载 / 卸载，于是每切一次对话全部 MCP 进程重启一遍。
+ * 这里按 cwd 持有一份共享 manager、会话只借用（omp 对借来的不做发现、不断开，单槽回调
+ * 只由创建者设置）。工具跟随用 omp 给子代理的那套；复用判据是指纹（omp 的配置解析结果 +
+ * 影响发现的设置），指纹变了换新的，旧的留给还在用的会话，最后一个关掉时释放。
  */
 export class McpWorkspaces {
   readonly #current = new Map<string, Workspace>()

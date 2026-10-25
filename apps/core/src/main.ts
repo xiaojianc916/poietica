@@ -27,9 +27,9 @@ function fatal(scope: string, error: unknown): void {
 
 const launchEnv = captureLaunchEnv() // ① 第一条语句：快照启动时就有的环境变量键（必须先于任何 omp 模块求值）
 /*
- * 06 页 §2.7：main.ts 顶层注册兜底 —— 任何未捕获异常 / 未处理拒绝写一条 fatal 日志
- * （stderr JSONL：这一刻 core.log 的写入器可能还没建好，Host 把 stderr 记进 main.log 的 core-output），随后以退出码 1 退出，
- * Host 按崩溃处理（退避重启；60 秒内超过 5 次进 failed）。
+ * 06 页 §2.7：顶层兜底 —— 任何未捕获异常 / 未处理拒绝写一条 fatal 日志（stderr JSONL：
+ * 这一刻 core.log 的写入器可能还没建好，Host 把 stderr 记进 main.log），随后退出码 1，
+ * Host 按崩溃处理（退避重启）。
  */
 process.on('uncaughtException', (error) => {
   fatal('uncaughtException', error)
@@ -48,11 +48,9 @@ if (mode === 'serve') {
     await serve(launchEnv)
   } catch (error) {
     /*
-     * 06 页 §2.7：start() 抛出的任何错误由 serve 的外层捕获 → 写一条 fatal 日志 → 进程退出。
-     *
-     * 退出码按错误类型分（R-08-8）：数据库比程序新、迁移/装配期失败是**确定性失败**，
-     * Host 见到对应的码直接进 failed（不再退避重启五轮后报成 crash_loop）；其余仍按
-     * 崩溃处理，让看护人有机会自愈。
+     * 06 页 §2.7：start() 抛出的任何错误 → 写一条 fatal 日志 → 进程退出。退出码按错误类型分
+     * （R-08-8）：确定性失败（数据库太新、装配期失败）Host 直接进 failed，不再退避重启后
+     * 报成 crash_loop；其余按崩溃处理，让看护人有机会自愈。
      */
     fatal('serve', error)
     process.exit(coreStartFailureExitCode(error))

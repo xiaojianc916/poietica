@@ -27,19 +27,11 @@ export interface DialogProps {
 }
 
 /*
- * 通用对话框的壳，几何照 zcode 的通用 Dialog（packages/ui/src/components/ui/dialog.tsx）：
- *
- *   遮罩   铺满视口、24% 黑（不模糊），180ms 淡入淡出
- *   卡     圆角 16、1px 描边、popover 底、shadow-md、内边距 16、块间距 16
- *   标题   14/500；说明 14/1.625、次要字色
- *   页脚   窄屏竖排倒序、宽屏右对齐（zcode 的 DialogFooter）
- *
- * 内边距统一由卡自己给（p-4）：表头 / 正文 / 页脚不再各带一条横向内边距，通栏铺满的调用点
- * （命令面板这类自己接管内边距的浮层）用 className 覆盖成 p-0 就行。
- * 宽度沿用本仓既有的 max-w-lg 默认：zcode 的通用 Dialog 自己只保证左右各留 16（100% - 2rem），
- * 宽度全归调用点；本仓多数调用点不写宽度，所以这里保留一条默认值，宽的那些自己覆盖。
- *
- * Base UI 管传送门生命周期、焦点圈禁、初始与最终焦点、Escape、外点按压与模态无障碍语义。
+ * 通用对话框的壳，几何照 zcode 的通用 Dialog：遮罩 24% 黑（不模糊）180ms 淡入淡出；
+ * 卡圆角 16、1px 描边、popover 底、shadow-md、内边距 16、块间距 16；标题 14/500、说明次要字色；
+ * 页脚窄屏竖排倒序、宽屏右对齐。内边距统一由卡自己给（p-4），通栏的调用点用 className 覆盖成 p-0；
+ * 宽度保留 max-w-lg 默认，宽的那些自己覆盖。Base UI 管传送门生命周期、焦点圈禁、Escape、
+ * 外点按压与模态无障碍语义。
  */
 export function Dialog({
   open,

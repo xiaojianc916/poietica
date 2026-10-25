@@ -2,11 +2,9 @@ import type { TranscriptTodoItem as TodoItem, TranscriptOperation, TranscriptTod
 
 /*
  * omp 的待办（todo 工具维护的 TodoPhase[]）→ transcript 的 `todo.upsert`。
- *
- * **真身是 omp 会话里的那份 phases**（`session.getTodoPhases()`）：todo 工具在 execute 里就 `setTodoPhases`，
- * 自动清空（todo_auto_clear）、换会话、打开会话（syncFromBranch）也都改的是它。这里不解析工具参数、不重放
- * init/start/done 这些操作 —— 自己重放就是第二份状态机，omp 的修复（repairTodoParams）、拒收、部分应用都对不上。
- * 纯函数 + 去重的小账，不碰 SDK：形状按结构收窄，认不出的格当缺席。
+ * **真身是 omp 会话里的那份 phases**（`session.getTodoPhases()`）：自动清空（todo_auto_clear）、
+ * 换会话、打开会话改的都是它。这里不解析工具参数、不重放操作 —— 自己重放就是第二份状态机，
+ * omp 的修复（repairTodoParams）、拒收、部分应用都对不上。纯函数 + 去重的小账，不碰 SDK。
  */
 
 /** 这条会话只有一份待办：omp 一条会话就一张 phases 表 */

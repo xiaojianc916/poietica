@@ -11,17 +11,11 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
 /*
- * 设置里的「已归档」页（conversation 贡献，07 页没给落点 → 按产品负责人 2026-10-07
- * 的指示补进 conversation 的 ui，逐字迁移 legacy 的 ArchivedChatsSettings）。
- *
- * 装配 conversation + 它声明的依赖（workspaces / preferences / platform），与
- * thread-list-selector 同一个判据：要钉的是**装配层真的注册了这一页**，
- * 而 page 组件本身住在 conversation 的 ui 里。
- *
- * 钉三件事：
- *   ① 导航里出现「已归档」一格，且它在 agent 段、位于「用量」之后（legacy 的相对次序）；
- *   ② 这一页列出已归档的聊天（`threads.list({includeArchived:true})` 的结果里 archived=true 的那些）；
- *   ③ 「取消归档」调的是 `threads.setArchived(id,false)`，不是删除。
+ * 设置里的「已归档」页（conversation 贡献，逐字迁移 legacy 的 ArchivedChatsSettings）。
+ * 装配 conversation + 它声明的依赖，与 thread-list-selector 同一个判据：钉的是**装配层真的
+ * 注册了这一页**，page 组件本身住在 conversation 的 ui 里。钉三件事：
+ * ① 导航里出现「已归档」且在 agent 段、「用量」之后；② 列出 archived=true 的聊天；
+ * ③ 「取消归档」调 `threads.setArchived(id,false)`，不是删除。
  */
 
 const ARCHIVED_THREAD = {

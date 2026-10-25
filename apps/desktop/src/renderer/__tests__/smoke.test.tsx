@@ -7,12 +7,9 @@ import { createRoot, type Root } from 'react-dom/client'
 import { uiFeatures } from '../features'
 
 /*
- * 假 bridge：**按方法回话**。
- *
- * 早先它对任何方法都回同一个 Core 状态对象，于是每个「读一次配置」的功能都拿到一份
- * 没有自己字段的载荷（真实踩到过两次：preferences 的 appearance、conversation 的
- * controls.defaults）。这条测试要验的是「首屏装配得起来、主区有内容」，所以除
- * core.getStatus 之外一律回空对象 —— 各功能自己的空态就是它们要处理的第一帧。
+ * 假 bridge：**按方法回话**。早先它对任何方法都回同一个 Core 状态对象，「读一次配置」的功能
+ * 都拿到一份没有自己字段的载荷（真实踩到过两次）。这条测试验「首屏装配得起来、主区有内容」，
+ * 所以除 core.getStatus 之外一律回空对象 —— 各功能自己的空态就是它们要处理的第一帧。
  */
 function testBridge(): WindowBridge {
   const listeners = new Set<(m: RpcMessage) => void>()

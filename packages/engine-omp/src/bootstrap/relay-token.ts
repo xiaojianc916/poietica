@@ -5,15 +5,11 @@ import { parseRelayToken } from '@poietica/engine'
 import type { DataLayout } from '@poietica/runtime-layout'
 
 /*
- * browser relay 的 `/ext` 口令（线上契约见 @poietica/engine 的 browser-relay.ts）。整条线都在本进程这一侧：
- *
- * - **谁生成**：Core（引擎创建时的 prepareRelayToken）。每个数据根一份，放在 `DataLayout.relayTokenFile`；
- *   Host 的 browser 功能连 `/ext` 时读同一个文件带上 `?token=`。
- * - **怎么到 relay**：本进程环境里只放**文件路径**（RELAY_TOKEN_FILE_ENV），不放口令本身 —— 环境会一路传给 agent 跑的
- *   shell 命令，路径出现在 `env` 的输出里无害，口令出现在对话记录里就泄露了。relay 进程由 omp 的 broker 用继承来的环境
- *   拉起，启动时读这个文件并补上 `--token`（withRelayToken）。
- * - **为什么持久化、不每次启动轮换**：broker 可能比这一代 Core 活得久，它的环境停在被拉起的那一刻；按数据根持久化后，
- *   路径与内容在各代 Core 之间都一致，broker 用旧环境拉起的 relay 读到的也是同一份口令。
+ * browser relay 的 `/ext` 口令（线上契约见 @poietica/engine 的 browser-relay.ts）：
+ * Core 生成、每个数据根一份放在 DataLayout.relayTokenFile，Host 连 /ext 时读同一个文件。
+ * 进程环境里只放文件路径、不放口令本身 —— 环境会一路传给 agent 跑的 shell 命令，路径在 `env`
+ * 输出里无害，口令出现在对话记录里就泄露了。按数据根持久化、不轮换：broker 可能比这一代 Core
+ * 活得久（环境停在被拉起那一刻），持久化后旧环境拉起的 relay 读到的也是同一份口令。
  */
 
 /** relay 进程从这个环境变量找口令文件。只在 Core 自己的进程里设置与读取，不属于 Host 与 Core 的启动契约 */
@@ -55,13 +51,9 @@ function readExisting(file: string): string | null {
 }
 
 /**
- * browser-relay 子命令的参数补上 Core 生成的 `/ext` 口令。
- *
- * - 参数里已有 `--token`：手工运行的意思优先，原样返回；
- * - 环境里没有口令文件路径：不是 Core 派生出来的（例如开发者手工跑 `poietica-core browser-relay`），
- *   保持 omp 的默认行为；
- * - 有路径但读不到或格式不对：抛错，由调用方拒绝启动 —— 宁可浏览器工具报「relay 起不来」，也不在没有口令的情况下
- *   把 `/ext` 敞开给本机任何进程。
+ * browser-relay 子命令的参数补上 Core 生成的 `/ext` 口令。参数里已有 `--token`（手工运行）原样返回；
+ * 环境里没有口令文件路径（不是 Core 派生的）保持 omp 默认行为；有路径但读不到或格式不对则抛错
+ * —— 宁可浏览器工具报「relay 起不来」，也不把 `/ext` 敞开给本机任何进程。
  */
 export function withRelayToken(
   args: readonly string[],

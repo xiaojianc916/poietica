@@ -5,19 +5,13 @@ import { applyOps, emptyTimeline } from '@poietica/transcript'
 import { fakeOmpSession } from './fixtures/omp-session'
 
 /*
- * 插话的三层投递与「认领」。
- *
- * 这里按判据逐条钉：
- *
- *   1. 运行中的 steer / followUp 落在 omp 自己的队列（session.steer / followUp）；
- *   2. 空闲时的 steer / followUp 按 turn 处理（语义就是开始一轮）；
- *   3. 轮终之后折进上下文的那一句**认得出来**（onUserMessageStart 画成一句人话）；
- *   4. 认不出来的话（撤回过的、没投过的）宁可少画一条，也不把开场白错认成插话；
- *   5. 取消之后仍然认得出 —— 上游 abort 刻意不动 steering 队列（agent-loop.ts:1637-1643），
- *      取消这一刻把它从账本里摘掉，就等于那句人已经写好的话再也画不出来。
- *
- * 被测对象是 OmpSession 自己：假的 omp 会话只实现适配器用到的那几格（fixtures/omp-session.ts），
- * 副作用的判据是「哪一个方法被调了、正文是什么」＋「时间线上多没多出那一句」。
+ * 插话的三层投递与「认领」，按判据逐条钉：
+ * 1. 运行中的 steer / followUp 落在 omp 自己的队列；2. 空闲时的按 turn 处理（语义就是开一轮）；
+ * 3. 轮终之后折进上下文的那一句**认得出来**；4. 认不出来的宁可少画，不把开场白错认成插话；
+ * 5. 取消之后仍认得出 —— 上游 abort 刻意不动 steering 队列（agent-loop.ts:1637-1643），
+ * 取消这一刻把它从账本摘掉，那句人写好的话就再也画不出来。
+ * 被测对象是 OmpSession 自己：假会话只实现适配器用到的那几格，判据是「哪个方法被调了、
+ * 正文是什么」＋「时间线上多没多出那一句」。
  */
 const NOW = 1_700_000_000_000
 

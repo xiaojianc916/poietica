@@ -1,14 +1,8 @@
 /*
  * 测试进程的 omp 隔离：把 omp 的全部落盘目录指到一个一次性的测试数据根，进程退出时删掉。
- *
- * 为什么在 preload 里做、而不是让测试文件自己 import 夹具：omp 的目录由 @oh-my-pi/pi-utils/dirs
- * 在**模块求值时**读环境变量算出，整个进程只算一次；bun test 又把所有测试文件放进同一个进程。
- * 以前是「每个 import omp 的测试第一行必须 import './omp-home'」的逐文件约定，没有闸门，
- * 漏写一个（draft-controls、session-files-fork、compaction、worker-dispatch 都漏过）就看文件求值顺序：
- * 它排在所有带夹具的文件之前时，omp 已经按真实用户目录算好路径，配置、agent.db、history.db
- * 直接写进开发者自己的 ~/.omp/agent。preload 先于任何测试文件求值，这个顺序问题就不存在了。
- *
- * 隔离变量与 Host 拉起 Core 时用的是同一份定义（runtime-layout 的 ompIsolationEnv），不再抄字面量。
+ * 必须在 preload 里做 —— omp 的目录在模块求值时读环境变量算出、整个进程只算一次，bun test
+ * 又把所有测试文件放进同一个进程；逐文件 import 夹具的约定漏一个就把配置写进开发者的 ~/.omp。
+ * 隔离变量与 Host 拉起 Core 用的是同一份定义（runtime-layout 的 ompIsolationEnv），不抄字面量。
  */
 import { afterAll } from 'bun:test'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
@@ -21,10 +15,8 @@ import { dataLayout, ompIsolationEnv } from '@poietica/runtime-layout'
 const TEST_DATA_ROOT_ENV = 'POIETICA_TEST_DATA_ROOT'
 
 /**
- * 测试数据根放在哪：omp 把 PI_CONFIG_DIR 当成「相对用户目录」的名字（还会拿它拼项目目录），
- * 所以数据根必须在用户目录之下。Windows 的 %TEMP% 满足；Linux / macOS 的 /tmp、/var/folders 不满足，
- * 退到用户目录下的 .cache（一次性目录，退出即删）。
- * 两边先归一到同一命名口径：CI runner 上 tmpdir() 是 8.3 短名（C:\Users\RUNNER~1\…）、homedir() 是长名。
+ * 测试数据根必须在用户目录之下（omp 把 PI_CONFIG_DIR 当成相对用户目录的名字）：Windows 用
+ * %TEMP%，Linux / macOS 的 /tmp 不满足、退到 ~/.cache。CI runner 的 tmpdir() 是 8.3 短名，先归一。
  */
 function parentDir(home: string): string {
   const tmp = realpathSync.native(tmpdir())

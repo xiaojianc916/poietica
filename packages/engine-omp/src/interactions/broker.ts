@@ -31,14 +31,10 @@ type ToUpstream<T> = (answer: InteractionAnswer) => T
 export const DISMISS: InteractionAnswer = Object.freeze({ kind: 'dismiss' })
 
 /**
- * 待答交互的账本。
- *
- * 三件事只在这里发生，写成一份就没有「Promise 结了但屏幕没被告知」的缝：
- * - 登记：签发 id、按注入的 now 算 createdAt / timeoutAt、记进表里、发 requested；
- * - 收口：答复、超时、中止三条路都走同一个 settle（先出表，再发 resolved，最后兑现）；
- * - 撤销：cancelAll 把还在等的全部以 dismiss 兑现（取消一轮、销毁会话时用）。
- *
- * id 与时刻都由这里签发：调用方给草稿，所以「谁在等、等了多久」只有一份账。
+ * 待答交互的账本。三件事只在这里发生，写成一份就没有「Promise 结了但屏幕没被告知」的缝：
+ * 登记（签发 id、算 createdAt / timeoutAt、发 requested）、收口（答复 / 超时 / 中止都走同一个
+ * settle：先出表，再发 resolved，最后兑现）、撤销（cancelAll 把还在等的全部以 dismiss 兑现）。
+ * id 与时刻都由这里签发：调用方给草稿，「谁在等、等了多久」只有一份账。
  */
 export class InteractionBroker {
   private readonly waiting = new Map<string, Waiting>()

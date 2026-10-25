@@ -13,16 +13,9 @@ const TooltipProvider = Tooltip.Provider
 const TooltipRoot = Tooltip.Root
 
 /*
- * 触发器也是展平，理由比另外两个硬：那个包装不是多余，是错的。
- *
- * 它把 children 解构出来，然后再没往下传 —— 默认不置位那个布尔量时渲染出来是一个空按钮，
- * 而基元本身的标准用法恰恰就是直接给 children。
- *
- * 第二处：Children.only 是无条件调用的，排在那个布尔量的判断之前。于是「一个图标加一段文字」
- * 这种再普通不过的 children 直接抛异常，哪怕此时包装本该什么都不做。
- *
- * 旧 Provider 的毛病（传进来的属性运行时被静默丢掉）在这个函数对 children 上又犯了一遍；全仓
- * 唯一的调用点恰好置位了那个布尔量，雷才一直没踩到。
+ * 触发器也是展平，理由比另外两个硬：那个包装不是多余，是错的 —— 它把 children 解构出来再没往下传
+ * （默认不置位那个布尔量时渲染出空按钮），且 Children.only 无条件调用、「图标加文字」这种普通
+ * children 直接抛异常。全仓唯一的调用点恰好置位了那个布尔量，雷才一直没踩到。
  */
 const TooltipTrigger = Tooltip.Trigger
 

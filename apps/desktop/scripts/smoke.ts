@@ -4,11 +4,8 @@ import { homedir } from 'node:os'
 import path from 'node:path'
 
 /*
- * 安装包冒烟（15 页 §10.6）。
- *
- * 在干净的 Windows 上验证：装得上、起得来、隔离成立、退得干净、卸载保留数据。
- * 不填 API key、不碰界面 —— 走的是静默安装（/S）、静默卸载与 taskkill。
- *
+ * 安装包冒烟（15 页 §10.6）：在干净的 Windows 上验证装得上、起得来、隔离成立、
+ * 退得干净、卸载保留数据。不填 API key、不碰界面 —— 静默安装（/S）、静默卸载与 taskkill。
  * 用法：bun apps/desktop/scripts/smoke.ts <安装包路径>
  */
 

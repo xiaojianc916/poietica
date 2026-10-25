@@ -9,12 +9,10 @@ import { recordOf } from '../projector/wire'
 
 /*
  * 子代理通道：每个子代理一条与主对话**同形**的时间线（turn / step / frame），号是子代理的 id。
- *
- * 增量的产地是 omp 的子代理事件流（总线频道 `task:subagent:event`，载荷 `{ id, event }`，event 就是子代理
- * 自己那条 AgentSession 的事件，与主会话 subscribe 收到的是同一套词）；整页的产地是子代理自己的会话文件
- * （omp 的 `readRpcSubagentTranscript`，Agent Hub 读的也是它），投影走与主对话同一份 `projectHistoryPage`。
- * 两条路各用一个分轮口径会让「打开面板时的整页」与「之后的增量」对不上号，所以这里每个子代理也配一份
- * LiveProjector + OpenTurnScreen：与主对话一模一样的「封口的轮归历史、开着的轮归实时」。
+ * 增量的产地是 omp 的子代理事件流（总线频道 `task:subagent:event`）；整页的产地是子代理自己的
+ * 会话文件（omp 的 `readRpcSubagentTranscript`），投影走与主对话同一份 `projectHistoryPage`。
+ * 两条路各用一个分轮口径会让「打开面板时的整页」与「之后的增量」对不上号，所以这里每个子代理
+ * 也配一份 LiveProjector + OpenTurnScreen：与主对话一模一样的「封口的轮归历史、开着的轮归实时」。
  *
  * 纯逻辑，不 import omp：总线、会话文件的读法由宿主注入（subagent-host.ts），单测可以直接喂事件。
  */

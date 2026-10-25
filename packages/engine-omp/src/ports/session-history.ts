@@ -46,16 +46,12 @@ const CACHE_ENTRIES = 3
 const CACHE_MAX_FILE_BYTES = 16 * 1024 * 1024
 
 /**
- * 没开着的会话的只读时间线（`SessionFilesPort.readPage` 的实现）。
- *
- * 与活会话**同一个产地**：消息取 omp `SessionManager.buildSessionContext({ transcript: true, collapseCompactedHistory: false })`
- * （活会话 `buildTranscriptSessionContext` 内部调的就是它），分页走同一个 `projectHistoryPage`，待办走同一个 `TodoMirror` ——
- * 两条路不各算一份，live/history 的一致性才不靠巧合。只有活会话打开时会**写进文件**的那两处在这里改成内存里的等价物：
- * - 非正常退出留下的半截轮：omp 重开时追加「中断」的工具结果与一条 aborted 回复（sdk 的 createInterruptedTurnAbortMessage）；
- *   这里只在内存里补上同样两样，文件不动 —— 否则先冷读、后打开的屏幕会少那一格「已中断」，而打开不发增量补它。
- * - 密钥混淆：见 `SessionHistoryDeps.obfuscatorFor`。
- *
- * 打开用 `suppressBreadcrumb`、从不写入，所以不抢单写者锁、不留面包屑；`close()` 只放掉文件句柄。
+ * 没开着的会话的只读时间线（`SessionFilesPort.readPage` 的实现）。与活会话**同一个产地**：
+ * 消息取 omp `SessionManager.buildSessionContext({ transcript: true, collapseCompactedHistory: false })`、
+ * 分页走同一个 `projectHistoryPage`、待办走同一个 `TodoMirror` —— 两条路不各算一份，live/history
+ * 的一致性才不靠巧合。活会话打开时会写进文件的两处在这里改成内存等价物：非正常退出的半截轮
+ * 在内存里补「中断」的工具结果与 aborted 回复（文件不动，否则先冷读、后打开的屏幕少那一格且没有增量补它）；
+ * 密钥混淆见 `SessionHistoryDeps.obfuscatorFor`。从不写入：不抢单写者锁、不留面包屑。
  */
 export class SessionHistoryReader {
   /** 插入序 = 最近使用序（读到就删了再插）；值是 Promise，同一份文件的并发冷读只解析一次 */

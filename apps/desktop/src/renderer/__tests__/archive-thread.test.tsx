@@ -11,17 +11,11 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
 /*
- * 侧栏行尾那枚「归档」按钮（真机反馈：点了像没反应）。
- *
- * 两条判据：
- *   ① 点完那一行**立刻**从活动列表上消失 —— 契约里 archived 就是「移出活动列表」的记号，
- *      而侧栏原先不读它，照画不误；archived 页签还是靠自己的查询，所以看设置能看出来，
- *      看侧栏看不出来；
- *   ② 横幅出现（legacy assistant-sidebar-panel 的两条动作：撤销 / 筛选已归档会话），
- *      撤销把那条放回列表。
- *
- * 装配 conversation 与它声明的三个依赖，不把全部功能拉进来 —— 要钉的是侧栏那一段，
- * 它与 thread-list-selector 同一条装配路径。
+ * 侧栏行尾那枚「归档」按钮（真机反馈：点了像没反应）。两条判据：
+ * ① 点完那一行**立刻**从活动列表消失 —— 契约里 archived 就是「移出活动列表」的记号，侧栏原先
+ *    不读它、照画不误（看设置能看出来，看侧栏看不出来）；
+ * ② 横幅出现，撤销把那条放回列表。
+ * 装配 conversation 与它声明的三个依赖，与 thread-list-selector 同一条装配路径。
  */
 
 const THREAD = {

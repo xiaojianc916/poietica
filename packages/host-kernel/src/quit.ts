@@ -35,16 +35,12 @@ export interface QuitDeps {
 }
 
 /**
- * 退出分四段，**用户感知的「关掉了」与进程收尾解耦**：
- *
- * 1. 离场：窗口立刻藏起来（不毁），用户点完关闭当场就看不见它了；
- * 2. 停 Core：Core 关停期间仍可能调用 owner='host' 的方法，Host 服务必须还活着（R-08-11）；
- * 3. 收尾：Host 钩子（倒序串行）与「收 omp 后台进程」并发 —— 后者只碰 Core 那个 exe 派发的进程，
- *    与 Host 钩子（终端、浏览器、偏好落盘）互不相干，没理由排队；
+ * 退出分四段，用户感知的「关掉了」与进程收尾解耦：
+ * 1. 离场：窗口立刻藏（不毁）—— 用户点完关闭当场就看不见它了；
+ * 2. 停 Core —— Core 关停期间仍可能调用 owner='host' 的方法，Host 服务必须还活着（R-08-11）；
+ * 3. 收尾：Host 钩子（倒序串行）与「收 omp 后台进程」并发 —— 后者只碰 Core 那个 exe 派发的进程；
  * 4. 销毁窗口 → 退出（必要时 relaunch）。
- *
- * 以前窗口要等 2～4 全部跑完才销毁：Core 逐条关会话 + 一次 PowerShell 进程枚举 + Host 钩子，
- * 用户看到的就是「点了关闭，窗口还挂着好几秒」。
+ * 从前窗口要等 2～4 全部跑完才销毁，用户看到的就是「点了关闭，窗口还挂着好几秒」。
  */
 export function createQuitCoordinator(o: QuitDeps): QuitCoordinator {
   const exit = o.exit ?? ((code: number) => app.exit(code))

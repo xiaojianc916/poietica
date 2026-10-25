@@ -2,18 +2,11 @@ import type { InteractionAnswer } from '@poietica/engine'
 import type { InteractionDraft } from './broker'
 
 /**
- * 计划模式下的「提交计划 / 请求批准」。
- *
- * omp 那边只有一条 `xd://propose`：agent 写计划文件，plan mode 的 PlanProposalHandler 收到标题。
- * 这里把「标题 + 计划正文」翻成产品的 `kind:'plan'` 卡片，答复（approve / reject / revise + feedback）
- * 再翻回 omp 要的东西：
- * - approve：把计划的 `local://` 路径登记为参考（setPlanReferencePath），并交给调用方退出计划模式；
- * - revise：留在计划模式里，把人的反馈原样回给模型，让它改完再提一次；反馈为空时与 reject 同义；
- * - reject / dismiss（超时、中止、cancelAll）：这一次提交作废，但**仍然留在计划模式里** ——
- *   出模式等于告诉模型可以动手了。dismiss 是「取消、退出计划模式」这一档的兑现。
- *
- * 计划有自己的 kind（不是走授权闸门那张选项表），卡片因此能画计划正文，
- * 而不必把整篇计划塞进一句 select 标题里。
+ * 计划模式下的「提交计划 / 请求批准」。omp 那边只有一条 `xd://propose`；这里把「标题 + 计划正文」
+ * 翻成产品的 `kind:'plan'` 卡片，答复再翻回 omp 要的东西：approve → 登记参考路径（setPlanReferencePath）
+ * 并退出计划模式；revise → 留在计划模式、把人的反馈回给模型；reject / dismiss（超时、中止、cancelAll）
+ * → 提交作废但**仍留在计划模式里**（出模式等于告诉模型可以动手了），dismiss 是「取消、退出计划模式」。
+ * 计划有自己的 kind（不走授权闸门那张选项表），卡片因此能画计划正文，不必塞进一句 select 标题。
  */
 
 /** 产品那三颗按钮的取值域 */

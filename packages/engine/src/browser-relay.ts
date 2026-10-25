@@ -1,18 +1,12 @@
 /*
- * 内置浏览器接进引擎的那条线（browser relay）：引擎跑一个 relay 服务，Host 的 browser 功能以「浏览器扩展」的身份连
- * `ws://127.0.0.1:<port>/ext?token=<口令>`，把 Electron 的标签交给 agent 驾驶。这是引擎端口的一部分，所以住在这里：
- *
- * - **端口**：引擎自己挑（`AgentEngine.browserRelay()` 报出来），browser 的 Core 模块经 `browser.relayEndpoint` 转给 Host；
- * - **口令**：Core 按数据根生成并持久化在 `DataLayout.relayTokenFile`，Host 直接读文件（口令不过 RPC，也不进任何进程的
- *   环境变量——Core 的环境只带文件路径，见 engine-omp 的 bootstrap/relay-token.ts）；
- * - **线上形状**：下面的类型。它对齐 omp 的 `tools/browser/relay/protocol.ts`（omp 内部契约、没有版本号），对齐关系由
- *   engine-omp 的 `browser-relay-conformance.ts` 在类型检查里验证，升级 omp 时 `bun run typecheck` 就会指出漂移。
- *
- * **hello 必须带上 `discardedTabsProtocol`**：bridge 拿它当能力闸门
- * （`relay/bridge.ts` 的 `#eligible()`），对不上的实例每张标签都不 eligible ——
- * `Target.getTargets` 返回空、`/json/version` 报 `ompExtensionDiscardedTabsProtocol: "0"`，
- * 于是 `probe.ts` 判成 `outdated-extension`、浏览器工具直接抛「扩展过期，请跑 omp browser-relay install」。
- * 实测：不带这个字段时 `waitForRelayExtension` 返回 `outdated-extension`，带上才返回 `ready`。
+ * 内置浏览器接进引擎的那条线（browser relay）：引擎跑 relay 服务，Host 的 browser 功能以
+ * 「浏览器扩展」身份连 `ws://127.0.0.1:<port>/ext?token=<口令>`，把 Electron 的标签交给 agent 驾驶。
+ * 端口由引擎挑（AgentEngine.browserRelay() 报出）；口令按数据根持久化在 DataLayout.relayTokenFile、
+ * Host 直接读文件 —— 口令不过 RPC、也不进任何进程的环境变量（见 engine-omp 的 bootstrap/relay-token.ts）。
+ * 线上形状对齐 omp 的 tools/browser/relay/protocol.ts（omp 内部契约、没有版本号），由 engine-omp 的
+ * browser-relay-conformance.ts 在 typecheck 里验证漂移。
+ * hello 必须带上 `discardedTabsProtocol`：bridge 拿它当能力闸门，不带时 probe 判成
+ * outdated-extension、浏览器工具直接抛「扩展过期，请跑 omp browser-relay install」（实测）。
  */
 
 /** 引擎的 relay 服务在哪儿（只有端口：口令走文件，见文件头） */

@@ -12,13 +12,10 @@ import { wrapOmpSession } from '../omp-session-adapter'
 import { type Availability, applyGoal, type GoalCapableSession, pauseGoalMode, resumeGoalMode } from '../plan-goal'
 
 /*
- * 目标的暂停 / 继续 / 改正文（审查 R-10）。
- *
- * 用的是 **omp 真实的 GoalRuntime 与 RpcGoalController**（审查 R-11 起，目标宿主就是后者）：
+ * 目标的暂停 / 继续 / 改正文（审查 R-10）。用的是 **omp 真实的 GoalRuntime 与 RpcGoalController**：
  * 哪些状态转移 omp 收、哪些会抛、goal 工具什么时候进出活动集，只有 omp 自己的代码说了算。
- * 会话那一面（状态格、工具集、事件）按 omp AgentSession 的接线自己搭：runtime 的 goal_updated
- * 同步交给目标宿主（与适配器的事件泵同一个次序）。续跑在这里不开（设置里没有 'rpc'），
- * 续跑由 goal-continuation.test.ts 用真 SDK 测。
+ * 会话那一面（状态格、工具集、事件）按 omp AgentSession 的接线自己搭。续跑在这里不开
+ * （设置里没有 'rpc'），续跑由 goal-continuation.test.ts 用真 SDK 测。
  */
 
 const ON: () => Availability = () => ({ plan: true, goal: true })

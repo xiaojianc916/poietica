@@ -52,13 +52,8 @@ export interface ReapOptions {
 
 /**
  * 只认**本应用这个 core.exe 路径**上的进程，再看命令行分它是正统 Core 还是 omp 后台子进程。
- *
- * 为什么必须按完整路径而不是按文件名：
- * 1. omp 派发 worker 走的是 `resolveWorkerSpawnCmd` → `process.execPath`，也就是**同一个 core.exe**，
- *    所以两者路径相同，按路径一关就能同时覆盖；
- * 2. 反过来按文件名认会误杀：同一台机器上还跑着别的 checkout 的 dev Core（apps/core/dist）时，
- *    debug 版 Host 一启动就会把 release 版的 Core 杀掉（测试里 fake spawn 的 exe 就是 `process.execPath`）。
- *
+ * 必须按完整路径而不是按文件名：omp 派发 worker 走 `process.execPath`，与 Core 是同一个 exe，
+ * 按路径一关就同时覆盖；按文件名认则会误杀别的 checkout / 安装目录里跑着的 Core。
  * 拿不到 ExecutablePath 的受保护进程按文件名认，但要它确实以 core.exe 结尾。
  */
 function isCoreProcess(p: ProcessInfo, coreExe: string): boolean {
@@ -83,14 +78,10 @@ export function findStaleCoreProcesses(
 }
 
 /**
- * 启动前把上一代 Core 与它派发的 omp 后台进程清干净。
- *
- * 为什么必须在 spawn 之前做：
- * 1. 上一代 Core 若还活着，会占着 SQLite 与 omp 会话，新一代迁移/打开库表现得很随机；
- * 2. omp 的 daemon broker 占着安装目录里的 core.exe，覆盖安装写不进去 —— 装完就是「新 Host + 旧 Core」，
- *    协议版本对不上直接 failed/protocol_mismatch，而且**重装也修不好**（它每次都重新占住）。
- *
- * 永不抛错：清理失败只记 warn，启动照常（与 killTree 一样，清理是尽力而为）。
+ * 启动前把上一代 Core 与它派发的 omp 后台进程清干净，必须在 spawn 之前：
+ * 上一代活着会占着 SQLite 与 omp 会话；daemon broker 占着安装目录里的 core.exe，
+ * 覆盖安装写不进去、装完就是「新 Host + 旧 Core」，且重装也修不好（refactor-log R-37）。
+ * 永不抛错：清理失败只记 warn，启动照常（清理是尽力而为）。
  */
 export async function reapStaleCoreProcesses(o: ReapOptions): Promise<StaleProcess[]> {
   const list = o.list ?? (() => listCoreProcesses(o.coreExe))

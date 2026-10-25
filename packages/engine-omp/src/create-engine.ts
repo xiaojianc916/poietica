@@ -89,14 +89,11 @@ const PRODUCT_DEFAULTS: readonly (readonly [string, unknown])[] = [
 ]
 
 /**
- * omp 知识 #16：Core 的编译参数必须与 omp 官方一致（关闭四类自动加载、bytecode、external
- * fastembed/onnxruntime-node、define PI_COMPILED），那一步在 apps/core/scripts/build.ts。
- *
- * 创建顺序就是正确性：ensureThemeSync（omp 知识 #3：ask 工具无条件读主题单例）→ Settings.init 后
- * initializeWithSettings（omp 知识 #10 的前置）→ 禁用外来 provider（omp 知识 #10）→ 产品默认
- * （PRODUCT_DEFAULTS）只在从未配置过时写一次（omp 知识 #11）→ browser.relayUrl 只写运行时覆盖层
- * → 模型注册表先补本地目录、联网发现放后台（**不要** await refresh：缓存过期时它会当场等网络）
- * → MCP 工作区（omp 知识 #22）→ 工具表、SessionFactory、6 个端口。
+ * omp 知识 #16：Core 的编译参数必须与 omp 官方一致（apps/core/scripts/build.ts）。
+ * 创建顺序就是正确性：ensureThemeSync（omp 知识 #3）→ Settings.init 后 initializeWithSettings
+ * → 禁用外来 provider（omp 知识 #10）→ 产品默认只在从未配置过时写一次（omp 知识 #11）→
+ * browser.relayUrl 只写运行时覆盖层 → 模型注册表先补本地目录、联网发现放后台（不要 await
+ * refresh：缓存过期时它会当场等网络）→ MCP 工作区（omp 知识 #22）→ 工具表、SessionFactory、6 个端口。
  */
 /** 生产入口：包根的 createOmpEngine(opts) 就是它（seams 恒为 null） */
 export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineTestSeams | null): Promise<AgentEngine> {

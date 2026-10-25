@@ -2,13 +2,10 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync,
 import path from 'node:path'
 
 /**
- * 构建单个可执行文件 poietica-core.exe。
- *
- * 编译方式与 omp 官方的 scripts/compile-binary.ts 保持一致（omp 知识 #16）：同样的 target 与 autoload
- * 开关、external、define 常量与插件（都从 omp 包内导入，不自己重写）。
- *
- * 产物输出到 apps/core/dist/（探针版为 dist-probe/），不直接写进 apps/desktop/resources：
- * 开发时 Host 直接从 dist 启动 Core；打包时由 electron-builder 的 extraResources 复制。用法见 --probe。
+ * 构建单个可执行文件 poietica-core.exe。编译方式与 omp 官方的 scripts/compile-binary.ts
+ * 保持一致（omp 知识 #16）：同样的 target 与 autoload 开关、external、define 常量与插件
+ * （都从 omp 包内导入，不自己重写）。产物输出到 apps/core/dist/（探针版为 dist-probe/），
+ * 不直接写进 apps/desktop/resources：开发时 Host 直接从 dist 启动，打包时由 extraResources 复制。
  */
 
 const ROOT = path.resolve(import.meta.dir, '../../..')
