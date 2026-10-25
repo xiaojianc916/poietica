@@ -26,7 +26,7 @@
  * 深色族同值但角色独立，互不引用。
  */
 .auxiliary-dock-tab {
-  --auxiliary-tab-active: #2a2a2a;
+  --auxiliary-tab-active: #262626;
 }
 
 /*
