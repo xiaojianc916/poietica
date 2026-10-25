@@ -175,13 +175,28 @@
   list-style: none;
 }
 
+/*
+ * 文件行：文件名一档正文（aux），右边的目录（面包屑）再小一档（见 .turn-changes__dir）。
+ * 要读的是叶子那一段，路径只是它「在哪」的注脚 —— 两者同号时，眼睛得先穿过一长串目录才找到名字。
+ */
 .turn-changes__file {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem;
-  font-size: var(--ui-prose-size);
+  align-items: baseline;
+  gap: 0.375rem;
+  padding: 0.375rem 0.5rem;
+  font-size: var(--ui-prose-size-aux);
   line-height: var(--ui-line-height-tight);
+}
+
+/* 文件类型图标：比文字再小一点，它只是认种类的记号，不是内容。 */
+.turn-changes__mark {
+  display: block;
+  flex: none;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  object-fit: contain;
+  /* 图标跟着基线走：与文件名同一行的文字对齐，不把整行撑高。 */
+  align-self: center;
 }
 
 /* 能点开右坞 diff 的那一行：按钮长成行本身，悬停给个回执（与头部同一条墨）。 */
@@ -210,6 +225,11 @@
   display: flex;
   flex: 1;
   min-inline-size: 0;
+  /*
+   * 按**基线**对齐，不是居中：文件名与面包屑两档字号的行盒高度不同，居中对齐会把小的那一段
+   * 抬高约半像素（行高是倍率，两档的 ascent 占比一样但盒高不一样，居中后基线差 0.6px 上下）——
+   * 在 2 倍屏上就是「面包屑整体偏上」。基线对齐才是同一行文字该有的读法。
+   */
   align-items: baseline;
   gap: 0.375rem;
   overflow: hidden;
@@ -218,23 +238,31 @@
   direction: ltr;
 }
 
-/* 文件名：主墨、等宽。它是这一行唯一必须读出来的东西。 */
+/*
+ * 文件名：主墨、比行字号再小一档（meta），字重稍重（zcode 的 font-medium）。
+ *
+ * **不用等宽字体** —— zcode 的 FileDisplayInline 走的是正文字体（text-ui-base）。
+ * 等宽在同样字号下字形更宽更高、基线位置也不同，放在一行里读起来就是「这一格换了个字体」。
+ */
 .turn-changes__name {
   overflow: hidden;
   flex: none;
   max-inline-size: 100%;
   text-overflow: ellipsis;
   color: var(--cp-ink);
-  font-family: var(--cp-font-mono);
 }
 
-/* 目录：次要墨、也等宽（同一段路径不该换字体），空间不够时它先被裁掉。 */
+/*
+ * 面包屑：与文件名同一个字体族，只小一档字号、退一档墨（zcode 的 text-foreground-subtlest）。
+ * 两段按基线对齐（见 __file 与 __path）：居中对齐会让小字号那一段在基线方向上抬起半个像素，
+ * 屏幕上就是「面包屑整体偏上」。
+ */
 .turn-changes__dir {
   overflow: hidden;
   min-inline-size: 0;
   text-overflow: ellipsis;
   color: var(--cp-ink-subtle);
-  font-family: var(--cp-font-mono);
+  font-size: var(--ui-font-size-caption);
 }
 
 @media (prefers-reduced-motion: reduce) {

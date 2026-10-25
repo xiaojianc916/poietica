@@ -1,3 +1,4 @@
+import { FileTypeMark } from '@poietica/design-system'
 import { Undo2 } from 'lucide-react'
 import type { TurnChangesView } from '../../../ui-api'
 import { ChevronDownIcon } from '../../shared/primitives/icons'
@@ -101,6 +102,7 @@ export function TurnChangesBar({ busy = false, expanded, onOpenDiff, onRewind, o
             */
             const label = (
               <>
+                <FileTypeMark className="turn-changes__mark" name={file.path} />
                 <span className="turn-changes__path" title={file.path}>
                   <span className="turn-changes__name">{fileNameOf(file.path)}</span>
                   {directoryOf(file.path) === '' ? null : (
