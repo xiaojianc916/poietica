@@ -8,4 +8,4 @@
 属性，由 workbench 的样式表负责外观。运行时纯度由 tsconfig 的 dom 预设与 depcruise 的
 `renderer-no-node-core` 规则保证。
 
-详见架构文档 06 页 §5。
+见 [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §4。

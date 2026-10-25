@@ -6,4 +6,4 @@ Core 进程的微内核：按 dependsOn 装配功能的 core 模块、给每个�
 子入口：`.`（内核与类型）、`./events`（neutral 的事件令牌定义，供各功能 core-api 使用）、
 `./testing`（`createCoreHarness`，功能 core 测试的统一入口）。
 
-详见架构文档 06 页 §2。
+见 [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §4。

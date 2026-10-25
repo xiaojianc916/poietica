@@ -7,4 +7,4 @@ Electron 主进程的微内核：应用身份与单实例、窗口与安全基�
 可测试性：`rpc-hub.ts`、`core-supervisor.ts`、`asset-protocol.ts` 不在模块顶层 import electron，
 需要的 Electron 能力由构造参数注入，因此能在 bun test 中运行。
 
-详见架构文档 06 页 §4。
+见 [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §4。

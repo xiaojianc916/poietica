@@ -6,4 +6,4 @@
 **只渲染贡献点，不认识任何功能**（depcruise `workbench-agnostic`）。布局的每个区域都是贡献点，
 由功能往里填内容。
 
-详见架构文档 06 页 §6。
+见 [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §4。
