@@ -11,14 +11,15 @@ import { type ReactElement, useEffect, useState } from 'react'
 import type { AppInfo, CoreDiagnostics } from '../contract'
 import type { PlatformApi } from './api'
 
-/* 版本卡、四条架构原则、软件目录明细表照 legacy；「诊断与更新」那组由 update 功能贡献（`page: 'platform.about'`）—— 产品负责人 2026-10-06：软件更新
+/* 版本卡与软件目录明细表照 legacy；四条架构原则 2026-10-25 起按现架构改写——legacy 的「各类 Agent」「原子文件写入」与现状不符。
+ * 「诊断与更新」那组由 update 功能贡献（`page: 'platform.about'`）—— 产品负责人 2026-10-06：软件更新
  * 并入关于页，不再单占导航一格。这一层只出页面骨架，不 import update 的 ui（守则 3）。 */
 
 const PRINCIPLES = [
-  { index: '01', title: 'Agent 集成', description: '统一各类 Agent 交互规范' },
-  { index: '02', title: '本地优先', description: '文档和设置优先安全保存在当前设备' },
-  { index: '03', title: '安全可靠', description: '原子文件写入、明确边界和可恢复流程' },
-  { index: '04', title: '高性能', description: '界面保持轻量，长任务不阻塞主线程' },
+  { index: '01', title: 'Agent 引擎', description: '业务只认引擎端口，不绑定具体实现' },
+  { index: '02', title: '本地优先', description: '数据全部留在本机，不上传任何内容' },
+  { index: '03', title: '安全可靠', description: '三进程相互隔离，崩溃后自动恢复' },
+  { index: '04', title: '高性能', description: '长任务交给独立进程，界面始终流畅' },
 ] as const
 
 function Principle({
@@ -113,7 +114,7 @@ export function AboutPage({ api }: { readonly api: PlatformApi }): ReactElement 
         <div className="settings-about-card__copy">
           <strong>Poietica</strong>
           <span data-about-version>Version {info?.version ?? '…'}</span>
-          <p>使用 React、Electron 与 {info?.isPackaged ? '打包版' : '开发版'} 构建。</p>
+          <p>使用 React、Electron 与 Bun 构建（{info?.isPackaged ? '打包版' : '开发版'}）。</p>
         </div>
       </div>
 
