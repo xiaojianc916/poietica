@@ -126,8 +126,8 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
        */
       ['drafts', () => drafts.retry()],
       /*
-       * 草稿里还没落账的模型 / 档位写成默认意图：上一次写失败（Core 正在换代）的在这里补；旧版草稿里存的入口页
-       * 选择（那时只写本地）也在这里迁进意图。必须排在 drafts 之后 —— 草稿没读回来时这里读到的是空的。
+       * 草稿里还没落账的模型 / 档位写成默认意图：上一次写失败（Core 正在换代）的在这里补。
+       * 必须排在 drafts 之后 —— 草稿没读回来时这里读到的是空的。
        */
       ['entryDefaults', () => entryDefaults.flush()],
       [

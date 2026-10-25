@@ -22,11 +22,11 @@ export interface ThreadWorkspaceGroup {
   readonly items: readonly ThreadListItem[]
 }
 
-/* 缺席就是「默认那一个」：那一列可空、不回填、不需要兼容层。 */
+/* 缺席就是「默认那一个」：那一列可空、不回填，读的地方自己兜默认。 */
 export const DEFAULT_WORKSPACE_ID = 'default'
 
 /*
- * 缺席交由宿主回答「默认那一个」（桌面宿主答用户主目录），没有目录的存量落进有名、有组头、可折叠的那组；
+ * 缺席交由宿主回答「默认那一个」（桌面宿主答用户主目录），没有目录的那些对话落进有名、有组头、可折叠的那组；
  * 给不出答案的宿主（单元测试、纯浏览器）才落回无名哨兵，那一组不画组头。
  */
 export function workspaceIdOf(thread: ThreadRecord, fallbackId?: string): string {

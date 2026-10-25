@@ -42,7 +42,7 @@ function pageWith(o: { readonly retry?: RetryNotice; readonly error?: string }):
               kind: 'notice',
               frameId: 't1:s0:f0',
               level: o.retry.state === 'failed' ? 'error' : 'warning',
-              message: '旧版本读的那一句',
+              message: '正在重试 1/5',
               source: 'auto_retry',
               detail: { retry: o.retry },
             },

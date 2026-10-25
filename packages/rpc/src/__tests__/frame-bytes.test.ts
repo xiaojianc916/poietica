@@ -54,7 +54,7 @@ describe('FrameByteDecoder（Host 读 Core stdout）', () => {
     expect(messages.map((m) => jsonValue((m as NotificationMessage).params))).toEqual([{ a: 1 }, { a: 2 }, { a: 3 }])
   })
 
-  test('不带分隔符的帧（无载荷的消息、旧版 Core）全量解析', () => {
+  test('不带分隔符的帧（没有载荷的消息）全量解析', () => {
     const { decoder, messages } = collector()
     const error: RpcMessage = {
       jsonrpc: '2.0',

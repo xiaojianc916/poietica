@@ -63,15 +63,12 @@ describe('BR-8: 回调地址解码', () => {
     expect(isPickerCallback('not a url')).toBe(false)
   })
 
-  test('kind=cancelled 是取消；submission=cancel 是 legacy 的旧写法', () => {
+  test('kind=cancelled 是取消；认不出 kind 的回调一律拒收', () => {
     expect(decodePickerCallback(`${CALLBACK}?token=t&kind=cancelled`)).toEqual({
       kind: 'cancelled',
       token: 't',
     })
-    expect(decodePickerCallback(`${CALLBACK}?token=t&submission=cancel`)).toEqual({
-      kind: 'cancelled',
-      token: 't',
-    })
+    expect(decodePickerCallback(`${CALLBACK}?token=t&submission=cancel`)).toBeNull()
   })
 
   test('kind=submitted 要带 submission、元素类型与快照，缺一条就当它没发生', () => {

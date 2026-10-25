@@ -123,7 +123,7 @@ export function decodePickerCallback(url: string): PickOutcome | null {
     return null
   }
 
-  if (kind === 'cancelled' || kind === 'cancel' || params.get('submission') === 'cancel') {
+  if (kind === 'cancelled') {
     return { kind: 'cancelled', token }
   }
 

@@ -12,7 +12,7 @@ import { stateContextProvider, stateContextText } from '../state-context'
 
 function repo() {
   const db = openDatabase(':memory:').forModule('intelligent-ui')
-  for (const m of migrations) db.exec(m.sql ?? '')
+  for (const m of migrations) db.exec(m.sql)
   return createStatesRepo(db)
 }
 
@@ -112,20 +112,16 @@ describe('界面状态表', () => {
     expect(r.pending('t1', 8)).toEqual([])
   })
 
-  test('S7 v1 的表升到 v2：旧行的 tweaks 为空，版本语义不变', () => {
-    const db = openDatabase(':memory:').forModule('intelligent-ui')
-    const [v1, v2] = migrations
-    db.exec(v1?.sql ?? '')
-    db.prepare(
-      `INSERT INTO intelligent_ui_states (thread_id, call_id, title, model_json, view_json, model_revision, delivered_revision, updated_at)
-VALUES ('t1', 'old', '旧界面', '{"n":1}', NULL, 3, 3, 1)`,
-    ).run()
-    db.exec(v2?.sql ?? '')
-    const r = createStatesRepo(db)
+  test('S7 没有 tweaks 的行（tweaks 为空）：版本语义不变，改一次 tweaks 就进下一版', () => {
+    const r = repo()
+    /* 直接写一行 model 有、tweaks 没有的状态，等同于「用户还没动过调整面板」 */
+    put(r, 'old', '{"n":1}', null, 1, 't1', null)
     expect(r.get('t1', 'old')).toEqual({ modelJson: '{"n":1}', viewJson: null, tweaksJson: null })
+    expect(r.pending('t1', 8).map((row) => row.modelRevision)).toEqual([1])
+    r.markDelivered('t1', r.pending('t1', 8))
     expect(r.pending('t1', 8)).toEqual([])
     put(r, 'old', '{"n":1}', null, 2, 't1', '{"g":{"k":true}}')
-    expect(r.pending('t1', 8).map((row) => row.modelRevision)).toEqual([4])
+    expect(r.pending('t1', 8).map((row) => row.modelRevision)).toEqual([2])
   })
 })
 

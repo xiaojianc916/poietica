@@ -21,12 +21,6 @@ export const FOREIGN_PROVIDERS: readonly string[] = Object.freeze([
   'agent-plugins',
 ])
 
-/*
- * 曾经在 FOREIGN_PROVIDERS 里、现在放行的 id。老用户的 `config.yml` 里已经被旧版本写进 `disabledProviders`
- * （真机就是这一格），只改常量等于没改：启动时逐个 `enableProvider` 清掉、flush 一次。没写过就不写盘。
- */
-export const RELEASED_PROVIDERS: readonly string[] = Object.freeze(['agents'])
-
 const DISABLED_KEY = 'disabledProviders'
 
 /*
@@ -45,19 +39,4 @@ export async function disableForeignProviders(
   for (const id of added) disableProvider(id)
   await flush()
   return Object.freeze(added)
-}
-
-/* 放行迁移：把旧版本替用户写下的禁用项撤掉，形制同 disableForeignProviders。直接抹设置值会绕过 capability 注册表的内存集合，两个事实会当场分叉。幂等 */
-export async function releaseForeignProviders(
-  scope: SettingsScope,
-  flush: () => Promise<void>,
-  enableProvider: (providerId: string) => void,
-): Promise<readonly string[]> {
-  const current = readSetting(scope, DISABLED_KEY)
-  const disabled = new Set(Array.isArray(current) ? (current as string[]) : [])
-  const released = RELEASED_PROVIDERS.filter((id) => disabled.has(id))
-  if (released.length === 0) return Object.freeze([])
-  for (const id of released) enableProvider(id)
-  await flush()
-  return Object.freeze(released)
 }

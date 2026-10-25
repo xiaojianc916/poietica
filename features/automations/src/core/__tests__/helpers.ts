@@ -16,7 +16,7 @@ import { createAutomationsService } from '../service'
 export function createTestDatabase(): { db: Database; repo: AutomationsRepository } {
   const db = openDatabase(':memory:')
   const moduleDb = db.forModule('automations')
-  for (const m of migrations) moduleDb.exec(m.sql!)
+  for (const m of migrations) moduleDb.exec(m.sql)
   return { db, repo: createAutomationsRepository(moduleDb) }
 }
 

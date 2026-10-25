@@ -30,7 +30,7 @@ function serviceOf(
   repo: SubmissionsRepository
 } {
   const db = openDatabase(':memory:')
-  for (const m of migrations) db.forModule('conversation').exec(m.sql!)
+  for (const m of migrations) db.forModule('conversation').exec(m.sql)
   /* 提交表有指向 thread 的外键：先把那一行补上（测试不走 thread-service） */
   db.forModule('conversation')
     .prepare(
@@ -378,42 +378,6 @@ describe('R-20-1 排队项收口', () => {
     repo.insert({ ...rowOf('c0', null), status: 'failed', error: { code: 'x', message: 'x' } })
     service.discard('c0')
     expect(removed).toEqual(['c0'])
-  })
-})
-
-describe('R-20-1 迁移 v3：清掉升级前的旧账', () => {
-  test('queued 与 core_restarted 的失败行删掉；被更晚的一句取代的失败行删掉；最晚的失败行留着', () => {
-    const db = openDatabase(':memory:')
-    const conn = db.forModule('conversation')
-    for (const m of migrations.filter((m) => m.version < 3)) conn.exec(m.sql!)
-    for (const id of ['t1', 't2']) {
-      conn
-        .prepare(
-          `INSERT INTO conversation_threads (id, workspace_id, title, title_source, posture, origin, pinned, archived, created_at, updated_at)
-           VALUES (?, 'ws1', 't', 'auto', 'auto-edit', 'user', 0, 0, 0, 0)`,
-        )
-        .run(id)
-    }
-    const repo = createSubmissionsRepository(conn)
-    const failed = (code: string) => ({ status: 'failed' as const, error: { code, message: code } })
-    const row = (id: string, threadId: string, createdAt: number, over: Partial<SubmissionRow>): SubmissionRow => ({
-      ...rowOf(id, null),
-      threadId,
-      createdAt,
-      updatedAt: createdAt,
-      ...over,
-    })
-    repo.insert(row('q', 't1', 1, { status: 'queued', requestedAs: 'followUp' }))
-    repo.insert(row('restarted', 't1', 2, failed('conversation.core_restarted')))
-    repo.insert(row('old-fail', 't1', 3, failed('conversation.submit_dropped')))
-    repo.insert(row('later', 't1', 4, { status: 'started', turnId: 'turn-4' }))
-    repo.insert(row('last-fail', 't2', 5, failed('conversation.submit_dropped')))
-    repo.insert(row('earlier', 't2', 1, { status: 'started', turnId: 'turn-1' }))
-
-    conn.exec(migrations.find((m) => m.version === 3)!.sql!)
-
-    expect(repo.listByThread('t1').map((r) => r.clientTurnId)).toEqual(['later'])
-    expect(repo.listByThread('t2').map((r) => r.clientTurnId)).toEqual(['earlier', 'last-fail'])
   })
 })
 

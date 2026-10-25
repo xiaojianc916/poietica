@@ -119,8 +119,6 @@ describe('InteractionBroker 的生命周期', () => {
     void broker.ask({ kind: 'confirm', title: '后问的', message: '' })
 
     expect(broker.pending().map((held) => (held.kind === 'confirm' ? held.title : ''))).toEqual(['先问的', '后问的'])
-    // list() 是 pending() 的旧名，与它是同一份账
-    expect(broker.list()).toEqual(broker.pending())
   })
 
   test('超时收掉这次交互并告诉屏幕为什么', async () => {

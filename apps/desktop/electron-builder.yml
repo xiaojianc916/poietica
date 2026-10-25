@@ -1,7 +1,7 @@
 # 打包配置（15 页 §10.4 的完整内容；P3 的最小骨架到此补齐）。
 #
-# appId 与 legacy 保持一致：NSIS 用它生成安装标识，相同 appId 的新版本会作为升级
-# 覆盖安装 0.4.4，legacy 用户也能通过自动更新收到 0.5.0（15 页 §10.4 第一行）。
+# appId 一经发布就定死：NSIS 用它生成安装标识，相同 appId 的新版本才会作为升级
+# 覆盖安装而不是并存（15 页 §10.4 第一行）。
 appId: com.poietica.Poietica
 productName: Poietica
 
@@ -11,8 +11,8 @@ directories:
 
 # 用已经装好的 Electron，不从网络再下一遍 100 MB 的 zip（发布链上最容易在这里失败）。
 electronDist: ../../node_modules/electron/dist
-# 与 legacy 相同的产物名：差分更新按文件名推算旧版本的 blockmap 地址，
-# 名字格式不变才能从 0.4.4 差分升级。
+# 产物名里带版本号：差分更新按文件名推算上一版的 blockmap 地址，
+# 名字格式别改，否则拿不到差分。
 artifactName: ${productName}_${version}_x64-setup.${ext}
 
 # 只打包 electron-vite 的产物：src 与工作区包的 TS 源码都不进安装包。

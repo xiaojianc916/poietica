@@ -3,7 +3,7 @@ import { openDatabase } from '@poietica/storage-sqlite'
 import { migrations } from '../migrations'
 import { createUsageRepo } from '../repo'
 
-/* 按天汇总表（迁移 v3，数据库性能方案 D1）：读的一侧只碰 usage_daily；它必须与「从 usage_events 现算」逐格相同。 */
+/* 按天汇总表（数据库性能方案 D1）：读的一侧只碰 usage_daily；它必须与「从 usage_events 现算」逐格相同。 */
 type Sample = Parameters<ReturnType<typeof createUsageRepo>['insert']>[0]
 
 function sample(day: string, provider: string, model: string, n: number): Sample {
@@ -24,11 +24,11 @@ function sample(day: string, provider: string, model: string, n: number): Sample
 function fresh() {
   const db = openDatabase(':memory:')
   const mdb = db.forModule('usage')
-  for (const m of migrations) mdb.exec(m.sql!)
+  for (const m of migrations) mdb.exec(m.sql)
   return { db, mdb, repo: createUsageRepo(mdb) }
 }
 
-/** 旧口径：直接从明细 GROUP BY（v3 之前 repo 的那两条查询） */
+/** 对照：直接从明细 GROUP BY（每一格的真值，汇总表必须与它逐格相同） */
 function fromEvents(mdb: ReturnType<typeof fresh>['mdb'], from: string, to: string) {
   return {
     days: mdb
@@ -86,37 +86,7 @@ describe('usage_daily：落账时累加', () => {
   })
 })
 
-describe('v3 迁移：老库回填', () => {
-  test('v1 + v2 时代落下的明细，升级后汇总表里一格不少', () => {
-    const db = openDatabase(':memory:')
-    const mdb = db.forModule('usage')
-    for (const m of migrations.slice(0, 2)) mdb.exec(m.sql!)
-    const ins = mdb.prepare(
-      `INSERT INTO usage_events (thread_id, day, at, provider, model, input, output, cache_read, cache_write, cost)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    for (const s of SAMPLES)
-      ins.run(s.threadId, s.day, s.at, s.provider, s.model, s.input, s.output, s.cacheRead, s.cacheWrite, s.cost)
-    const before = fromEvents(mdb, '2026-10-01', '2026-10-03')
-
-    mdb.exec(migrations[2]!.sql!)
-    const repo = createUsageRepo(mdb)
-    expect(repo.tokenDays('2026-10-01', '2026-10-03')).toEqual(before.days as never)
-    expect(repo.modelDays('2026-10-01', '2026-10-03')).toEqual(before.models as never)
-
-    /* 升级之后的新采样接着累加在回填的那一格上 */
-    repo.insert(sample('2026-10-03', 'openai', 'gpt', 8))
-    expect(repo.modelDays('2026-10-03', '2026-10-03').find((r) => r.model === 'gpt')).toEqual({
-      day: '2026-10-03',
-      provider: 'openai',
-      model: 'gpt',
-      input: 150,
-      output: 15,
-      cost: 0,
-    })
-    db.close()
-  })
-
+describe('汇总表的查询计划', () => {
   test('读汇总表不回表、不排序（计划里没有临时 B 树）', () => {
     const { db } = fresh()
     const plan = (sql: string) =>

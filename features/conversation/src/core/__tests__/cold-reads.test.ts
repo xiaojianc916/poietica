@@ -19,7 +19,7 @@ const USAGE: ContextUsage = { usedTokens: 1200, windowTokens: 8000, breakdown: n
 async function makeCore(options: { readonly contextUsage?: ContextUsage } = {}) {
   const db = openDatabase(':memory:')
   const moduleDb = db.forModule('conversation')
-  for (const m of migrations) moduleDb.exec(m.sql!)
+  for (const m of migrations) moduleDb.exec(m.sql)
   const dir = await tempDir('conv-cold-')
   const clock = systemClock
   const engine: FakeEngine = createFakeEngine({
@@ -179,10 +179,10 @@ describe('看对话不开会话（性能方案 P4）', () => {
     await t.finish()
   })
 
-  test('落过盘却没有快照（升级前的线程）：第一次照旧打开会话现问，此后冷读；读不懂的快照按没有处置', async () => {
+  test('落过盘却没有快照（快照写入之前的老行）：第一次照旧打开会话现问，此后冷读；读不懂的快照按没有处置', async () => {
     const t = await makeCore()
     const row = t.core.threads.create({ workspaceId: 'ws1' })
-    await t.turn(row.id, '升级前说的')
+    await t.turn(row.id, '先说过一句')
     await t.core.turns.close(row.id)
     t.writeSnapshot(row.id, null)
     const opened = t.engine.opened.length

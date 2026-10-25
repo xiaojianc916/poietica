@@ -57,12 +57,10 @@ export interface OmpAuthStorage {
 
 /**
  * omp 的 MCPManager（mcp/manager.ts）里端口用得着的那几格。
- * 没有 getServerStatus 这一个批量方法，状态要按名字逐个问（getConnectionStatus / getConnection）。
+ * 它只有逐个名字问的三件（getAllServerNames / getConnectionStatus / getConnection），没有批量状态接口。
  */
 export interface OmpMcpManager {
   getAllServerNames?(): string[]
   getConnectionStatus?(name: string): string
   getConnection?(name: string): { tools?: readonly unknown[] } | undefined
-  /** 假想中的批量接口：omp 的 MCPManager 没有它，留着只为兼容别的实现 */
-  getServerStatus?(): readonly { name: string; state: string; toolCount?: number; error?: string }[]
 }

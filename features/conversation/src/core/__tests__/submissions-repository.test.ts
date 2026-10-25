@@ -8,7 +8,7 @@ import { createSubmissionsRepository, type SubmissionRow } from '../submissions-
 function fresh() {
   const db = openDatabase(':memory:')
   const mdb = db.forModule('conversation')
-  for (const m of migrations) mdb.exec(m.sql!)
+  for (const m of migrations) mdb.exec(m.sql)
   const threads = createThreadsRepository(mdb)
   for (const id of ['th-1', 'th-2'])
     threads.insert({

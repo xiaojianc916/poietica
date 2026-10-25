@@ -221,18 +221,9 @@ function mcpConfigOf(server: z.infer<typeof McpServerInfo>): never {
 
 /**
  * 一个工作区共享的 MCP 管理器的状态。omp 的 MCPManager 没有批量状态接口
- * （只有 getAllServerNames / getConnectionStatus / getConnection），所以逐个名字问；
- * getServerStatus 若存在则优先用它（别的实现可能有）。
+ * （只有 getAllServerNames / getConnectionStatus / getConnection），所以逐个名字问。
  */
 function statusOf(manager: OmpMcpManager): readonly z.infer<typeof McpStatus>[] {
-  if (manager.getServerStatus !== undefined) {
-    return manager.getServerStatus().map((row) => ({
-      name: row.name,
-      state: stateOf(row.state),
-      toolCount: row.toolCount ?? 0,
-      error: row.error ?? null,
-    }))
-  }
   const names = manager.getAllServerNames?.() ?? []
   return names.map((name) => ({
     name,

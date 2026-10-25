@@ -7,7 +7,7 @@ import { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
 import type { Logger } from '@poietica/foundation'
 import type { OmpModel } from '../../omp-context'
 import { aliasOf, enabledMatcher, nextEnabledPatterns, stringArrayOf } from '../model-helpers'
-import { migrateLegacyTitleRole, OmpModelsPort } from '../models'
+import { OmpModelsPort } from '../models'
 import { CustomProvidersFile, modelsFilePath } from '../models-file'
 import { ompRolesOf } from '../omp-ports'
 
@@ -442,25 +442,6 @@ describe('ModelsPort', () => {
     expect(await fallbackOf('advisor')).toEqual({ kind: 'role', role: 'slow' })
   })
 
-  test('旧版 modelRoles.title：tiny 没配就迁进 tiny 并切 title.generator=tiny；tiny 已配只删旧键', async () => {
-    const fresh = makePort()
-    fresh.settings.setModelRole('title', 'openai/gpt-5')
-    expect(await migrateLegacyTitleRole(fresh.settings)).toBe(true)
-    const roles = fresh.settings.getGlobalSettings().modelRoles as Record<string, unknown>
-    expect(roles.tiny).toBe('openai/gpt-5')
-    expect(roles.title).toBeUndefined()
-    expect(lookupGenerator(fresh.settings)).toBe('tiny')
-    expect(await migrateLegacyTitleRole(fresh.settings)).toBe(false)
-
-    const kept = makePort()
-    kept.settings.setModelRole('tiny', 'anthropic/claude-opus-4-5')
-    kept.settings.setModelRole('title', 'openai/gpt-5')
-    await migrateLegacyTitleRole(kept.settings)
-    const keptRoles = kept.settings.getGlobalSettings().modelRoles as Record<string, unknown>
-    expect(keptRoles.tiny).toBe('anthropic/claude-opus-4-5')
-    expect(keptRoles.title).toBeUndefined()
-  })
-
   test('upsertCustomProvider 写进 models.yml、让 registry 重读，并把 provider 认成自定义', async () => {
     const harness = makePort()
     await harness.port.upsertCustomProvider({
@@ -527,9 +508,4 @@ function settingDefault(path: string): unknown {
 function readRole(settings: Settings): unknown {
   const value = settings.getGlobalSettings().modelRoles
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>).default : undefined
-}
-
-/** title.generator 的当前值（走 omp 的设置句柄读，避免依赖 getGlobalSettings 的嵌套形状） */
-function lookupGenerator(settings: Settings): unknown {
-  return (lookup('title.generator') as unknown as { get(s: Settings): unknown }).get(settings)
 }

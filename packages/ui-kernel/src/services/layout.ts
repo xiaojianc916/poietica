@@ -58,9 +58,6 @@ export const settingsDockOwner = (pageId: string): SettingsDockOwner => `${SETTI
 export const isSettingsDockOwner = (owner: string): owner is SettingsDockOwner =>
   owner.startsWith(SETTINGS_OWNER_PREFIX)
 
-/** 旧版本存盘里整个设置共用的那一位；只在 restore 里认它，免得把它当成一条对话补开。 */
-const LEGACY_SETTINGS_OWNER = 'settings'
-
 /**
  * 一块右坞面板服务于哪一位：`surface`（缺省）是普通表面（对话等）；`settings:<页 id>` 只属于设置里的那一页。
  * 写错了地方的开格请求（设置页里开浏览器、对话里开技能文档、「通用」页里开技能文档）在布局服务这一层就被拒，
@@ -435,13 +432,12 @@ export function createLayoutService(options: LayoutServiceOptions = {}): LayoutS
       const auxiliary = section(r.auxiliary)
       /*
        * 存盘里只有「存盘那一刻坞里画的是谁、在不在场」：在场才给那一位补一条 open，格清单不落盘（再打开是启动器）。
-       * 设置页（各页 `settings:<页 id>`，以及旧版本共用的 `settings`）不补：技能文档那一格是随文档现开的瞬时格，重启后没有文档可看，补出来只是一块空白。
+       * 设置页（各页 `settings:<页 id>`）不补：技能文档那一格是随文档现开的瞬时格，重启后没有文档可看，补出来只是一块空白。
        * activeOwner 是运行期状态、由外壳按路由写；读盘是异步的，可能晚于外壳首次写前台，所以**保留**当前值而不是清空，
-       * 否则启动后第一屏对话的坞要等换一次页才出来。旧形状（没有 auxiliary）只恢复宽度。
+       * 否则启动后第一屏对话的坞要等换一次页才出来。存盘里没有 `auxiliary`（写坏了，或写到一半）时只恢复宽度。
        */
       const owner = str(auxiliary?.owner)
-      const reopen =
-        owner !== null && owner !== LEGACY_SETTINGS_OWNER && !isSettingsDockOwner(owner) && bool(right?.open, false)
+      const reopen = owner !== null && !isSettingsDockOwner(owner) && bool(right?.open, false)
       const panes = panesValue.current()
       const seeded = reopen
         ? {

@@ -161,8 +161,6 @@ describe('preparePrompt：普通文件与正文', () => {
 })
 
 describe('splitWireText：wireTextOf 的逆（重开之后气泡上的文件记号从这里读回来）', () => {
-  const SHA = `ab${'c'.repeat(62)}`
-
   test('来回一趟：原文与每个文件的名字原样回来', () => {
     const files = [
       { path: 'C:\\Users\\me\\attachments\\ab\\x', name: 'poietica-tool-grouping.patch' },
@@ -186,25 +184,15 @@ describe('splitWireText：wireTextOf 的逆（重开之后气泡上的文件记�
     expect(splitWireText(wire)).toEqual({ text: '可以看见吗', files })
   })
 
-  test('早先不带引号落了盘的那一行（路径里有空格）：靠内容寻址路径认出整条', () => {
-    const path = `C:\\Users\\陈小建\\AppData\\Roaming\\Poietica Dev\\attachments\\eb\\${SHA.replace(/^ab/u, 'eb')}`
-    expect(splitWireText(`可以看见吗\n可以看见吗\n@${path} (span.md)`)).toEqual({
-      text: '可以看见吗\n可以看见吗',
-      files: [{ path, name: 'span.md' }],
-    })
-  })
-
   test('原文为空（只发了文件）：正文是空串', () => {
     const files = [{ path: '/a/b', name: 'b.md' }]
     expect(splitWireText(wireTextOf({ text: '', files }))).toEqual({ text: '', files })
   })
 
-  test('旧会话的引用行不带名字：只认附件库的内容寻址路径', () => {
-    expect(splitWireText(`看这个\n@C:\\data\\attachments\\ab\\${SHA}`)).toEqual({
-      text: '看这个',
-      files: [{ path: `C:\\data\\attachments\\ab\\${SHA}` }],
-    })
+  test('认不出的引用行不算文件：不把一串路径画进气泡', () => {
     expect(splitWireText('看这个\n@src/a.ts')).toEqual({ text: '看这个\n@src/a.ts', files: [] })
+    /* 名字是引用形状的一部分：只写了路径、没跟名字的行，不当附件认 */
+    expect(splitWireText('看这个\n@/data/att/cd/y')).toEqual({ text: '看这个\n@/data/att/cd/y', files: [] })
   })
 
   test('第一行永远是原文；句中的 @路径 不算附件', () => {

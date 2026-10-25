@@ -159,11 +159,6 @@ export class InteractionBroker {
     return [...this.waiting.values()].map((entry) => entry.interaction)
   }
 
-  /** 旧名，与 pending() 是同一份账 */
-  list(): readonly Interaction[] {
-    return this.pending()
-  }
-
   pendingCount(): number {
     return this.waiting.size
   }

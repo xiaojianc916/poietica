@@ -82,10 +82,10 @@ describe('P2.3 引导与隔离', () => {
    * `initializeWithSettings` 时它只进一个未绑定的进程级集合，配置一刷就没了 ——
    * 于是 `~/.claude` / `~/.agents` 的配置会在第一条会话开始之前被读进来。
    *
-   * `agents` 已按产品负责人的裁决放行（refactor-log Q32）：`~/.agents` 是跨工具共享的
-   * 用户级目录；这一条因此改成「`.claude` 仍被挡、`.agents` 已放行」。
+   * `agents` 按产品负责人的裁决不在禁用表里（refactor-log Q32）：`~/.agents` 是跨工具共享的
+   * 用户级目录；这一条因此钉「`.claude` 被挡、`.agents` 放行」。
    */
-  test('T-ISO-6 外来 provider 在第一次开会话之前就已生效（~/.claude 被挡，~/.agents 已放行）', async () => {
+  test('T-ISO-6 外来 provider 在第一次开会话之前就已生效（~/.claude 被挡，~/.agents 放行）', async () => {
     const fakeHome = mkdtempSync(path.join(tmpdir(), 'poietica-foreign-home-'))
     made.push(fakeHome)
     const dataRoot = path.join(fakeHome, 'AppData', 'Roaming', 'Poietica')
@@ -115,7 +115,7 @@ describe('P2.3 引导与隔离', () => {
     /* `~/.claude` 仍在禁用表里：它的技能一台都不该被发现 —— 开会话之前与之后都一样。 */
     expect(joined).not.toContain('claude-only')
     expect(report.after.join('\n')).not.toContain('claude-only')
-    /* `~/.agents` 已放行：那份技能两遍都在（放行不是「开着会话才生效」）。 */
+    /* `~/.agents` 不在禁用表：那份技能两遍都在（配置在开会话之前就已生效）。 */
     expect(joined).toContain('agents-only')
     expect(report.after.join('\n')).toContain('agents-only')
   }, 60_000)

@@ -26,15 +26,6 @@ describe('blobMediaRef：每个发上屏的地址背后都有字节', () => {
     expect(readFileSync(path.join(dir, sha))).toEqual(PNG)
   })
 
-  test('旧会话的 data URL 与纯 base64 是同一张图：同一个地址、同一个文件', () => {
-    const dir = blobsDir()
-    const ref = blobMediaRef(dir)
-    const a = ref({ data: `data:image/png;base64,${PNG.toString('base64')}` })
-    const b = ref({ data: PNG.toString('base64') })
-    expect(a).toBe(b)
-    expect(statSync(path.join(dir, a)).size).toBe(PNG.length)
-  })
-
   test('与纯函数版算出的地址一致（单测用 hashMediaRef 不会和生产对不上号）', () => {
     const image = { data: PNG.toString('base64') }
     expect(blobMediaRef(blobsDir())(image)).toBe(hashMediaRef(image))

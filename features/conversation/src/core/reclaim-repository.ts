@@ -1,7 +1,7 @@
 import type { ModuleDatabase } from '@poietica/storage-sqlite'
 
 /**
- * 会话文件回收队列（迁移 v4 的 `conversation_reclaim`）。线程行删除时在**同一个库事务里**入队，
+ * 会话文件回收队列（`conversation_reclaim`）。线程行删除时在**同一个库事务里**入队，
  * 物理删除在事务之后尝试：成功出队，失败记下原因留着，下次启动重试。
  *
  * 这样「删除一条线程」在用户看来只有一步（库里的行没了就是删了），而文件那一侧的失败只是一笔待办的账，

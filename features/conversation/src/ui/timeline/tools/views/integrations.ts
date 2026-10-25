@@ -20,7 +20,8 @@ import {
 } from '../view-kit'
 
 /*
- * hub 是 18.2.11 的协调面入口，钉 18.3.0 后新会话不再报它（收成 `wait`）；留着是因为磁盘上有 18.2.11 写下的会话，重开旧对话时要从 jsonl 回放。
+ * hub 的协调面动词表。引擎那边已经把它收成 `wait`，但盘上已有的会话文件里还留着这些调用 ——
+ * 重开那条对话时按这张表把它们说成人话，而不是退化成一句没有词汇的「工具」。
  */
 export const HUB_OPS: Readonly<Record<string, string>> = {
   cancel: '终止作业',

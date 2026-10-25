@@ -1,5 +1,16 @@
 import type { Migration } from '@poietica/storage-sqlite'
 
+/**
+ * 当前 schema（一条 init 建完）。
+ *
+ * - automations_automations：一条定时任务。计划二选一（cron 或 run_at），另带时区；thread_mode 决定每次新开对话还是续用
+ *   一条（续用时 thread_id 记着那条对话）；notify 决定跑完要不要提醒、catch_up 决定错过的那几次要不要补跑。
+ * - automations_runs：每次运行一行。trigger 记这一次是怎么来的（排到的 / 手动 / 补跑），outcome 是结局
+ *   （skipped 是补跑时判定「这一次不必跑」）；summary 与 attention 是跑完后给界面与提醒用的两份结论。
+ *
+ * 三个索引对应三条读路径：排程扫描只看「启用、没毛病、到点」的任务（部分索引）；历史按任务按时间倒序取；
+ * 关掉线程时按 thread_id 找回还开着的运行（部分索引，只收 running / awaiting）。
+ */
 export const migrations: readonly Migration[] = [
   {
     version: 1,
@@ -20,34 +31,15 @@ export const migrations: readonly Migration[] = [
   issue          TEXT,
   created_at     INTEGER NOT NULL,
   updated_at     INTEGER NOT NULL,
+  run_at         INTEGER,
+  thread_mode    TEXT NOT NULL DEFAULT 'new' CHECK (thread_mode IN ('new', 'continue')),
+  thread_id      TEXT,
+  notify         TEXT NOT NULL DEFAULT 'attention' CHECK (notify IN ('always', 'attention', 'never')),
+  catch_up       INTEGER NOT NULL DEFAULT 1 CHECK (catch_up IN (0, 1)),
   CHECK ((model_provider IS NULL) = (model_id IS NULL))
 );
 CREATE INDEX automations_automations_due ON automations_automations (enabled, next_run_at) WHERE issue IS NULL;
 CREATE TABLE automations_runs (
-  id            TEXT PRIMARY KEY,
-  automation_id TEXT NOT NULL REFERENCES automations_automations (id) ON DELETE CASCADE,
-  thread_id     TEXT,
-  triggered_by  TEXT NOT NULL CHECK (triggered_by IN ('schedule', 'manual')),
-  scheduled_for INTEGER,
-  started_at    INTEGER NOT NULL,
-  settled_at    INTEGER,
-  outcome       TEXT NOT NULL CHECK (outcome IN ('running', 'awaiting', 'succeeded', 'failed', 'cancelled')),
-  message       TEXT
-);
-CREATE INDEX automations_runs_by_automation ON automations_runs (automation_id, started_at DESC);
-CREATE INDEX automations_runs_open ON automations_runs (outcome) WHERE outcome IN ('running', 'awaiting');`,
-  },
-  {
-    /* R-14 加的列：run_at、thread_mode / thread_id、notify、catch_up，运行表另加 summary / attention 与 catch_up 触发。
-     * SQLite 改不了已有列的 CHECK，所以运行表整张重建（行原样搬过去）。 */
-    version: 2,
-    name: 'r14-automation-upgrade',
-    sql: `ALTER TABLE automations_automations ADD COLUMN run_at INTEGER;
-ALTER TABLE automations_automations ADD COLUMN thread_mode TEXT NOT NULL DEFAULT 'new' CHECK (thread_mode IN ('new', 'continue'));
-ALTER TABLE automations_automations ADD COLUMN thread_id TEXT;
-ALTER TABLE automations_automations ADD COLUMN notify TEXT NOT NULL DEFAULT 'attention' CHECK (notify IN ('always', 'attention', 'never'));
-ALTER TABLE automations_automations ADD COLUMN catch_up INTEGER NOT NULL DEFAULT 1 CHECK (catch_up IN (0, 1));
-CREATE TABLE automations_runs_v2 (
   id            TEXT PRIMARY KEY,
   automation_id TEXT NOT NULL REFERENCES automations_automations (id) ON DELETE CASCADE,
   thread_id     TEXT,
@@ -60,12 +52,6 @@ CREATE TABLE automations_runs_v2 (
   summary       TEXT,
   attention     INTEGER NOT NULL DEFAULT 0 CHECK (attention IN (0, 1))
 );
-INSERT INTO automations_runs_v2
-  (id, automation_id, thread_id, triggered_by, scheduled_for, started_at, settled_at, outcome, message, summary, attention)
-  SELECT id, automation_id, thread_id, triggered_by, scheduled_for, started_at, settled_at, outcome, message, NULL, 0
-  FROM automations_runs;
-DROP TABLE automations_runs;
-ALTER TABLE automations_runs_v2 RENAME TO automations_runs;
 CREATE INDEX automations_runs_by_automation ON automations_runs (automation_id, started_at DESC);
 CREATE INDEX automations_runs_open ON automations_runs (outcome) WHERE outcome IN ('running', 'awaiting');
 CREATE INDEX automations_runs_by_thread ON automations_runs (thread_id) WHERE thread_id IS NOT NULL;`,

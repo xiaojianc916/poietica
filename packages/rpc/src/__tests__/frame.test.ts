@@ -193,7 +193,7 @@ describe('拆信封的线上形态（P6）', () => {
     expect(encodeMessage(samples[2]!)).toBe('{"jsonrpc":"2.0","method":"a.bare"}')
   })
 
-  test('decodeMessage 也认完整的 JSON-RPC 消息（旧形态）；坏的与非 JSON-RPC 的分别报告', () => {
+  test('decodeMessage 也认没有载荷的完整 JSON-RPC 消息；坏的与非 JSON-RPC 的分别报告', () => {
     for (const m of samples) expect(decodeMessage(JSON.stringify(m))).toEqual(m)
     expect(decodeMessage('{oops')).toMatchObject({ failure: 'bad' })
     expect(decodeMessage('{"a":1}\x1f{}')).toMatchObject({ failure: 'not-jsonrpc' })

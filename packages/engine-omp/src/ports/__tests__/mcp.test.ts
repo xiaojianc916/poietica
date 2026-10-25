@@ -103,15 +103,6 @@ describe('McpPort', () => {
     ])
   })
 
-  test('getServerStatus 存在时优先用它（别的实现可能有）', async () => {
-    const manager: OmpMcpManager = {
-      getServerStatus: () => [{ name: 'gamma', state: 'connecting', toolCount: 1 }],
-      getAllServerNames: () => ['should-not-be-used'],
-    }
-    const port = makePort([manager])
-    expect(await port.status()).toEqual([{ name: 'gamma', state: 'connecting', toolCount: 1, error: null }])
-  })
-
   test('同名服务器在多个工作区里：先报的那一份（当前工作区在前）', async () => {
     const current: OmpMcpManager = {
       getAllServerNames: () => ['alpha'],

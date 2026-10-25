@@ -6,7 +6,7 @@ import { createUsageRepo } from '../repo'
 
 function makeRepo() {
   const db = openDatabase(':memory:')
-  for (const m of migrations) db.forModule('usage').exec(m.sql!)
+  for (const m of migrations) db.forModule('usage').exec(m.sql)
   return { db, repo: createUsageRepo(db.forModule('usage')) }
 }
 

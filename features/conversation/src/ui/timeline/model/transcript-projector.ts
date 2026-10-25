@@ -278,7 +278,7 @@ function channelsOf(
 
 /**
  * 自动重试那一格（引擎按同一个 frameId 原地改写）。重试成功就不再上屏：后面紧跟的正常回复已经说明了结局，
- * 留一行「重试成功」只是噪音。返回 undefined = 不是重试那一格（或旧版本只写了 message），照普通提示画。
+ * 留一行「重试成功」只是噪音。返回 undefined = 不是重试那一格（或 detail 形状不对），照普通提示画。
  */
 function retryItemOf(
   frame: Extract<TranscriptFrame, { kind: 'notice' }>,

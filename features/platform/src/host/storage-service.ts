@@ -42,7 +42,7 @@ export interface StorageService {
   clear(kind: 'cache' | 'logs' | 'browser'): Promise<{ freedBytes: number }>
   /**
    * 启动后跑一次：哪个会话的 HTTP 缓存 / V8 代码缓存超出预算，就用 Electron 的接口清掉（返回清了哪几份）。
-   * HTTP 缓存平时由 `--disk-cache-size` 让 Chromium 自己淘汰，这里只兜住升级前留下的超额；代码缓存没有开关，全靠这一步。
+   * HTTP 缓存平时由 `--disk-cache-size` 让 Chromium 自己淘汰，这里只兜住超出预算的那部分；代码缓存没有开关，全靠这一步。
    */
   enforceBudgets(): Promise<readonly string[]>
 }
@@ -194,7 +194,7 @@ export function createStorageService(d: StorageDeps): StorageService {
       logs: await sizeOf(scan, d.layout.logsDir),
       'kernel-cache': await cacheBytes(scan),
       'browser-data': await browserDataBytes(scan),
-      // session/ 里剩下的：主窗口的本地存储、GPU / 着色器缓存、旧版本留下的分区……
+      // session/ 里剩下的：主窗口的本地存储、GPU / 着色器缓存、别的分区……
       'kernel-state': await sizeOf(
         scan,
         d.layout.chromiumSessionDir,

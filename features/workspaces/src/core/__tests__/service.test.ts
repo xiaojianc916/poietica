@@ -12,7 +12,7 @@ import { createWorkspacesService } from '../service'
 
 async function make() {
   const db = openDatabase(':memory:')
-  for (const m of migrations) db.forModule('workspaces').exec(m.sql!)
+  for (const m of migrations) db.forModule('workspaces').exec(m.sql)
   const clock = fakeClock()
   const root = await tempDir('ws-')
   const changed: number[] = []

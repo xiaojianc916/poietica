@@ -21,7 +21,7 @@ const STATES: ReadonlySet<string> = new Set<RetryNoticeState>(['running', 'recov
 
 const isCount = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0
 
-/** notice 帧里的重试进展；不是重试那一格、或 detail 形状不对（旧版本写的）都是 null，调用方照普通提示画 */
+/** notice 帧里的重试进展；不是重试那一格、或 detail 形状不对都是 null，调用方照普通提示画 */
 export function retryNoticeOf(frame: { readonly source?: string; readonly detail?: unknown }): RetryNotice | null {
   if (frame.source !== RETRY_NOTICE_SOURCE || typeof frame.detail !== 'object' || frame.detail === null) return null
   const retry = (frame.detail as { readonly retry?: unknown }).retry

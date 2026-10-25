@@ -740,8 +740,8 @@ function imagesOf(content: unknown, stamp: string, mediaRef: MediaRef): Attachme
 }
 
 /**
- * 用户消息带的普通文件：从投递正文末尾那几行引用读回名字（见 `wireTextOf`）。旧会话的引用行没有名字，
- * 条目也照样发 —— 界面给它一个泛称，比把一串内容寻址路径画在气泡里强。号的 `#f` 与图片的 `#序号` 分属两个名字空间。
+ * 用户消息带的普通文件：从投递正文末尾那几行引用读回名字（见 `wireTextOf`，名字是引用行的一部分）。
+ * 号的 `#f` 与图片的 `#序号` 分属两个名字空间。
  */
 function filesOf(message: OmpMessage, stamp: string): AttachmentUpsert[] {
   if (message.role !== 'user') return []
@@ -750,7 +750,7 @@ function filesOf(message: OmpMessage, stamp: string): AttachmentUpsert[] {
     attachment: {
       attachmentId: `${stamp}#f${String(index)}`,
       mediaType: FILE_MEDIA_TYPE,
-      ...(file.name === undefined ? {} : { name: file.name }),
+      name: file.name,
     },
   }))
 }

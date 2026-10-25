@@ -154,7 +154,8 @@ function heightOf(bag: Record<string, unknown>): FrameMessage | null {
 function stateOf(bag: Record<string, unknown>): FrameMessage | null {
   const model = jsonText(bag.model)
   const view = jsonText(bag.view)
-  const tweaks = jsonText(bag.tweaks ?? null)
+  /* 三个字段都是必给的：宿主（host/shell.ts 的 publish）每次都会带上，缺一个就是坏消息而不是「没有那一份」。 */
+  const tweaks = jsonText(bag.tweaks)
   return model === undefined || view === undefined || tweaks === undefined
     ? null
     : { type: 'state', model, view, tweaks }

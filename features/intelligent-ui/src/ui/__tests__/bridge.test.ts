@@ -98,20 +98,15 @@ describe('智能界面的纯逻辑', () => {
       view: null,
       tweaks: '{}',
     })
-    /* 旧外壳不带 tweaks：当 null */
-    expect(parseFrameMessage({ type: 'state', model: null, view: null })).toEqual({
-      type: 'state',
-      model: null,
-      view: null,
-      tweaks: null,
-    })
+    /* 状态三件必给：缺 tweaks 是坏消息，不是「没有那一份」 */
+    expect(parseFrameMessage({ type: 'state', model: null, view: null })).toBeNull()
     expect(parseFrameMessage({ type: 'state', model: null, view: null, tweaks: {} })).toBeNull()
     expect(parseFrameMessage({ type: 'state', model: { a: 1 }, view: null })).toBeNull()
     expect(parseFrameMessage({ type: 'error', message: 'x'.repeat(900) })).toEqual({
       type: 'error',
       message: 'x'.repeat(500),
     })
-    /* 旧版 window 级消息的名字一概不认 */
+    /* 往来只走私有端口：window 级消息的名字一概不认 */
     expect(parseFrameMessage({ type: 'poietica:send', text: 'x' })).toBeNull()
     expect(parseFrameMessage({ type: 'render', html: 'x' })).toBeNull()
     expect(parseFrameMessage('send')).toBeNull()

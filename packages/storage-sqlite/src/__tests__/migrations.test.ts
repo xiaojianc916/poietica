@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { type Database, openDatabase } from '../database'
-import { MigrationError, runMigrations } from '../migrations'
+import { DataTooNewError, MigrationError, runMigrations } from '../migrations'
 
 const M1 = { version: 1, name: 'init', sql: 'CREATE TABLE a_one (id TEXT PRIMARY KEY)' }
 const M2 = { version: 2, name: 'add-two', sql: 'CREATE TABLE a_two (id TEXT PRIMARY KEY)' }
@@ -52,31 +52,8 @@ describe('runMigrations', () => {
     }
   })
 
-  test('DB-5 up 形式的迁移也会执行', () => {
-    const db = openDatabase(':memory:')
-    try {
-      runMigrations(
-        db,
-        [
-          {
-            moduleId: 'a',
-            migrations: [
-              { version: 1, name: 'init', up: (mdb) => mdb.exec('CREATE TABLE a_one (id TEXT PRIMARY KEY)') },
-              { version: 2, name: 'add-two', sql: 'CREATE TABLE a_two (id TEXT PRIMARY KEY)' },
-            ],
-          },
-        ],
-        () => 1000,
-      )
-      expect(versionOf(db, 'a')).toBe(2)
-      expect(tableNames(db)).toContain('a_one')
-    } finally {
-      db.close()
-    }
-  })
-
-  // DB-6：版本号不连续 → MigrationError；sql 与 up 同时提供 → MigrationError
-  test('DB-6 版本号不连续 → MigrationError', () => {
+  // DB-6：版本号必须从 1 连续递增 —— 不从 1 起、中间断号，两档都拒
+  test('DB-6 版本号不从 1 开始 → MigrationError', () => {
     const db = openDatabase(':memory:')
     try {
       expect(() =>
@@ -91,29 +68,14 @@ describe('runMigrations', () => {
     }
   })
 
-  test('DB-6 sql 与 up 同时提供 → MigrationError', () => {
+  test('DB-6 版本号中间断号 → MigrationError，且一条都没执行', () => {
     const db = openDatabase(':memory:')
     try {
-      expect(() =>
-        runMigrations(db, [
-          {
-            moduleId: 'a',
-            migrations: [{ version: 1, name: 'both', sql: 'CREATE TABLE a_one (id TEXT)', up: () => {} }],
-          },
-        ]),
-      ).toThrow(MigrationError)
+      expect(() => runMigrations(db, [{ moduleId: 'a', migrations: [M1, M3] }])).toThrow(MigrationError)
+      /* 校验在开事务之前：断号时连第 1 条都不落地 */
       expect(versionOf(db, 'a')).toBeNull()
-    } finally {
-      db.close()
-    }
-  })
-
-  test('DB-6 sql 与 up 都不提供 → MigrationError', () => {
-    const db = openDatabase(':memory:')
-    try {
-      expect(() => runMigrations(db, [{ moduleId: 'a', migrations: [{ version: 1, name: 'neither' }] }])).toThrow(
-        MigrationError,
-      )
+      expect(tableNames(db)).not.toContain('a_one')
+      expect(tableNames(db)).not.toContain('a_three')
     } finally {
       db.close()
     }
@@ -180,15 +142,39 @@ describe('runMigrations', () => {
     }
   })
 
-  // DB-8：数据库版本 3、程序只有 2 个迁移 → MigrationError
-  test('DB-8 数据库来自更新的版本 → MigrationError', () => {
+  /*
+   * DB-8：数据库版本高于程序已知 → **DataTooNewError**（不是普通 MigrationError）。
+   * 点名子类是这条用例的全部意义：Host 只对 DataTooNewError 立刻进 failed/data_too_new（退出码 4），
+   * 换成父类会被当成普通迁移失败，退避重启五轮后报成 crash_loop（R-08-8）。
+   */
+  test('DB-8 数据库来自更新的版本 → DataTooNewError（且是 MigrationError 的子类）', () => {
     const db = openDatabase(':memory:')
     try {
       runMigrations(db, [{ moduleId: 'a', migrations: [M1, M2, M3] }], () => 1000)
       expect(versionOf(db, 'a')).toBe(3)
-      expect(() => runMigrations(db, [{ moduleId: 'a', migrations: [M1, M2] }], () => 2000)).toThrow(MigrationError)
+      let thrown: unknown = null
+      try {
+        runMigrations(db, [{ moduleId: 'a', migrations: [M1, M2] }], () => 2000)
+      } catch (error) {
+        thrown = error
+      }
+      expect(thrown).toBeInstanceOf(DataTooNewError)
+      expect(thrown).toBeInstanceOf(MigrationError)
+      /* 拒绝时不写版本行：库仍是旧版本、applied_at 不动 */
       expect(versionOf(db, 'a')).toBe(3)
       expect(appliedAt(db, 'a')).toBe(1000)
+    } finally {
+      db.close()
+    }
+  })
+
+  /* 折叠成单条 init 之后每个模块只有 1 条迁移：残留的旧库（版本 2 及以上）一律走上面那条路 */
+  test('DB-8 单条 init 的模块遇到版本 2 的旧库 → DataTooNewError', () => {
+    const db = openDatabase(':memory:')
+    try {
+      runMigrations(db, [{ moduleId: 'a', migrations: [M1, M2] }], () => 1000)
+      expect(() => runMigrations(db, [{ moduleId: 'a', migrations: [M1] }], () => 2000)).toThrow(DataTooNewError)
+      expect(versionOf(db, 'a')).toBe(2)
     } finally {
       db.close()
     }

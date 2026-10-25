@@ -144,24 +144,6 @@ describe('历史里的图片（legacy history-images.test.ts）', () => {
     expect(new Set(ids).size).toBe(2)
   })
 
-  test('旧会话里内联的 data URL：地址按解出来的原始字节算，与纯 base64 的同一张图是同一个地址', () => {
-    const page = projectHistoryPage(
-      [
-        {
-          role: 'user',
-          timestamp: T0,
-          content: [
-            { type: 'image', data: 'data:image/webp;base64,DDDD', mimeType: 'image/webp' },
-            { type: 'image', data: 'DDDD', mimeType: 'image/webp' },
-          ],
-        },
-      ],
-      null,
-    )
-    const expected = { kind: 'blob' as const, sha256: sha256Hex(Buffer.from('DDDD', 'base64')) }
-    expect(page.attachments.map((attachment) => attachment.source)).toEqual([expected, expected])
-  })
-
   test('时间线里不出现像素：整页序列化后找不到图片的 base64', () => {
     const pixels = 'iVBORw0KGgo'.repeat(200)
     const page = projectHistoryPage(

@@ -126,34 +126,19 @@ function wireNameOf(name: string): string {
 }
 
 /**
- * 投递正文末尾的一行文件引用，按先后认三种写法：
- * - 现在的写法：路径带引号，后面跟名字；
- * - 早先不带引号的写法（会话文件里已经落了盘）：只认附件库的内容寻址路径（`<目录>/<sha 前两位>/<sha256>`），
- *   有这个锚点，路径里有空格也认得出整条；名字可有可无（再早的会话没有名字）；
- * - 不带引号、路径里没有空格的绝对路径加名字。
+ * 投递正文末尾的一行文件引用：路径带引号、后面跟名字 —— 与 `wireTextOf` 写出去的是同一个形状。
+ * 名字必填：写的那一侧每一行都带它，认的这一侧按同一条规矩读，读不出名字的行就不算文件引用。
  */
-const QUOTED_REFERENCE = /^@"([^"]+)"(?: \((.+)\))?$/u
-const STORED_REFERENCE = /^@(.*[\\/]([0-9a-f]{2})[\\/]\2[0-9a-f]{62})(?: \((.+)\))?$/iu
-const NAMED_REFERENCE = /^@((?:[A-Za-z]:[\\/]|[\\/])\S*) \((.+)\)$/u
+const QUOTED_REFERENCE = /^@"([^"]+)" \((.+)\)$/u
 
 export interface WireFile {
   readonly path: string
-  /** 旧会话的引用行不带名字 */
-  readonly name?: string
-}
-
-function fileOf(path: string | undefined, name: string | undefined): WireFile | null {
-  if (path === undefined || path === '') return null
-  return name === undefined ? { path } : { path, name }
+  readonly name: string
 }
 
 function referenceOf(line: string): WireFile | null {
   const quoted = QUOTED_REFERENCE.exec(line)
-  if (quoted !== null) return fileOf(quoted[1], quoted[2])
-  const stored = STORED_REFERENCE.exec(line)
-  if (stored !== null) return fileOf(stored[1], stored[3])
-  const named = NAMED_REFERENCE.exec(line)
-  return named === null ? null : fileOf(named[1], named[2])
+  return quoted === null ? null : { path: quoted[1]!, name: quoted[2]! }
 }
 
 /**

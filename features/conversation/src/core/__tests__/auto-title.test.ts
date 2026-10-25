@@ -133,7 +133,7 @@ test('T5 守卫：旧会话的迟到事件不许改现在的标题（sessionFile
    * 之外的入口（真实形状是线程被驱逐重开后旧会话迟到）。
    */
   const db = openDatabase(':memory:')
-  for (const m of migrations) db.forModule('conversation').exec(m.sql!)
+  for (const m of migrations) db.forModule('conversation').exec(m.sql)
   const dir = await tempDir('conv-title-guard-')
   const clock = systemClock
   const hub = new TimelineHub({ clock, emitOps: () => undefined, emitReset: () => undefined })

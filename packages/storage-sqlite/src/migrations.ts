@@ -1,13 +1,12 @@
-import type { Database, ModuleDatabase } from './database'
+import type { Database } from './database'
 
 export interface Migration {
   /** 从 1 开始连续递增 */
   readonly version: number
   /** kebab-case 简述，例如 'create-threads' */
   readonly name: string
-  /** 二选一：纯 SQL（可多条语句），或用代码迁移（需要数据变换时） */
-  readonly sql?: string
-  readonly up?: (db: ModuleDatabase) => void
+  /** 纯 SQL（可多条语句）。只增不改：要改表就追加一条新的 */
+  readonly sql: string
 }
 
 export interface ModuleMigrations {
@@ -24,7 +23,7 @@ export class MigrationError extends Error {
  * Host 见到 4 直接进 failed/data_too_new，不再退避重启五轮后报成 crash_loop（R-08-8）。
  */
 export class DataTooNewError extends MigrationError {
-  override readonly name = 'DataTooNewError'
+  override readonly name: string = 'DataTooNewError'
 }
 
 const KERNEL_DDL = `CREATE TABLE IF NOT EXISTS kernel_migrations (
@@ -44,8 +43,6 @@ export function runMigrations(db: Database, modules: readonly ModuleMigrations[]
     migrations.forEach((m, i) => {
       if (m.version !== i + 1)
         throw new MigrationError(`模块 ${moduleId} 的迁移版本必须从 1 连续递增，第 ${i + 1} 个是 ${m.version}`)
-      if ((m.sql === undefined) === (m.up === undefined))
-        throw new MigrationError(`模块 ${moduleId} 的迁移 ${m.version} 必须且只能提供 sql 或 up 之一`)
     })
     const row = getVersion.get(moduleId) as { version: number } | null
     const current = row?.version ?? 0
@@ -57,10 +54,7 @@ export function runMigrations(db: Database, modules: readonly ModuleMigrations[]
     if (current === migrations.length) continue
     const mdb = db.forModule(moduleId)
     db.raw.transaction(() => {
-      for (const m of migrations.slice(current)) {
-        if (m.sql !== undefined) mdb.exec(m.sql)
-        else m.up!(mdb)
-      }
+      for (const m of migrations.slice(current)) mdb.exec(m.sql)
       setVersion.run(moduleId, migrations.length, now())
     })()
   }

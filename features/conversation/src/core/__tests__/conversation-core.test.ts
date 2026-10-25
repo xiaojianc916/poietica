@@ -17,7 +17,7 @@ import { deferredOpenEngine } from './helpers'
 /** 直接构造 ConversationCore：注入内存库、假工作区与假附件服务，比装整个内核更快也更聚焦 */
 async function makeCore(overrides: { engine?: FakeEngine; workspaces?: WorkspacesService } = {}) {
   const db = openDatabase(':memory:')
-  for (const m of migrations) db.forModule('conversation').exec(m.sql!)
+  for (const m of migrations) db.forModule('conversation').exec(m.sql)
   /* 用 systemClock：这些用例要观察「运行中」这一刻，fakeClock 不推时间就永远不开始 */
   const clock = systemClock
   const dir = await tempDir('conv-core-')
@@ -219,7 +219,7 @@ describe('conversation core（不经内核的直连测试）', () => {
   test('CV-4 clientTurnId 只写一次', async () => {
     /* 从 hub 的增量通知里读：那正是 UI 走的那条路 */
     const db = openDatabase(':memory:')
-    for (const m of migrations) db.forModule('conversation').exec(m.sql!)
+    for (const m of migrations) db.forModule('conversation').exec(m.sql)
     const dir = await tempDir('conv-core-')
     const clock = systemClock
     /* 线上形状：clientTurnId 只在这里有 */
@@ -974,7 +974,7 @@ describe('conversation core（不经内核的直连测试）', () => {
     test('recoverOnStart（Core 重启留下 pending）：发一次失败事件，库与推 UI 同步', async () => {
       const db = openDatabase(':memory:')
       const moduleDb = db.forModule('conversation')
-      for (const m of migrations) moduleDb.exec(m.sql!)
+      for (const m of migrations) moduleDb.exec(m.sql)
       const dir = await tempDir('conv-core-')
       const hub = new TimelineHub({ clock: systemClock, emitOps: () => undefined, emitReset: () => undefined })
       const engine = createFakeEngine()
@@ -1120,7 +1120,7 @@ describe('删除与会话文件回收（先记账，后动手）', () => {
   test('启动对账：行上绑着、文件却不在的线程解绑，回到「还没有会话」；文件在的不动', async () => {
     const { core, dir, db } = await makeCore()
     const ghost = core.threads.create({ workspaceId: 'ws1' })
-    /* 升级前留下的坏账：会话一打开就绑了路径，omp 却从没落过盘 */
+    /* 坏账：会话一打开就绑了路径，omp 却从没落过盘 */
     db.forModule('conversation')
       .prepare('UPDATE conversation_threads SET session_id = ?, session_file = ? WHERE id = ?')
       .run('never', `${dir.path}/never-written.jsonl`, ghost.id)

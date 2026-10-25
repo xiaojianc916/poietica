@@ -78,7 +78,7 @@ L0  基础         foundation
 `serve` 的顺序是：隔离自检 → 环境清洗 → 打开数据库 → 创建引擎 → `createCoreKernel(modules)` → `start()`。
 
 `core-kernel` 提供：模块定义（`defineCoreModule`）、按 `dependsOn` 拓扑装配、服务令牌注册表、
-进程内事件总线（`ctx.events`）、agent 工具注册（`ctx.agentTools`）、迁移、RPC 绑定、生命周期。
+进程内事件总线（`ctx.events`）、agent 工具注册（`ctx.agentTools`）、迁移（每模块一条 `init`，见 `docs/refactor-log.md` 偏差 #82）、RPC 绑定、生命周期。
 启动时逐项验收：所有 `owner='core'` 的方法都有实现、模块依赖无环、每个功能只建自己前缀的表。
 
 ### 4.2 Host（Electron 主进程）

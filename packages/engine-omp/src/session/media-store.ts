@@ -6,7 +6,7 @@ import { imageBytesOf, type MediaRef } from '../projector/media'
  * `BlobStore.putSync`：已有同尺寸的文件只刷新 mtime、不重写；新文件先写临时文件再改名，Host 读不到半截。
  *
  * 为什么不能只算地址、等 omp 自己外置：omp 只在把消息写进会话文件时才外置图片，而且 base64 短于 1024 字符的
- * 图一直内联在会话文件里 —— 实时那一轮的附件条目比会话落盘早，小图与旧会话则根本没有 blob。Host 只认
+ * 图一直内联在会话文件里 —— 实时那一轮的附件条目比会话落盘早，小图则根本没有 blob。Host 只认
  * blob 目录，所以每个发上屏的地址都必须先有字节。
  *
  * 目录取 `layout.ompBlobsDir`（Host 读的也是它，路径只有 runtime-layout 一个产地）。在 Windows 上它就是 omp 的

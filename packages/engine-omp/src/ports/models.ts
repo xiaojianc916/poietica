@@ -32,8 +32,6 @@ import { flushOf, modelRoleOf, setModelRoleOf, settingsInstanceOf } from './sett
 
 /** 默认模型那一格：`modelRoles.default`，值是整串 provider/id */
 const DEFAULT_ROLE_KEY = 'default'
-/** 旧版 Poietica 自造的 `modelRoles.title`（omp 不认）：启动时迁到 omp 的 tiny 角色后删掉，见 migrateLegacyTitleRole */
-const LEGACY_TITLE_ROLE_KEY = 'title'
 /** 全局那一档思考深度（session/settings.ts 的 cfgDefaultThinkingLevel） */
 const DEFAULT_THINKING_PATH = 'defaultThinkingLevel'
 
@@ -465,24 +463,6 @@ function literalRefOf(selector: string, explicit: string | undefined): ModelRef 
 /** 只把真正的「一档」交出去：`inherit` / `auto` / `off` 不是梯子上的档，交 null 让模型默认档与全局默认去兜 */
 function levelOrNull(level: string | undefined): string | null {
   return level !== undefined && THINKING_ORDER.includes(level) ? level : null
-}
-
-/**
- * 旧版的「标题模型」写在 omp 不认的 `modelRoles.title`，靠每个会话把它覆盖进 tiny 才生效。迁移：tiny 没配就把它挪进
- * tiny（omp 的标题模型角色），并把 `title.generator` 切到 tiny —— 用户当初要的是「标题由这个模型写」，而 omp 默认的
- * fork 生成器用会话自己的模型、只在 fork 失败时才轮到 tiny。tiny 已配则以用户在 omp 里的选择为准，旧键直接删。
- */
-export async function migrateLegacyTitleRole(scope: SettingsScope): Promise<boolean> {
-  const legacy = modelRoleOf(scope, LEGACY_TITLE_ROLE_KEY)
-  if (legacy === undefined) return false
-  const tiny = modelRoleOf(scope, 'tiny')
-  if (legacy !== '' && (tiny === undefined || tiny === '')) {
-    setModelRoleOf(scope, 'tiny', legacy)
-    writeGlobalSetting(scope, 'title.generator', 'tiny')
-  }
-  setModelRoleOf(scope, LEGACY_TITLE_ROLE_KEY, undefined)
-  await flushOf(scope)
-  return true
 }
 
 /** 让 biome 知道 OmpModelLike 在这里被用作形状约束（RegistryPort 的成员） */

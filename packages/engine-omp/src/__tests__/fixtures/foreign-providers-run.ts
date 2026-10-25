@@ -4,7 +4,7 @@
  *
  * 判据是「假用户目录里放着 ~/.claude/skills/<name>/SKILL.md 与 ~/.agents/skills/<name>/SKILL.md
  * 时，`skills.list()` 报出的集合在开会话前后都一样」——按名字集合断言：
- * `~/.claude` 那份不许出现（仍在禁用表），`~/.agents` 那份必须出现（已放行）。
+ * `~/.claude` 那份不许出现（在禁用表），`~/.agents` 那份必须出现（不在禁用表）。
  *
  * 为什么必须用子进程：omp 的目录一个进程只解析一次。
  */

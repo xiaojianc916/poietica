@@ -237,15 +237,14 @@ describe('layout', () => {
     expect(l.current().auxiliary.activeOwner).toBe('t1')
     expect(l.current().right).toEqual({ open: true, activeId: null, size: 600 })
 
-    /* 新的按页归属与旧版本整个设置共用的 'settings' 都不补 */
-    for (const owner of [settingsDockOwner('skills'), 'settings']) {
-      const s = createLayoutService()
-      s.restore({ right: { open: true, size: 600 }, auxiliary: { owner } })
-      s.setActiveOwner(owner)
-      expect(s.current().right.open).toBe(false)
-      expect(s.current().auxiliary.owner).toBeNull()
-      expect(s.panes.current().byOwner[owner]).toBeUndefined()
-    }
+    /* 设置页那一位不补开合 */
+    const skills = settingsDockOwner('skills')
+    const s = createLayoutService()
+    s.restore({ right: { open: true, size: 600 }, auxiliary: { owner: skills } })
+    s.setActiveOwner(skills)
+    expect(s.current().right.open).toBe(false)
+    expect(s.current().auxiliary.owner).toBeNull()
+    expect(s.panes.current().byOwner[skills]).toBeUndefined()
   })
 
   test('右坞默认宽度 560：AI 拉起内置浏览器时网页不至于只剩一条窄页', () => {

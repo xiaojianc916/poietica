@@ -34,7 +34,7 @@ export function retryEndState(success: boolean, finalError: string): RetryNotice
   return finalError.trim() === CANCELLED ? 'cancelled' : 'failed'
 }
 
-/** notice 帧的 message：给只读 message 的消费方（日志、旧界面）一句能看懂的话；界面按 detail 自己画 */
+/** notice 帧的 message：给只读 message 的消费方（日志、纯文本出口）一句能看懂的话；界面按 detail 自己画 */
 export function retryMessageOf(notice: RetryNotice): string {
   switch (notice.state) {
     case 'running':

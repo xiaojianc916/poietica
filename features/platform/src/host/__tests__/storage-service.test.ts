@@ -81,8 +81,8 @@ async function makeTree(options: { maxFiles?: number } = {}) {
   write(path.join(browserPath, 'Code Cache', 'wasm'), 'pw.bin', 2 * MB)
   write(path.join(browserPath, 'Local Storage'), 'ls.bin', 3 * MB)
   write(path.join(browserPath, 'GPUCache'), 'pg.bin', 1 * MB)
-  // 旧版本留下的别的分区：不归浏览器，记在 kernel-state
-  write(path.join(layout.chromiumSessionDir, 'Partitions', 'legacy'), 'old.bin', 1 * MB)
+  // 别的分区：既不归缓存也不归浏览器，记在 kernel-state
+  write(path.join(layout.chromiumSessionDir, 'Partitions', 'other'), 'old.bin', 1 * MB)
 
   const app = fakeSession(layout.chromiumSessionDir)
   const browser = fakeSession(browserPath)
@@ -113,7 +113,7 @@ describe('storage-service', () => {
     expect(byId.logs).toBe(6 * MB)
     expect(byId['kernel-cache']).toBe(10 * MB) // 两会话的 Cache + Code Cache
     expect(byId['browser-data']).toBe(4 * MB) // 分区里除缓存外的：Local Storage 3 + GPUCache 1
-    expect(byId['kernel-state']).toBe(3 * MB) // 主会话 GPUCache 1 + other 1 + 旧分区 1
+    expect(byId['kernel-state']).toBe(3 * MB) // 主会话 GPUCache 1 + other 1 + 别的分区 1
     for (const e of entries) {
       expect(e.label).toBe(STORAGE_LABELS[e.id])
       expect(e.cleanable).toBe(STORAGE_CLEANABLE[e.id])

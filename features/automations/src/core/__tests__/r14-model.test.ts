@@ -1,11 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import { AppError } from '@poietica/foundation'
-import { openDatabase } from '@poietica/storage-sqlite'
 import { AutomationDraft, AutomationPatch } from '../../contract/entities'
-import { migrations } from '../migrations'
-import { buildCore, fullDraft, stubWorkspaces, testWorkspace } from './helpers'
+import { buildCore, createTestDatabase, fullDraft, stubWorkspaces, testWorkspace } from './helpers'
 
-/* R-14：D1 patch 不带默认值；D2 迁移 v2 保住旧行；D3–D5 一次性计划的校验；D6–D8 续用对话的规矩。 */
+/* R-14：D1 patch 不带默认值；D2 当前 schema 的新列写进去就是读出来的那份；D3–D5 一次性计划的校验；D6–D8 续用对话的规矩。 */
 
 const HOUR = 3_600_000
 
@@ -25,34 +23,42 @@ describe('R-14 契约与数据模型', () => {
     expect(AutomationDraft.partial().parse({ title: '改个名' })).toMatchObject({ posture: 'auto-edit', model: null })
   })
 
-  test('D2 迁移 v2：旧任务与旧运行记录原样保留，新列取默认值', () => {
-    const db = openDatabase(':memory:')
-    const m = db.forModule('automations')
-    m.exec(migrations[0]!.sql!)
-    m.prepare(
-      `INSERT INTO automations_automations (id, title, prompt, cron, time_zone, workspace_id, posture, enabled, created_at, updated_at)
-       VALUES ('a1', 't', 'p', '0 9 * * *', 'UTC', 'ws1', 'auto-edit', 1, 0, 0)`,
-    ).run()
-    m.prepare(
-      `INSERT INTO automations_runs (id, automation_id, thread_id, triggered_by, scheduled_for, started_at, settled_at, outcome, message)
-       VALUES ('r1', 'a1', 'th1', 'schedule', 1, 2, 3, 'succeeded', NULL)`,
-    ).run()
-    m.exec(migrations[1]!.sql!)
-    const a = m
-      .prepare<{ thread_mode: string; notify: string; catch_up: number; run_at: number | null }>(
-        'SELECT thread_mode, notify, catch_up, run_at FROM automations_automations',
-      )
-      .get()
-    expect(a).toEqual({ thread_mode: 'new', notify: 'attention', catch_up: 1, run_at: null })
-    const r = m
-      .prepare<{ id: string; outcome: string; summary: string | null; attention: number }>(
-        'SELECT id, outcome, summary, attention FROM automations_runs',
-      )
-      .get()
-    expect(r).toEqual({ id: 'r1', outcome: 'succeeded', summary: null, attention: 0 })
-    m.prepare(
-      `INSERT INTO automations_runs (id, automation_id, triggered_by, started_at, outcome) VALUES ('r2', 'a1', 'catch_up', 5, 'skipped')`,
-    ).run()
+  test('D2 当前 schema：任务与运行记录的新列写进去就是读出来的那份', () => {
+    const { db, repo } = createTestDatabase()
+    const created = repo.create(
+      'a1',
+      fullDraft({
+        schedule: { cron: null, at: 1, timeZone: 'UTC' },
+        threadMode: 'continue',
+        notify: 'never',
+        catchUp: false,
+      }),
+      0,
+    )
+    /* 计划二选一、续用模式、不提醒、不补跑：四格各自落到自己的列上 */
+    expect(created.schedule).toEqual({ cron: null, at: 1, timeZone: 'UTC' })
+    expect([created.threadMode, created.notify, created.catchUp]).toEqual(['continue', 'never', false])
+
+    /* 补跑与手动之外的第三种触发，结局多一档 skipped；summary / attention 是跑完后的两份结论 */
+    repo.insertRun({
+      id: 'r1',
+      automationId: 'a1',
+      threadId: null,
+      trigger: 'catch_up',
+      scheduledFor: null,
+      startedAt: 5,
+      settledAt: 6,
+      outcome: 'skipped',
+      message: null,
+      summary: '这一次不必跑',
+      attention: true,
+    })
+    expect(repo.getRun('r1')).toMatchObject({
+      trigger: 'catch_up',
+      outcome: 'skipped',
+      summary: '这一次不必跑',
+      attention: true,
+    })
     db.close()
   })
 

@@ -124,7 +124,7 @@ export function createComposerStore(initial: Readonly<Record<string, Draft>> = {
       patch(threadId, cleared)
     },
     restore: (threadId, draft) => {
-      /* 迁移到线程名下的草稿不再带入口页的选择器：那是入口那一格的事。 */
+      /* 线程名下的草稿不带入口页的选择器：那是入口那一格的事。 */
       patch(threadId, () => ({ text: draft.text, attachments: draft.attachments, skills: draft.skills }))
     },
     dropAttachments: (ids) => {

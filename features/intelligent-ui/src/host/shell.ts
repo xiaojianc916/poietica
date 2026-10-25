@@ -27,12 +27,12 @@ import { vendorText } from './vendor'
  * 事件里 UI 发**一次** poietica:render { html, css, theme, bare, state }，并把一条 MessageChannel 的一端转交过来 →
  * 外壳 document.open() 之后、写入界面文档之前，用闭包里的这条端口装好小桥（window.poietica），再整页写入。
  *
- * 和旧版 show_widget 的区别（重构的地基部分）：
+ * 与早先 show_widget 那套做法的区别（本架构的地基）：
  * - 之后的往来只走这条私有端口。端口只在外壳的闭包里，界面代码拿不到，也就伪造不了小桥的话；UI 不再监听
  *   window 的 message，界面自己 parent.postMessage 什么都没用；
  * - send / draft / open 带「手势」：小桥在捕获阶段记下 isTrusted 的点击、按键、提交，每次真实操作只换一次，
  *   5 秒内有效，再叠加 navigator.userActivation。界面拿 setInterval 刷消息、开页就自动发，都换不到手势，
- *   UI 那一侧改成确认条（旧版靠「焦点在 iframe 上」判断，用户点过一次之后就一直成立）；
+ *   UI 那一侧改成确认条（原先靠「焦点在 iframe 上」判断，用户点过一次之后就一直成立）；
  * - 状态：poietica.state / setState({ model, view })。model 那一半随用户的下一句交给模型，view 只给界面自己恢复；
  * - 高度：不再封顶 80vh（卡片侧上限 10000px）；根节点不出滚动条；「宽度没变、内容涨的正好等于视口涨的」
  *   是 100vh 一类写法和 iframe 高度互相追，这一次不报。

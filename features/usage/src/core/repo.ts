@@ -10,7 +10,7 @@ export function createUsageRepo(db: ModuleDatabase) {
   const ins =
     db.prepare(`INSERT INTO usage_events (thread_id, day, at, provider, model, input, output, cache_read, cache_write, cost)
                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-  /* 按天汇总（迁移 v3）：与明细同一个事务累加，读的一侧只碰这张小表 */
+  /* 按天汇总（usage_daily）：与明细同一个事务累加，读的一侧只碰这张小表 */
   const rollup =
     db.prepare(`INSERT INTO usage_daily (day, provider, model, input, output, cache_read, cache_write, cost)
                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)

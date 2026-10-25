@@ -92,7 +92,7 @@ export default defineCoreModule({
     ctx.disposables.add(ctx.engine.models.onDidChange(draftChanged))
     /*
      * 只是「新对话默认模型 / 档位」变了（入口页写穿意图、模型页设为默认）：草稿表要重读，但**不**换代
-     * 会话池 —— 活着的会话早定好了自己的模型与档位。旧版两者共用 onDidChange，入口页每切一次模型就把
+     * 会话池 —— 活着的会话早定好了自己的模型与档位。两件事共用一次通知时，入口页每切一次模型就会把
      * 空闲会话全部释放，下一次进对话要重开会话。
      */
     ctx.disposables.add(ctx.engine.models.onDidChangeDefaults(draftChanged))
@@ -108,7 +108,7 @@ export default defineCoreModule({
 
     /*
      * 启动对账（会话池还没开过任何会话，UI 的请求要等 core.ready）：
-     * 1. 行上绑着、文件却不在的 —— 解绑，回到「还没有会话」（升级前留下的坏账，见 reconcileSessionFiles）；
+     * 1. 行上绑着、文件却不在的 —— 解绑，回到「还没有会话」（会话打开时绑了路径、omp 却没落过盘的那种，见 reconcileSessionFiles）；
      * 2. 回收队列里上次没删掉的会话文件 —— 再删一遍，不阻塞启动；
      * 3. 删完之后回收会话媒体：没有任何会话文件再引用的图片（删掉的对话里的截图、粘贴图）。图片按内容寻址、
      *    可能被多条会话共用，所以删对话时不能顺手删，只能等全部会话文件都在场时标记一遍（omp gc 的 blobs 段，子进程里跑）。

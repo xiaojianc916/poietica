@@ -208,8 +208,8 @@ describe('timeline', () => {
 
   /*
    * 载荷按种类判别（Q1-C）：三种卡片连同答复过 schema 原样往返；形状不对的在收端就被拒，而不是让界面去猜。
-   * 轮头的旧形状（`payload: unknown`）只会被剥成光秃秃的来源 —— 轮头与交互都不落盘，每次都从引擎重投影，
-   * 所以没有要迁移的存量，只有「新收端遇到旧发端」这一种降级，而协议版本号把它挡在握手那一步。
+   * 轮头来源里多带的 `payload` 只会被剥成光秃秃的来源 —— 轮头与交互都不落盘，每次都从引擎重投影，
+   * 所以盘上没有要收拾的旧行，形状对不上时协议版本号把它挡在握手那一步。
    */
   test('TL-13 交互载荷与轮头来源按种类判别，过 schema 不丢格', () => {
     const cards = [
@@ -262,11 +262,11 @@ describe('timeline', () => {
       op: 'turn.upsert',
       turn: skilled,
     } as TranscriptOperation)
-    const legacy = {
+    const withPayload = {
       ...turnHeader(1),
       origin: { kind: 'other', payload: { kind: 'system_trigger', name: 'goal_continuation' } },
     }
-    const parsed = transcriptOperationSchema.parse({ op: 'turn.upsert', turn: legacy })
+    const parsed = transcriptOperationSchema.parse({ op: 'turn.upsert', turn: withPayload })
     expect(parsed.op === 'turn.upsert' ? parsed.turn.origin : null).toEqual({ kind: 'other' })
   })
 

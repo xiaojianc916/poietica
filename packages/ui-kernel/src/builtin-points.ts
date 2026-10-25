@@ -161,7 +161,7 @@ export interface EntryNoticeItem {
 
 /**
  * 浮层贡献点：画在页面**之上**（自己 portal 到 body、自己定位），不占外壳栅格的任何一格 ——
- * 外壳栅格只有两行，原先那条「横幅行」是迁移时自己加的第三行，退出时会闪一条没有字的色块，已整条删除。
+ * 外壳栅格只有两行：曾经多出来的那条「横幅行」退出时会闪一条没有字的色块，已整条删除。
  * 与 entryNotices 同形：useVisible 是个 Hook，由消费方在组件里调。
  */
 export interface OverlayItem {

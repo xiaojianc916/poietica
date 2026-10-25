@@ -3,12 +3,11 @@ import { openDatabase } from '@poietica/storage-sqlite'
 import { migrations } from '../migrations'
 import { createUsageRepo } from '../repo'
 
-/* 口径是**用户发出去的句子数**（含插话），不是模型采样条数。原方案给的实现是数 usage_events 的行（一次模型调用 = 一条消息），而 legacy
- * 与 ADR 0039 的口径是准入账（turn_admissions）—— 两者相差一个数量级（一次用户输入会引出多次模型调用）。2026-10-07 按产品负责人裁决
- * 改回 legacy 口径，这条钉住它。 */
+/* 口径是**用户发出去的句子数**（含插话），不是模型采样条数：一次用户输入会引出多次模型调用，按采样数会把「消息数量」
+ * 放大约一个数量级（ADR 0039）。所以另立 usage_messages 这张准入账，这条用例钉住它。 */
 function makeRepo() {
   const db = openDatabase(':memory:')
-  for (const m of migrations) db.forModule('usage').exec(m.sql!)
+  for (const m of migrations) db.forModule('usage').exec(m.sql)
   return { db, repo: createUsageRepo(db.forModule('usage')) }
 }
 
@@ -87,14 +86,14 @@ describe('消息数量数的是准入账，不是采样条数', () => {
   })
 })
 
-describe('v2 迁移', () => {
-  test('迁移表是 v1 + v2 + v3，且 v2 建的是准入账', () => {
-    expect(migrations.map((m) => m.version)).toEqual([1, 2, 3])
-    expect(migrations[1]?.sql).toContain('usage_messages')
+describe('当前 schema', () => {
+  test('迁移表只有一条 init，准入账就在它里面', () => {
+    expect(migrations.map((m) => m.version)).toEqual([1])
+    expect(migrations[0]?.sql).toContain('usage_messages')
   })
 
-  /* v2 是**叠加**在 v1 之上：两张表都要能用。不去查 sqlite_master —— storage 的 SQL 守卫只放行本模块前缀的表，所以两边各写一行、各读一遍。 */
-  test('两张表都能写能读（v2 不改 v1）', () => {
+  /* 两张账都由同一条 init 建出来：采样与准入各写一行、各读一遍。不去查 sqlite_master —— storage 的 SQL 守卫只放行本模块前缀的表。 */
+  test('两张账都能写能读', () => {
     const { db, repo } = makeRepo()
 
     repo.insert(sample('2026-10-07'))

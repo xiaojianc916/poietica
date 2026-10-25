@@ -35,7 +35,7 @@ interface PayloadState {
  *
  * 语义与文本解码器一致：只认 `\n`、去掉行尾 `\r`、空白行忽略、前缀之前的杂散文本与非帧行交给 onStray、
  * 坏帧报 `[bad frame]`、非 JSON-RPC 报 `[not jsonrpc]`、超长报一次 `[frame overflow]` 并丢弃到下一个换行。
- * 不带 `\x1f` 的帧按完整 JSON-RPC 消息全量解析（没有载荷的消息，以及旧版 Core 的帧）。
+ * 不带 `\x1f` 的帧按完整 JSON-RPC 消息全量解析（没有载荷的消息：错误回复、不带 params 的通知）。
  * 诊断样本（≤200 字节）取自当时手上的字节：跨块大帧的坏信封在信封到达时就报，样本可能短于整行解码时
  * （以前的 `[frame overflow]` 样本同样随切块而异）。
  */

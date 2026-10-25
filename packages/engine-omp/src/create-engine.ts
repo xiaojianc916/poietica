@@ -3,11 +3,10 @@ import type { AgentEngine } from '@poietica/engine'
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
 import type { DataLayout } from '@poietica/runtime-layout'
 import { OmpEngine } from './engine'
-import { disableForeignProviders, releaseForeignProviders } from './foreign-providers'
+import { disableForeignProviders } from './foreign-providers'
 import { resolveSessionModel } from './model-resolve'
 import { draftControlsOf } from './ports/draft-controls'
 import { registryPortOf } from './ports/model-helpers'
-import { migrateLegacyTitleRole } from './ports/models'
 import { ompPorts } from './ports/omp-ports'
 import { McpWorkspaces } from './session/mcp-workspaces'
 import { blobMediaRef } from './session/media-store'
@@ -76,7 +75,6 @@ async function ompModules() {
     // omp 知识 #10：disableProvider 写的是「当前绑定的那个 Settings」，所以必须先 initializeWithSettings
     initializeWithSettings: capability.initializeWithSettings,
     disableProvider: capability.disableProvider,
-    enableProvider: capability.enableProvider,
   }
 }
 
@@ -95,8 +93,8 @@ const PRODUCT_DEFAULTS: readonly (readonly [string, unknown])[] = [
  * fastembed/onnxruntime-node、define PI_COMPILED），那一步在 apps/core/scripts/build.ts。
  *
  * 创建顺序就是正确性：ensureThemeSync（omp 知识 #3：ask 工具无条件读主题单例）→ Settings.init 后
- * initializeWithSettings（omp 知识 #10 的前置）→ 先放行已撤销的外来 provider 再禁用剩下的（omp 知识
- * #10）→ 产品默认（PRODUCT_DEFAULTS）只在从未配置过时写一次（omp 知识 #11）→ browser.relayUrl 只写运行时覆盖层
+ * initializeWithSettings（omp 知识 #10 的前置）→ 禁用外来 provider（omp 知识 #10）→ 产品默认
+ * （PRODUCT_DEFAULTS）只在从未配置过时写一次（omp 知识 #11）→ browser.relayUrl 只写运行时覆盖层
  * → 模型注册表先补本地目录、联网发现放后台（**不要** await refresh：缓存过期时它会当场等网络）
  * → MCP 工作区（omp 知识 #22）→ 工具表、SessionFactory、6 个端口。
  */
@@ -112,9 +110,6 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
   // omp 知识 #10：先绑定再禁用。capability 的开关只在绑定过 Settings 之后才读写它；没有这一步，
   // disableProvider 落进一个「未绑定」的进程级集合，配置一刷就被丢掉，外来 provider 会照常被读进隔离根。
   omp.initializeWithSettings(root)
-  // 先撤再禁：旧版本把 `agents` 写进过 disabledProviders，顺序反过来会当场又禁回去。
-  const released = await releaseForeignProviders(root, () => root.flush(), omp.enableProvider)
-  if (released.length > 0) o.logger.info('foreign providers released', { count: released.length })
   const disabled = await disableForeignProviders(root, () => root.flush(), omp.disableProvider)
   if (disabled.length > 0) o.logger.info('foreign providers disabled', { count: disabled.length })
   // omp 知识 #11：只有这一格从来没被谁配过才落一次默认值
@@ -125,9 +120,6 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
 
   //标题只留正文，不要 omp 的卡片前缀（`🎤 POET: …` 那个图标 + 代号）
   overrideSetting(root, 'title.icons', 'boring')
-  // 自动总结标题（omp 知识 #17）：旧版自造的 modelRoles.title 迁进 omp 的 tiny 角色
-
-  if (await migrateLegacyTitleRole(root)) o.logger.info('legacy title model role migrated to tiny')
   const authStorage = await omp.discoverAuthStorage()
   const registry = new omp.ModelRegistry(authStorage)
   await registry.hydrateCredentialScopedModelCaches()

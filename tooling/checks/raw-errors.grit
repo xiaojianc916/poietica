@@ -4,7 +4,7 @@ language js
 // 三类之外没有第四类，所以 `new <内置错误类>(` 就是漏网。
 //
 // 与手写正则版相比，这里是 **AST 匹配**：注释里的示例与字符串字面量里的
-// `new Error(` 不再误报（旧版逐行扫文本，`return 'new Error('` 会被判成命中）。
+// `new Error(` 不再误报（逐行扫文本的写法会把 `return 'new Error('` 判成命中）。
 
 `new $Ctor($args)` where {
   $Ctor <: or {

@@ -92,7 +92,7 @@ L0  foundation
 
 1. `setup` 里只做装配：注册 handler、`provide` 服务、订阅事件、贡献界面。耗时的初始化放 `onReady`（Core / Host），或者 `onCoreReady`（UI）。
 2. 每个订阅、定时器、子进程都要有归宿：挂到 `ctx.disposables`，或者在 `onShutdown` / `onDispose` 里释放。
-3. Core 的 `migrations` 只能建本功能前缀的表和索引。`version` 按模块从 1 开始连续递增，只加不改：已发布的迁移不许修改，要变更就追加一条新的。
+3. Core 的 `migrations` 只能建本功能前缀的表和索引。每个模块只保留**一条** `init`（当前 schema 的完整 DDL）；项目尚未发布、没有真实用户，所以改表就直接改那一条，不写历史迁移、不做旧数据搬运（2026-10-25 裁决，见 `docs/refactor-log.md` 偏差 #82）。数据库版本高于本程序时按 `DataTooNewError` 退出（退出码 4），这是发现装坏了的信号，不是兼容路径。
 4. UI 的 `onCoreReady` 在**每次** Core 进入 ready 时都会调用（首次启动、崩溃重启、手动重启）。从 Core 来的数据都要在这里重新拉取、重新订阅，不要只加载一次。
 
 ### 5.3 功能之间怎么协作
