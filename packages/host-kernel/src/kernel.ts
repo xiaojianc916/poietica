@@ -73,7 +73,7 @@ export function runHostKernel(opts: HostKernelOptions): void {
   // 目录与日志
   mkdirSync(identity.layout.logsDir, { recursive: true })
   let level: 'debug' | 'info' | 'warn' | 'error' = identity.isPackaged ? 'info' : 'debug'
-  const mainLog = jsonlFileSink({ file: identity.layout.mainLog, maxBytes: 5 * 1024 * 1024, keep: 3 })
+  const mainLog = jsonlFileSink({ file: identity.layout.mainLog })
   // 按批落盘（见 jsonl-file-sink.ts）：退出时把攒着的写完；error 级记录本来就当场落盘
   process.on('exit', () => mainLog.close())
   const logger = createLogger({

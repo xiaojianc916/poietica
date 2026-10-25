@@ -163,7 +163,9 @@
         "@poietica/feature-platform": "workspace:*",
         "@poietica/feature-workspaces": "workspace:*",
         "@poietica/foundation": "workspace:*",
+        "@poietica/rpc": "workspace:*",
         "@poietica/storage-sqlite": "workspace:*",
+        "@poietica/transcript": "workspace:*",
         "@poietica/ui-kernel": "workspace:*",
         "croner": "catalog:",
         "lucide-react": "catalog:",
@@ -750,9 +752,6 @@
         "@poietica/foundation": "workspace:*",
         "zod": "catalog:",
       },
-      "devDependencies": {
-        "@poietica/test-kit": "workspace:*",
-      },
     },
     "packages/runtime-layout": {
       "name": "@poietica/runtime-layout",
@@ -776,7 +775,6 @@
       "version": "0.0.0",
       "dependencies": {
         "@poietica/foundation": "workspace:*",
-        "@poietica/rpc": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "catalog:",

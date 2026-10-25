@@ -1,6 +1,9 @@
-import { describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { cruise, type IConfiguration, type ICruiseResult } from 'dependency-cruiser'
 
 /*
  * depcruise 配置的**自检**。
@@ -24,6 +27,42 @@ interface Options {
 async function loadOptions(): Promise<Options> {
   const mod = (await import(CONFIG)) as { default?: { options?: Options } }
   return mod.default?.options ?? {}
+}
+
+const temporaryRoots: string[] = []
+
+afterEach(async () => {
+  await Promise.all(temporaryRoots.splice(0).map(async (root) => rm(root, { recursive: true, force: true })))
+})
+
+async function cruiseFixture(relativeDirectory: string, files: Record<string, string>): Promise<ICruiseResult> {
+  const temporary = await mkdtemp(path.join(tmpdir(), 'poietica-depcruise-'))
+  temporaryRoots.push(temporary)
+  const root = path.join(temporary, 'poietica')
+  const directory = path.join(root, relativeDirectory)
+  await mkdir(directory, { recursive: true })
+  await Promise.all(
+    Object.entries(files).map(async ([name, source]) => {
+      const file = path.join(directory, name)
+      await mkdir(path.dirname(file), { recursive: true })
+      await writeFile(file, source)
+    }),
+  )
+  const { forbidden = [], options = {} } = ((await import(CONFIG)) as { default: IConfiguration }).default
+  const result = await cruise(
+    [relativeDirectory],
+    { ...options, baseDir: root, ruleSet: { forbidden }, validate: true },
+    options.enhancedResolveOptions,
+  )
+
+  if (typeof result.output === 'string') throw new Error('depcruise 应返回结构化结果')
+  return result.output
+}
+
+function violationsOf(result: ICruiseResult, rule: string): string[] {
+  return result.summary.violations
+    .filter((violation) => violation.rule.name === rule)
+    .map((violation) => violation.from)
 }
 
 describe('depcruise 配置的自检', () => {
@@ -53,5 +92,31 @@ describe('depcruise 配置的自检', () => {
     const src = readFileSync(CONFIG, 'utf8')
     expect(src).toContain("name: 'workbench-agnostic'")
     expect(src).toContain('^packages/(workbench|core-kernel|host-kernel|ui-kernel)/')
+  })
+
+  test('真实解析：setup 只能经区域 index，direct 被拒而 index 合法', async () => {
+    const directory = 'features/conversation/src/ui/setup'
+    const result = await cruiseFixture(directory, {
+      'direct.ts': "import { AssistantSurface } from '../home/assistant-surface'\nvoid AssistantSurface\n",
+      'via-index.ts': "import { HomeSurface } from '../home'\nvoid HomeSurface\n",
+      '../home/assistant-surface.ts': 'export const AssistantSurface = true\n',
+      '../home/index.ts': 'export const HomeSurface = true\n',
+    })
+
+    expect(violationsOf(result, 'conversation-area-via-index')).toEqual([`${directory}/direct.ts`])
+  })
+
+  test('真实解析：shared 的区域穿透被拒，shared 内部 ../timeline 合法', async () => {
+    const directory = 'features/conversation/src/ui/shared/tools'
+    const result = await cruiseFixture(directory, {
+      'direct.ts':
+        "import type { TimelineState } from '../../timeline/timeline-contract'\nexport type Held = TimelineState\n",
+      'legal.ts':
+        "import type { TimelineState } from '../timeline/timeline-contract'\nexport type Held = TimelineState\n",
+      '../../timeline/timeline-contract.ts': 'export interface TimelineState { readonly id: string }\n',
+      '../timeline/timeline-contract.ts': 'export interface TimelineState { readonly id: string }\n',
+    })
+
+    expect(violationsOf(result, 'conversation-shared-is-leaf')).toEqual([`${directory}/direct.ts`])
   })
 })

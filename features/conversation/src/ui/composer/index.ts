@@ -2,6 +2,7 @@
  * composer 区：输入框、待答卡片、队列与草稿。区与区之间只能经本文件互相引用（docs/ARCHITECTURE.md §4.3）。
  */
 
+export { type AttachmentIntake, AttachmentIntakeContext, type ComposerAsset } from './attachment'
 export {
   type ComposerStore,
   createComposerStore,
@@ -11,10 +12,12 @@ export {
 } from './composer-store'
 export { createDraftPin, type DraftPinView } from './draft-pin'
 export { ComposerDraftKeyContext } from './drafts-context'
+export { createLiveComposers } from './live-composers'
 export type { PromptInputMessage } from './prompt'
+export { createSideStore } from './side-store'
 export { useAgentToolkit } from './toolkit'
 export { AssistantComposer } from './view/assistant-composer'
-export { AuxiliaryComposerBar, type AuxiliaryComposerBarProps } from './view/auxiliary-composer'
+export { AuxiliaryComposer, AuxiliaryComposerBar, type AuxiliaryComposerBarProps } from './view/auxiliary-composer'
 export { ComposerNotice } from './view/composer-notice'
 export type { ControlsOpenRequest } from './view/controls'
 export { useDockClearance } from './view/dock-clearance'

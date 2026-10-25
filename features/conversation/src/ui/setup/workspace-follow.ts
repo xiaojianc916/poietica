@@ -1,6 +1,6 @@
 import type { WorkspacesUi } from '@poietica/feature-workspaces/ui-api'
 import type { NavigationService } from '@poietica/ui-kernel'
-import type { ThreadsStore } from '../threads/threads-store'
+import type { ThreadsStore } from '../threads'
 
 /*
  * 「当前工作区」跟着路由派生：在某条对话的页面上，当前工作区就是这条对话的工作区。

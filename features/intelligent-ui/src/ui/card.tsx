@@ -13,6 +13,7 @@ import {
   useState,
 } from 'react'
 import { INTELLIGENT_UI_SHELL_URL, INTELLIGENT_UI_WIDE_WIDTH, type IntelligentUiState } from '../contract'
+import type { ExportRequest } from './api'
 import {
   failureOf,
   type TweakControl,
@@ -56,16 +57,6 @@ export interface CardBanner {
   readonly title: string
   readonly detail?: string
   readonly action?: { readonly label: string; readonly run: () => void }
-}
-
-export interface ExportRequest {
-  readonly title: string
-  readonly html: string
-  readonly bare: boolean
-  readonly wide: boolean
-  readonly css: string
-  readonly theme: 'dark' | 'light'
-  readonly state: IntelligentUiState
 }
 
 export interface IntelligentUiCardDeps {

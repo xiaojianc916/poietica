@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import { AppError, Emitter, type Logger, noopLogger } from '@poietica/foundation'
-import { transportPair } from '@poietica/test-kit'
 import { RawJson } from '../frame'
 import { CANCEL_METHOD, type RpcMessage } from '../messages'
 import { RpcPeer } from '../peer'
+import { transportPair } from '../testing'
 import type { Transport } from '../transport'
 
 /** 记录本端发出（以及经 transportPair 发往对端）的消息，供断言 $/cancelRequest 使用 */

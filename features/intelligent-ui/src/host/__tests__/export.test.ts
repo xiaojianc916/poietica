@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
+import { exportFileNameOf } from '../../contract'
 import { captureRectOf } from '../capture'
-import { exportFileNameOf, STANDALONE_CSP, type StandaloneInput, standaloneHtml } from '../export'
+import { STANDALONE_CSP, type StandaloneInput, standaloneHtml } from '../export'
 import { INTELLIGENT_UI_CSP, SHELL_JS } from '../shell'
 import { vendorText } from '../vendor'
 

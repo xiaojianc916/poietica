@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { intelligentUiErrors } from './errors'
 
 export { intelligentUiErrors } from './errors'
+export { exportFileNameOf } from './file-name'
 
 /*
  * 对话内智能界面（intelligent_ui，原 R-18 的 show_widget）。
@@ -223,6 +224,8 @@ export const intelligentUiContract = defineContract({
       name: 'intelligentUi.exportHtml',
       owner: 'host',
       params: z.object({
+        /* 保存路径先经 platform 的 dialog.pickSavePath 选定；取消由 UI 短路，不调用这里 */
+        path: z.string().min(1),
         title: z.string().min(1).max(80),
         html: z.string().max(INTELLIGENT_UI_HTML_MAX),
         bare: z.boolean(),

@@ -13,6 +13,7 @@ export {
   useAssistantTimeline,
   useAssistantTodos,
 } from './model/use-assistant-session'
+export { SubagentTabsStore } from './subagent-tabs'
 export { delegateCallsOf } from './timeline-queries'
 export { type AgentControls, AgentControlsContext, useAgentControls } from './view/agent-controls-context'
 export {
@@ -21,4 +22,6 @@ export {
   useDelegateChannel,
   useOptionalDelegateChannel,
 } from './view/delegate-channel-context'
+export { subagentTitleOf } from './view/delegate-channel-view'
+export { createSubagentDockTabs, openSubagentTab, SUBAGENT_PANEL_ID, SubagentDockPanel } from './view/subagent-dock'
 export { TranscriptView } from './view/transcript-view'

@@ -8,7 +8,7 @@ import {
   SETTINGS_GROUPS,
   settingsDockOwner,
 } from '@poietica/ui-kernel'
-import { closePalette, openPalette, subscribePalette } from './palette-state'
+import { openPalette } from './palette-state'
 import { SettingsContentRegion } from './parts/settings-regions'
 
 const SETTINGS_ROUTE: Route = { surface: 'workbench.settings', params: {} }
@@ -23,8 +23,6 @@ export const workbenchFeature = defineUiFeature({
     const navigation = ctx.services.get(NavigationToken)
     const layout = ctx.services.get(LayoutToken)
     ctx.services.get(CommandsToken)
-    // 命令面板的开关状态由 Workbench 订阅（见 palette-state.ts）
-    void subscribePalette
 
     const command = (id: string, title: string, run: () => void, enabled?: () => boolean): void => {
       ctx.contribute(
@@ -62,8 +60,6 @@ export const workbenchFeature = defineUiFeature({
     command('workbench.home', '回到首页', () => {
       navigation.home()
     })
-    void closePalette
-
     const bind = (command_: string, key: string): void => {
       ctx.contribute(builtinPoints.keybindings, { command: command_, key })
     }

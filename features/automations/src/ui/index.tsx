@@ -1,6 +1,5 @@
-import { conversationContract, MAIN_AGENT_ID, type Thread } from '@poietica/feature-conversation/contract'
+import type { Thread } from '@poietica/feature-conversation/contract'
 import { ConversationUiToken, threadActions, toolCallRenderers } from '@poietica/feature-conversation/ui-api'
-import { platformContract } from '@poietica/feature-platform/contract'
 import {
   builtinPoints,
   defineUiFeature,
@@ -23,36 +22,6 @@ import { AutomationsEditSurface, AutomationsListSurface } from './automations-su
 
 function defaultTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-function firstUserPrompt(items: readonly unknown[]): string | null {
-  for (const item of items) {
-    if (!isRecord(item) || item.kind !== 'turn') {
-      continue
-    }
-    const origin = item.origin
-    const kind = isRecord(origin) ? origin.kind : undefined
-    if (kind === undefined || kind === 'user') {
-      const prompt = item.prompt
-      if (typeof prompt === 'string' && prompt.trim() !== '') {
-        return prompt
-      }
-    }
-  }
-  return null
-}
-
-function oldestTurnId(items: readonly unknown[]): string | null {
-  for (const item of items) {
-    if (isRecord(item) && item.kind === 'turn' && typeof item.turnId === 'string') {
-      return item.turnId
-    }
-  }
-  return null
 }
 
 export default defineUiFeature({
@@ -79,15 +48,11 @@ export default defineUiFeature({
 
     /* 系统通知：该不该通知只在 Core 的 notice.ts 判，这里原样转给 platform 的 notify.show。点通知由 conversation 的 notify.clicked
      * 打开对话；主窗口聚焦时 platform 本来就不弹。 */
-    const platform = ctx.rpc(platformContract)
     ctx.lifecycle.onDispose(
       api.onAttention((attention) => {
-        const target = attention.threadId === null ? {} : { threadId: attention.threadId }
-        void platform
-          .call('notify.show', { title: attention.title, body: attention.body, ...target })
-          .catch((cause: unknown) => {
-            ctx.logger.warn('定时任务通知发送失败', { error: String(cause) })
-          })
+        void api.notify(attention).catch((cause: unknown) => {
+          ctx.logger.warn('定时任务通知发送失败', { error: String(cause) })
+        })
       }).dispose,
     )
 
@@ -152,35 +117,7 @@ export default defineUiFeature({
     })
 
     async function prefillFromThread(thread: Thread): Promise<AutomationDraft> {
-      const rpc = ctx.rpc(conversationContract)
-      const agentId = MAIN_AGENT_ID
-      let prompt: string | null = null
-      let subscribed = false
-      try {
-        let page = (await rpc.call('timeline.subscribe', { threadId: thread.id, agentId })).page
-        subscribed = true
-        for (let turn = 0; turn < 10; turn += 1) {
-          prompt = firstUserPrompt(page.items)
-          if (prompt !== null || page.hasMoreOlder !== true) {
-            break
-          }
-          const beforeTurnId = oldestTurnId(page.items)
-          if (beforeTurnId === null) {
-            break
-          }
-          page = await rpc.call('timeline.page', { threadId: thread.id, agentId, beforeTurnId })
-        }
-      } catch (cause: unknown) {
-        ctx.logger.warn('定时任务预填：线程首条用户消息读取失败', { error: String(cause) })
-      } finally {
-        if (subscribed) {
-          try {
-            await rpc.call('timeline.unsubscribe', { threadId: thread.id, agentId })
-          } catch (cause: unknown) {
-            ctx.logger.warn('定时任务预填：时间线退订失败', { error: String(cause) })
-          }
-        }
-      }
+      const prompt = await api.firstUserPrompt(thread, ctx.logger)
       const title = thread.title === '' ? '未命名定时任务' : thread.title.slice(0, 80)
       return {
         title,

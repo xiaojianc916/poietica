@@ -1,5 +1,5 @@
 import { loadMath } from '@poietica/design-system/prose'
-import { completionBody, isTurnSettled } from '../session/notify'
+import { completionBody, isTurnSettled } from '../session'
 import type { ConversationActions } from './actions'
 import type { ConversationSetup } from './context'
 import { leaveMissingLanding } from './landing-guard'

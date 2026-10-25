@@ -1,4 +1,3 @@
-import { platformContract } from '@poietica/feature-platform/contract'
 import type { WorkspacesUi } from '@poietica/feature-workspaces/ui-api'
 import {
   type NavigationService,
@@ -9,7 +8,7 @@ import {
 } from '@poietica/ui-kernel'
 import { FileDiff, GitCompareArrows } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
-import { createReviewApi, createReviewGateway } from './api'
+import { createReviewApi, createReviewGateway, openExternal } from './api'
 import { CodeReviewPage } from './pr-page'
 import { ReviewPane } from './review-pane'
 import type { ReviewFailureReport } from './review-store'
@@ -128,12 +127,11 @@ export function CodeReviewSurface({
   readonly ctx: Parameters<typeof createReviewApi>[0]
   readonly workspaces: WorkspacesUi
 }): ReactNode {
-  const platform = ctx.rpc(platformContract)
   return (
     <CodeReviewPage
       ctx={ctx}
       openExternal={(url) => {
-        void platform.call('shell.openExternal', { url }).catch((cause: unknown) => {
+        void openExternal(ctx, url).catch((cause: unknown) => {
           ctx.logger.warn('链接没能打开', { error: String(cause) })
         })
       }}

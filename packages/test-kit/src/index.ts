@@ -1,5 +1,4 @@
 export { type FakeClock, fakeClock } from './fake-clock'
 export { type TempDir, tempDir } from './temp-dir'
 export { createTestLogger, type TestLogger, type TestLogRecord } from './test-logger'
-export { transportPair } from './transport-pair'
 export { waitFor } from './wait-for'

@@ -12,6 +12,12 @@
       "path": "../../../../packages/foundation"
     },
     {
+      "path": "../../../../packages/rpc"
+    },
+    {
+      "path": "../../../../packages/transcript"
+    },
+    {
       "path": "../../../../packages/ui-kernel"
     },
     {

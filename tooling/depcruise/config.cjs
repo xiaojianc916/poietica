@@ -172,7 +172,7 @@ module.exports = {
       severity: 'error',
       comment: 'conversation 的区与区之间只经 <区>/index 互引（docs/ARCHITECTURE.md §4.3）',
       from: {
-        path: '^features/conversation/src/ui/(threads|composer|timeline|session|status|home)/',
+        path: '^features/conversation/src/ui/(threads|composer|timeline|session|status|home|setup)/',
         pathNot: TEST,
       },
       to: {

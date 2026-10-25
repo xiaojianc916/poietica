@@ -1,7 +1,6 @@
 import type { TypedRpcClient } from '@poietica/rpc'
 import type { UiFeatureContext } from '@poietica/ui-kernel'
-import type { DayKey, MessageCountDay, ModelDay, TokenDay } from '../contract'
-import { usageContract } from '../contract'
+import { type DayKey, type MessageCountDay, type ModelDay, type TokenDay, usageContract } from '../contract'
 import { dayKeyOf } from './usage-activity'
 
 /* 窗口的算式只有一份：**最近 span 天，含今天**（offset = span - 1，earliest = 今天 - offset）。不写 `今天 - span * 86400000`：那是
@@ -18,15 +17,6 @@ export function createUsageApi(ctx: UiFeatureContext) {
   const rpc: TypedRpcClient<typeof usageContract> = ctx.rpc(usageContract)
 
   return {
-    tokenDays: (from: DayKey, to: DayKey): Promise<readonly TokenDay[]> =>
-      rpc.call('usage.tokenDays', { from, to }).then((r: { days: TokenDay[] }) => r.days),
-    modelDays: (from: DayKey, to: DayKey): Promise<readonly ModelDay[]> =>
-      rpc.call('usage.modelDays', { from, to }).then((r: { rows: ModelDay[] }) => r.rows),
-    messageCount: (from: DayKey, to: DayKey): Promise<number> =>
-      rpc
-        .call('usage.messageCount', { from, to })
-        .then((r: { days: MessageCountDay[] }) => r.days.reduce((sum, day) => sum + day.count, 0)),
-
     /* 三个「按窗口读」的函数。**必须在 setup 里建一次、整份交下去**，不能在渲染期现造：用量页的 useRead 以「读函数」为 effect 依赖，每帧换一个
      * 引用就是每帧重读一次（读回 → setState → 重渲染 → 又一个新函数），页面上表现为数字闪个不停。 */
     readTokenDays: (span: number): Promise<readonly TokenDay[]> => {

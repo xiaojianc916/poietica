@@ -1,4 +1,4 @@
-import { attachmentsContract } from '@poietica/feature-attachments/contract'
+import { AttachmentsUiToken } from '@poietica/feature-attachments/ui-api'
 import { ConversationUiToken, toolCallRenderers } from '@poietica/feature-conversation/ui-api'
 import {
   BannersToken,
@@ -43,7 +43,7 @@ export default defineUiFeature({
     const conversation = ctx.services.get(ConversationUiToken)
     const api = createBrowserApi(ctx)
     const store = createBrowserPanelStore(api)
-    const attachments = ctx.rpc(attachmentsContract)
+    const attachments = ctx.services.get(AttachmentsUiToken)
 
     const report = (message: string, cause?: unknown): void => {
       if (cause === undefined) {
@@ -56,9 +56,8 @@ export default defineUiFeature({
     }
 
     const delivery = createPickDelivery({
-      importData: async (name, mime, base64) => {
-        const attachment = await attachments.call('attachments.importData', { name, mime, base64 })
-
+      importData: async (name, mime, bytes) => {
+        const attachment = await attachments.importData(name, mime, bytes)
         return {
           id: attachment.id,
           name: attachment.name,

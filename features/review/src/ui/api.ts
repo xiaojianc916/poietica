@@ -1,3 +1,4 @@
+import { platformContract } from '@poietica/feature-platform/contract'
 import type { UiFeatureContext } from '@poietica/ui-kernel'
 import {
   type GitBranch,
@@ -60,6 +61,10 @@ export function createReviewApi(ctx: UiFeatureContext, workspaceId: string) {
 }
 
 export type ReviewApi = ReturnType<typeof createReviewApi>
+
+export function openExternal(ctx: UiFeatureContext, url: string): Promise<Record<string, never>> {
+  return ctx.rpc(platformContract).call('shell.openExternal', { url })
+}
 
 /** 折成审查面要的那份 `ReviewGateway`。契约按 workspaceId 寻址、审查面按仓库根，而上面那个闭包已把 workspaceId 固定住。 */
 export function createReviewGateway(api: ReviewApi): import('./review-store').ReviewGateway {

@@ -3,14 +3,18 @@ import { PreferencesToken } from '@poietica/feature-preferences/ui-api'
 import { WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
 import { BannersToken, DialogsToken, LayoutToken, NavigationToken, type UiFeatureContext } from '@poietica/ui-kernel'
 import { createConversationApi } from '../api'
-import { createLiveComposers } from '../composer/live-composers'
-import { createSideStore } from '../composer/side-store'
+import { createLiveComposers, createSideStore } from '../composer'
 import { createEntryDefaults } from '../home'
-import { type ConversationStores, createStores, hiddenModelsOf } from '../session'
-import { createPostureIntent, storedPostureOf } from '../session/configuration/posture-intent'
-import { createSessionRegistry, type SessionRegistry } from '../session/session-registry'
-import { TranscriptStore } from '../timeline/model/transcript-store'
-import { SubagentTabsStore } from '../timeline/subagent-tabs'
+import {
+  type ConversationStores,
+  createPostureIntent,
+  createSessionRegistry,
+  createStores,
+  hiddenModelsOf,
+  type SessionRegistry,
+  storedPostureOf,
+} from '../session'
+import { SubagentTabsStore, TranscriptStore } from '../timeline'
 
 /* 装配的底座：RPC 封装、内核服务、四个 store、转录 store 与会话端口注册表。后面的 actions / subscriptions / contributions / commands / services 各自收一份本对象。 */
 

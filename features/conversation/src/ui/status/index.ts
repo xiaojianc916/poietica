@@ -4,5 +4,6 @@
 
 export type { GoalActionHandler } from '../shared/model/goal-control'
 export { EntryNotices } from './entry-notices'
+export { runGoalAction } from './goal/goal-actions'
 export { type GoalActions, GoalBar, useGoalActions } from './goal/goal-bar'
 export { CONVERSATION_TODO_LAYOUT_STYLE, ConversationTodoPopover } from './todo/conversation-todo-popover'

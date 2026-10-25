@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { RpcMessage } from '@poietica/rpc'
-import { transportPair } from '../transport-pair'
+import type { RpcMessage } from '../messages'
+import { transportPair } from '../testing'
 
 const notification = (method: string, params: unknown): RpcMessage => ({ jsonrpc: '2.0', method, params })
 

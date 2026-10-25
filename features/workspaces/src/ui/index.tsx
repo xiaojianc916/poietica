@@ -1,5 +1,5 @@
 import { platformContract } from '@poietica/feature-platform/contract'
-import { BannersToken, builtinPoints, type CommandItem, defineUiFeature } from '@poietica/ui-kernel'
+import { BannersToken, builtinPoints, type CommandItem, createFeatureStore, defineUiFeature } from '@poietica/ui-kernel'
 import type { Workspace } from '../contract'
 import { WorkspacesUiToken } from '../ui-api'
 import { createWorkspacesApi } from './api'
@@ -12,17 +12,21 @@ export default defineUiFeature({
     const platform = ctx.rpc(platformContract)
     const banners = ctx.services.get(BannersToken)
 
-    /* 当前工作区保存在 store（不持久化）。别的功能通过 WorkspacesUiToken 读它、切它。 */
-    let items: readonly Workspace[] = []
-    let activeId: string | null = null
-    /* 组件要**订阅**着读这两格。getState()／闭包变量是一次性快照：消费方会在 store 还空着时渲染一遍就再也不重画。 */
-    const listeners = new Set<() => void>()
-    const activeListeners = new Set<(w: Workspace | null) => void>()
-    const bump = (): void => {
-      for (const l of [...listeners]) l()
-      const active = items.find((w) => w.id === activeId) ?? null
-      for (const l of [...activeListeners]) l(active)
+    /* 名单与当前项只有这一份状态；订阅经功能 store 提供，不再维护第二套监听器。 */
+    const store = createFeatureStore<{ items: readonly Workspace[]; activeId: string | null }>(() => ({
+      items: [],
+      activeId: null,
+    }))
+    const active = (): Workspace | null => {
+      const { items, activeId } = store.getState()
+      return items.find((workspace) => workspace.id === activeId) ?? null
     }
+    const activeListeners = new Set<(workspace: Workspace | null) => void>()
+    store.subscribe((state, previous) => {
+      if (state.activeId === previous.activeId && state.items === previous.items) return
+      const current = active()
+      for (const listener of [...activeListeners]) listener(current)
+    })
 
     /*
      * 名单变了只校正**失效**的当前项目。`selectFirst` 只在启动那一次为真：那时还没有「当前项目」，
@@ -30,10 +34,15 @@ export default defineUiFeature({
      * 「还没选项目」是一个真实的界面状态，入口页据此禁用发送。
      */
     const reload = async (selectFirst = false): Promise<void> => {
-      items = await api.list()
-      if (activeId !== null && !items.some((w) => w.id === activeId)) activeId = null
-      if (activeId === null && selectFirst && items[0] !== undefined) activeId = items[0].id
-      bump()
+      const items = await api.list()
+      const previous = store.getState()
+      const activeId =
+        previous.activeId !== null && items.some((workspace) => workspace.id === previous.activeId)
+          ? previous.activeId
+          : selectFirst
+            ? (items[0]?.id ?? null)
+            : null
+      store.setState({ items, activeId })
     }
 
     const pickAndAdd = async (): Promise<Workspace | null> => {
@@ -42,8 +51,7 @@ export default defineUiFeature({
       try {
         const workspace = await api.add(picked.path)
         await reload()
-        activeId = workspace.id
-        bump()
+        store.setState({ activeId: workspace.id })
         return workspace
       } catch (e) {
         banners.error(e)
@@ -70,21 +78,10 @@ export default defineUiFeature({
 
     // ── ui-api ────────────────────────────────────────────────────────────
     ctx.services.provide(WorkspacesUiToken, {
-      store: {
-        getState: () => ({ items, activeId }),
-        getInitialState: () => ({ items, activeId }),
-        setState: () => undefined,
-        subscribe: (listener: () => void) => {
-          listeners.add(listener)
-          return () => {
-            listeners.delete(listener)
-          }
-        },
-      } as never,
-      active: () => items.find((w) => w.id === activeId) ?? null,
+      store,
+      active,
       setActive: (id) => {
-        activeId = id
-        bump()
+        store.setState({ activeId: id })
         /* 当前工作区本身**不持久化**，重启后默认取 `list()` 的第一项 = `last_opened_at` 最新的那一条。少了这一步，切换只活在内存里，重启后顺序
          * 没变，屏幕就回到旧的那个工作区（真实故障）。`touch` 不发通知，所以这里不会让列表抖动。 */
         if (id !== null) {
@@ -105,7 +102,7 @@ export default defineUiFeature({
         try {
           await api.remove(id)
           /* 删的是当前项目就回到「还没选」，不替用户挑下一个：入口页会用那条提示挡住发送。 */
-          if (activeId === id) activeId = null
+          if (store.getState().activeId === id) store.setState({ activeId: null })
           await reload()
         } catch (e) {
           banners.error(e)

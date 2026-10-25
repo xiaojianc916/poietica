@@ -1,13 +1,9 @@
-import { createGit } from '@poietica/git'
+import { createGit, parseNulList } from '@poietica/git'
 import type { FilesGit } from './service'
 
 /* git 只用来回答两件事：哪些被忽略、仓库里有哪些文件。不是仓库（128）、没装 git 都按「不知道」处理，树照样能看。 */
 
 const NUL = '\u0000'
-
-function split(stdout: string): string[] {
-  return stdout.split(NUL).filter((item) => item !== '')
-}
 
 export function createFilesGit(onError: (what: string, cause: unknown) => void): FilesGit {
   return {
@@ -19,7 +15,7 @@ export function createFilesGit(onError: (what: string, cause: unknown) => void):
           okExitCodes: [0, 1, 128],
           timeoutMs: 10_000,
         })
-        return result.exitCode === 0 ? new Set(split(result.stdout)) : new Set()
+        return result.exitCode === 0 ? new Set(parseNulList(result.stdout)) : new Set()
       } catch (cause: unknown) {
         onError('check-ignore', cause)
         return new Set()
@@ -35,7 +31,7 @@ export function createFilesGit(onError: (what: string, cause: unknown) => void):
           },
         )
         if (result.exitCode !== 0) return null
-        const files = split(result.stdout)
+        const files = parseNulList(result.stdout)
         /* 输出撞上 process-kit 的上限时最后一条是半截路径，丢掉它。 */
         if (result.stdoutTruncated) files.pop()
         return [...new Set(files)]

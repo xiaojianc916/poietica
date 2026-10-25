@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { ComposerDraft } from '@poietica/feature-conversation/ui-api'
 import type { NavigationService } from '@poietica/ui-kernel'
 import type { PickedElement } from '../../contract'
-import { createPickDelivery, reportName, utf8ToBase64 } from '../pick-delivery'
+import { createPickDelivery, reportBytes, reportName } from '../pick-delivery'
 
 /* 拾取结果 → 输入框：交付只落到交付时的那一个目标（每次交付前现取 activeComposer()，取不到就去入口页再取一次）；附件与文字按浏览器
  * 那一次的用户意图落进草稿（submission==='send' 才提交）；没有目标可去就把结果丢掉并报一次。 */
@@ -40,7 +40,7 @@ function fakeDraft(log: DraftLog): ComposerDraft {
 
 interface Harness {
   readonly log: DraftLog
-  readonly imports: { name: string; mime: string; base64: string }[]
+  readonly imports: { name: string; mime: string; bytes: Uint8Array }[]
   readonly messages: string[]
   delivery: ReturnType<typeof createPickDelivery>
   /** 这一格输入框此刻归谁：切页面就是换一个值。 */
@@ -78,8 +78,8 @@ function harness(): Harness {
   }
 
   state.delivery = createPickDelivery({
-    importData: async (name, mime, base64) => {
-      state.imports.push({ name, mime, base64 })
+    importData: async (name, mime, bytes) => {
+      state.imports.push({ name, mime, bytes })
       return { id: 'att-1', name, kind: 'file', previewUrl: null }
     },
     activeComposer: () => state.composer,
@@ -99,10 +99,10 @@ describe('元素报告 → 附件', () => {
     expect(reportName('  ')).toBe('element.md')
   })
 
-  test('utf8ToBase64 编的还是原来的字节（读回是同一段 Markdown）', () => {
+  test('报告交给附件服务的是 UTF-8 字节', () => {
     const text = '# 报告\n中文'
 
-    expect(new TextDecoder().decode(Uint8Array.from(atob(utf8ToBase64(text)), (c) => c.charCodeAt(0)))).toBe(text)
+    expect(new TextDecoder().decode(reportBytes(text))).toBe(text)
   })
 })
 
@@ -114,7 +114,7 @@ describe('交付', () => {
 
     await h.delivery.deliver(picked())
 
-    expect(h.imports).toEqual([{ name: 'button.md', mime: 'text/markdown', base64: utf8ToBase64('# 报告') }])
+    expect(h.imports).toEqual([{ name: 'button.md', mime: 'text/markdown', bytes: reportBytes('# 报告') }])
     expect(h.log.attachments).toEqual([{ name: 'button.md', kind: 'file' }])
     expect(h.log.texts).toEqual(['inspect'])
     expect(h.log.submits).toBe(1)

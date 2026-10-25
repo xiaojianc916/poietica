@@ -12,10 +12,11 @@ import {
 import { Archive, SquarePen } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { ConversationProviders } from '../composition'
-import { AssistantSurface } from '../home/assistant-surface'
-import { HomeSurface } from '../home/home-surface'
-import { useThreadCommands } from '../session/commands'
+import { AssistantSurface, HomeSurface } from '../home'
 import {
+  ArchivedChatsPage,
+  ConversationAuxiliaryToggle,
+  ConversationTodoToggle,
   effectiveUsage,
   hiddenModelsOf,
   PLAN_CONTROL_ID,
@@ -23,19 +24,21 @@ import {
   postureOfControl,
   sessionConfigControlsOf,
   sessionGoalOf,
+  useThreadCommands,
   withoutHiddenModels,
-} from '../session/configuration/control-shapes'
-import { ConversationAuxiliaryToggle, ConversationTodoToggle } from '../session/conversation-controls'
-import { ArchivedChatsPage } from '../session/settings/archived-page'
+} from '../session'
 import { GOAL_CONTROL_ID, GOAL_DISABLED } from '../shared/model/goal-control'
 import { groupByWorkspace } from '../shared/model/thread-order'
 import type { TimelineState } from '../shared/timeline/timeline-contract'
-import { runGoalAction } from '../status/goal/goal-actions'
-import { useThreadSessionLifecycle } from '../threads/thread-lifecycle'
-import { AssistantThreadList } from '../threads/view/assistant-thread-list'
-import { NewConversationNavRow } from '../threads/view/new-conversation-nav-row'
-import { ARCHIVED_FILTER, type ArchivedFilter } from '../threads/view/thread-view'
-import { openSubagentTab } from '../timeline/view/subagent-dock'
+import { runGoalAction } from '../status'
+import {
+  ARCHIVED_FILTER,
+  type ArchivedFilter,
+  AssistantThreadList,
+  NewConversationNavRow,
+  useThreadSessionLifecycle,
+} from '../threads'
+import { openSubagentTab } from '../timeline'
 import type { ConversationActions } from './actions'
 import type { ConversationSetup } from './context'
 import { useCompletionUnreadIds, useRunningThreadIds } from './use-running-thread-ids'

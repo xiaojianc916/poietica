@@ -1,5 +1,5 @@
 import { builtinPoints, type CommandItem } from '@poietica/ui-kernel'
-import { confirmDeleteThread } from '../session/notify'
+import { confirmDeleteThread } from '../session'
 import type { ConversationActions } from './actions'
 import type { ConversationSetup } from './context'
 

@@ -1,10 +1,8 @@
 import type { UiStateSlot } from '@poietica/feature-preferences/ui-api'
 import { createValue } from '@poietica/ui-kernel'
-import type { Draft } from '../composer/composer-store'
-import { createDraftPin, type DraftPinView } from '../composer/draft-pin'
-import type { ConversationTodoThread } from '../session/conversation-controls'
-import { shouldNotify } from '../session/notify'
-import { leaveForArchive } from '../threads/thread-lifecycle'
+import { createDraftPin, type Draft, type DraftPinView } from '../composer'
+import { type ConversationTodoThread, shouldNotify } from '../session'
+import { leaveForArchive } from '../threads'
 import type { ConversationSetup } from './context'
 
 /** 活动线程、打开 / 导出 / 新建线程、侧栏折叠、归档横幅、通知。 */

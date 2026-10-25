@@ -1,5 +1,7 @@
 import { type Disposable, Emitter } from '@poietica/foundation'
-import { decodeMessage, encodeMessage, isDecodeFailure, type RpcMessage, type Transport } from '@poietica/rpc'
+import { decodeMessage, encodeMessage, isDecodeFailure } from './frame'
+import type { RpcMessage } from './messages'
+import type { Transport } from './transport'
 
 /**
  * 一对互相连接的内存传输。消息经真实的线上编码往返（`encodeMessage` → `decodeMessage`，模拟 stdio 的序列化：

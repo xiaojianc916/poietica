@@ -31,7 +31,7 @@ export async function serve(launchEnv: LaunchEnv): Promise<void> {
   let logLevel = args.logLevel //    级别可在运行时由 diagnostics.setLogLevel 调整
   //    Core 自己写 logs/core.log（按批落盘、error 当场落盘）：不再把每条日志序列化到 stderr、让 Host 在 Electron
   //    主线程上逐行解析再写一遍。stderr 只剩意外输出，Host 记进 main.log（host-kernel/src/core-output.ts）。
-  const coreLog = jsonlFileSink({ file: layout.coreLog, maxBytes: 5 * 1024 * 1024, keep: 3 })
+  const coreLog = jsonlFileSink({ file: layout.coreLog })
   process.on('exit', () => coreLog.close())
   const logger = createLogger({ level: () => logLevel, sinks: [coreLog], base: { proc: 'core' } })
   if (scrubbed.length > 0) logger.info('scrubbed injected env', { keys: scrubbed })

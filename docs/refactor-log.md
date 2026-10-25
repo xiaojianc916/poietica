@@ -106,6 +106,13 @@
 
 | R-54 | **发布链只有本机一条，删掉复活的 `.github/workflows/release.yml`**。`4e8a9776`（回归本机发布）删过这条 tag 触发的 CI 发版链，`baa8668f`（架构重写）把旧版 74 行副本又加了回来，于是每个 tag 都在跑一条按设计必挂的流水线：electron ≥42 的 npm 包已无 `postinstall`（41.0.0 还有，42.0.0 起消失），`bun install` 不再下载二进制，而 `electron-builder.yml` 的 `electronDist` 钉在 `node_modules/electron/dist` → `The specified electronDist does not exist`；`--notes-file docs/release-notes/$version.md` 指向 `3d224544` 整个删掉的目录；`gh release create` 还与本机链抢同一个 tag。仓库历史上 Release 工作流 92 次运行 0 次成功，真正的 release 都带 `SHA256SUMS.txt`（只有 `tooling/release/latest-json.ts` 产它，工作流从不产）。同批把 `release.ts` 的 `git push --follow-tags` 改成显式 `refs/tags/<本次 tag>`：`--follow-tags` 会把本地所有注解 tag 一起推，历史回滚掉、远端本不存在的 `v0.2.10` / `v0.2.11` 因此每次发布都被复活到远端（10:47:37Z 三个 run 同一秒就是这么来的） | 用户 2026-10-24：「github上面的ci/cd是红的，你修复一下」。实测 `gh run list --workflow=Release` 92 failure / 0 success；本地以 `git push --follow-tags` 复现「把 v0.2.10 一并推出」 |
 
+### 内聚与边界审计（2026-10-25）
+
+- **跨功能调用走已有服务**：browser 拾取交付改用 `AttachmentsUiToken`，不再绕过它编码并直调 attachments RPC；intelligent-ui 经 platform 选保存路径，Host 只写 HTML（协议 49）。系统对话框仍归 platform，不把系统能力复制进插件。
+- **conversation 的 setup 也受区域边界约束**：组合根只经各区 `index` 取公开项，闸门补进 setup；shared 的相对导入按解析后的落点检查，留在 shared 内的 `../timeline` 合法，真正越出 shared 才拒绝。
+- **状态与工具各有唯一主人**：workspaces 用真实功能 store 替换闭包与伪造 StoreApi；`transportPair` 归 `@poietica/rpc/testing`，test-kit 不再反向依赖 rpc；usage 删除无人调用的重复读取方法，files 复用 git 的 NUL 列表解析。
+- **本轮不做**：不合并功能包、不改 Host 内核产品装配、不合并三个资源处理器。后两者的路径授权、MIME、缓存策略不同，强行抽公共大接口会掩盖真正差异。
+
 ### omp 18.12.6 升级核对（2026-10-24）
 
 四个 `@oh-my-pi/*` 从 18.10.3 升到 18.12.6。按 AGENTS §11 逐项对照真包源码核对「omp 知识 #1–#22」，结论：

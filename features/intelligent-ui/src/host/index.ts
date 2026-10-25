@@ -1,18 +1,17 @@
 import { writeFile } from 'node:fs/promises'
-import path from 'node:path'
 import { AppError } from '@poietica/foundation'
 import { defineHostModule } from '@poietica/host-kernel'
-import { app, ClipboardItem, clipboard, dialog } from 'electron'
+import { ClipboardItem, clipboard } from 'electron'
 import { INTELLIGENT_UI_ASSET_HOST, intelligentUiContract, intelligentUiErrors } from '../contract'
 import { captureRectOf, clipboardFailureOf } from './capture'
-import { exportFileNameOf, standaloneHtml } from './export'
+import { standaloneHtml } from './export'
 import { createShellHandler } from './shell'
 
 /*
  * intelligent-ui 的 Host 半边：
  * - 资源协议 poietica-asset://intelligent-ui/…：外壳文档与随包库（shell.ts）；
  * - 「复制为图片」：截主窗口里界面那一块（capture.ts）—— 跨源 iframe 的像素只有 Host 拿得到；
- * - 「导出 HTML」：保存对话框 + 写一个独立文件（export.ts）。
+ * - 「导出 HTML」：把 UI 经 platform 选好的路径写成一个独立文件（export.ts）。
  */
 export default defineHostModule({
   id: 'intelligent-ui',
@@ -40,12 +39,7 @@ export default defineHostModule({
     })
 
     ctx.rpc.handle('intelligentUi.exportHtml', async (params) => {
-      const result = await dialog.showSaveDialog(ctx.windows.main(), {
-        defaultPath: path.join(app.getPath('downloads'), exportFileNameOf(params.title)),
-        filters: [{ name: 'HTML', extensions: ['html'] }],
-      })
-      if (result.canceled || result.filePath === undefined || result.filePath === '') return { path: null }
-      const filePath = result.filePath
+      const filePath = params.path
       try {
         await writeFile(filePath, standaloneHtml(params), 'utf8')
       } catch (cause) {

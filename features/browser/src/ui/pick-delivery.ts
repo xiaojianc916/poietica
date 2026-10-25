@@ -3,7 +3,7 @@ import type { NavigationService } from '@poietica/ui-kernel'
 import type { PickedElement } from '../contract'
 import type { BrowserApi } from './api'
 
-/* 拾取结果 → 输入框。落点：attachments.importData → 附件（报告正文就是 Markdown）、
+/* 拾取结果 → 输入框。落点：AttachmentsUiToken.importData → 附件（报告正文就是 Markdown）、
  * ConversationUiToken.activeComposer() → 当前输入框、navigation.navigate('conversation.home') → 没有
  * 输入框时先回入口页。两条保护：交付前确认「当前输入框」还在，一次拾取只产生一条提示词。 */
 
@@ -11,15 +11,15 @@ export interface PickDeliveryDeps {
   readonly importData: (
     name: string,
     mime: string,
-    base64: string,
+    bytes: Uint8Array,
   ) => Promise<{ id: string; name: string; kind: 'image' | 'file'; previewUrl: string | null }>
   readonly activeComposer: () => ComposerDraft | null
   readonly navigation: NavigationService
   readonly report: (message: string, cause?: unknown) => void
 }
 
-export function utf8ToBase64(text: string): string {
-  return new TextEncoder().encode(text).toBase64()
+export function reportBytes(text: string): Uint8Array {
+  return new TextEncoder().encode(text)
 }
 
 export function reportName(elementType: string): string {
@@ -35,7 +35,7 @@ export function createPickDelivery(deps: PickDeliveryDeps) {
         const attachment = await deps.importData(
           reportName(picked.elementType),
           'text/markdown',
-          utf8ToBase64(picked.report),
+          reportBytes(picked.report),
         )
 
         let draft = deps.activeComposer()

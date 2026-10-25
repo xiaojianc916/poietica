@@ -5,14 +5,12 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./stdio": "./src/stdio.ts"
+    "./stdio": "./src/stdio.ts",
+    "./testing": "./src/testing.ts"
   },
   "dependencies": {
     "@poietica/contract-kit": "workspace:*",
     "@poietica/foundation": "workspace:*",
     "zod": "catalog:"
-  },
-  "devDependencies": {
-    "@poietica/test-kit": "workspace:*"
   }
 }
