@@ -15,8 +15,8 @@ import { INTELLIGENT_UI_LIBRARIES, type IntelligentUiLibrary } from '../contract
  */
 const TEXTS: Readonly<Record<string, string>> = {
   'd3-7.9.0.min.js': d3,
-  'chart.js-4.5.1.umd.min.js': chartJs,
-  'lucide-1.59.0.min.js': lucide,
+  'chart.js-4.6.1.umd.min.js': chartJs,
+  'lucide-1.61.0.min.js': lucide,
 }
 
 function withoutSourceMap(text: string): string {

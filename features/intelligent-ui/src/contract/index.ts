@@ -62,19 +62,19 @@ export const INTELLIGENT_UI_LIBRARIES: readonly IntelligentUiLibrary[] = [
   { name: 'd3', version: '7.9.0', file: 'dist/d3.min.js', global: 'd3', license: 'ISC', asset: 'd3-7.9.0.min.js' },
   {
     name: 'chart.js',
-    version: '4.5.1',
+    version: '4.6.1',
     file: 'dist/chart.umd.min.js',
     global: 'Chart',
     license: 'MIT',
-    asset: 'chart.js-4.5.1.umd.min.js',
+    asset: 'chart.js-4.6.1.umd.min.js',
   },
   {
     name: 'lucide',
-    version: '1.59.0',
+    version: '1.61.0',
     file: 'dist/umd/lucide.min.js',
     global: 'lucide',
     license: 'ISC',
-    asset: 'lucide-1.59.0.min.js',
+    asset: 'lucide-1.61.0.min.js',
   },
 ]
 

@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@lydell/node-pty": "catalog:",
-    "electron-updater": "^6.8.9"
+    "electron-updater": "^6.8.11"
   },
   "devDependencies": {
     "@poietica/app-core": "workspace:*",

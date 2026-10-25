@@ -71,7 +71,7 @@ describe('随包库', () => {
       'https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js',
       'https://unpkg.com/d3@7.9.0/dist/d3.min.js',
     ])
-    const html = `<script src="https://unpkg.com/chart.js@4.5.1/dist/chart.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>`
+    const html = `<script src="https://unpkg.com/chart.js@4.6.1/dist/chart.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>`
     expect(librariesUsedBy(html, intelligentUiLibraryUrls).map((library) => library.name)).toEqual(['chart.js'])
   })
 
