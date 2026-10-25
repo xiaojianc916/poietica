@@ -8,11 +8,11 @@ export function BrowserTabIcon({ tab }: { readonly tab: BrowserTab }) {
   const [broken, setBroken] = useState<string | null>(null)
 
   if (tab.loading) {
-    return <LoaderCircle aria-hidden className=" animate-spin opacity-60" />
+    return <LoaderCircle aria-hidden className="animate-spin" />
   }
 
   if (tab.favicon === null || tab.favicon === broken) {
-    return <Globe aria-hidden className=" opacity-60" />
+    return <Globe aria-hidden />
   }
 
   return (

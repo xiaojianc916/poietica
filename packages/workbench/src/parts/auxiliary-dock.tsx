@@ -294,7 +294,7 @@ function SurfaceDock({
           kind: c.item.id,
           label: c.item.title,
           description: c.item.description ?? '',
-          icon: <c.item.icon aria-hidden className="size-3.5 shrink-0 opacity-60" />,
+          icon: <c.item.icon aria-hidden className="size-3.5 shrink-0" />,
         })),
     [panels],
   )
@@ -341,7 +341,7 @@ function SurfaceDock({
         key: `pane:${paneId}`,
         domId: auxiliaryPaneTabId(paneId),
         title: contribution.item.title,
-        icon: <contribution.item.icon aria-hidden className="size-3.5 shrink-0 opacity-60" />,
+        icon: <contribution.item.icon aria-hidden className="size-3.5 shrink-0" />,
         active: shownId === paneId,
         onSelect: () => {
           if (front !== null) {

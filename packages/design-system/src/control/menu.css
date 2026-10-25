@@ -72,13 +72,11 @@
 }
 
 /*
- * 图标不跟正文同色，走 --ui-popup-icon（正本 --dsw-alias-menu-icon，比正文浅一档）。
- * 危险行例外：整行已经是红的，图标跟着行走（正本用 data-variant=destructive 覆盖一次）。
- *
- * 这条比上面两条多一档 :not，放在后面让特异级别一路向上，不出现倒挂。
+ * 行首图标跟随行字同色（currentcolor）：一行里图标与文字同一档墨色 —— 正本这里比正文浅一档，本仓不跟。
+ * 危险行不用例外，currentcolor 自然跟着 text-destructive 走。
  */
-.ds-menu-item:not(.ds-menu-item-danger) > svg {
-  color: var(--ui-popup-icon);
+.ds-menu-item > svg {
+  color: currentcolor;
 }
 
 /*
