@@ -2,7 +2,7 @@ import type { RetryNotice, RetryNoticeState } from '@poietica/transcript'
 
 /*
  * 自动重试那一格的文字（omp 的 auto_retry_start / auto_retry_end）。报错原文照抄给展开那一面看，
- * 只有 omp 自己拼出来的那两句（取消、等待超过上限）认得，换成中文；判据是 omp 18.10.3 turn-recovery 的原句。
+ * 只有 omp 自己拼出来的那两句（取消、等待超过上限）认得，换成中文；判据是 omp 18.12.6 turn-recovery 的原句。
  */
 
 /** 人按了停止：omp 收口时 finalError 写的就是这一句 */

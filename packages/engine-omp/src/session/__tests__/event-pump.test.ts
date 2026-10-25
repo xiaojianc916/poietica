@@ -437,6 +437,79 @@ describe('omp 事件泵（R-02 §4）', () => {
     expectNoReset(f.events)
   })
 
+  /*
+   * omp 的 agent_end 带 isTerminal / awaitingAsyncWork（18.12.6 在这里修了「Esc 停止后后台作业结束
+   * 让 agent 自己重启」）。非终态的 settle 是**排程暂停**，不是这一轮结束：retry / compaction continuation /
+   * stop-time reminders / queued input 之后还有东西要跑。此时收轮会让下一段输出落进一个关掉的轮。
+   *
+   * awaitingAsyncWork 那一档也一样：omp 只把标题置 idle，run 还等后台作业的结果；看门狗会等作业真的排干净再收轮。
+   */
+  test('E11 非终态 agent_end 不收轮：仍 running、开着的轮不封口；随后终态才 idle', async () => {
+    const f = await fixture()
+    await f.session.submit(submit('第一句'))
+    f.feed({ type: 'agent_end', isTerminal: false })
+
+    expect(f.session.state()).toBe('running')
+    expect(closedTurnsOf(opsOf(f.events))).toHaveLength(0)
+    expect(turnsOf(opsOf(f.events)).filter((turn) => turn.turn.state === 'running')).toHaveLength(1)
+    /* 读数与异常账仍要跟上：不收轮不等于把这一段的账漏掉 */
+    expect(f.events.some((event) => event.type === 'contextUsage')).toBe(true)
+
+    f.feed({ type: 'agent_end' })
+
+    expect(f.session.state()).toBe('idle')
+    expect(closedTurnsOf(opsOf(f.events))).toHaveLength(1)
+    expectNoReset(f.events)
+  })
+
+  test('E12 非终态但 awaitingAsyncWork：仍属同一个 run，等后台活排干净才收轮', async () => {
+    const f = await fixture()
+    await f.session.submit(submit('第一句'))
+    f.feed({ type: 'agent_end', isTerminal: false, awaitingAsyncWork: true })
+
+    /* omp 的 event-controller 对 awaitingAsyncWork 也只把标题置 idle，run 本身没结束 —— 不能在这里提前收轮 */
+    expect(f.session.state()).toBe('running')
+    expect(closedTurnsOf(opsOf(f.events))).toHaveLength(0)
+
+    /* 夹具没有后台活：看门狗下一拍就发现会话已静，按终态收 */
+    await Bun.sleep(0)
+    expect(f.session.state()).toBe('idle')
+    expect(closedTurnsOf(opsOf(f.events))).toHaveLength(1)
+    expectNoReset(f.events)
+  })
+
+  /*
+   * 终态 agent_end 不保证会来：abort 会把排好的重试 / 压缩续跑取消在 agent_start 之前，后台作业也可能被
+   * 取消到不投递唤醒。omp 自己的 TUI 因此给非终态 settle 挂一条看门狗（`#finishWhenRunSettles`）；这里照抄
+   * 同一套判据 —— 会话真的静下来就收轮，否则界面永远停在 running。
+   */
+  test('E13 非终态之后终态一直不来：等会话静下来由看门狗收轮', async () => {
+    const f = await fixture()
+    await f.session.submit(submit('第一句'))
+    f.feed({ type: 'agent_end', isTerminal: false })
+    expect(f.session.state()).toBe('running')
+
+    /* 夹具的 waitForIdle 立刻返回、没有后台活 / 队列 / admitted 提交 → 看门狗应当收轮 */
+    await Bun.sleep(0)
+
+    expect(f.session.state()).toBe('idle')
+    expect(closedTurnsOf(opsOf(f.events))).toHaveLength(1)
+    expectNoReset(f.events)
+  })
+
+  test('E14 非终态之后新一轮开跑：晚到的看门狗不能把新一轮收掉', async () => {
+    const f = await fixture()
+    await f.session.submit(submit('第一句'))
+    f.feed({ type: 'agent_end', isTerminal: false })
+    /* 排程续跑 / 排队输入真的开跑：换代。之后看门狗醒来必须发现换代并放手 */
+    f.feed({ type: 'agent_start' })
+    await Bun.sleep(0)
+
+    expect(f.session.state()).toBe('running')
+    expect(closedTurnsOf(opsOf(f.events))).toHaveLength(0)
+    expectNoReset(f.events)
+  })
+
   test('E10 重复的 agent_end：state idle 与轮终帧都只发一次', async () => {
     const f = await fixture()
     f.lastAssistant({ stopReason: 'error', errorMessage: '模型出错' })

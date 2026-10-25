@@ -4,6 +4,7 @@ import type { LocalProtocolOptions } from '@oh-my-pi/pi-coding-agent/internal-ur
 import { RpcBtwController } from '@oh-my-pi/pi-coding-agent/modes/rpc/rpc-btw'
 import type { RpcGoalSession } from '@oh-my-pi/pi-coding-agent/modes/rpc/rpc-goal'
 import { computeSessionContextBreakdown } from '@oh-my-pi/pi-coding-agent/session/context-usage-runtime'
+import type { TranscriptSessionContextOptions } from '@oh-my-pi/pi-coding-agent/session/session-context'
 import {
   TASK_SUBAGENT_LIFECYCLE_CHANNEL,
   TASK_SUBAGENT_PROGRESS_CHANNEL,
@@ -77,10 +78,9 @@ interface OmpAgentSessionLike {
    * omp 的显示经过（TUI 重画对话用的同一个入口）。collapseCompactedHistory:false = 压缩不抹掉前文，
    * 每次压缩在它发生的位置留一条 compactionSummary。
    */
-  buildTranscriptSessionContext?(options?: {
-    readonly collapseCompactedHistory?: boolean
-    readonly keepDanglingToolCalls?: boolean
-  }): { readonly messages: readonly OmpMessage[] }
+  buildTranscriptSessionContext?(options?: TranscriptSessionContextOptions): {
+    readonly messages: readonly OmpMessage[]
+  }
   /**
    * **不要在 AgentSession 上直接读 artifactsDir / cwd** —— 真实形状里只有 sessionManager：读出来恒是
    * undefined，`local://` 会退到 `os.tmpdir()`，artifacts 里的计划一份也解不出来。
@@ -149,6 +149,16 @@ interface OmpAgentSessionLike {
     dropGoal(): Promise<unknown>
   }
   readonly isStreaming?: boolean
+  /**
+   * 非终态 settle 的收尾判据（omp 的 `#finishWhenRunSettles` 读同一组格）：排程中的续跑 / 后台作业 /
+   * 队列里还没被读走的输入都还可能在下一步把会话唤醒；全静下来才轮到我们收轮。
+   */
+  waitForIdle?(): Promise<void>
+  hasPendingAsyncWork?(): boolean
+  settleAsyncWork?(): Promise<void>
+  readonly hasPostPromptWork?: boolean
+  readonly hasAdmittedSubmission?: boolean
+  readonly queuedMessageCount?: number
   /* 命令表变化（插件装卸、技能 / 命令目录重扫、MCP 提示词上线）；RPC / ACP 宿主靠它重发命令表 */
   subscribeCommandMetadataChanged?(listener: () => void): () => void
   sendPlanModeContext?(options?: { deliverAs?: 'steer' | 'followUp' | 'nextTurn' | 'aside' }): Promise<void>
@@ -221,7 +231,7 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
       ? session.messages
       : session.buildTranscriptSessionContext({
           collapseCompactedHistory: false,
-          keepDanglingToolCalls: projector.isTurnOpen,
+          keepInFlightToolCalls: projector.isTurnOpen,
         }).messages
   // 重开会话：累加器要摆到屏幕上已有的位置，否则第一句话会盖掉已有的轮
   projector.seat(lastTurnOrdinal(transcriptOf()))
@@ -246,6 +256,47 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
     return toContextUsage(session.getContextUsage(), breakdown, stats)
   }
 
+  /*
+   * 非终态 `agent_end` 的收尾看门狗：omp 的 `isTerminal: false` 是排程暂停，真正的终态 settle 不保证会来
+   * （abort 能把排好的重试 / 压缩续跑取消在 agent_start 之前）。判据照 omp 自己的 `#finishWhenRunSettles`：
+   * 等 `waitForIdle`，只要还有后台活就 `settleAsyncWork` 等它排干净；最后要么新一轮已经开跑（换代作废），
+   * 要么会话真的静下来（排队为空、没有 admitted 提交、没有 post-prompt 活）—— 那一刻才按终态收轮。
+   */
+  let settleWatchGeneration = 0
+  /** 会话此刻是否真的静下来（omp 的 `isRpcSessionSettled` 同一组判据） */
+  const isQuiet = (): boolean =>
+    session.hasPendingAsyncWork?.() !== true &&
+    session.hasPostPromptWork !== true &&
+    session.hasAdmittedSubmission !== true &&
+    (session.queuedMessageCount ?? 0) === 0
+  /** 等排程中的后台活排干净；返回 false = 换代或会话已关，别再往下走 */
+  const drainAsyncWork = async (generation: number): Promise<boolean> => {
+    while (!closed && settleWatchGeneration === generation && session.hasPendingAsyncWork?.() === true) {
+      const settle = session.settleAsyncWork
+      if (settle === undefined) return false
+      await settle.call(session)
+    }
+    return !closed && settleWatchGeneration === generation
+  }
+  const settleWatch: SettleWatch = {
+    runStarted() {
+      settleWatchGeneration += 1
+    },
+    watch() {
+      const generation = settleWatchGeneration
+      void (async (): Promise<void> => {
+        /* 排程续跑 / 队列输入会在下一拍自己开跑；waitForIdle 之后再看还静不静 */
+        await session.waitForIdle?.()
+        if (!(await drainAsyncWork(generation))) return
+        await session.waitForIdle?.()
+        /* 还有东西要跑（队列 / admitted 提交 / post-prompt 活）：留给它自己的终态 agent_end */
+        if (!isQuiet()) return
+        settleTerminalTurn(pump)
+      })().catch((error: unknown) => {
+        input.logger.warn('non-terminal settle teardown failed', { error: describeError(error) })
+      })
+    },
+  }
   const ui = createUiContext(broker, { grantTool: (tool) => grantToolForSession(input.settings, tool) })
   /* 计划模式控制器：持「进模式前那份工具集」，装 omp 要的 PlanProposalHandler 把 `xd://propose` 问成卡片 */
   const planner = createPlanner({
@@ -432,6 +483,7 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
     latestCompaction: () => latestCompactionOf(transcriptOf()),
     logger: input.logger,
     streamsInput: (toolName) => input.tools.get(toolName)?.streamInput === true,
+    settleWatch,
     afterEvent: (type) => {
       /*
        * 待办与后台作业都没有自己的增量事件：todo 工具在 execute 里直接改 omp 的 phases，后台作业在
@@ -473,6 +525,8 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
   const subscriptions = [
     toSub(() => {
       closed = true
+      /* 会话关掉之后晚到的看门狗不许再碰它（omp 的 dispose 会解掉订阅，但看门狗自己的 await 可能已经在路上） */
+      settleWatchGeneration += 1
       if (jobTimer !== null) clearTimeout(jobTimer)
       jobTimer = null
     }),
@@ -885,6 +939,15 @@ interface EventPump {
   readonly afterEvent: (type: string) => void
   /** 这个工具要不要参数流式上屏（EngineToolSpec.streamInput） */
   readonly streamsInput: (toolName: string) => boolean
+  /** 非终态 `agent_end` 的收尾看门狗（omp 的 `#finishWhenRunSettles` 同一套判据） */
+  readonly settleWatch: SettleWatch
+}
+
+interface SettleWatch {
+  /** 新一轮真的开跑：之前那条看门狗作废，不能把新一轮收掉 */
+  runStarted(): void
+  /** 收到 `isTerminal === false` 的 `agent_end`：等排程 / 后台活真的没了，再决定收不收轮 */
+  watch(): void
 }
 
 const TOOL_EVENTS = new Set(['tool_execution_start', 'tool_execution_update', 'tool_execution_end'])
@@ -894,7 +957,7 @@ function noticeLevelOf(value: unknown): 'error' | 'warning' | 'info' {
   return value === 'error' || value === 'warning' ? value : 'info'
 }
 
-/** 一条事件的翻译：只做事、不管异常，抛出去交给 `handleOmpEvent` 处置。`agent_end` 是收尾类，走 `endTurn` */
+/** 一条事件的翻译：只做事、不管异常，抛出去交给 `handleOmpEvent` 处置。`agent_end` 是收尾类，走 `settleAgentEnd` */
 function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void {
   const { session, projector } = pump
   switch (event.type) {
@@ -1054,9 +1117,10 @@ function contentBlockOf(message: unknown, index: unknown): unknown {
 /** 事件泵分流：分类只看 `event.type` 字符串，`agent_end` 特判，工具类失败就地降级那一格，其余只记日志 */
 function handleOmpEvent(event: Record<string, unknown>, pump: EventPump): void {
   const eventType = typeof event.type === 'string' ? event.type : 'unknown'
+  if (eventType === 'agent_start') pump.settleWatch.runStarted()
   /* 目标控制器**先**看这一条（omp 的 RPC 宿主同一个次序）：agent_end 时它要先决定续不续跑 */
   guarded(pump, `${eventType}.goal`, () => pump.goal.observe(event))
-  if (eventType === 'agent_end') endTurn(pump)
+  if (eventType === 'agent_end') settleAgentEnd(event, pump)
   else {
     try {
       dispatchOmpEvent(event, pump)
@@ -1094,13 +1158,40 @@ function degradeTool(eventType: string, event: Record<string, unknown>, toolCall
   }
 }
 
-/** `agent_end`：收口与上下文读数各自兜住，互不连累；最后结清这一轮的异常账 */
-function endTurn(pump: EventPump): void {
+/**
+ * `agent_end` 的两种结局。
+ *
+ * omp 从 18.10 起在 `agent_end` 上带 `isTerminal` / `awaitingAsyncWork`。`isTerminal === false` 有两种：
+ * - `awaitingAsyncWork === true`：模型把控制权交回，只等后台作业的结果；
+ * - 其余：排程暂停 —— retry / compaction continuation / stop-time reminders / queued input 之后还有东西要跑。
+ *
+ * 两种都是**同一个 run 还没结束**（omp 的 TUI 对两者都不做收尾），后续内容属于开着的那一轮。所以此时不收轮，
+ * 只结清这一段的读数与异常账；收不收由看门狗决定 —— 它等排程 / 后台活真的没了才按终态收，或等新一轮的
+ * `agent_start` 把自己作废。终态 `agent_end` 并不保证会来（abort 能把排好的重试 / 压缩续跑取消在开跑之前）。
+ */
+function settleAgentEnd(event: Record<string, unknown>, pump: EventPump): void {
+  if (event.isTerminal === false) {
+    settleTurnBooks(pump)
+    pump.settleWatch.watch()
+    return
+  }
+  settleTerminalTurn(pump)
+}
+
+/** 终态 `agent_end`（含 awaitingAsyncWork 这一档）：收轮，并作废可能还在等的看门狗 */
+function settleTerminalTurn(pump: EventPump): void {
+  /* 先换代：晚到的看门狗不能把下一轮收掉 */
+  pump.settleWatch.runStarted()
   try {
     pump.session.finishTurn()
   } catch (error) {
     pump.faults.report('agent_end', error)
   }
+  settleTurnBooks(pump)
+}
+
+/** 轮终/暂停点共用的账：上下文读数各自兜住，最后结清这一段的异常账；两段互不连累 */
+function settleTurnBooks(pump: EventPump): void {
   try {
     /* 轮终再报一次：收尾（压缩标记、最后一条消息之后的变动）也要落到读数里 */
     pump.session.reportContextUsage()

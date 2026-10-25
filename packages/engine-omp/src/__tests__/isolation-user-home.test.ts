@@ -30,6 +30,12 @@ describe('T-ISO-5：假用户目录', () => {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: {
         ...process.env,
+        /*
+         * 18.12.6 起 pi-utils 的 getLogsDir() 在 PI_TEST_RUNTIME=1 时返回 <tmpdir>/omp-test-logs-<uid>，
+         * 那是隔离根之外的路径；本夹具模拟的是**生产启动**，不能带着测试进程的标记进去。
+         * 生产 Core 的启动环境本来就会把 PI_* 全部剔除（runtime-layout 的 core-launch），这里显式对齐。
+         */
+        PI_TEST_RUNTIME: '0',
         USERPROFILE: fakeHome,
         HOME: fakeHome,
         POIETICA_TEST_ROOT: dataRoot,

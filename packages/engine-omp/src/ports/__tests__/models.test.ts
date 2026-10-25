@@ -427,6 +427,8 @@ describe('ModelsPort', () => {
     expect((await fallbackOf('smol'))?.kind).toBe('auto')
     expect(await fallbackOf('tiny')).toEqual({ kind: 'role', role: 'smol' })
     expect(await fallbackOf('memory')).toEqual({ kind: 'role', role: 'tiny' })
+    /* widget（后台作业小组件规格的作者）在 18.12.6 里与 smol 完全同路，没配时也跟 smol */
+    expect(await fallbackOf('widget')).toEqual({ kind: 'role', role: 'smol' })
     expect(await fallbackOf('task')).toEqual({ kind: 'conversation' })
     expect(await fallbackOf('plan')).toEqual({ kind: 'conversation' })
     /* 没有图像模型：候选为空，自动也挑不出 */

@@ -420,8 +420,6 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   'commands.enableOpencodeProject': 'OpenCode 项目命令',
 
   'providers.maxInFlightRequests': '最大并发请求数',
-  'providers.openai-codex.codeMode': 'Codex 代码模式',
-  'providers.openai-codex.codeModeDirectTools': 'Codex 代码模式直连工具',
   'secrets.enabled': '隐藏密钥',
   'providers.ollama-cloud.maxConcurrency': 'Ollama Cloud 最大并发数',
   'providers.webSearchTimeoutSeconds': '网页搜索超时',
@@ -762,10 +760,6 @@ export const SETTING_DESCRIPTIONS: Readonly<Record<string, string>> = {
 
   'providers.maxInFlightRequests':
     '每个供应商 id（例如 "openai" 或 "anthropic"）的最大并发 LLM 请求数，在共用同一配置根的所有本地 OMP 进程间共享。未列出的供应商不限并发。',
-  'providers.openai-codex.codeMode':
-    '让 Codex code_mode_only 模型（GPT-5.6）经 eval 运行。直连工具是 eval、ask、todo、yield、think、checkpoint 与 rewind；其余会话工具请用 eval cell。对应 codex-rs 的 Code Mode。auto 跟随模型目录里的标记。',
-  'providers.openai-codex.codeModeDirectTools':
-    'Codex Code Mode 的额外直连工具。标准直连工具是 eval、ask、todo、yield、think、checkpoint 与 rewind。',
   'secrets.enabled': '把已配置的密钥混淆，并对凭据形态的 token 做脱敏，然后再发给 AI 供应商',
   'providers.ollama-cloud.maxConcurrency': '每个进程内 Ollama Cloud 子代理运行的最大并发数；0 关闭这项供应商专属限制',
   'providers.webSearchTimeoutSeconds': '各供应商搜索传输的硬性超时秒数，超时后 web_search 改用下一个回退（上限 300）',
@@ -1075,6 +1069,12 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   modelRoleStorage: {
     global: '全局',
     project: '按项目',
+  },
+  'tools.approvalMode': {
+    'always-ask': '每次都问',
+    'always-ask-cached': '询问并记住',
+    write: '自动写',
+    yolo: '全部放行',
   },
   'title.generator': {
     fork: '分叉（对话自己的模型）',

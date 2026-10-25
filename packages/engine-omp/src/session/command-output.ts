@@ -5,7 +5,7 @@ import type { CommandOutputTone } from '@poietica/engine'
  *   - 结果已经在界面上别处体现（时间线的压缩行、标题、模型胶囊、重试那一轮）→ null，不再推一条重复说；
  *   - 认得的句子 → 中文 + 成功 / 提示 / 警告 / 错误；
  *   - 认不出的（omp 新加的、报表类输出）→ 原样交回、按「提示」，宁可是英文也不吞掉。
- * 判据是 omp 的原句（builtin-lifecycle.ts / builtin-modes.ts / builtin-collaboration.ts / shake-types.ts，18.10.3）；
+ * 判据是 omp 的原句（builtin-lifecycle.ts / builtin-modes.ts / builtin-collaboration.ts / shake-types.ts，18.12.6）；
  * omp 改了措辞，这里退回原样推、按提示，不会把一次失败说成成功。
  */
 

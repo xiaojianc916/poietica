@@ -1,5 +1,7 @@
 import type {
   AutocompleteProviderFactory,
+  ExtensionApprovalAnswer,
+  ExtensionApprovalPrompt,
   ExtensionAskDialogQuestion,
   ExtensionAskDialogResult,
   ExtensionCustomOptions,
@@ -26,7 +28,15 @@ import {
   type Theme,
 } from '@oh-my-pi/pi-tui/theme'
 import type { InteractionAnswer } from '@poietica/engine'
-import { approvalGrantsSession, approvalInteraction, approvalLabelOf, approvalOf } from './approval'
+import {
+  type ApprovalPrompt,
+  approvalDetailOf,
+  approvalGrantsSession,
+  approvalInteraction,
+  approvalLabelOf,
+  approvalOf,
+  approvalToolOf,
+} from './approval'
 import type { AskOptions, InteractionBroker } from './broker'
 import { askQuestionsOf, askResultOf, questionInteraction } from './questions'
 
@@ -95,13 +105,51 @@ class OmpUiContext implements ExtensionUIContext {
         (answer) => {
           // 批准并选了「本次会话都放行」：把这一格写进会话设置；答复照旧是那颗按钮的字面量
           if (approvalGrantsSession(answer)) this.hooks.grantTool?.(approval.tool)
-          return approvalLabelOf(answer)
+          return approvalLabelOf(answer, approval)
         },
         askOptions(dialogOptions),
       )
     }
 
     return await this.broker.ask({ kind: 'select', title, options: labels }, selectValueOf, askOptions(dialogOptions))
+  }
+
+  /**
+   * 18.11.3 起的正式授权入口。prompt.full 的第一行就是 `Allow tool: <name>`，与 select 回退那条同一个产地
+   * （tools/approval.ts 的 requestApproval），所以工具名与细节复用同一组解析。
+   *
+   * 答复只走 once / session / deny 三档：
+   * - approve + session → `"session"`（并写会话 overlay，与本产品「本次会话都放行」同义）；
+   * - approve → `"once"`；
+   * - 拒绝、超时、中止 → `"deny"`（fail closed）。
+   *
+   * prompt.grants（always-ask-cached 的文件/目录长期授权）**刻意忽略**：端口的 InteractionAnswer.scope 只有
+   * once|session，表达不了 `{ grant, always }`。omp 文档允许宿主不渲染 grants、只答 once/session/deny；
+   * 伪造一个我们记不住的 grant 会让上游以为「以后都免问」，而实际下一次仍会再问。
+   */
+  async approve(
+    prompt: ExtensionApprovalPrompt,
+    dialogOptions?: ExtensionUIDialogOptions,
+  ): Promise<ExtensionApprovalAnswer> {
+    const tool = approvalToolOf(prompt.full)
+    if (tool === null) return 'deny'
+    const parsed: ApprovalPrompt = {
+      tool,
+      detail: approvalDetailOf(prompt.full),
+      onceLabel: 'Approve',
+      sessionLabel: prompt.session ?? null,
+    }
+    const answer = await this.broker.ask(
+      /* 产品这颗「本次会话都放行」只在 omp 明确给了 session 档时画：多画一颗上游不认的按钮就是撒谎 */
+      approvalInteraction(parsed, { allowSessionScope: parsed.sessionLabel !== null }),
+      (held) => {
+        if (approvalGrantsSession(held)) this.hooks.grantTool?.(parsed.tool)
+        return held
+      },
+      askOptions(dialogOptions),
+    )
+    if (answer.kind !== 'approval' || answer.decision !== 'approve') return 'deny'
+    return answer.scope === 'session' && parsed.sessionLabel !== null ? 'session' : 'once'
   }
 
   async confirm(title: string, message: string, dialogOptions?: ExtensionUIDialogOptions): Promise<boolean> {
@@ -204,6 +252,11 @@ class OmpUiContext implements ExtensionUIContext {
   setEditorComponent(
     _factory: ((tui: TUI, theme: EditorTheme, keybindings: KeybindingsManager) => CustomEditor) | undefined,
   ): void {}
+
+  /** 没有输入编辑器：omp 的 headless 模式同样返回 undefined（extensions/runner.ts:480） */
+  getEditorComponent(): ((tui: TUI, theme: EditorTheme, keybindings: KeybindingsManager) => CustomEditor) | undefined {
+    return undefined
+  }
 
   /** 主题是全局单例：委托 @oh-my-pi/pi-tui/theme，自己不存第二份 */
   get theme(): Theme {

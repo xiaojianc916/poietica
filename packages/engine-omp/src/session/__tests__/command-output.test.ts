@@ -6,7 +6,7 @@ const commandOutputText = (raw: string): string | null => commandOutputOf(raw)?.
 const commandErrorText = (message: string): string => commandErrorOf(message).text
 
 /*
- * U-04：omp 内置命令的输出折成给人看的中文。判据是 omp 18.10.3 的原句（builtin-lifecycle / builtin-modes / shake-types）。
+ * U-04：omp 内置命令的输出折成给人看的中文。判据是 omp 18.12.6 的原句（builtin-lifecycle / builtin-modes / shake-types）。
  * 已在界面上别处体现的成功结果不推（null）；认得的句子说中文；认不出的原样交回，不吞。
  */
 describe('命令输出的中文化', () => {

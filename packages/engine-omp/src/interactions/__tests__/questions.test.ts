@@ -264,6 +264,43 @@ describe('授权闸门的识别（迁移自 questions.test.ts）', () => {
     expect(approvalOf('Allow tool:', ['Approve', 'Deny'])).toBeNull()
   })
 
+  /*
+   * 18.11.3 起 omp 的回退选项**不再恒为两颗按钮**（wrapper 改走 requestApproval → approvalChoiceLabels）。
+   * 三种真实形状都得认成审批卡；认不出就等于把「要不要允许这条命令」降级成一次普通单选，屏幕上没有审批卡、
+   * 「本次会话都放行」也写不进会话设置。
+   */
+  test('18.12.6 的回退选项集：session / Approve Once / grants 混排都认得出', () => {
+    // 有 sessionSubject：三颗按钮，中间那颗是「本次会话都放行」
+    const session = approvalOf(APPROVAL_TITLE, ['Approve bash for this session', 'Approve', 'Deny'])
+    expect(session?.tool).toBe('bash')
+    expect(session?.onceLabel).toBe('Approve')
+    expect(session?.sessionLabel).toBe('Approve bash for this session')
+
+    // 有 grants：只批一次那颗叫 Approve Once，grant 标签排在前面
+    const grants = approvalOf(APPROVAL_TITLE, ['Approve File', 'Always Approve File', 'Approve Once', 'Deny'])
+    expect(grants?.onceLabel).toBe('Approve Once')
+    expect(grants?.sessionLabel).toBeNull()
+
+    // 两者都有：once 用 Approve Once，session 用带主语的那颗
+    const both = approvalOf(APPROVAL_TITLE, [
+      'Approve File',
+      'Always Approve File',
+      'Approve Once',
+      'Approve bash for this session',
+      'Deny',
+    ])
+    expect(both?.onceLabel).toBe('Approve Once')
+    expect(both?.sessionLabel).toBe('Approve bash for this session')
+
+    // 只有 grants、既没有 once 也没有 session：我们表达不了 { grant, always }，如实不认，不伪造答复
+    expect(approvalOf(APPROVAL_TITLE, ['Approve File', 'Always Approve File', 'Deny'])).toBeNull()
+  })
+
+  test('没有「只批这一次」按钮的对话框不认成审批卡：不把一次批准冒充成会话放行', () => {
+    // 真实回退集里 approvalChoiceLabels 恒给 once；这里钉的是防御性判据，形状变了就交回 null
+    expect(approvalOf(APPROVAL_TITLE, ['Approve bash for this session', 'Deny'])).toBeNull()
+  })
+
   test('没有细节那一行就不印，不编一句', () => {
     // Allow tool: 之后空无一字：没有细节可说，如实缺席而不是编一句
     expect(approvalDetailOf('Allow tool: read')).toBeNull()

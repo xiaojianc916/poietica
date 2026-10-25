@@ -247,7 +247,7 @@ describe('压缩标记（legacy compaction-events.test.ts）', () => {
     // 落座（打开会话时）与分页各读一次；没开着轮就不让 omp 保留悬挂调用
     expect(fake.transcriptReads.length).toBeGreaterThanOrEqual(2)
     for (const read of fake.transcriptReads) {
-      expect(read).toEqual({ collapseCompactedHistory: false, keepDanglingToolCalls: false })
+      expect(read).toEqual({ collapseCompactedHistory: false, keepInFlightToolCalls: false })
     }
   })
 
@@ -266,10 +266,15 @@ describe('压缩标记（legacy compaction-events.test.ts）', () => {
 describe('omp 显示经过（R-21）', () => {
   const read = (specifier: string): string => readFileSync(fileURLToPath(import.meta.resolve(specifier)), 'utf8')
 
-  test('AgentSession 仍有 buildTranscriptSessionContext，且收 collapseCompactedHistory / keepDanglingToolCalls', () => {
+  test('AgentSession 仍有 buildTranscriptSessionContext，且收 collapseCompactedHistory / keepInFlightToolCalls', () => {
     const source = read('@oh-my-pi/pi-coding-agent/session/agent-session')
     expect(source).toContain('buildTranscriptSessionContext(')
-    expect(source).toContain('Pick<BuildSessionContextOptions, "collapseCompactedHistory" | "keepDanglingToolCalls">')
+    /* 选项类型是 omp 自己的：适配器直接引它，改名时 typecheck 会抓到（18.11 起 keepDanglingToolCalls → keepInFlightToolCalls） */
+    const options = read('@oh-my-pi/pi-coding-agent/session/session-context')
+    expect(options).toContain('interface TranscriptSessionContextOptions')
+    expect(options).toContain('"collapseCompactedHistory"')
+    expect(options).toContain('keepInFlightToolCalls?: boolean')
+    expect(options).not.toContain('keepDanglingToolCalls')
   })
 
   test('被取代的摘要占位与我们认的那一句一致', () => {

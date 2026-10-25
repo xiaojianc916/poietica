@@ -13,6 +13,7 @@ const ROLE_TEXT: Readonly<Record<string, { readonly name: string; readonly descr
   memory: { name: '记忆', description: '整理与总结记忆' },
   task: { name: '子任务', description: '子代理执行任务' },
   advisor: { name: '顾问', description: '复核方案、给出第二意见' },
+  widget: { name: '任务小组件', description: '撰写后台作业的小组件规格' },
   image: { name: '图像生成', description: '生成图片' },
   web: { name: '联网搜索', description: '搜索网页' },
   speech: { name: '语音合成', description: '朗读文本' },
@@ -34,9 +35,9 @@ type Follow =
   { readonly kind: 'role'; readonly role: string; readonly configuredOnly: boolean } | { readonly kind: 'conversation' }
 
 /*
- * 没配时 omp 实际的去向，逐条照 omp 18.10.3 的读取点：
+ * 没配时 omp 实际的去向，逐条照 omp 18.12.6 的读取点：
  * - smol / slow：config/model-resolver 的 shouldInheritDefaultBeforePriority —— default 配了就继承它，没配走优先级表
- * - tiny → smol、memory → tiny、advisor → slow（仅 slow 配过）：同文件 ROLE_CONFIGURED_FALLBACK
+ * - tiny → smol、memory → tiny、widget → smol、advisor → slow（仅 slow 配过）：同文件 ROLE_CONFIGURED_FALLBACK
  * - vision：utils/image-vision-fallback 依次试 `@vision` → `@default` → 当前模型
  * - commit：commit/model-selection 依次试 commit → smol → 其余对话角色
  * - plan：modes/interactive-mode 的 #applyPlanModeModel，plan 解析不出模型就不切，留在当前对话的模型上
@@ -51,6 +52,7 @@ const ROLE_FOLLOWS: Readonly<Record<string, Follow>> = {
   tiny: { kind: 'role', role: 'smol', configuredOnly: false },
   memory: { kind: 'role', role: 'tiny', configuredOnly: false },
   advisor: { kind: 'role', role: 'slow', configuredOnly: true },
+  widget: { kind: 'role', role: 'smol', configuredOnly: false },
   plan: { kind: 'conversation' },
   task: { kind: 'conversation' },
 }

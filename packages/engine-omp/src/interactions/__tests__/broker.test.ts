@@ -319,6 +319,74 @@ describe('uiContext：omp 的对话框走 broker（12 页 §8.3）', () => {
     expect(granted).toEqual(['bash'])
   })
 
+  /*
+   * 18.11.3 起 omp 有了正式的 approve 入口（wrapper / eval prelude 都先试它）。它收 full/compact/session/grants，
+   * 我们只答 once / session / deny：port 的 InteractionAnswer.scope 只有 once|session，表达不了 { grant, always }。
+   */
+  test('approve：有 session 档时 approve+session 折成 session 并写会话放行', async () => {
+    const { broker } = brokerWithRecorder()
+    const granted: string[] = []
+    const ui = createUiContext(broker, { grantTool: (tool) => granted.push(tool) })
+
+    const pending = ui.approve!({
+      full: 'Allow tool: bash\nCommand: rm -rf build',
+      compact: 'bash: rm -rf build',
+      session: 'Approve bash for this session',
+    })
+    const asked = broker.pending()[0]
+    expect(asked?.kind).toBe('approval')
+    expect(asked?.kind === 'approval' && asked.allowSessionScope).toBe(true)
+    expect(asked?.kind === 'approval' && asked.detail).toBe('Command: rm -rf build')
+
+    broker.answer(asked!.id, { kind: 'approval', decision: 'approve', scope: 'session', feedback: null })
+
+    expect(await pending).toBe('session')
+    expect(granted).toEqual(['bash'])
+  })
+
+  test('approve：只批一次是 once，没有 session 档时不画「本次会话都放行」', async () => {
+    const { broker } = brokerWithRecorder()
+    const granted: string[] = []
+    const ui = createUiContext(broker, { grantTool: (tool) => granted.push(tool) })
+
+    const pending = ui.approve!({ full: 'Allow tool: read\nPath: a.ts', compact: 'read a.ts' })
+    const asked = broker.pending()[0]
+    expect(asked?.kind === 'approval' && asked.allowSessionScope).toBe(false)
+
+    broker.answer(asked!.id, { kind: 'approval', decision: 'approve', scope: 'once', feedback: null })
+
+    expect(await pending).toBe('once')
+    expect(granted).toEqual([])
+  })
+
+  test('approve：拒绝 / 没人答都是 deny；grants 不伪造 { grant, always }', async () => {
+    const { broker } = brokerWithRecorder()
+    const granted: string[] = []
+    const ui = createUiContext(broker, { grantTool: (tool) => granted.push(tool) })
+    const prompt = {
+      full: 'Allow tool: bash\nCommand: ls',
+      compact: 'bash: ls',
+      session: 'Approve bash for this session',
+      grants: [{ scope: 'target' as const, label: 'Approve File', alwaysLabel: 'Always Approve File' }],
+    }
+
+    const rejected = ui.approve!(prompt)
+    broker.answer(broker.pending()[0]!.id, { kind: 'approval', decision: 'reject', scope: 'once', feedback: null })
+    expect(await rejected).toBe('deny')
+
+    const timedOut = ui.approve!(prompt, { timeout: 5 })
+    expect(await timedOut).toBe('deny')
+    expect(granted).toEqual([])
+  })
+
+  test('approve：认不出 Allow tool: 就 deny，不编一个工具名', async () => {
+    const { broker } = brokerWithRecorder()
+    const ui = createUiContext(broker)
+    const pending = ui.approve!({ full: 'Which one?', compact: 'which' })
+    expect(await pending).toBe('deny')
+    expect(broker.pendingCount()).toBe(0)
+  })
+
   test('拒绝与没人答都折成 Deny（fail closed）', async () => {
     const { broker } = brokerWithRecorder()
     const granted: string[] = []
