@@ -409,7 +409,7 @@ function ScheduleRow({
   }
   const repeating = schedule.at === null && kind !== 'custom' && kind !== 'once'
   return (
-    <div className="flex min-h-9 flex-nowrap items-center gap-1 overflow-hidden rounded-xl border bg-popover py-1 pl-[7px] pr-2">
+    <div className="flex min-h-11 flex-nowrap items-center gap-1 overflow-hidden rounded-xl border bg-popover py-1 pl-[7px] pr-2">
       <ScheduleMenu empty={false} onPick={onPick} selected={kind} />
       {schedule.at !== null ? <OnceInput at={schedule.at} feedback={feedback} onChange={onChange} /> : null}
       {schedule.at === null && kind === 'custom' ? (
@@ -479,7 +479,12 @@ export function AutomationScheduleField({ schedule, preview, error, onChange }: 
     }
   }
   return (
-    <div className="space-y-3">
+    /*
+     * 行距用显式的 flex 列 + gap，不用 space-y-3：Base UI 的弹层打开时往触发器的父元素里插一对
+     * 焦点守卫 span（position: fixed），space-y 的 `:not(:last-child)` 于是把 12px 下边距加给按钮，
+     * 整个调度栏撑高 12px，下面整片界面往下跳一下。gap 只认直接子元素，守卫本身是 fixed 定位、不占格。
+     */
+    <div className="flex flex-col gap-3">
       <ScheduleRow
         dayOfMonth={dayOfMonth}
         feedback={feedback}

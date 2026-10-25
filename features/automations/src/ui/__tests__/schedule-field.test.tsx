@@ -59,4 +59,20 @@ describe('automation schedule field', () => {
     mount({ cron: null, at: null })
     expect(screen.getByText('添加计划')).toBeDefined()
   })
+
+  /*
+   * 行距必须是 gap 而不是 space-y：Base UI 打开弹层时往触发器的父元素里插一对焦点守卫 span
+   * （position: fixed），space-y 的 `:not(:last-child)` 会因此把 12px 下边距加到按钮上，整条调度栏
+   * 撑高 12px —— 用户看到的就是「点开菜单，下面整片界面往下跳一下」。happy-dom 不做布局，量不出
+   * 高度，所以钉住外边距那条规则本身：触发器不许带上下外边距。
+   */
+  test('触发器不靠外边距排版（弹层打开时行高不跟着变）', () => {
+    mount({ cron: '0 9 * * *', at: null })
+    /* 收起态的触发器就是「每天」那颗胶囊（打开态才是 role=menu 的那张卡）。 */
+    const trigger = screen.getByRole('button', { name: /每天/ })
+    /* 触发器 → 那一行（胶囊与输入同排）→ 行距那一层。守卫 span 插在**行**里，行距层才受影响。 */
+    const stack = trigger.parentElement?.parentElement
+    expect(stack?.className ?? '').not.toContain('space-y')
+    expect(stack?.className ?? '').toContain('gap-3')
+  })
 })
