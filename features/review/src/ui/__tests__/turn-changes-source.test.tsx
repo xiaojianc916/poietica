@@ -84,6 +84,7 @@ function fakeGateway(
         },
       }
     },
+    onThreadRemoved: () => ({ dispose: () => undefined }),
     changed: (threadId) => {
       for (const listener of [...listeners]) {
         listener(threadId)
@@ -254,6 +255,7 @@ describe('改动条的账本', () => {
       preview: () => Promise.resolve(SAFE),
       apply: () => Promise.resolve(),
       onChanged: () => ({ dispose: () => undefined }),
+      onThreadRemoved: () => ({ dispose: () => undefined }),
     }
     const holder = createTurnChangesHolder({ gateway, logger })
     const off = holder.subscribe('t1', () => undefined)

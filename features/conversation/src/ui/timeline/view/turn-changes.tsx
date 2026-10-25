@@ -34,6 +34,20 @@ export function removedLabel(removed: number): string {
   return `-${String(removed)}`
 }
 
+/** 路径的最后一段（文件名）：显示时它用主墨，前面的目录退一档。 */
+export function fileNameOf(path: string): string {
+  const cut = path.lastIndexOf('/')
+
+  return cut === -1 ? path : path.slice(cut + 1)
+}
+
+/** 文件名之前那段目录；根目录下的文件没有这一段，不画空的一格。 */
+export function directoryOf(path: string): string {
+  const cut = path.lastIndexOf('/')
+
+  return cut === -1 ? '' : path.slice(0, cut)
+}
+
 export function TurnChangesBar({ busy = false, expanded, onRewind, onToggle, view }: TurnChangesBarProps) {
   const reverted = view.reverted
   return (
@@ -77,12 +91,19 @@ export function TurnChangesBar({ busy = false, expanded, onRewind, onToggle, vie
           {view.files.map((file) => (
             /* TODO: 点文件行在右坞开这一行的 diff（要 files/review 的右坞贡献点，这一档先不做）。 */
             <li className="turn-changes__file" key={file.path}>
+              {/*
+                文件名与目录分层，照 zcode 的 FileDisplayInline：叶子用主墨、所在目录用次要墨。
+                整条路径一样深在读的时候就得逐字找文件名，一层目录几十个文件时尤其明显。
+              */}
               <span className="turn-changes__path" title={file.path}>
-                {file.path}
+                <span className="turn-changes__name">{fileNameOf(file.path)}</span>
+                {directoryOf(file.path) === '' ? null : (
+                  <span className="turn-changes__dir">{directoryOf(file.path)}</span>
+                )}
               </span>
               <span className="turn-changes__stat">
-                <span className="turn-changes__added">{addedLabel(file.added)}</span>
-                <span className="turn-changes__removed">{removedLabel(file.removed)}</span>
+                {file.added > 0 ? <span className="turn-changes__added">{addedLabel(file.added)}</span> : null}
+                {file.removed > 0 ? <span className="turn-changes__removed">{removedLabel(file.removed)}</span> : null}
               </span>
             </li>
           ))}

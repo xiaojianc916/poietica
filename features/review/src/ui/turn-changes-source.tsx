@@ -2,7 +2,7 @@ import { Button, ConfirmationDialog, Dialog } from '@poietica/design-system'
 import type { TurnChangesApi, TurnChangesView } from '@poietica/feature-conversation/ui-api'
 import { turnChangesContext } from '@poietica/feature-conversation/ui-api'
 import type { Logger } from '@poietica/foundation'
-import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 /*
  * 每轮回复下方那条文件改动条的事实源（`conversation.turnChangesProviders` 的提供方）。
@@ -35,6 +35,8 @@ export interface TurnChangesGateway {
   apply(threadId: string, turn: number): Promise<void>
   /** 账变了（落账、撤销完）：参数是受影响的那条对话。 */
   onChanged(listener: (threadId: string) => void): { dispose(): void }
+  /** 对话被删：它的账跟着摘掉（缓存按对话索引，这是唯一的删除路径）。 */
+  onThreadRemoved(listener: (threadId: string) => void): { dispose(): void }
 }
 
 /** 引用终生不变：没读到、读到空、读失败都交回它，订阅方拿它做相等判据。 */
@@ -58,6 +60,12 @@ export interface TurnChangesHolder {
   reload(threadId: string): void
   /** Core 换了一世：作废全部缓存，正被看着的那几条重读一次（断线期间的通知不会补发）。 */
   reset(): void
+  /**
+   * 这条对话没了（线程删除）：把它的账与监听者一起摘掉。
+   *
+   * 退订不再删缓存之后，这里就是这张表唯一的删除路径 —— 没有它，按对话索引的 Map 只增不减。
+   */
+  forget(threadId: string): void
   stop(): void
 }
 
@@ -120,7 +128,11 @@ export function createTurnChangesHolder({
   }
 
   const reload = (threadId: string): void => {
-    if (stopped) {
+    /*
+     * 没人在看就不读：账本虽然还留着（退订不清缓存），但没有看客的一次读取只是白跑一趟，
+     * 而且它会与下一次真正需要的那趟撞在一起。
+     */
+    if (stopped || (listeners.get(threadId)?.size ?? 0) === 0) {
       return
     }
     const entry = held.get(threadId)
@@ -142,9 +154,12 @@ export function createTurnChangesHolder({
         if (set.size > 0) {
           return
         }
-        /* 最后一个看客走了就放手：这张表按对话增长，没有删除路径就是一条泄漏。 */
+        /*
+         * 只摘掉监听者那张表，**不扔账本**：退订是「这一格暂时没人看」，不是「这条对话没改过」。
+         * 扔掉的话，重新订阅的那一瞬间 changesOf 交回空表 —— 上一轮那条改动条会整条消失再出现。
+         * 账本按对话增长，但出口是 stop()（功能卸载）与 Core 换代时的 reset()，不是这里。
+         */
         listeners.delete(threadId)
-        held.delete(threadId)
       }
     },
     start: () => {
@@ -165,6 +180,15 @@ export function createTurnChangesHolder({
         notify(threadId)
         fetchInto(threadId, entry)
       }
+    },
+    forget(threadId) {
+      held.delete(threadId)
+      const set = listeners.get(threadId)
+      /* 还有一个看客（正停在这条对话上）：账摘掉了、监听者留着，下一次读取会把它建回来。 */
+      if (set === undefined || set.size === 0) {
+        listeners.delete(threadId)
+      }
+      notify(threadId)
     },
     stop() {
       stopped = true
@@ -218,6 +242,17 @@ export function TurnChangesSource({ children, gateway, holder, onFailure }: Turn
   const [pending, setPending] = useState<Pending | null>(null)
   /* 待确认那一问的回执：确认 true、取消 false。 */
   const settle = useRef<((confirmed: boolean) => void) | null>(null)
+  /*
+   * 失败出口压成一份**身份稳定**的回调。
+   *
+   * 调用点给的是内联箭头（每次渲染换一个身份），而它进了 rewind 的依赖、rewind 又进了 api、
+   * api 又喂给 useSyncExternalStore 的 subscribe —— 任何一次父组件重渲（发新消息时每帧都在
+   * 重渲）都会让订阅退订重订。订阅一断一接，那一格就闪一下。
+   */
+  const failWith = useRef(onFailure)
+  useLayoutEffect(() => {
+    failWith.current = onFailure
+  }, [onFailure])
 
   const answer = useCallback((confirmed: boolean) => {
     const resolve = settle.current
@@ -236,7 +271,7 @@ export function TurnChangesSource({ children, gateway, holder, onFailure }: Turn
       try {
         preview = await gateway.preview(threadId, turn)
       } catch (cause: unknown) {
-        onFailure(cause)
+        failWith.current(cause)
         return
       }
 
@@ -254,14 +289,14 @@ export function TurnChangesSource({ children, gateway, holder, onFailure }: Turn
       try {
         await gateway.apply(threadId, turn)
       } catch (cause: unknown) {
-        onFailure(cause)
+        failWith.current(cause)
       } finally {
         setPending(null)
         /* 办完就重读：成功要翻成「已撤销」，失败也可能是账本已经变了。 */
         holder.reload(threadId)
       }
     },
-    [gateway, holder, onFailure],
+    [gateway, holder],
   )
 
   const api = useMemo<TurnChangesApi>(

@@ -1,3 +1,4 @@
+import { conversationContract } from '@poietica/feature-conversation/contract'
 import { platformContract } from '@poietica/feature-platform/contract'
 import type { UiFeatureContext } from '@poietica/ui-kernel'
 import {
@@ -80,6 +81,18 @@ export function createTurnChangesApi(ctx: UiFeatureContext): TurnChangesGateway 
       rpc.on('review.turnChangesChanged', (p) => {
         listener(p.threadId)
       }),
+    /* 对话删了它的账就没人看：缓存按对话索引，没有删除路径就是一条泄漏。 */
+    onThreadRemoved: (listener) => {
+      const off = ctx.rpc(conversationContract).on('threads.removed', (p) => {
+        listener(p.threadId)
+      })
+
+      return {
+        dispose: () => {
+          off.dispose()
+        },
+      }
+    },
   }
 }
 

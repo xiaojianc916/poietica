@@ -1,68 +1,76 @@
 /*
- * 一轮回复下面那条「N 个文件已更改 / 撤销」。几何照 zcode 那一张截图：
- * 圆角细边框一条，左侧箭头 + 摘要，右侧撤销键；展开后逐行列出相对路径与各自的增删。
+ * 一轮回复下面那条「N 个文件已更改 / 撤销」。几何照 zcode 的 MessageChangeSummaryPanel：
  *
- * 边框与文字色全部走 design-system 的令牌（分隔线、次要墨、增删那一对），这里不写任何
- * 色值：深浅两套主题各自定义，写死一格必然在一套主题下读不出来。
+ *   卡：rounded-xl + 1px 边线 + **实色卡面**（bg-card），无投影
+ *   头：h-10（40px）、左右各 8px 内距，整行可悬停；左半是开关（箭头 + 摘要），右半是撤销
+ *   字：text-ui-base —— 与正文同一档，不是「小一号的注脚」
+ *   文件行：py-2（8px）、路径主墨、增删各自一列等宽
+ *
+ * 上一版把这一条做成了透明细框 + 次要墨 + 小一档字，读起来像脚注而不是「这一轮干了什么」。
+ * 卡面必须是实色（--ui-card）：它压在对话地色上，半透明底在深浅两套主题里各兑出一个颜色，
+ * 而这一条要和工具卡、附件格同属一层「内容块」。
  */
+
 .turn-changes {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  inline-size: fit-content;
+  overflow: hidden;
+  inline-size: 100%;
   max-inline-size: 100%;
   margin-block-start: 0.5rem;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-lg);
-  /* 上沿那一格与正文之间留一点呼吸；下面两行（展开清单）自己带内边距。 */
-  padding: 0.125rem;
+  border: 1px solid var(--ui-card-frame);
+  border-radius: var(--ui-radius-xl);
+  background: var(--ui-card);
 }
 
-/* 收成一行时它就是一条：末行胶囊的悬停底铺满整条，不留内缩的缺口。 */
+/* 头部 40px：与 zcode 的 h-10 同档，是两个动作并排时最舒服的一条。 */
 .turn-changes__head {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  min-block-size: var(--ui-control-height-sm);
-}
-
-/*
- * 箭头与摘要同属一颗键：整条都能点开，「哪一枚是开关」不该由人猜。
- * 内边距按字形与文字各让一格，圆角收一档 —— 它压在卡里，不能与卡同一个圆角。
- */
-.turn-changes__toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  flex: 1;
-  min-inline-size: 0;
-  padding: 0 0.5rem;
-  border: 0;
-  border-radius: var(--ui-radius-md);
-  background: transparent;
-  color: var(--cp-timeline-quiet-text);
-  font: inherit;
-  font-size: var(--ui-prose-size-aux);
-  line-height: var(--ui-line-height-tight);
-  text-align: start;
-  cursor: pointer;
+  justify-content: space-between;
+  gap: 0.75rem;
+  block-size: 2.5rem;
+  padding-inline: 0.5rem;
   transition: background-color var(--ui-duration-fast) var(--cp-motion-ease);
 }
 
-.turn-changes__toggle:hover,
-.turn-changes__toggle:focus-visible {
+/* 悬停抬到整行（zcode 的 hover:bg-hover 在 header 上）：只有左半可点，但整行都该有回执。 */
+.turn-changes__head:hover {
   background: var(--cp-hover);
-  color: var(--cp-ink);
 }
 
-/* 图标盒与文字盒等高，不靠手工偏移对齐基线。 */
+/*
+ * 开关占满左半：箭头与摘要同属一颗键，整条都能点开，「哪一枚是开关」不该由人猜。
+ * 右内距 4px 与 zcode 的 px-1 同档 —— 让摘要末端与右侧撤销键之间留出它自己的呼吸。
+ */
+.turn-changes__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-inline-size: 0;
+  block-size: 100%;
+  padding: 0 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  font-size: var(--ui-prose-size);
+  line-height: var(--ui-line-height-tight);
+  text-align: start;
+  cursor: pointer;
+}
+
+/* 箭头 14 一格（zcode 的 size-3.5）：比正文小一档，位置在文字之前居中。 */
 .turn-changes__chevron {
   display: block;
   flex: none;
   inline-size: 0.875rem;
   block-size: 0.875rem;
-  /* 收起时朝右（下箭头逆时针转 90°）；展开后转回朝下 —— 与封条那条箭头同一套角度。 */
-  rotate: -90deg;
+  color: var(--cp-ink-subtle);
+  /*
+   * 字形原生朝下（lucide 的 ChevronDown）。收起时转 90° 朝右，展开后转回朝下 ——
+   * 与 zcode 的 ChevronRight + rotate-90 是同一个手势，只是两边的基准朝向相反。
+   */
+  rotate: 90deg;
   transition: rotate var(--cp-motion-swift) cubic-bezier(0.2, 0, 0, 1);
 }
 
@@ -70,37 +78,27 @@
   rotate: 0deg;
 }
 
+/* 摘要：主墨、正文一档、有长路径时省略而不是把撤销键挤出去。 */
 .turn-changes__summary {
   overflow: hidden;
+  min-inline-size: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--cp-ink);
+  font-weight: 500;
 }
 
 /*
- * 已撤销的那一轮整条退到背景里：它还在，但已经不再是一件待办。
- * 只走既有的次要墨与透明度，不给它另发明一套「已完成」的视觉 —— 撤销键本身的禁用态
- * 已经把「这件事办完了」说清楚了。
- */
-.turn-changes[data-reverted='true'] {
-  opacity: 0.72;
-}
-
-.turn-changes[data-reverted='true'] .turn-changes__summary {
-  color: var(--cp-timeline-quiet-text);
-}
-
-/*
- * 增删数字：等宽 + tabular-nums，一列相邻的几轮读下来数字对齐成一条。
+ * 增删数字：等宽 + tabular-nums，相邻几轮读下来数字对齐成一条。
  * 取色只读 diff 那一对令牌（深色主题另有更艳的一档，见 assistant.css）。
  */
 .turn-changes__stat {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 0.375rem;
+  gap: 0.5rem;
   font-family: var(--cp-font-mono);
-  font-size: var(--ui-prose-size-meta);
+  font-size: var(--ui-prose-size);
   font-variant-numeric: tabular-nums;
 }
 
@@ -113,21 +111,22 @@
 }
 
 /*
- * 撤销键：文字钮，不是图标钮 —— 「撤销」两个字比一个回箭头说得清楚，而这一条上只有它一个
- * 危险动作，不必再借字形去省位置。
+ * 撤销键：文字钮（zcode 的 ghost Button，高 28、内距 8、字与正文同档）。
+ * 「撤销」两个字比一个回箭头说得清楚，而这一条上只有它一个危险动作。
  */
 .turn-changes__rewind {
   display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
   flex: none;
+  align-items: center;
+  gap: 0.375rem;
+  block-size: 1.75rem;
   padding: 0 0.5rem;
   border: 0;
   border-radius: var(--ui-radius-md);
   background: transparent;
-  color: var(--cp-timeline-quiet-text);
+  color: var(--cp-ink-subtle);
   font: inherit;
-  font-size: var(--ui-prose-size-meta);
+  font-size: var(--ui-prose-size);
   line-height: var(--ui-line-height-tight);
   cursor: pointer;
   transition:
@@ -144,22 +143,33 @@
 .turn-changes__rewind:disabled {
   cursor: default;
   color: var(--cp-timeline-quiet-text);
-  opacity: 0.6;
 }
 
 .turn-changes__rewind-icon {
   display: block;
   flex: none;
-  inline-size: 0.75rem;
-  block-size: 0.75rem;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
 }
 
-/* 展开后那一份文件清单：贴着卡的内侧铺开，上沿一道发丝线作为「这是另一段」的分界。 */
+/*
+ * 抬起来的那一段：已撤销的整条退到背景里。它还在，但已经不再是一件待办 ——
+ * 只走既有的次要墨，不给它另发明一套「已完成」的视觉。
+ */
+.turn-changes[data-reverted='true'] .turn-changes__summary,
+.turn-changes[data-reverted='true'] .turn-changes__stat {
+  color: var(--cp-timeline-quiet-text);
+}
+
+/*
+ * 展开后的文件清单（zcode 的 CollapsibleContent）：每行 py-2、路径主墨、增删跟在后面。
+ * 不铺 inline diff —— 这一条在回复末尾，摊开一整份补丁会把下一轮推走好几屏。
+ */
 .turn-changes__files {
   display: flex;
   flex-direction: column;
   margin: 0;
-  padding: 0.25rem 0 0;
+  padding: 0;
   border-block-start: 1px solid var(--cp-hairline);
   list-style: none;
 }
@@ -168,26 +178,48 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.25rem 0.5rem;
-  font-size: var(--ui-prose-size-meta);
+  padding: 0.5rem;
+  font-size: var(--ui-prose-size);
   line-height: var(--ui-line-height-tight);
 }
 
-/* 路径占满剩下的宽度，增删跟在后面对齐：连续几个文件读下来数字成一列。 */
+/*
+ * 路径占满剩下的宽度，增删跟在后面对齐：连续几个文件读下来数字成一列。
+ * 文件名在前、目录在后（zcode 的 FileDisplayInline 同一个读法），整格省略时先丢目录尾巴。
+ */
 .turn-changes__path {
+  display: flex;
   flex: 1;
   min-inline-size: 0;
+  align-items: baseline;
+  gap: 0.375rem;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--cp-timeline-quiet-text);
-  font-family: var(--cp-font-mono);
   /* 长路径宁可省略也不折行：一折行，那一列数字就散了。 */
   direction: ltr;
 }
 
+/* 文件名：主墨、等宽。它是这一行唯一必须读出来的东西。 */
+.turn-changes__name {
+  overflow: hidden;
+  flex: none;
+  max-inline-size: 100%;
+  text-overflow: ellipsis;
+  color: var(--cp-ink);
+  font-family: var(--cp-font-mono);
+}
+
+/* 目录：次要墨、也等宽（同一段路径不该换字体），空间不够时它先被裁掉。 */
+.turn-changes__dir {
+  overflow: hidden;
+  min-inline-size: 0;
+  text-overflow: ellipsis;
+  color: var(--cp-ink-subtle);
+  font-family: var(--cp-font-mono);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .turn-changes__toggle,
+  .turn-changes__head,
   .turn-changes__rewind {
     transition: none;
   }

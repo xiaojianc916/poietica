@@ -65,15 +65,33 @@ describe('改动条的展开', () => {
     expect(container.querySelectorAll('.turn-changes__file')).toHaveLength(0)
   })
 
-  test('展开后逐行列出相对路径与各自的增删', () => {
+  test('展开后逐行列出文件名、目录与各自的增删', () => {
     const container = mount({}, true).container
     const rows = [...container.querySelectorAll('.turn-changes__file')]
 
     expect(container.querySelector('button.turn-changes__toggle')?.getAttribute('aria-expanded')).toBe('true')
     expect(rows).toHaveLength(2)
-    expect(rows[0]?.querySelector('.turn-changes__path')?.textContent).toBe('features/review/src/ui/api.ts')
+    /* 文件名与目录分开画：整格通读仍是那条路径，但文件名拿主墨、目录退一档。 */
+    expect(rows[0]?.querySelector('.turn-changes__name')?.textContent).toBe('api.ts')
+    expect(rows[0]?.querySelector('.turn-changes__dir')?.textContent).toBe('features/review/src/ui')
     expect(rows[0]?.querySelector('.turn-changes__added')?.textContent).toBe('+9')
     expect(rows[0]?.querySelector('.turn-changes__removed')?.textContent).toBe('-3')
+  })
+
+  test('根目录下的文件没有目录那一格：不画空的', () => {
+    const container = mount({ files: [{ path: 'README.md', added: 1, removed: 0 }] }, true).container
+    const row = container.querySelector('.turn-changes__file')
+
+    expect(row?.querySelector('.turn-changes__name')?.textContent).toBe('README.md')
+    expect(row?.querySelector('.turn-changes__dir')).toBeNull()
+  })
+
+  test('某一侧是 0 的文件行不画那个 0：没有增的行读「+0」只是噪音', () => {
+    const container = mount({ files: [{ path: 'a.ts', added: 0, removed: 4 }] }, true).container
+    const row = container.querySelector('.turn-changes__file')
+
+    expect(row?.querySelector('.turn-changes__added')).toBeNull()
+    expect(row?.querySelector('.turn-changes__removed')?.textContent).toBe('-4')
   })
 
   test('点摘要那一格把开合交出去（开关自己不管状态）', () => {

@@ -97,11 +97,15 @@ export default defineUiFeature({
     const turnChangesGateway = createTurnChangesApi(ctx)
     const turnChanges = createTurnChangesHolder({ gateway: turnChangesGateway, logger: ctx.logger })
     const offTurnChanges = turnChanges.start()
+    const offThreadRemoved = turnChangesGateway.onThreadRemoved((threadId) => {
+      turnChanges.forget(threadId)
+    })
     ctx.lifecycle.onCoreReady(() => {
       turnChanges.reset()
     })
     ctx.lifecycle.onDispose(() => {
       offTurnChanges()
+      offThreadRemoved.dispose()
       turnChanges.stop()
     })
 
