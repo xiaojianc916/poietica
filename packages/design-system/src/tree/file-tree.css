@@ -22,6 +22,17 @@
   opacity: 1;
 }
 
+/*
+ * 2 倍屏上 1px 占两个设备像素，比正文字形还粗；这一档缩到 0.5px 恰好一个设备像素（引导线位置与
+ * 行位移都是整数 CSS 像素，2× 下落在设备栅格上，画出来是实线）。1 与 1.25 / 1.5 档不碰 ——
+ * 半像素在那几档只会跨两列发虚，见 tokens/controls.css 发丝线注。
+ */
+@media (min-resolution: 2dppx) {
+  .file-tree__guide {
+    width: 0.5px;
+  }
+}
+
 :root[data-theme='dark'] .file-tree__guide {
   --file-tree-guide: #383838;
 }
