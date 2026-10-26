@@ -81,6 +81,9 @@
       "path": "../../features/workspaces/src/ui"
     },
     {
+      "path": "../../packages/design-system"
+    },
+    {
       "path": "../../packages/engine"
     },
     {

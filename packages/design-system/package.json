@@ -26,6 +26,7 @@
     "katex": "catalog:",
     "lucide-react": "catalog:",
     "pele": "catalog:",
+    "react-dom": "catalog:",
     "shiki": "catalog:",
     "streamdown": "catalog:",
     "tailwind-merge": "catalog:"
@@ -37,7 +38,6 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:",
     "tailwindcss": "catalog:"
   }
 }

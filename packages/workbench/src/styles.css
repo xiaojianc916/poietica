@@ -204,6 +204,19 @@
   flex-direction: column;
 }
 
+/*
+ * 换路由时参与过渡的只有主区那一张卡：页头与侧栏不跟着呼吸（整页淡一次读起来像刷新）。
+ * 先把 root 的名字摘掉，否则整棵树仍会被拍成一张图、与主区那张叠加成两层淡入。
+ * 名字只在过渡进行中给：常驻 name 会让这棵树永远留在合成层里。
+ */
+html:active-view-transition-type(ui-route) {
+  view-transition-name: none;
+}
+
+html:active-view-transition-type(ui-route) .workspace-shell__main-panel {
+  view-transition-name: ui-route-content;
+}
+
 /* 侧栏收起时补左缝：主区贴窗口左缘，不留就三面有缝。 */
 .workspace-shell[data-sidebar-docked='false'] .workspace-shell__main {
   padding-inline-start: var(--workspace-card-gap);
@@ -227,6 +240,18 @@
   margin-block-end: var(--workspace-card-gap);
   margin-inline-end: var(--workspace-card-gap);
   border-radius: var(--workspace-card-radius);
+}
+
+/*
+ * 坞里换格：只补间内容那一块，标签条与整窗不动（整页淡一次读起来像刷新）。
+ * root 先摘名字，否则整棵树仍会被拍成一张图，与这一块叠成两层淡入。
+ */
+html:active-view-transition-type(ui-dock) {
+  view-transition-name: none;
+}
+
+html:active-view-transition-type(ui-dock) [data-dock-panel] {
+  view-transition-name: ui-dock-content;
 }
 
 .workspace-shell[data-auxiliary-fullscreen='true'] .workspace-shell__auxiliary-content {

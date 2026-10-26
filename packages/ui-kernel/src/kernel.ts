@@ -14,13 +14,15 @@ import { ContributionRegistry } from './contribution'
 import type { CoreReadyContext, UiFeature, UiFeatureContext } from './feature'
 import { type KernelServices, registerKernelServices } from './services'
 import type { CoreStatus } from './services/core-status'
-import type { Route } from './services/navigation'
+import type { Route, RouteTransition } from './services/navigation'
 
 export interface UiKernelOptions {
   readonly features: readonly UiFeature[]
   readonly errorMessages: Readonly<Record<string, string>>
   readonly validateResults: boolean
   readonly defaultRoute: Route
+  /** 换路由的外层过渡（组合根给 design-system 的实现）；不给就直落，测试与其它宿主不需要它。 */
+  readonly routeTransition?: RouteTransition
   /** 测试注入用。 */
   readonly bridge?: WindowBridge
 }
@@ -46,6 +48,7 @@ export function createUiKernel(opts: UiKernelOptions): UiKernel {
     services,
     errorMessages: opts.errorMessages,
     defaultRoute: opts.defaultRoute,
+    ...(opts.routeTransition === undefined ? {} : { routeTransition: opts.routeTransition }),
   })
   const logger = kernelServices.logging.logger
   const bridge: WindowBridge =

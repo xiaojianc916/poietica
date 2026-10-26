@@ -63,3 +63,4 @@ export {
 export { FileTree, type FileTreeProps, type FileTreeRow } from './tree/file-tree'
 export { type PathTreeFile, type PathTreeFolder, type PathTreeNode, pathTreeRows } from './tree/path-tree'
 export { useCopy } from './use-copy'
+export { type ViewTransitionOptions, withViewTransition } from './view-transition'

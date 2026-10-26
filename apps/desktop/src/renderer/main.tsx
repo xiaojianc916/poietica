@@ -1,4 +1,5 @@
 import './styles.css'
+import { withViewTransition } from '@poietica/design-system'
 import { engineErrorMessages } from '@poietica/engine'
 import { appContract } from '@poietica/protocol'
 import { createUiKernel, KernelProvider } from '@poietica/ui-kernel'
@@ -31,6 +32,14 @@ const kernel = createUiKernel({
   errorMessages: { ...engineErrorMessages, ...appContract.errorMessages },
   validateResults: import.meta.env.DEV,
   defaultRoute: HOME_ROUTE,
+  /*
+   * 换路由的补间：浏览器先拍旧画面，再在 update 里把路由落地（helper 内部 flushSync，
+   * 否则新快照拍在旧 DOM 上，补出来是同一张脸）。内核只认这个签名，实现在 design-system，
+   * ui-kernel 不认识它。
+   */
+  routeTransition: (update, type) => {
+    withViewTransition(update, { type })
+  },
 })
 await kernel.start()
 createRoot(document.getElementById('root')!).render(

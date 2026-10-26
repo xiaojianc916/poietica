@@ -21,6 +21,7 @@
 @import './tokens/dark.css';
 @import './tokens/semantic.css';
 @import './surface.css';
+@import './view-transition.css';
 @import './tokens/accessibility.css';
 @import './scrollbar.css';
 @import './selection.css';

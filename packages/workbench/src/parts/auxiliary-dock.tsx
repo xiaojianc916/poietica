@@ -1,3 +1,4 @@
+import { withViewTransition } from '@poietica/design-system'
 import {
   builtinPoints,
   type Contributed,
@@ -18,10 +19,13 @@ import { AuxiliaryNewTabMenu, type AuxiliaryOffer } from './auxiliary-menu'
 import { PartSkeleton } from './part-skeleton'
 
 /*
- * 右侧面板坞。两类贡献：无 dockTabs 的是「pane」（活在 LayoutService 的 panes 分账里，一开一个标签）；
+ * 右侧面板坞。两类贡献：无 dockTabs 的是「pane」（活在 LayoutService 的 panes 分账里，一开一个格）；
  * 有 dockTabs 的是「组」（页签由功能自己的 store 给，坞只聚合展示）。
  * 贡献按 scope 分两类：对话等普通表面的坞画标签条 / 启动器；设置页的坞只画那一页自己的格（见 SettingsDock）。
  */
+
+/** 坞里换格时那一层过渡的类型名，CSS 侧在 auxiliary.css 认领。 */
+export const DOCK_TRANSITION_TYPE = 'ui-dock'
 
 type PanelContribution = Contributed<PanelItem>
 type DockTabs = NonNullable<PanelItem['dockTabs']>
@@ -246,7 +250,8 @@ function SettingsDock({
 
 function PanelBody({ contribution }: { readonly contribution: PanelContribution }): ReactNode {
   return (
-    <div className="min-h-0 flex-1 overflow-hidden">
+    /* data-dock-panel 是换格过渡的捕捉目标（auxiliary.css 的 :active-view-transition-type(ui-dock)）。 */
+    <div className="min-h-0 flex-1 overflow-hidden" data-dock-panel="">
       <FeatureScope featureId={contribution.featureId} key={contribution.item.id}>
         <Suspense fallback={<PartSkeleton />}>
           <contribution.item.component />
@@ -345,7 +350,12 @@ function SurfaceDock({
         active: shownId === paneId,
         onSelect: () => {
           if (front !== null) {
-            layoutService.focusPane(front, paneId)
+            withViewTransition(
+              () => {
+                layoutService.focusPane(front, paneId)
+              },
+              { type: DOCK_TRANSITION_TYPE },
+            )
           }
         },
         onClose: () => {
@@ -372,10 +382,15 @@ function SurfaceDock({
           icon: tab.icon,
           active: shownId === groupId && tab.active,
           onSelect: () => {
-            dockTabs.onSelect(tab.id)
-            if (front !== null) {
-              layoutService.focusPane(front, groupId)
-            }
+            withViewTransition(
+              () => {
+                dockTabs.onSelect(tab.id)
+                if (front !== null) {
+                  layoutService.focusPane(front, groupId)
+                }
+              },
+              { type: DOCK_TRANSITION_TYPE },
+            )
           },
           onClose: () => {
             dockTabs.onClose(tab.id)

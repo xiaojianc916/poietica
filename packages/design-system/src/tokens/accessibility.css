@@ -1,9 +1,15 @@
-/* 减弱动效必须压过组件动画声明，!important 是这条规则的语义本身（豁免登记在 biome.json）。 */
-
+/* 减弱动效必须压过组件动画声明，!important 是这条规则的语义本身（豁免登记在 biome.json）。
+ *
+ * ::view-transition-* 是伪元素树，不在元素树里，下面那条 `*` 够不到它 —— 换肤 / 换面的
+ * 补间必须单独列一遍，否则「减少动效」开着照样淡入。 */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
-  *::after {
+  *::after,
+  ::view-transition-group(*),
+  ::view-transition-image-pair(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
     scroll-behavior: auto !important;
     animation-delay: 0ms !important;
     animation-duration: 0.01ms !important;

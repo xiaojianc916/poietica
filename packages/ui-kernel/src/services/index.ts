@@ -8,7 +8,7 @@ import { createDialogService, type DialogService } from './dialogs'
 import { createKeybindingService, type KeybindingService } from './keybindings'
 import { createLayoutService, type LayoutService } from './layout'
 import { createUiLogging, type UiLogging } from './logging'
-import { createNavigationService, type NavigationService, type Route } from './navigation'
+import { createNavigationService, type NavigationService, type Route, type RouteTransition } from './navigation'
 
 export const NavigationToken = defineServiceToken<NavigationService>(KERNEL_OWNER, 'Navigation')
 export const CommandsToken = defineServiceToken<CommandService>(KERNEL_OWNER, 'Commands')
@@ -35,12 +35,14 @@ export function registerKernelServices(o: {
   services: ServiceRegistry
   errorMessages: Readonly<Record<string, string>>
   defaultRoute: Route
+  /** 换路由的外层过渡，组合根注入（内核不认识 design-system）。缺省即直落。 */
+  routeTransition?: RouteTransition
 }): KernelServices {
   const logging = createUiLogging()
   const banners = createBannerService(o.errorMessages)
   const commands = createCommandService(o.registry, banners, logging.logger)
   const s: KernelServices = {
-    navigation: createNavigationService(o.defaultRoute),
+    navigation: createNavigationService(o.defaultRoute, o.routeTransition),
     commands,
     keybindings: createKeybindingService(o.registry, commands),
     coreStatus: createCoreStatusService(),
@@ -97,5 +99,12 @@ export {
   settingsDockOwner,
 } from './layout'
 export { createUiLogging, type UiLogEntry, type UiLogging } from './logging'
-export { createNavigationService, type NavigationService, type NavigationState, type Route } from './navigation'
+export {
+  createNavigationService,
+  type NavigationService,
+  type NavigationState,
+  ROUTE_TRANSITION_TYPE,
+  type Route,
+  type RouteTransition,
+} from './navigation'
 export { createValue, type Observable } from './observable'
