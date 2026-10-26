@@ -32,6 +32,7 @@ apps/desktop/release/
 
 # 侦察过程中的临时产物（自建，不入库）
 .scratch/
+docs/research
 
 # 编辑器 / 系统
 *.log
