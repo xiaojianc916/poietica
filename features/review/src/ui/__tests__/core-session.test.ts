@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import type { CoreReadyContext } from '@poietica/ui-kernel'
 import { coreSessionOf, createCoreSession } from '../core-session'
 
 function lifecycle() {
@@ -6,8 +7,8 @@ function lifecycle() {
   const lost: (() => void)[] = []
   return {
     lifecycle: {
-      onCoreReady: (fn: () => void | Promise<void>) => {
-        ready.push(() => void fn())
+      onCoreReady: (fn: (scope: CoreReadyContext) => void | Promise<void>) => {
+        ready.push(() => void fn({ signal: new AbortController().signal }))
       },
       onCoreLost: (fn: () => void) => {
         lost.push(fn)

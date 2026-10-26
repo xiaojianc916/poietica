@@ -1,5 +1,5 @@
 import { type Contract, SYSTEM_CONTRACT_ID } from '@poietica/contract-kit'
-import { AppError, createServiceRegistry, type Disposable, SystemErrorCode, sortModules } from '@poietica/foundation'
+import { AppError, createServiceRegistry, DisposableStore, SystemErrorCode, sortModules } from '@poietica/foundation'
 import {
   BRIDGE_GLOBAL,
   createTypedClient,
@@ -11,7 +11,7 @@ import {
 import { createWindowBridgeTransport } from './bridge-transport'
 import { createUiChannel, type UiChannel } from './channel'
 import { ContributionRegistry } from './contribution'
-import type { UiFeature, UiFeatureContext } from './feature'
+import type { CoreReadyContext, UiFeature, UiFeatureContext } from './feature'
 import { type KernelServices, registerKernelServices } from './services'
 import type { CoreStatus } from './services/core-status'
 import type { Route } from './services/navigation'
@@ -64,10 +64,27 @@ export function createUiKernel(opts: UiKernelOptions): UiKernel {
   })
   channel = createUiChannel(peer, logger.child({ scope: 'ui-notifications' }))
   const failures = new Map<string, Error>()
-  const coreReadyHooks: Array<{ featureId: string; fn: () => void | Promise<void> }> = []
+  const coreReadyHooks: Array<{ featureId: string; fn: (scope: CoreReadyContext) => void | Promise<void> }> = []
   const coreLostHooks: Array<{ featureId: string; fn: () => void }> = []
-  const disposeHooks: Array<() => void> = []
-  const disposables: Disposable[] = []
+  const featureResources = new Map<string, DisposableStore>()
+  const disposables = new DisposableStore()
+  let state: 'created' | 'starting' | 'started' | 'disposed' = 'created'
+  let readyScope: AbortController | undefined
+
+  function releaseFeature(featureId: string, resources: DisposableStore): void {
+    try {
+      resources.dispose()
+    } catch (e) {
+      logger.warn('功能资源释放失败', { feature: featureId, error: String(e) })
+    } finally {
+      services.revoke(featureId)
+    }
+  }
+
+  function invalidateReady(): void {
+    readyScope?.abort()
+    readyScope = undefined
+  }
   const dependsOf = new Map<string, readonly string[]>()
 
   function runCoreLost(): void {
@@ -86,7 +103,7 @@ export function createUiKernel(opts: UiKernelOptions): UiKernel {
    * 功能之间**并行**（R-08-9）—— 一个功能的慢请求不该把后面所有功能的首屏数据都压住。
    * 先注册只是先起步，不保证先完成。
    */
-  async function runCoreReady(): Promise<void> {
+  async function runCoreReady(signal: AbortSignal): Promise<void> {
     const groups = new Map<string, Array<(typeof coreReadyHooks)[number]>>()
     for (const h of coreReadyHooks) {
       const list = groups.get(h.featureId)
@@ -96,10 +113,11 @@ export function createUiKernel(opts: UiKernelOptions): UiKernel {
     await Promise.all(
       [...groups.values()].map(async (hooks) => {
         for (const h of hooks) {
-          if (failures.has(h.featureId)) continue
+          if (signal.aborted || failures.has(h.featureId)) return
           try {
-            await h.fn()
+            await h.fn({ signal })
           } catch (e) {
+            if (signal.aborted) return
             logger.error('onCoreReady failed', { feature: h.featureId, error: String(e) })
             kernelServices.banners.error(e, `${h.featureId} 数据加载失败`)
           }
@@ -108,85 +126,107 @@ export function createUiKernel(opts: UiKernelOptions): UiKernel {
     )
   }
 
+  function setupFeature(f: UiFeature): void {
+    const deps = f.dependsOn ?? []
+    dependsOf.set(f.id, deps)
+    const failedDependency = deps.find((id) => failures.has(id))
+    if (failedDependency !== undefined) {
+      failures.set(f.id, new AppError(SystemErrorCode.serviceAccessDenied, `依赖功能 ${failedDependency} 启动失败`))
+      services.revoke(f.id)
+      return
+    }
+    const resources = new DisposableStore()
+    featureResources.set(f.id, resources)
+    // 内核自己的契约（system）任何功能都可以用，无需 dependsOn
+    const allowedContracts = new Set([f.id, SYSTEM_CONTRACT_ID, ...deps])
+    const ctx: UiFeatureContext = {
+      featureId: f.id,
+      logger: logger.child({ feature: f.id }),
+      rpc: <C extends Contract>(contract: C) => {
+        if (!allowedContracts.has(contract.id)) {
+          throw new AppError(
+            SystemErrorCode.serviceAccessDenied,
+            `${f.id} 使用 ${contract.id} 的契约前必须在 dependsOn 中声明 '${contract.id}'`,
+          )
+        }
+        return createTypedClient(contract, channel, { validateResults: opts.validateResults })
+      },
+      services: services.scoped(f.id, deps),
+      contribute: (point, item) => {
+        const d = registry.add(point, f.id, item)
+        resources.add(d)
+        return d
+      },
+      files: { pathForFile: (file) => bridge.pathForFile(file) },
+      lifecycle: {
+        onCoreReady: (fn) => {
+          coreReadyHooks.push({ featureId: f.id, fn })
+        },
+        onCoreLost: (fn) => {
+          coreLostHooks.push({ featureId: f.id, fn })
+        },
+        onDispose: (fn) => {
+          resources.add({ dispose: fn })
+        },
+      },
+    }
+    try {
+      f.setup(ctx)
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e))
+      failures.set(f.id, err)
+      releaseFeature(f.id, resources)
+      logger.error('feature setup failed', { feature: f.id, error: err.message })
+    }
+  }
+
   return {
     registry,
     kernelServices,
     failures,
     servicesFor: (featureId) => services.scoped(featureId, dependsOf.get(featureId) ?? []),
     async start() {
-      for (const f of sortModules(opts.features)) {
-        const deps = f.dependsOn ?? []
-        dependsOf.set(f.id, deps)
-        // 内核自己的契约（system）任何功能都可以用，无需 dependsOn
-        const allowedContracts = new Set([f.id, SYSTEM_CONTRACT_ID, ...deps])
-        const ctx: UiFeatureContext = {
-          featureId: f.id,
-          logger: logger.child({ feature: f.id }),
-          rpc: <C extends Contract>(contract: C) => {
-            if (!allowedContracts.has(contract.id)) {
-              throw new AppError(
-                SystemErrorCode.serviceAccessDenied,
-                `${f.id} 使用 ${contract.id} 的契约前必须在 dependsOn 中声明 '${contract.id}'`,
-              )
-            }
-            return createTypedClient(contract, channel, { validateResults: opts.validateResults })
-          },
-          services: services.scoped(f.id, deps),
-          contribute: (point, item) => {
-            const d = registry.add(point, f.id, item)
-            disposables.push(d)
-            return d
-          },
-          files: { pathForFile: (file) => bridge.pathForFile(file) },
-          lifecycle: {
-            onCoreReady: (fn) => {
-              coreReadyHooks.push({ featureId: f.id, fn })
-            },
-            onCoreLost: (fn) => {
-              coreLostHooks.push({ featureId: f.id, fn })
-            },
-            onDispose: (fn) => {
-              disposeHooks.push(fn)
-            },
-          },
-        }
-        try {
-          f.setup(ctx)
-        } catch (e) {
-          const err = e instanceof Error ? e : new Error(String(e))
-          failures.set(f.id, err)
-          logger.error('feature setup failed', { feature: f.id, error: err.message })
-        }
-      }
+      if (state !== 'created') throw new AppError(SystemErrorCode.conflict, 'UI 内核只能启动一次且不能在释放后启动')
+      state = 'starting'
+      for (const f of sortModules(opts.features)) setupFeature(f)
       // Core 状态：先订阅通知，再拉一次当前值；通知比拉取结果新时以通知为准
       let notified = false
       const apply = (s: CoreStatus): void => {
+        if (state === 'disposed') return
         const wasReady = kernelServices.coreStatus.current().state === 'ready'
+        if (s.state !== 'ready') invalidateReady()
         kernelServices.coreStatus.set(s)
         /* 丢掉 Core：同步清掉依赖进程内状态的 UI 缓存，必须早于新 Core 的任何通知。 */
         if (wasReady && s.state !== 'ready') runCoreLost()
-        if (s.state === 'ready' && !wasReady) void runCoreReady()
+        if (s.state === 'ready' && !wasReady) {
+          readyScope = new AbortController()
+          void runCoreReady(readyScope.signal)
+        }
       }
-      disposables.push(
+      disposables.add(
         channel.subscribe('core.status', (p) => {
           notified = true
           apply(p as CoreStatus)
         }),
       )
       const initial = (await channel.request('core.getStatus', {}, { timeoutMs: 10_000 })) as CoreStatus
+      if (disposables.isDisposed) return
       if (!notified) apply(initial)
-      disposables.push(kernelServices.keybindings.install(window))
+      state = 'started'
+      disposables.add(kernelServices.keybindings.install(window))
     },
     dispose() {
-      for (const fn of [...disposeHooks].reverse()) {
-        try {
-          fn()
-        } catch {
-          // 关停期忽略即可
-        }
+      if (state === 'disposed') return
+      state = 'disposed'
+      invalidateReady()
+      for (const [featureId, resources] of [...featureResources].reverse()) releaseFeature(featureId, resources)
+      try {
+        disposables.dispose()
+      } catch (e) {
+        logger.warn('内核资源释放失败', { error: String(e) })
+      } finally {
+        peer.dispose()
       }
-      for (const d of [...disposables].reverse()) d.dispose()
-      peer.dispose()
     },
   }
 }

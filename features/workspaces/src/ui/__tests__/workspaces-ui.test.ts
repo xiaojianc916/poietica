@@ -88,3 +88,54 @@ describe('WorkspacesUiToken', () => {
     }
   })
 })
+
+test('Core 换代：旧名单的迟到响应不能覆盖新一代状态', async () => {
+  const listeners = new Set<(message: RpcMessage) => void>()
+  const pending: number[] = []
+  const emit = (message: RpcMessage): void => {
+    for (const listener of [...listeners]) listener(message)
+  }
+  const controlled: WindowBridge = {
+    send(message) {
+      if (!('id' in message) || typeof message.id !== 'number' || !('method' in message)) return
+      if (message.method === 'workspaces.list') pending.push(message.id)
+      else queueMicrotask(() => emit({ jsonrpc: '2.0', id: message.id as number, result: { state: 'ready' } }))
+    },
+    onMessage(listener) {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+    pathForFile: () => 'C:/unused',
+  }
+  let service: WorkspacesUi | undefined
+  const kernel = createUiKernel({
+    features: [
+      defineUiFeature({ id: 'platform', setup: () => undefined }),
+      workspaces,
+      defineUiFeature({
+        id: 'consumer',
+        dependsOn: ['workspaces'],
+        setup(ctx) {
+          service = ctx.services.get(WorkspacesUiToken)
+        },
+      }),
+    ],
+    bridge: controlled,
+    errorMessages: {},
+    validateResults: false,
+    defaultRoute: { surface: 'home', params: {} },
+  })
+  try {
+    await kernel.start()
+    emit({ jsonrpc: '2.0', method: 'core.status', params: { state: 'restarting' } })
+    emit({ jsonrpc: '2.0', method: 'core.status', params: { state: 'ready' } })
+    expect(pending.length).toBe(2)
+    emit({ jsonrpc: '2.0', id: pending[1]!, result: { workspaces: [second] } })
+    await waitFor(() => service?.store.getState().items[0]?.id === 'two')
+    emit({ jsonrpc: '2.0', id: pending[0]!, result: { workspaces: [first] } })
+    await Bun.sleep(0)
+    expect(service?.store.getState().items).toEqual([second])
+  } finally {
+    kernel.dispose()
+  }
+})

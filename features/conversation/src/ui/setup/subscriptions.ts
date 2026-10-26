@@ -102,8 +102,24 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
     transcripts.markAllStale()
   })
 
+  async function restoreReadySteps(
+    steps: ReadonlyArray<readonly [string, () => unknown]>,
+    signal: AbortSignal,
+  ): Promise<void> {
+    /* 每一步各自兜底：某一格抛错不该把后面的恢复步骤跳过 —— 原先整段共用一次 await，第一步失败就等于「重启之后什么都不再同步」。 */
+    for (const [name, run] of steps) {
+      if (signal.aborted) return
+      try {
+        await run()
+      } catch (e) {
+        if (signal.aborted) return
+        ctx.logger.warn('core ready step failed', { step: name, error: String(e) })
+      }
+    }
+  }
+
   let readyCount = 0
-  ctx.lifecycle.onCoreReady(async () => {
+  ctx.lifecycle.onCoreReady(async ({ signal }) => {
     readyCount += 1
     const first = readyCount === 1
     if (first) {
@@ -141,13 +157,6 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
       /* Core 换代时正在答的那一问已经停了（落盘为 interrupted）：读过的对话重读一遍，屏幕上不留一个永远「正在答」 */
       ['side', () => side.reloadLoaded()],
     ]
-    /* 每一步各自兜底：某一格抛错不该把后面的恢复步骤跳过 —— 原先整段共用一次 await，第一步失败就等于「重启之后什么都不再同步」。 */
-    for (const [name, run] of steps) {
-      try {
-        await run()
-      } catch (e) {
-        ctx.logger.warn('core ready step failed', { step: name, error: String(e) })
-      }
-    }
+    await restoreReadySteps(steps, signal)
   })
 }

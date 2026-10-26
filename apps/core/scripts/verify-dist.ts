@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
+import { CORE_ARTIFACTS } from './artifacts'
 
 /*
  * P7 的产物校验（15 页 §10.2）：重算 apps/core/dist/ 每个产物的 sha256 与 core-manifest.json
@@ -50,6 +51,12 @@ if (manifest.sha256 === null || typeof manifest.sha256 !== 'object') {
 const expected = manifest.sha256 as Record<string, unknown>
 const problems: string[] = []
 const distEntries = readdirSync(dist).filter((name) => name !== 'core-manifest.json')
+
+// 哈希自洽只证明「这些文件没有变」，不证明必需文件都在；完整性由固定产物契约约束。
+for (const name of CORE_ARTIFACTS) {
+  if (!distEntries.includes(name)) problems.push(`${name}：缺少必需产物`)
+  if (!Object.hasOwn(expected, name)) problems.push(`${name}：manifest 缺少必需产物的哈希`)
+}
 
 for (const name of distEntries) {
   const file = path.join(dist, name)

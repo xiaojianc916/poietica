@@ -9,6 +9,12 @@ export interface UiFeature {
   setup(ctx: UiFeatureContext): void
 }
 
+/** 一次 Core ready 的有效期；Core 丢失或 UI 释放时同步中止。 */
+export interface CoreReadyContext {
+  /** 协作式取消：await 后、写状态前检查；不会强行停止函数或自动撤销已经发出的 RPC。 */
+  readonly signal: AbortSignal
+}
+
 export interface UiFeatureContext {
   readonly featureId: string
   readonly logger: Logger
@@ -20,7 +26,7 @@ export interface UiFeatureContext {
   readonly files: { pathForFile(file: File): string }
   readonly lifecycle: {
     /** Core 每次进入 ready（首次启动、崩溃重启后、手动重启后）都调用：在这里重新拉取数据、重新订阅。 */
-    onCoreReady(fn: () => void | Promise<void>): void
+    onCoreReady(fn: (scope: CoreReadyContext) => void | Promise<void>): void
     /**
      * Core 从 ready 变为非 ready（restarting / failed / stopped）时**同步**调用，用来清掉「依赖 Core 进程内状态」的本地缓存。
      * 同步是有意的：必须在新 Core 的任何通知被处理之前完成。这里**不能**发任何 RPC —— 那一刻 Core 不可用，请求会排队到超时。

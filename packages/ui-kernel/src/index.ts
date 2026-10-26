@@ -22,7 +22,7 @@ export {
 } from './builtin-points'
 export { createUiChannel, type UiChannel } from './channel'
 export { type Contributed, type ContributionPoint, ContributionRegistry, defineContributionPoint } from './contribution'
-export { defineUiFeature, type UiFeature, type UiFeatureContext } from './feature'
+export { type CoreReadyContext, defineUiFeature, type UiFeature, type UiFeatureContext } from './feature'
 export { createUiKernel, type UiKernel, type UiKernelOptions } from './kernel'
 export { FeatureErrorBoundary } from './react/error-boundary'
 export { useContributions, useCoreStatus, useLayout, useNavigation, useObservable, useService } from './react/hooks'

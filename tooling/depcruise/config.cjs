@@ -169,6 +169,20 @@ module.exports = {
       to: { path: `${NM}(electron|@lydell/node-pty|electron-updater)/` },
     },
     {
+      name: 'ui-api-no-implementation',
+      severity: 'error',
+      comment: 'ui-api 是公开形状与令牌，不得反向依赖任何功能的进程实现',
+      from: { path: '^features/[^/]+/src/ui-api/', pathNot: TEST },
+      to: { path: '^features/[^/]+/src/(core|core-api|host|ui)/' },
+    },
+    {
+      name: 'feature-ui-api-process',
+      severity: 'error',
+      comment: 'ui-api 的服务与贡献点只属于 UI 进程；Core / Host 协作使用 contract',
+      from: { path: '^features/[^/]+/src/(core|core-api|host|contract)/', pathNot: TEST },
+      to: { path: '^features/[^/]+/src/ui-api/' },
+    },
+    {
       name: 'ui-api-no-styles',
       severity: 'error',
       comment:

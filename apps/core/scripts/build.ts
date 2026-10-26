@@ -1,5 +1,6 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { CORE_ARTIFACTS, CORE_NATIVE_ARTIFACTS } from './artifacts'
 
 /**
  * 构建单个可执行文件 poietica-core.exe。编译方式与 omp 官方的 scripts/compile-binary.ts
@@ -21,7 +22,7 @@ const ompRoot = path.resolve(
 )
 const ompPkg = JSON.parse(readFileSync(path.join(ompRoot, 'package.json'), 'utf8')) as { version: string }
 
-const exe = path.join(outDir, 'poietica-core.exe')
+const exe = path.join(outDir, CORE_ARTIFACTS[0])
 
 /**
  * legacy-pi 桩插件：omp 官方插件会去 `<repoRoot>/packages/<pkg>` 扫源码生成旧 Pi 模块注册表 ——
@@ -136,15 +137,15 @@ const resolvedNatives = (() => {
   return path.join(ROOT, 'node_modules/@oh-my-pi/pi-natives-win32-x64')
 })()
 
-const nativeFiles = ['pi_natives.win32-x64-modern.node', 'pi_natives.win32-x64-baseline.node']
+const nativeFiles = CORE_NATIVE_ARTIFACTS
 for (const name of nativeFiles) {
   const from = path.join(resolvedNatives, name)
   if (existsSync(from)) copyFileSync(from, path.join(outDir, name))
-  else console.warn(`[build] 缺少 natives：${name}（找的是 ${resolvedNatives}）`)
+  else throw new Error(`[build] 缺少必需 natives：${name}（找的是 ${resolvedNatives}），不能发布不完整的 Core`)
 }
 
 // core-manifest.json：每个产物文件的 sha256，供发布与排查使用
-const emitted = [path.basename(exe), ...nativeFiles].filter((n) => existsSync(path.join(outDir, n)))
+const emitted = CORE_ARTIFACTS
 const sha256: Record<string, string> = {}
 for (const f of emitted) sha256[f] = Bun.SHA256.hash(readFileSync(path.join(outDir, f)), 'hex')
 const { PROTOCOL_VERSION } = (await import('@poietica/protocol')) as { PROTOCOL_VERSION: number }

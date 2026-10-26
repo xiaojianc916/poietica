@@ -61,3 +61,28 @@ function catchOf(fn: () => void): unknown {
   }
   return undefined
 }
+
+describe('服务的生命周期', () => {
+  test('撤销会移除服务，旧作用域与新取得的同名作用域都不能再使用', () => {
+    const registry = createServiceRegistry()
+    const token = defineServiceToken<number>('alpha', 'Value')
+    const owner = registry.scoped('alpha', [])
+    const consumer = registry.scoped('beta', ['alpha'])
+    owner.provide(token, 1)
+    registry.revoke('alpha')
+    registry.revoke('alpha')
+    expect(consumer.tryGet(token)).toBeUndefined()
+    expect(code(catchOf(() => consumer.get(token)))).toBe('kernel.not_found')
+    expect(code(catchOf(() => owner.provide(token, 2)))).toBe('kernel.service_access_denied')
+    expect(code(catchOf(() => owner.tryGet(token)))).toBe('kernel.service_access_denied')
+    expect(code(catchOf(() => registry.scoped('alpha', []).provide(token, 3)))).toBe('kernel.service_access_denied')
+  })
+
+  test('撤销一个模块不会撤销依赖方或其它模块的服务', () => {
+    const registry = createServiceRegistry()
+    const token = defineServiceToken<number>('beta', 'Value')
+    registry.scoped('beta', ['alpha']).provide(token, 2)
+    registry.revoke('alpha')
+    expect(registry.scoped('gamma', ['beta']).get(token)).toBe(2)
+  })
+})

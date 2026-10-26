@@ -158,3 +158,28 @@ describe('depcruise 配置的自检', () => {
     ])
   })
 })
+
+/* 空间边界必须双向约束：公开入口不反向依赖实现，UI 令牌也不能流入其它进程。 */
+describe('公开入口的进程与实现边界', () => {
+  test('ui-api 不得反向 import 本功能 ui 的实现', async () => {
+    const result = await cruiseFixture('features/attachments/src', {
+      'ui-api/index.ts': "export { implementation } from '../ui/implementation'\n",
+      'ui/implementation.ts': 'export const implementation = true\n',
+    })
+    expect(violationsOf(result, 'ui-api-no-implementation')).toEqual(['features/attachments/src/ui-api/index.ts'])
+  })
+
+  test('core / host 不得取其它功能的 ui-api；ui 仍可取', async () => {
+    const source = "import { Token } from '../../../attachments/src/ui-api'\nvoid Token\n"
+    const result = await cruiseFixture('features', {
+      'attachments/src/ui-api/index.ts': 'export const Token = true\n',
+      'conversation/src/core/illegal.ts': source,
+      'conversation/src/host/illegal.ts': source,
+      'conversation/src/ui/legal.ts': source,
+    })
+    expect(violationsOf(result, 'feature-ui-api-process')).toEqual([
+      'features/conversation/src/core/illegal.ts',
+      'features/conversation/src/host/illegal.ts',
+    ])
+  })
+})

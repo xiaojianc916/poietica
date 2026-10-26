@@ -33,8 +33,18 @@ export default defineUiFeature({
      * 按最近打开选一个（原来的行为）；其余重载不替用户补选 —— 删掉当前项目之后 `activeId` 就是 null，
      * 「还没选项目」是一个真实的界面状态，入口页据此禁用发送。
      */
-    const reload = async (selectFirst = false): Promise<void> => {
+    let coreSignal: AbortSignal | undefined
+    let reloadVersion = 0
+    let disposed = false
+    ctx.lifecycle.onDispose(() => {
+      disposed = true
+    })
+    const reload = async (selectFirst = false, signal = coreSignal): Promise<void> => {
+      if (disposed || signal?.aborted) return
+      const version = ++reloadVersion
       const items = await api.list()
+      // 作用域失效与后发先至都不允许旧名单覆盖当前状态。
+      if (disposed || signal?.aborted || version !== reloadVersion) return
       const previous = store.getState()
       const activeId =
         previous.activeId !== null && items.some((workspace) => workspace.id === previous.activeId)
@@ -59,10 +69,17 @@ export default defineUiFeature({
       }
     }
 
-    ctx.lifecycle.onDispose(api.onChanged(() => void reload()).dispose)
+    ctx.lifecycle.onDispose(
+      api.onChanged(() => {
+        void reload().catch((error: unknown) => {
+          ctx.logger.warn('工作区名单刷新失败', { error: String(error) })
+        })
+      }).dispose,
+    )
 
-    ctx.lifecycle.onCoreReady(async () => {
-      await reload(true)
+    ctx.lifecycle.onCoreReady(async ({ signal }) => {
+      coreSignal = signal
+      await reload(true, signal)
     })
 
     /* legacy 的侧栏是「导航行 + 会话列表 + 底部行」三段，工作区只以**会话列表里的组头**出现；`Repositories` 那一行是会话列表面板内部的工具栏，
