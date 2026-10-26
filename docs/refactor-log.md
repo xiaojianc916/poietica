@@ -68,6 +68,8 @@
 
 **legacy-pi 空注册表**：omp 的 `legacy-pi-compat.ts` 里有一句字面量 `import('omp-legacy-pi-modules')`，那是它自己 monorepo 的构建插件（`scripts/legacy-pi-virtual-module.ts`）注入的虚拟模块，用来把旧 scope（`@mariozechner/pi-*` 等）的扩展 import 重定向到宿主内已打包的实例。Poietica 不加载用户扩展（会话走 `disableExtensionDiscovery`），不需要那张注册表，但那一句在依赖图里是静态可见的，不解析就整个 Core 构建失败。所以构建脚本固定注入一个空注册表（`BUNDLED_PI_MODULE_LOADERS = {}`），**不再尝试调用官方插件**：它扫 `<包>/../../packages/<pkg>/package.json`，npm 安装形态里没有那一级，必然 ENOENT。manifest 里的 `legacyPiPlugin` 字段随之删除 —— 它只描述那次注定失败的尝试。
 
+**omp 文档索引静默留空**：`PI_DOCS_EMBED` 的生成器同样读 `<包>/../../docs`，npm 安装形态下必然 ENOENT。空串是**正确取值**而非降级：omp 的 `docs-index.ts` 见到空串就回退到随包的 `dist/docs-index.generated.txt`（发布包自带），`omp://` 文档照常可读。构建脚本因此静默吞掉这条 ENOENT、不留日志 —— 每次构建刷一条注定失败且无害的警告，只会训练人忽略构建输出。
+
 ### 功能生命周期边界（2026-10-26）
 
 - UI 的失败隔离必须回收已注册资源，而不只是记一条 failures；服务注册表增加永久撤销作用域，UI 按功能持有资源并阻止失败依赖继续启动。不支持同一注册表内热重装，重启内核会创建新注册表。
