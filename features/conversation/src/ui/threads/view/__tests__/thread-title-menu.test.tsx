@@ -102,10 +102,6 @@ describe('会话页左上角标题菜单', () => {
     const { rerender } = await mount(<ThreadTitleMenu thread={threadOf()} />)
 
     expect(screen.getByText('新对话')).toBeDefined()
-    /*
-     * 省略号只认块级盒，标题文字必须装在 .conversation-title__text 里：直接挂在按钮（flex 容器）上会被硬裁断。
-     */
-    expect(screen.getByText('新对话').className).toBe('conversation-title__text')
 
     await rerender(<ThreadTitleMenu thread={threadOf({ title: '按思考动画设计重构代码', titleSource: 'auto' })} />)
 

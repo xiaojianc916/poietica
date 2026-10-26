@@ -135,14 +135,4 @@ describe('terminal 面板（R-49 多终端）', () => {
     expect(api.closed).toEqual(['t4'])
     runtime.dispose()
   })
-
-  test('底色取终端自己的令牌（与 xterm 主题同一个 --terminal-background），不读页面底色', async () => {
-    const runtime = await makeRuntime(fakeApi())
-    const { container } = render(<TerminalPanel runtime={runtime} />)
-    const panel = container.querySelector('[data-terminal-panel]')!
-
-    expect(panel.className).toContain('bg-[var(--terminal-background)]')
-    expect(panel.className).not.toContain('bg-background')
-    runtime.dispose()
-  })
 })

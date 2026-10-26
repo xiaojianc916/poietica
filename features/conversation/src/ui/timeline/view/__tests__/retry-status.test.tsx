@@ -4,8 +4,8 @@ import type { RetryTimelineItem } from '../../../shared/timeline/timeline-contra
 import { RetryStatus } from '../retry-status'
 
 /*
- * 自动重试那一行与工具调用同一套长相：.timeline-tool > .timeline-row（字形 + 一句话 + 箭头），
- * 在重试时那句话走 timeline-shimmer；展开按请求先后列报错，连着相同的合成一条。
+ * 自动重试那一行与工具调用同一套结构：.timeline-tool > .timeline-row（字形 + 一句话 + 箭头）；
+ * 展开按请求先后列报错，连着相同的合成一条。
  */
 
 afterEach(cleanup)
@@ -23,15 +23,15 @@ const base: RetryTimelineItem = {
 
 const labelIn = (container: HTMLElement) => container.querySelector('.timeline-row__label')
 
-test('S1 在重试：工具行的结构，「正在重试 2/5」走微光', () => {
+test('S1 在重试：工具行的结构，读作「正在重试 2/5」', () => {
   const { container } = render(<RetryStatus isOpen={false} item={base} onToggle={() => undefined} />)
   const row = container.querySelector('.timeline-tool > button.timeline-row')
-  expect(row?.querySelector('svg.timeline-row__icon')).not.toBeNull()
+  expect(row).not.toBeNull()
   expect(labelIn(container)?.textContent).toBe('正在重试 2/5')
-  expect(labelIn(container)?.classList.contains('timeline-shimmer')).toBe(true)
+  expect(row?.querySelector('svg')).not.toBeNull()
 })
 
-test('S2 收口的几种说法，都不走微光', () => {
+test('S2 收口的几种说法', () => {
   const cases: [Partial<RetryTimelineItem>, string][] = [
     [{ state: 'failed', attempt: 5 }, '重试 5 次仍失败'],
     [{ state: 'failed', attempt: 0 }, '请求失败'],
@@ -42,7 +42,6 @@ test('S2 收口的几种说法，都不走微光', () => {
       <RetryStatus isOpen={false} item={{ ...base, ...patch }} onToggle={() => undefined} />,
     )
     expect(labelIn(container)?.textContent).toBe(label)
-    expect(labelIn(container)?.classList.contains('timeline-shimmer')).toBe(false)
     unmount()
   }
 })

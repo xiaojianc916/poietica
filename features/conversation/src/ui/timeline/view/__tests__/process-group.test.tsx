@@ -233,41 +233,13 @@ describe('过程组的投影', () => {
 })
 
 describe('过程组的组头', () => {
-  it('纯思考只有一闪，不是控件，也不戴工具那道常亮的光', () => {
+  it('纯思考只有一闪，不是控件', () => {
     const feed = selectPresentation(stateOf([ask(), thought('t', '先看看仓库结构\n再读配置')], true), new Map())
     const container = renderHead(planAt(feed, 1))
     const markup = container.innerHTML
 
     expect(markup).toContain('再读配置')
     expect(markup).not.toContain('aria-expanded')
-    expect(markup).not.toContain('timeline-shimmer')
-    /* 思考那一格不给图标：格子在换字，静图标是第二种说法。 */
-    expect(markup).not.toContain('timeline-row__icon')
-  })
-
-  it('工具还在跑的时候组头亮着，印的是它自己那句现场', () => {
-    const feed = selectPresentation(
-      stateOf([ask(), tool('r', 'read', 'in_progress'), tool('e', 'execute', 'in_progress')], true),
-      new Map(),
-    )
-    const markup = renderToStaticMarkup(
-      <ToolGroupCard isOpen={false} onToggle={nothing} plan={planAt(feed, 1)} renderRow={() => null} />,
-    )
-
-    expect(markup).toContain('timeline-shimmer')
-  })
-
-  it('组头正在印思考时不戴工具那道常亮的光，只有换字的一闪', () => {
-    const feed = selectPresentation(
-      stateOf([ask(), tool('r', 'read', 'in_progress'), thought('t', '第一行\n还在想')], true),
-      new Map(),
-    )
-    const container = renderHead(planAt(feed, 1))
-    const markup = container.innerHTML
-
-    expect(markup).toContain('还在想')
-    expect(markup).not.toContain('timeline-shimmer')
-    expect(markup).not.toContain('timeline-row__icon')
   })
 
   it('思考那一格走滚动，工具那一格从头显示', () => {
@@ -322,45 +294,6 @@ describe('过程组的组头', () => {
     expect(markup).toContain('先看看配置。')
     expect(markup).not.toContain('const a = 1')
     expect(markup).not.toContain('```')
-  })
-
-  it('组头印工具调用的时候图标照旧在', () => {
-    const feed = selectPresentation(
-      stateOf([ask(), tool('r', 'read', 'in_progress'), tool('e', 'execute')], true),
-      new Map(),
-    )
-    const markup = renderToStaticMarkup(
-      <ToolGroupCard isOpen={false} onToggle={nothing} plan={planAt(feed, 1)} renderRow={() => null} />,
-    )
-
-    expect(markup).toContain('timeline-row__icon')
-  })
-
-  it('思考那一格按阅读栏的量度走，与输入框同宽', () => {
-    const feed = selectPresentation(
-      stateOf([ask(), tool('r', 'read', 'in_progress'), thought('t', '第一行\n正在读配置')], true),
-      new Map(),
-    )
-    const markup = renderToStaticMarkup(
-      <ToolGroupCard isOpen={false} onToggle={nothing} plan={planAt(feed, 1)} renderRow={() => null} />,
-    )
-
-    /* 量度归阅读栏：flow-row.css 的 [data-measure="prose"] 把量度放开到整列，那一列与输入框
-       同宽（都由 --cp-grid 解出），不收在工具那一档的 38rem 上。 */
-    expect(markup).toContain('data-measure="prose"')
-  })
-
-  it('印工具调用的时候仍收在工具那一档量度里', () => {
-    const feed = selectPresentation(
-      stateOf([ask(), tool('r', 'read', 'in_progress'), tool('e', 'execute')], true),
-      new Map(),
-    )
-    const markup = renderToStaticMarkup(
-      <ToolGroupCard isOpen={false} onToggle={nothing} plan={planAt(feed, 1)} renderRow={() => null} />,
-    )
-
-    /* 不给 data-measure：.timeline-row 的默认量度就是工具那一档（路径与命令）。 */
-    expect(markup).not.toContain('data-measure')
   })
 
   it('摊开只画工具成员，落定的账目按截图那一句报', () => {

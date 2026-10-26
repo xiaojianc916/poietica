@@ -50,28 +50,23 @@ describe('文件查看器', () => {
     expect(names).toEqual(['自动换行', '重新读取'])
   })
 
-  test('自动换行：打开后行带随滚动口宽（祖先不再是 max-content），正文按空白折行', async () => {
+  test('自动换行：按下为开启，再按回关闭', async () => {
     const view = show('src/a.ts', LONG)
     await view.findByText('next()')
-    const region = view.getByRole('region', { name: '文件内容' })
-    const band = region.firstElementChild
-    const code = () => region.querySelector('.diff-line__code')
-    expect(band?.className).toContain('w-max')
-    expect(code()?.className).toContain('whitespace-pre')
-    expect(code()?.className).not.toContain('whitespace-pre-wrap')
+    expect(view.getByRole('button', { name: '自动换行' }).getAttribute('aria-pressed')).toBe('false')
 
     fireEvent.click(view.getByRole('button', { name: '自动换行' }))
     expect(view.getByRole('button', { name: '自动换行' }).getAttribute('aria-pressed')).toBe('true')
-    expect(region.firstElementChild?.className).not.toContain('w-max')
-    expect(code()?.className).toContain('whitespace-pre-wrap')
+
+    fireEvent.click(view.getByRole('button', { name: '自动换行' }))
+    expect(view.getByRole('button', { name: '自动换行' }).getAttribute('aria-pressed')).toBe('false')
   })
 
   test('Markdown：Preview / Source 是与技能文档同一个开关，默认 Preview；切到 Source 才有自动换行', async () => {
     const view = show('docs/readme.md', '# 标题\n\n正文一段。\n')
-    const modes = await view.findByRole('group', { name: '查看方式' })
+    await view.findByRole('group', { name: '查看方式' })
     const preview = view.getByRole('button', { name: 'Preview' })
     const source = view.getByRole('button', { name: 'Source' })
-    expect(modes.className).toContain('view-switch')
     expect(preview.getAttribute('aria-pressed')).toBe('true')
     expect(view.queryByRole('button', { name: '自动换行' })).toBeNull()
 

@@ -193,6 +193,8 @@ omp 的版本锁在根 `package.json` 的 catalog（四个 `@oh-my-pi/*` 同一�
 | 隔离   | `packages/engine-omp/src/__tests__/isolation.test.ts` + `bun run core:probe` | 进程级自检与假用户目录零写入                              |
 | 端到端 | `bun run dev`（真机）                                                        | 界面流程；发布前另有安装包冒烟（`bun run desktop:smoke`） |
 
+**不测外观**：颜色、圆角、边框、间距、字号这类「长什么样」的事实归样式表，单测不钉 —— 它们改一次就要连带改一次断言，而断言红了也不代表界面坏了；样式表被整体改坏由真机（`bun run dev`）与 `check:ticker` 这类布局检查发现。测试只钉**行为与语义**：什么触发了什么、数据往返、错误分类、无障碍属性、几何不变量。
+
 `bun run  all` = `typecheck` + `format:check` + `lint` + `test`，是唯一的准入闸门（CI 跑的就是它）。
 
 ## 9. 扩展配方

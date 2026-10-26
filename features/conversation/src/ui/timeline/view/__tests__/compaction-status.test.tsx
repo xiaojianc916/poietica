@@ -4,8 +4,8 @@ import type { CompactionTimelineItem } from '../../../shared/timeline/timeline-c
 import { CompactionStatus } from '../compaction-status'
 
 /*
- * 压缩那一行与工具调用同一套长相（审查 R-21-3）：.timeline-tool > .timeline-row（字形 + 一句话 + 箭头），
- * 跑着时那句话走 timeline-shimmer，展开是同一个 .timeline-tool__panel。
+ * 压缩那一行与工具调用同一套结构（审查 R-21-3）：.timeline-tool > .timeline-row（字形 + 一句话 + 箭头），
+ * 展开是同一个 .timeline-tool__panel。
  * U-04：一行只说结果（「上下文已压缩 39.9K → 23.7K」，不写 tokens 与千分位），摘要默认收着；交接单独一种说法，可复制。
  */
 
@@ -16,14 +16,12 @@ const base: CompactionTimelineItem = { type: 'compaction', id: 'c1', turn: 1, at
 const labelIn = (container: HTMLElement): string | null | undefined =>
   container.querySelector('.timeline-row__label')?.textContent
 
-test('S1 跑着：工具行的结构 + 微光，没有可展开的东西就不是按钮', () => {
+test('S1 跑着：工具行的结构，没有可展开的东西就不是按钮', () => {
   const { container } = render(<CompactionStatus isOpen={false} item={base} onToggle={() => undefined} />)
   const row = container.querySelector('.timeline-tool > .timeline-row')
   expect(row?.tagName).toBe('DIV')
-  expect(row?.querySelector('svg.timeline-row__icon')).not.toBeNull()
   const label = row?.querySelector('.timeline-row__label')
   expect(label?.textContent).toBe('正在压缩上下文…')
-  expect(label?.classList.contains('timeline-shimmer')).toBe(true)
   // 旧的自绘字形不再出现
   expect(container.textContent).not.toContain('↻')
 })
@@ -50,7 +48,6 @@ test('S2 做完：一行短写前后两个数，不再微光；默认收着，�
   expect(button?.getAttribute('aria-expanded')).toBe('false')
   const label = button?.querySelector('.timeline-row__label')
   expect(label?.textContent).toBe('上下文已压缩 39.9K → 23.7K')
-  expect(label?.classList.contains('timeline-shimmer')).toBe(false)
   expect(view.container.querySelector('.timeline-tool__panel')).toBeNull()
   if (button) fireEvent.click(button)
   expect(toggled).toBe(1)

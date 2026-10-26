@@ -32,7 +32,7 @@ async function toolbar(placement: 'row' | 'header', onExpand?: () => void): Prom
   return found
 }
 
-test('CT1 两处的按钮都没有 title；调整钮带按下态；row 用卡片自己的小钮', async () => {
+test('CT1 两处的按钮都没有 title；调整钮带按下态', async () => {
   const row = await toolbar('row', noop)
   expect(row.dataset.placement).toBe('row')
   const buttons = [...row.querySelectorAll('button')]
@@ -43,15 +43,13 @@ test('CT1 两处的按钮都没有 title；调整钮带按下态；row 用卡片
     '展开',
   ])
   expect(buttons.every((button) => !button.hasAttribute('title'))).toBe(true)
-  expect(buttons.every((button) => button.classList.contains('intelligent-ui__button'))).toBe(true)
   expect(buttons[0]?.getAttribute('aria-pressed')).toBe('true')
 })
 
-test('CT2 表头那一份用 design-system 的按钮（和关闭钮同一个样子）；展开模式没有「展开」', async () => {
+test('CT2 表头那一份没有「展开」；展开模式没有「展开」', async () => {
   const header = await toolbar('header')
   expect(header.dataset.placement).toBe('header')
   const buttons = [...header.querySelectorAll('button')]
   expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual(['调整', '复制为图片', '导出 HTML'])
   expect(buttons.every((button) => !button.hasAttribute('title'))).toBe(true)
-  expect(buttons.some((button) => button.classList.contains('intelligent-ui__button'))).toBe(false)
 })

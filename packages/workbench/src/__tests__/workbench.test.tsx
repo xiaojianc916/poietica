@@ -335,7 +335,7 @@ describe('workbench 外壳', () => {
   })
 
   /* 真实故障：进入设置后底部的「帮助 / 设置」两枚图标整排消失 —— 设置那一支侧栏没把 SidebarFooter 挂回去。 */
-  test('设置表面：侧栏底部行（帮助与设置）仍在，且设置是高亮态', async () => {
+  test('设置表面：侧栏底部行（帮助与设置）仍在', async () => {
     const { workbenchFeature } = await import('../feature')
     const kernel = await mount([workbenchFeature])
     kernel.kernelServices.navigation.navigate({ surface: 'workbench.settings', params: {} })
@@ -343,9 +343,7 @@ describe('workbench 外壳', () => {
     const footer = document.querySelector('.settings-navigation__footer')
     expect(footer).not.toBeNull()
     expect(footer?.querySelector('[aria-label="帮助"]')).not.toBeNull()
-    const settings = footer?.querySelector('[aria-label="设置"]')
-    expect(settings).not.toBeNull()
-    expect(settings?.className).toContain('bg-sidebar-accent')
+    expect(footer?.querySelector('[aria-label="设置"]')).not.toBeNull()
     kernel.dispose()
   })
 
@@ -426,7 +424,6 @@ describe('workbench 外壳', () => {
     kernel.kernelServices.banners.show({ severity: 'info', title: '提示一下' })
     await new Promise((r) => setTimeout(r, 5))
     expect(screen.getByText('提示一下')).toBeDefined()
-    expect(document.querySelector('.ui-banner')).not.toBeNull()
     expect(document.querySelector('[data-workbench-part="toasts"]')).toBeNull()
     /* 横幅同样登记为贴边浮层：压在浏览器面板的原生视图上时必须让路（P-07）。 */
     const anchored = overlaysOnScreen().flatMap((overlay) =>
@@ -455,10 +452,11 @@ describe('workbench 外壳', () => {
   })
 
   /*
-   * 包装层必须 display: contents，否则静态定位的 div 会被栅格自动放进某个格位，等于外壳替浮层占了一格。
-   * happy-dom 不做布局，「没占格位」量不出来，这里改为钉住那个前提。
+   * 浮层挂在 [data-overlay] 的包装层里，包装层不生成盒子（display: contents）——否则静态定位的 div 会被
+   * 栅格自动放进某个格位，等于外壳替浮层占了一格。happy-dom 不做布局，这里只钉「贡献的浮层确实挂在那个
+   * 包装层下」，样式前提归样式表。
    */
-  test('浮层包装层不生成盒子（display: contents）', async () => {
+  test('浮层挂在包装层里', async () => {
     const feature = defineUiFeature({
       id: 'test',
       setup: (ctx) => {
@@ -473,7 +471,7 @@ describe('workbench 外壳', () => {
     const kernel = await mount([feature])
     const host = document.querySelector('[data-overlay="test.overlay"]')
     expect(host).not.toBeNull()
-    expect(host?.classList.contains('workbench__overlay')).toBe(true)
+    expect(host?.querySelector('[data-test-overlay]')).not.toBeNull()
     kernel.dispose()
   })
 

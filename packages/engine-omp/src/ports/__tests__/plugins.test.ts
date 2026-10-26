@@ -18,10 +18,10 @@ describe('PluginsPort', () => {
   test('uninstall / setEnabled 对没装过的 id 如实抛 AppError（不静默成功）', async () => {
     const port = makePort()
     await expect(port.uninstall('no-such-plugin-xyz@no-such-marketplace')).rejects.toMatchObject({
-      code: expect.any(String),
+      code: 'kernel.not_found',
     })
     await expect(port.setEnabled('no-such-plugin-xyz@no-such-marketplace', true)).rejects.toMatchObject({
-      code: expect.any(String),
+      code: 'kernel.not_found',
     })
   })
 })

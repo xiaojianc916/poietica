@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { noopLogger } from '@poietica/foundation'
+import { AppError, noopLogger } from '@poietica/foundation'
 import { testLayout } from '../../__tests__/omp-home'
 import type { OmpMcpManager } from '../../omp-context'
 import { OmpMcpPort } from '../mcp'
@@ -86,7 +86,9 @@ describe('McpPort', () => {
     const port = makePort()
     await port.remove('demo')
     expect(readConfig().mcpServers?.demo).toBeUndefined()
-    await expect(port.remove('demo')).rejects.toMatchObject({ code: expect.any(String) })
+    /* 只钉「抛的是引擎边界的 AppError」：具体码由 toEngineError 按 message 猜，路径里带 3 位数字都会被当成
+       upstream（见 errors.ts 的 5\d\d 判据），钉死某一档会随临时目录名翻红。 */
+    await expect(port.remove('demo')).rejects.toBeInstanceOf(AppError)
   })
 
   /* omp 的 MCPManager 没有批量状态接口：按名字逐个问（getAllServerNames + getConnectionStatus）。 */
@@ -291,6 +293,6 @@ describe('McpPort.catalog', () => {
 
   test('目录方报错时如实抛 AppError，不假装成空结果', async () => {
     stubFetch(() => new Response('boom', { status: 503 }))
-    await expect(makePort().catalog('demo')).rejects.toMatchObject({ code: expect.any(String) })
+    await expect(makePort().catalog('demo')).rejects.toBeInstanceOf(AppError)
   })
 })

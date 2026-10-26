@@ -106,8 +106,8 @@ describe('模型选择器的开合与换页', () => {
     })
     expect(popup()).not.toBeNull()
     expect(showing('band')).toBe(true)
-    /* 焦点回到进清单的那一行，而不是被菜单接到卡里第一个可 Tab 的档位滑块上 */
-    expect(document.activeElement?.classList.contains('assistant-model-select__head')).toBe(true)
+    /* 焦点回到进清单的那一行（那一行写着模型名），而不是被菜单接到卡里第一个可 Tab 的档位滑块上 */
+    expect(document.activeElement?.textContent ?? '').toContain('DeepSeek V4')
 
     await act(async () => {
       fireEvent.keyDown(popup() as Element, { key: 'Escape' })

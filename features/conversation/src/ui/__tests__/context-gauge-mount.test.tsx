@@ -13,12 +13,12 @@ const usage = (breakdown: SessionUsage['breakdown']): SessionUsage => ({
 })
 
 describe('上下文胶囊的触发方式', () => {
-  test('常显触发按钮，且提示与面板两个入口都在', () => {
+  test('常显触发按钮，带可读用量与展开语义', () => {
     const markup = renderToStaticMarkup(<ContextGauge usage={usage(null)} />)
 
-    expect(markup).toContain('context-gauge__trigger')
-    expect(markup).toContain('上下文已用 70%')
-    expect(markup).toContain('context-gauge__ring')
+    expect(markup).toContain('aria-label="上下文已用 70%"')
+    expect(markup).toContain('aria-haspopup="dialog"')
+    expect(markup).toContain('<svg')
   })
 
   test('还没报过用量就整个不画', () => {

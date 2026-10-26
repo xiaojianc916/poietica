@@ -79,7 +79,7 @@ const EXCEPTIONS: readonly Exception[] = [
     rule: 'S9',
     path: 'packages/design-system/src/control/banner.css',
     budget: 2,
-    note: 'banner-contract.test.ts 钉住 --ui-banner-hold 兜底',
+    note: '恒深卡上的令牌兜底，两主题同值（原 banner-contract 用例已删）',
   },
   {
     rule: 'S9',

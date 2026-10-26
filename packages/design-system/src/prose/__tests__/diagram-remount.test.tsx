@@ -95,9 +95,10 @@ test('D3 围栏还没闭合时不画；闭合后画一次，之后再挂载不�
   expect(renderCount).toBe(1)
 })
 
-/* 图的尺寸只能是「自然宽高 + 只缩不放」。写成 width:100% 时，pele 排出的紧凑图（三节点流程图约 160×64）
-   会被连字号一起放大到满栏 —— 真实故障：一张 sequenceDiagram 的字大得糊在屏幕上。 */
-test('D4 图的尺寸原样保留，不被强制铺满栏宽', () => {
+/* 图的尺寸只能是「自然宽高 + 只缩不放」：写成 width:100% 时，pele 排出的紧凑图（三节点流程图约 160×64）
+   会被连字号一起放大到满栏 —— 真实故障：一张 sequenceDiagram 的字大得糊在屏幕上。这里钉住「引擎交回的
+   自然尺寸原样保留」，具体怎么缩放归样式表。 */
+test('D4 图保留引擎交回的自然宽高', () => {
   const view = render(<Diagram code="graph TD;A-->B" isIncomplete={false} />)
   const svg = view.container.querySelector<SVGSVGElement>('.timeline-prose__diagram-stage svg')
 
@@ -105,5 +106,4 @@ test('D4 图的尺寸原样保留，不被强制铺满栏宽', () => {
   /* 替身带的是 width/height="10"，这正是引擎交回来的自然尺寸；组件不该改它。 */
   expect(svg?.getAttribute('width')).toBe('10')
   expect(svg?.getAttribute('height')).toBe('10')
-  expect(svg?.style.width).not.toBe('100%')
 })

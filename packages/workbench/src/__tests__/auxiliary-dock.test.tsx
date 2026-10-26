@@ -606,7 +606,6 @@ describe('dockTabs 组与标签选中态（R-49）', () => {
 
     expect(document.querySelector('[role="menu"]')).not.toBeNull()
     expect(strip?.children.length ?? 0).toBe(before)
-    expect(document.querySelector('.bg-muted\\/30')).toBeNull()
     kernel.dispose()
   })
 })

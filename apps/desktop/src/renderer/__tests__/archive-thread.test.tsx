@@ -149,10 +149,9 @@ describe('侧栏 · 归档', () => {
     expect(host.textContent ?? '').not.toContain('你好')
 
     /* ② 横幅：legacy 的两条动作一字未改，动作本身可点。 */
-    const banner = document.body.querySelector('.ui-banner')
-    expect(banner?.textContent ?? '').toContain('会话已归档，可')
-    expect(banner?.textContent ?? '').toContain('撤销')
-    expect(banner?.textContent ?? '').toContain('筛选已归档会话')
+    expect(document.body.textContent ?? '').toContain('会话已归档，可')
+    expect(document.body.textContent ?? '').toContain('撤销')
+    expect(document.body.textContent ?? '').toContain('筛选已归档会话')
   })
 
   test('横幅上的「撤销」把那条放回列表，走 setArchived(id,false)', async () => {

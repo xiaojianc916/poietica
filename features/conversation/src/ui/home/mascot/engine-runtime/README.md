@@ -26,8 +26,8 @@ IIFE 脚本（`rings.js` / `emotions.js` / `ball.js` / `engine.js`）逐字迁�
 
 等价性是实测的，不是推断：迁移时把上游原始 `.js` 与迁移后的 `.ts` 放进同一 happy-dom、
 固定随机数与时钟，比对 **32 套表情 × 3 种形状**连续切表情 + 自旋 + 注视的逐帧 SVG，以及
-`config.exportConfig()` 与分组列表，**逐字节一致**。结论冻结在
-[`../__tests__/mascot-baseline.test.ts`](../__tests__/mascot-baseline.test.ts)。
+`config.exportConfig()` 与分组列表，**逐字节一致**。那次对拍是一次性的，结论随上游 `.js`
+一起删掉；保留这份说明作为迁移口径，不再挂常驻用例。
 
 ## 两条规则例外
 
@@ -40,5 +40,4 @@ IIFE 脚本（`rings.js` / `emotions.js` / `ball.js` / `engine.js`）逐字迁�
    一个 `createBall` / `applyPose` 里（最高 79）。拆函数要动渲染顺序，属于重写，
    不在「逐字迁移」范围内。
 
-**改这个目录时请守住**：要么保持逐字等价并跑基线测试，要么明确按重写处理（那时应该
-把例外一并收回）。
+**改这个目录时请守住**：要么保持逐字等价，要么明确按重写处理（那时应该把例外一并收回）。

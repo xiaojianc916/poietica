@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { AppError } from '@poietica/foundation'
-import { AutomationDraft, AutomationPatch } from '../../contract/entities'
+import { AutomationPatch } from '../../contract/entities'
 import { buildCore, createTestDatabase, fullDraft, stubWorkspaces, testWorkspace } from './helpers'
 
 /* R-14：D1 patch 不带默认值；D2 当前 schema 的新列写进去就是读出来的那份；D3–D5 一次性计划的校验；D6–D8 续用对话的规矩。 */
@@ -17,10 +17,8 @@ function codeOf(fn: () => unknown): string | null {
 }
 
 describe('R-14 契约与数据模型', () => {
-  test('D1 patch 表不带默认值：只给标题就只有标题（旧的 AutomationDraft.partial() 会补出 posture/model/thinking）', () => {
+  test('D1 patch 表不带默认值：只给标题就只有标题', () => {
     expect(AutomationPatch.parse({ title: '改个名' })).toEqual({ title: '改个名' })
-    /* 对照：旧写法确实会补默认值 —— 这就是 bug 的来源。 */
-    expect(AutomationDraft.partial().parse({ title: '改个名' })).toMatchObject({ posture: 'auto-edit', model: null })
   })
 
   test('D2 当前 schema：任务与运行记录的新列写进去就是读出来的那份', () => {

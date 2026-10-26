@@ -51,8 +51,6 @@ describe('抽屉里那处改动的画法', () => {
     const markup = markupOf(AFTER)
 
     /* 行带自己横滚会出现第二条横条，抽屉里关掉；自绘的伪滚动条也已删。 */
-    expect(markup).not.toContain('overflow-x-auto')
-    expect(markup).not.toContain('timeline-tool__diff-scrollbar')
     expect(markup).not.toContain('type="range"')
     expect(markup).toContain('data-scrollable')
   })

@@ -128,12 +128,6 @@ describe('队列条的图片预览', () => {
     expect(thumb?.getAttribute('src')).toBe(SHOT_URL)
     expect(rows[0]!.querySelector('.prompt-queue__thumb-more')?.textContent).toBe('+1')
     expect(rows[1]!.querySelector('.prompt-queue__thumb')).toBeNull()
-    /* 缩略图在序号与正文之间：正文左缘跟着让，但仍是同一种行 */
-    expect([...rows[0]!.children].map((child) => child.className)).toEqual([
-      'prompt-queue__ordinal',
-      'prompt-queue__thumb',
-      'prompt-queue__said',
-    ])
     cleanup()
   })
 

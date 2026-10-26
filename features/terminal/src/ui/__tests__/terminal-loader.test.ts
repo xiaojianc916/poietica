@@ -225,7 +225,7 @@ describe('P-06 终端按需加载', () => {
     runtime.dispose()
   })
 
-  test('L12 面板静态挂载、不等 xterm：加载前只有终端底色，加载完排队的那一格有了画面', async () => {
+  test('L12 面板静态挂载、不等 xterm：加载前没有画面，加载完排队的那一格有了画面', async () => {
     const { runtime, state } = open()
     let release = (): void => undefined
     state.gate = new Promise<void>((resolve) => {
@@ -235,7 +235,6 @@ describe('P-06 终端按需加载', () => {
     const { container } = render(createElement(TerminalPanel, { runtime }))
     const panel = container.querySelector('[data-terminal-panel]')
     expect(panel).not.toBeNull()
-    expect(panel!.className).toContain('bg-[var(--terminal-background)]')
     expect(panel!.querySelector('.xterm')).toBeNull()
     release()
     await tick()

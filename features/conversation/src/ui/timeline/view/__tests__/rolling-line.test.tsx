@@ -105,7 +105,7 @@ describe('思考句（还在写）', () => {
     expect(container.textContent).toBe('先看 配置文件')
   })
 
-  it('新字与回复正文同一套：成段淡入（只动透明度），淡完并回正文；没有第二种颜色', async () => {
+  it('新字与回复正文同一套：成段淡入，淡完并回正文', async () => {
     const { container, update } = mount(thought('0', '我'))
 
     await update(thought('0', '我需要确认端口'))
@@ -115,8 +115,6 @@ describe('思考句（还在写）', () => {
 
     expect(fading.length).toBeGreaterThan(0)
     for (const node of fading) {
-      expect(node.className).toBe('')
-      expect(node.style.color).toBe('')
       expect(node.getAnimations()).toHaveLength(1)
     }
 
@@ -173,12 +171,11 @@ describe('不动的格子', () => {
     expect(container.querySelector('.ticker-track')?.textContent).toBe('结论：端口是 8123')
   })
 
-  it('「正在思考」占位：戴扫光、不滚', () => {
+  it('「正在思考」占位：不建引擎，不滚', () => {
     const { container } = mount(
       <RollingLine contentKey="placeholder" following shimmer text="正在思考" variant="thought" />,
     )
 
-    expect(container.querySelector('.timeline-shimmer')).not.toBeNull()
     expect(container.querySelector('.ticker-track > span')).toBeNull()
   })
 })

@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { readFileSync } from 'node:fs'
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { ProseFileLinksContext } from '../file-links-context'
 import { type FileRef, fileHrefOf, fileRefOfCode, fileRefOfHref, fileRefOfTarget } from '../file-ref'
@@ -99,28 +98,5 @@ describe('正文渲染', () => {
     const inert = [...container.querySelectorAll('.prose-file-link[data-inert]')]
     expect(inert.map((node) => node.textContent)).toEqual(['review-pane.tsx', '说明'])
     expect(container.querySelector('code')?.textContent).toBe('src/ui/b.ts:9')
-  })
-})
-
-/* 样式表的契约（happy-dom 不算层叠、也没有 :hover）：文件链接盖掉正文链接的常显虚线，只在悬停时画回来。 */
-describe('文件链接的排版', () => {
-  const css = readFileSync(new URL('../prose.css', import.meta.url), 'utf8')
-  const rule = (selector: string): string => {
-    const at = css.indexOf(`${selector} {`)
-    if (at < 0) throw new Error(`prose.css 里没有 ${selector}`)
-    return css.slice(at, css.indexOf('}', at))
-  }
-
-  test('平时不画线，悬停才画（线形沿用正文链接的虚线）', () => {
-    expect(rule('.timeline-prose a')).toContain('text-decoration-style: dashed')
-    expect(rule('.timeline-prose a[data-file-ref]')).toContain('text-decoration-line: none')
-    expect(rule('.timeline-prose a[data-file-ref]:hover')).toContain('text-decoration-line: underline')
-  })
-
-  test('文件链接里的行内代码改用正文字形与字号；其余行内代码仍是等宽', () => {
-    expect(rule('.timeline-prose a[data-file-ref] code')).toContain('font-family: var(--ui-font-sans)')
-    expect(rule('.timeline-prose a[data-file-ref] code')).toContain('font-size: inherit')
-    expect(rule('.timeline-prose a[data-file-ref] code')).not.toContain('font-family: var(--cp-font-mono)')
-    expect(rule('.timeline-prose :not(pre) > code')).toContain('font-family: var(--cp-font-mono)')
   })
 })
