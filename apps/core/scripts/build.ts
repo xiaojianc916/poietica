@@ -1,6 +1,6 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { CORE_ARTIFACTS, CORE_NATIVE_ARTIFACTS } from './artifacts'
+import { CORE_ARTIFACTS, CORE_NATIVE_ARTIFACTS, CORE_OPTIONAL_NATIVE_ARTIFACTS } from './artifacts'
 
 /**
  * 构建单个可执行文件 poietica-core.exe。编译方式与 omp 官方的 scripts/compile-binary.ts
@@ -143,9 +143,14 @@ for (const name of nativeFiles) {
   if (existsSync(from)) copyFileSync(from, path.join(outDir, name))
   else throw new Error(`[build] 缺少必需 natives：${name}（找的是 ${resolvedNatives}），不能发布不完整的 Core`)
 }
+// 上游当前只发布 baseline（package.json 的 main 也指向它）；modern 若存在就顺手带上。
+const optionalNativeFiles = CORE_OPTIONAL_NATIVE_ARTIFACTS.filter((name) =>
+  existsSync(path.join(resolvedNatives, name)),
+)
+for (const name of optionalNativeFiles) copyFileSync(path.join(resolvedNatives, name), path.join(outDir, name))
 
 // core-manifest.json：每个产物文件的 sha256，供发布与排查使用
-const emitted = CORE_ARTIFACTS
+const emitted = [...CORE_ARTIFACTS, ...optionalNativeFiles]
 const sha256: Record<string, string> = {}
 for (const f of emitted) sha256[f] = Bun.SHA256.hash(readFileSync(path.join(outDir, f)), 'hex')
 const { PROTOCOL_VERSION } = (await import('@poietica/protocol')) as { PROTOCOL_VERSION: number }
