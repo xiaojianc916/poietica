@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  type CommonScheduleKind,
   describeSchedule,
   formatGmtOffset,
   scheduleDayOfMonthOf,
@@ -51,10 +50,5 @@ describe('schedule model', () => {
     expect(formatGmtOffset(480)).toBe('GMT+8')
     expect(formatGmtOffset(-210)).toBe('GMT-3:30')
     expect(formatGmtOffset(0)).toBe('GMT')
-  })
-
-  test('fixture 类型仍是契约认可的频率集合', () => {
-    const kinds: CommonScheduleKind[] = ['hourly', 'daily', 'weekdays', 'weekly', 'monthly']
-    expect(kinds.length).toBe(5)
   })
 })

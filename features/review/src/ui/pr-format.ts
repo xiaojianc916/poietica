@@ -127,19 +127,6 @@ export function mergeStatusTone(status: GithubMergeStatus): Tone {
   }
 }
 
-export function checkTone(state: GithubCheckState): Tone {
-  switch (state) {
-    case 'success':
-      return 'ok'
-    case 'failure':
-      return 'bad'
-    case 'pending':
-      return 'warn'
-    default:
-      return 'muted'
-  }
-}
-
 /*
  * 整份检查的结论：GitHub 只给「最坏的那一格」。没有检查项时按状态说实话 ——
  * 开着的 PR 是「没有检查」而不是「通过」。

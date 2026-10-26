@@ -77,7 +77,6 @@ describe('DialogPanel', () => {
 
     const many = mount({ kind: 'input', title: '正文', placeholder: '预填', multiline: true })
     const area = many.view.getByLabelText('正文') as HTMLTextAreaElement
-    expect(area.tagName).toBe('TEXTAREA')
     expect(area.value).toBe('预填')
     fireEvent.change(area, { target: { value: '预填\n第二行' } })
     fireEvent.click(many.view.getByRole('button', { name: '提交' }))

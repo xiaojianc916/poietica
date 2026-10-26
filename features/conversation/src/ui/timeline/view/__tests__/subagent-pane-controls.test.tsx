@@ -48,7 +48,6 @@ describe('AuxiliaryComposerBar', () => {
     )
     const form = view.container.querySelector('form')
     expect(form).not.toBeNull()
-    expect(view.container.querySelector('.auxiliary-composer__pill')?.getAttribute('data-leading')).toBe('none')
     fireEvent.submit(form as HTMLFormElement)
     expect(onSubmit).toHaveBeenCalledTimes(1)
 

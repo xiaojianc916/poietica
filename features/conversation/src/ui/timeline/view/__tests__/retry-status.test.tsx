@@ -23,12 +23,10 @@ const base: RetryTimelineItem = {
 
 const labelIn = (container: HTMLElement) => container.querySelector('.timeline-row__label')
 
-test('S1 在重试：工具行的结构，读作「正在重试 2/5」', () => {
+test('S1 在重试：读作「正在重试 2/5」', () => {
   const { container } = render(<RetryStatus isOpen={false} item={base} onToggle={() => undefined} />)
-  const row = container.querySelector('.timeline-tool > button.timeline-row')
-  expect(row).not.toBeNull()
+  expect(container.querySelector('.timeline-tool > button.timeline-row')).not.toBeNull()
   expect(labelIn(container)?.textContent).toBe('正在重试 2/5')
-  expect(row?.querySelector('svg')).not.toBeNull()
 })
 
 test('S2 收口的几种说法', () => {

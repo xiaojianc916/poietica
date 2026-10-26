@@ -242,35 +242,6 @@ describe('过程组的组头', () => {
     expect(markup).not.toContain('aria-expanded')
   })
 
-  it('思考那一格走滚动，工具那一格从头显示', () => {
-    /* 两个 variant 的几何不同（rolling-line.css）：思考往左滚、最新的字永远完整；工具行不动、
-       从头显示，放不下时末尾省略号。 */
-    const thinking = selectPresentation(
-      stateOf([ask(), tool('r', 'read', 'in_progress'), thought('t', '第一行\n还在想')], true),
-      new Map(),
-    )
-    const thinkingMarkup = renderToStaticMarkup(
-      <ToolGroupCard isOpen={false} onToggle={nothing} plan={planAt(thinking, 1)} renderRow={() => null} />,
-    )
-
-    expect(thinkingMarkup).toContain('data-variant="thought"')
-    /* 还在写的思考句交给逐帧引擎：静态标记里只有窗口，轨道由客户端从头建。 */
-    expect(thinkingMarkup).toContain('data-following')
-    expect(thinkingMarkup).not.toContain('ticker-track')
-
-    const running = selectPresentation(
-      stateOf([ask(), tool('r', 'read', 'in_progress'), tool('e', 'execute')], true),
-      new Map(),
-    )
-    const runningMarkup = renderToStaticMarkup(
-      <ToolGroupCard isOpen={false} onToggle={nothing} plan={planAt(running, 1)} renderRow={() => null} />,
-    )
-
-    expect(runningMarkup).toContain('data-variant="tool"')
-    /* 工具行不动：静态标记里就是窗口加轨道，整句从头显示。 */
-    expect(runningMarkup).toContain('ticker-track')
-  })
-
   it('思考取的是当前那一句，不是最后一行：一整个长段落里也看得出换句', () => {
     /* 按行号取句会把整段算作一行，永远看不到换句（T-04）；key 与「上一句」都是 React 的 props，
        进不了 DOM，这里只能断言印出来的是切到句号之后的那一句。 */
@@ -316,9 +287,6 @@ describe('过程组的组头', () => {
 
     expect(rendered).toEqual(['r', 'e'])
     expect(markup).toContain('读取 1 个文件，运行 1 条命令')
-    expect(markup).toContain('data-scrollable')
-    /* 两端那道雾：首帧没量过时是 none（不画雾），量过之后按 scrollTop 换。 */
-    expect(markup).toContain('data-scroll-mask="none"')
   })
 })
 

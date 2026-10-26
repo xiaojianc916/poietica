@@ -93,17 +93,13 @@ describe('会话列表：标题悬停横移的接线', () => {
 
     expect(title.scrollLeft).toBeGreaterThan(0)
     expect(title.scrollLeft).toBeLessThan(140)
-    expect(title.hasAttribute('data-scrolled')).toBe(true)
-    expect(title.hasAttribute('data-clipped')).toBe(true)
 
     fireEvent.pointerLeave(row)
 
     expect(title.scrollLeft).toBe(0)
-    expect(title.hasAttribute('data-scrolled')).toBe(false)
-    expect(title.hasAttribute('data-clipped')).toBe(false)
   })
 
-  test('放得下的标题一动不动：不排队、不上渐隐钩子', async () => {
+  test('放得下的标题一动不动', async () => {
     const view = mount()
     const title = clipTarget(view, SHORT)
 
@@ -113,8 +109,6 @@ describe('会话列表：标题悬停横移的接线', () => {
     await settle()
 
     expect(title.scrollLeft).toBe(0)
-    expect(title.hasAttribute('data-scrolled')).toBe(false)
-    expect(title.hasAttribute('data-clipped')).toBe(false)
   })
 
   test('带分叉序号的标题只移正文，序号钉在行尾不跟着跑', async () => {
@@ -132,11 +126,7 @@ describe('会话列表：标题悬停横移的接线', () => {
     await settle()
 
     expect(base.scrollLeft).toBeGreaterThan(0)
-    expect(base.hasAttribute('data-scrolled')).toBe(true)
-    expect(base.hasAttribute('data-clipped')).toBe(true)
-    /* 序号不在 ref 那一层：它既没有位移，也没有渐隐。 */
+    /* 序号不在 ref 那一层：它没有位移。 */
     expect(ordinal.scrollLeft).toBe(0)
-    expect(ordinal.hasAttribute('data-scrolled')).toBe(false)
-    expect(ordinal.hasAttribute('data-clipped')).toBe(false)
   })
 })

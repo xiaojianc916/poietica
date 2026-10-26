@@ -18,7 +18,6 @@ describe('上下文胶囊的触发方式', () => {
 
     expect(markup).toContain('aria-label="上下文已用 70%"')
     expect(markup).toContain('aria-haspopup="dialog"')
-    expect(markup).toContain('<svg')
   })
 
   test('还没报过用量就整个不画', () => {

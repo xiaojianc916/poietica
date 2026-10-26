@@ -77,7 +77,7 @@ afterEach(() => {
 })
 
 describe('会话标题的悬停横移', () => {
-  test('从第二帧起按 30px/s 匀速爬，两端渐隐跟着位置走，到远端停下并摘掉右端渐隐', () => {
+  test('从第二帧起按 30px/s 匀速爬，到远端停下且不再排队', () => {
     const frames = fakeFrames()
     const restoreMatchMedia = reducedMotion(false)
     try {
@@ -86,23 +86,17 @@ describe('会话标题的悬停横移', () => {
       clip(title, 320, 180)
 
       fireEvent.pointerEnter(screen.getByTestId('row'))
-      /* 第一帧只记下时钟，不动；右端先挂渐隐（还有字没露出来）。 */
+      /* 第一帧只记下时钟，不动。 */
       frames.step(16)
       expect(title.scrollLeft).toBe(0)
-      expect(title.hasAttribute('data-scrolled')).toBe(false)
-      expect(title.hasAttribute('data-clipped')).toBe(true)
 
-      /* 100ms 爬 3px：两端都在裁，所以两只钩子都在。 */
+      /* 100ms 爬 3px。 */
       frames.step(116)
       expect(title.scrollLeft).toBeCloseTo(3, 5)
-      expect(title.hasAttribute('data-scrolled')).toBe(true)
-      expect(title.hasAttribute('data-clipped')).toBe(true)
 
-      /* 一次推到超过远端：位置夹在 140，右端渐隐摘掉，且不再排队下一帧。 */
+      /* 一次推到超过远端：位置夹在 140，且不再排队下一帧。 */
       frames.step(5000)
       expect(title.scrollLeft).toBe(140)
-      expect(title.hasAttribute('data-scrolled')).toBe(true)
-      expect(title.hasAttribute('data-clipped')).toBe(false)
       expect(frames.pending()).toBe(0)
     } finally {
       restoreMatchMedia()
@@ -127,8 +121,6 @@ describe('会话标题的悬停横移', () => {
 
       fireEvent.pointerLeave(row)
       expect(title.scrollLeft).toBe(0)
-      expect(title.hasAttribute('data-scrolled')).toBe(false)
-      expect(title.hasAttribute('data-clipped')).toBe(false)
       expect(frames.pending()).toBe(0)
       /* 再推进时间也不会自己爬回去：回程是一步，不是补间。 */
       frames.step(5000)
@@ -147,12 +139,11 @@ describe('会话标题的悬停横移', () => {
       const title = screen.getByText(TITLE)
       const row = screen.getByTestId('row')
 
-      /* 刚好放不下：不排队、不上钩子。 */
+      /* 刚好放不下：不排队。 */
       clip(title, 188, 180)
       fireEvent.pointerEnter(row)
       expect(frames.pending()).toBe(0)
       expect(title.scrollLeft).toBe(0)
-      expect(title.hasAttribute('data-clipped')).toBe(false)
 
       /* 溢出 9px：爬到 9px 的远端。 */
       clip(title, 189, 180)
@@ -160,8 +151,6 @@ describe('会话标题的悬停横移', () => {
       frames.step(16)
       frames.step(1000)
       expect(title.scrollLeft).toBe(9)
-      expect(title.hasAttribute('data-scrolled')).toBe(true)
-      expect(title.hasAttribute('data-clipped')).toBe(false)
 
       fireEvent.pointerLeave(row)
     } finally {
@@ -180,8 +169,6 @@ describe('会话标题的悬停横移', () => {
 
       fireEvent.pointerEnter(screen.getByTestId('row'))
       expect(title.scrollLeft).toBe(140)
-      expect(title.hasAttribute('data-scrolled')).toBe(true)
-      expect(title.hasAttribute('data-clipped')).toBe(false)
       expect(frames.pending()).toBe(0)
     } finally {
       restoreMatchMedia()

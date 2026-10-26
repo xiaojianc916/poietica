@@ -100,7 +100,7 @@ afterEach(() => {
 })
 
 describe('主区右上角控件（mainControls）', () => {
-  test('按 order 落进栅格，data-slot 分「主区」与「窗口」两格', async () => {
+  test('两个槽位的贡献都画得出来', async () => {
     const feature = defineUiFeature({
       id: 'controls',
       setup: (ctx) => {
@@ -120,10 +120,8 @@ describe('主区右上角控件（mainControls）', () => {
     })
     const kernel = await mount([feature])
 
-    const nodes = [...document.querySelectorAll('.workspace-shell__conversation-control')]
-    expect(nodes.map((el) => el.getAttribute('data-slot'))).toEqual(['main', 'window'])
-    expect(nodes[0]?.querySelector('[data-ctl="todo"]')).not.toBeNull()
-    expect(nodes[1]?.querySelector('[data-ctl="auxiliary"]')).not.toBeNull()
+    const controls = [...document.querySelectorAll('[data-ctl]')].map((el) => el.getAttribute('data-ctl'))
+    expect(controls).toEqual(['todo', 'auxiliary'])
     kernel.dispose()
   })
 

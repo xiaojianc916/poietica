@@ -89,16 +89,6 @@ describe('改动条的展开', () => {
     expect(rows[0]?.querySelector('.turn-changes__removed')?.textContent).toBe('-3')
   })
 
-  test('每个文件行前面有它的类型图标：清单靠它一眼扫出文件种类', () => {
-    const container = mount({}, true).container
-    const marks = [...container.querySelectorAll('.turn-changes__file img[data-file-mark]')]
-
-    expect(marks).toHaveLength(2)
-    /* 图标只是装饰：读屏读文件名，不读两遍。 */
-    expect(marks[0]?.getAttribute('alt')).toBe('')
-    expect(marks[0]?.getAttribute('aria-hidden')).toBe('true')
-  })
-
   test('根目录下的文件没有目录那一格：不画空的', () => {
     const container = mount({ files: [{ path: 'README.md', added: 1, removed: 0 }] }, true).container
     const row = container.querySelector('.turn-changes__file')
@@ -174,7 +164,6 @@ describe('改动条的撤销键', () => {
 
     expect(button.disabled).toBe(true)
     expect(button.textContent).toBe('已撤销')
-    expect(container.querySelector('.turn-changes')?.getAttribute('data-reverted')).toBe('true')
   })
 
   test('撤销过的轮再点也交不出东西', () => {

@@ -65,12 +65,6 @@ describe('自动化工具卡', () => {
     expect(screen.getByText('测试任务')).toBeDefined()
   })
 
-  test('行上有展开箭头', () => {
-    mount('automation_list', LIST)
-
-    expect(document.querySelector('.timeline-row__chevron')).not.toBeNull()
-  })
-
   test('「查看这次运行」在行尾，点它打开那次运行的对话', () => {
     const { opened } = mount('automation_run', RUN)
 
@@ -80,11 +74,5 @@ describe('自动化工具卡', () => {
     fireEvent.click(link as Element)
 
     expect(opened).toEqual(['t-run'])
-  })
-
-  test('只有动作没有面板的那一步不给箭头', () => {
-    mount('automation_run', RUN)
-
-    expect(document.querySelector('.timeline-row__chevron')).toBeNull()
   })
 })

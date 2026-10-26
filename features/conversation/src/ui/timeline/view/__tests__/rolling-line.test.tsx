@@ -151,27 +151,23 @@ describe('思考句（还在写）', () => {
 })
 
 describe('不动的格子', () => {
-  it('工具行：从头显示整句，不建引擎（没有淡入段、没有位移）', () => {
+  it('工具行：整句从头显示，不切成淡入段', () => {
     const { container } = mount(<RollingLine contentKey="call-1" following shimmer text="读 config.ts" />)
-    const track = container.querySelector<HTMLElement>('.ticker-track')
 
-    expect(container.querySelector('.rolling-line')?.getAttribute('data-variant')).toBe('tool')
     expect(container.querySelector('.ticker-track > span')).toBeNull()
-    expect(track?.textContent).toBe('读 config.ts')
-    expect(track?.style.transform).toBe('')
+    expect(container.querySelector('.ticker-track')?.textContent).toBe('读 config.ts')
   })
 
-  it('落定的思考句：不滚、没有 data-following，整句从头显示', () => {
+  it('落定的思考句：整句从头显示，不切成淡入段', () => {
     const { container } = mount(
       <RollingLine contentKey="0" following={false} text="结论：端口是 8123" variant="thought" />,
     )
 
-    expect(container.querySelector('.rolling-line')?.hasAttribute('data-following')).toBe(false)
     expect(container.querySelector('.ticker-track > span')).toBeNull()
     expect(container.querySelector('.ticker-track')?.textContent).toBe('结论：端口是 8123')
   })
 
-  it('「正在思考」占位：不建引擎，不滚', () => {
+  it('「正在思考」占位：整句直接摆出来，不建淡入段', () => {
     const { container } = mount(
       <RollingLine contentKey="placeholder" following shimmer text="正在思考" variant="thought" />,
     )

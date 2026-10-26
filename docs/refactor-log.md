@@ -62,6 +62,24 @@
 
 ## 偏差与裁决
 
+### 换肤与换面的补间（2026-10-26）
+
+- **为什么加**：主题切换与设置页 / 右坞换内容原本是硬切，一帧跳完。Electron 45 的 Chromium 156 有 View Transition API，React 19.3 也有 `<ViewTransition>`，不必引第三方动画库。
+- **不用 React 的 `<ViewTransition>`**：它只在 `startTransition` / Suspense / Action 这类异步更新时触发，`navigation` 与 `layout` 都只是普通 Observable 的同步 `set`；要让它生效得把路由与坞的写入全部改成 transition，等于为一帧补间改动调度语义。走 `document.startViewTransition` 直接套在写入外面，语义不变。
+- **`flushSync` 是硬需求**：`update` 回调返回时浏览器就拍新快照；Observable 的 `set` 只触发 React 重渲染并排队，不 flush 的话新图还是旧的，补出来是同一张脸。已在 `withViewTransition` 里统一 flush，调用方不必记这条。
+- **减弱动效要自己判**：`tokens/accessibility.css` 那条全局 `*` 规则只覆盖元素树，`::view-transition-*` 是伪元素树、压不到。helper 里判系统偏好与 `data-reduce-motion` 两处，任一成立就直接同步落地、不进快照；CSS 里那份 `::view-transition-*` 规则是第二道闸（防将来有人绕过 helper）。
+- **不换库的判断**：`animated-rows`（FLIP）继续手写 WAAPI —— 它必须在提交前量旧位置、提交后量新位置，任何声明式库都会多一层帧时序风险；`ticker-engine` 继续自研 rAF —— 它要按速度积分做减速滑行。两处都不在本次范围内。
+- **捕捉范围**：换肤不点名，整窗淡一次是对的；换路由只给主区那张卡名字（页头、侧栏不跟着呼吸）；坞里换格只给内容块名字。三处都先把 root 的 `view-transition-name` 摘掉，否则整棵树仍会被拍成一张图、与局部那张叠成两层淡入。
+- **核验**：Electron 45 真实 Chromium 里量到 `startViewTransition` 可用、时长读到 `--ui-duration-normal`（0.18s）、`:active-view-transition` 命中、update 内 DOM 落地、减弱动效两条（系统偏好 / 外观开关）均同步不建过渡、换肤走过渡且同值不重复。
+
+### 测试只钉行为（2026-10-26，第二轮）
+
+- 再删一轮「没有长期价值」的用例，判据只有一条：**这条断言红了，能不能说明用户看到的行为坏了**。答不上的删 —— 读源码 / CSS 文本、断言 tagName 与 class、断言某个已被删掉的功能不再出现、把静态映射表逐行抄一遍、只验「转发一层」「不抛错」。样式钩子（`data-scrollable`、`data-scrolled`、`data-state`）只在它被别的模块读来做判定时保留，那时它已经是一条协议。
+- 整文件删除：`design-system` 的 `state-dot`（只剩 data-state 与 tagName）、`dialog-actions`（只数表头按钮）、`workspace-picker`（只数菜单项个数）；`conversation` 的 `tool-diff-rows`（断言 markup 里有没有 `diff-body` 类名）；`platform/host/tray`（一次性把 createTray 的调用序列抄进期望值）。
+- 就地剥掉：`panel` 的环形描边标记与让位几何、`tool-card` 的 `.timeline-tool__panel` / `.browser-tool__status` / `<details>` 结构、`terminal-panel` 的 `className.includes('hidden')`、`file-tree` 的 `img`/`svg` 与 `5000 * 28` 字面高度、`title-marquee` 的一组 `data-scrolled` / `data-clipped`（纯渐隐钩子）、`running-status` 的鲸鱼两层、`process-group` 的 `data-variant` / `ticker-track` / `data-scroll-mask`、`turn-changes` 的图标与 `data-reverted`、`update-notice` 的 `tone` / `spinning`、`review` 的 `checkTone` 与 `mergeStatusTone` 断言（前者随之成为零引用，函数一并删除）、`usage-activity` 的按天求和自证、`agent-settings` 的 `setCapability` 纯转发。
+- **保留**：点名点击 / 键盘 / 回调、数据往返、错误分类、无障碍属性（role / aria-label / aria-expanded / aria-selected / tabIndex）、虚拟化与滚动几何不变量、`data-scrollable` 这类被别的模块读作协议（`feed/nested-scroll.ts` 认它判滚轮归属）、文案与状态词（它们是行为，不是外观）。`todo-fold`（聚焦折叠行时悬浮卡列出被折起来的项）是真实交互，留着。
+- 与上一轮（提交 `0af63d89`）同一条裁决，本次只是把漏网的收干净；测试数 3153 → 3139 条、文件 402 → 398 份。`bun run all` 绿。
+
 ### Core 产物完整性（2026-10-26）
 
 - manifest 不能由「实际生成的子集」定义完整性。构建与校验共用固定必需产物清单，缺少必需的 Windows natives 就失败。必需清单以**上游实际发布的文件**为准：`@oh-my-pi/pi-natives-win32-x64@18.12.6` 只随包发布 `baseline.node`（其 `package.json` 的 `main` 也指向它），因此 `baseline` 是必需项；`modern.node` 是可选增强，上游若带上就一并复制并纳入哈希，绝不伪造不存在的文件。全部哈希都对只代表静态完整性，运行是否可用仍由 Windows probe 验收。Linux 的默认安装不带 Windows 可选依赖时，构建失败是正确行为，不能降级成可发布产物。

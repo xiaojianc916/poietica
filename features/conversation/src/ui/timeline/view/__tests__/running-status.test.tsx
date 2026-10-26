@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'bun:test'
 import { cleanup, render } from '@testing-library/react'
 import { RunningStatus } from '../running-status'
 
-/* 运行状态行：文案、三个中点、鲸鱼两层、分隔线只在上面有产出时画。真实布局归 check:ticker 那一族。 */
+/* 运行状态行：文案、三个中点、分隔线只在上面有产出时画。真实布局归 check:ticker 那一族。 */
 
 afterEach(() => {
   cleanup()
@@ -42,15 +42,6 @@ describe('运行状态行', () => {
   it('上面的产出不是我说的话时才画分隔线', () => {
     expect(mount({ divided: true }).querySelector('.running-status__divider')).not.toBeNull()
     expect(mount({ divided: false }).querySelector('.running-status__divider')).toBeNull()
-  })
-
-  it('鲸鱼两层都在，二选一由 CSS 定（动效不被支持时静态那条顶上）', () => {
-    const container = mount({ startedAt: Date.now() })
-
-    expect(container.querySelector('.running-status__whale-animated')).not.toBeNull()
-    expect(container.querySelector('.running-status__whale-still')).not.toBeNull()
-    // 图标不由这一行承担信息：两层都从无障碍树里摘掉。
-    expect(container.querySelector('.running-status__icon')?.getAttribute('aria-hidden')).toBe('true')
   })
 
   it('只给读屏播报那句固定文案：带秒数的可见文案每秒都变，挂 aria-live 会让人停不下来', () => {

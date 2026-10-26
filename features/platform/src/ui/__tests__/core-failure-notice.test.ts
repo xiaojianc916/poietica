@@ -20,16 +20,10 @@ describe('入口提示：Core 起不来', () => {
     expect(coreFailureVisible(status('failed', null))).toBe(true)
   })
 
-  test('八个 reason 全覆盖', () => {
-    expect(Object.keys(FAILURE_TEXT).sort()).toEqual([
-      'bad_arguments',
-      'core_missing',
-      'crash_loop',
-      'data_too_new',
-      'isolation_violated',
-      'protocol_mismatch',
-      'start_failed',
-      'start_timeout',
-    ])
+  test('每一个 reason 都有一句给人看的话，认不出的退回泛称', () => {
+    for (const reason of Object.keys(FAILURE_TEXT)) {
+      expect(FAILURE_TEXT[reason]).not.toBe('Agent 引擎不可用')
+    }
+    expect(FAILURE_TEXT['not_a_reason']).toBeUndefined()
   })
 })

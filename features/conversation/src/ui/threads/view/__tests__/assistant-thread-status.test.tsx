@@ -8,7 +8,7 @@ import { AssistantThreadList, type AssistantThreadSummary } from '../assistant-t
  * - 待答的那一行，行尾相对时间让位给短标签；
  * - 完整说法（等待审批 / 计划待审 / 等待回答）始终给读屏。
  *
- * 只看颜色是分不出来的：这里钉的是 DOM 上的 data-state 与那一句话。
+ * 只看颜色是分不出来的：这里钉的是读屏读得到的那句话。
  */
 
 afterEach(cleanup)
@@ -43,17 +43,16 @@ function rowOf(container: HTMLElement, title: string): HTMLElement {
 }
 
 describe('会话行：状态记号', () => {
-  test('正在跑：行首是 ongoing 的环，不是实心点', () => {
+  test('正在跑：读屏读得到「进行中」', () => {
     const view = mount([{ id: 't1', title: '跑着的', updatedAt: AT }], ['t1'])
-    const ring = rowOf(view, '跑着的').querySelector('[data-state="ongoing"]')
-    expect(ring).not.toBeNull()
-    expect(ring?.tagName.toLowerCase()).toBe('svg')
+
+    expect(rowOf(view, '跑着的').textContent).toContain('进行中')
   })
 
-  test('空闲：行首那一格空着，但行尾照旧有时间', () => {
+  test('空闲：行首没有状态说法，但行尾照旧有时间', () => {
     const view = mount([{ id: 't1', title: '闲着', updatedAt: AT }])
     const row = rowOf(view, '闲着')
-    expect(row.querySelector('[data-state]')).toBeNull()
+    expect(row.textContent).not.toContain('进行中')
     expect(row.querySelector('time')).not.toBeNull()
   })
 
@@ -61,11 +60,10 @@ describe('会话行：状态记号', () => {
     ['approval', '等待审批', '待审批'],
     ['plan', '计划待审', '计划待审'],
     ['question', '等待回答', '待回答'],
-  ] as const)('%s：警告点抢在运行环前面，行尾换成短标签', (pendingInteraction, spoken, compact) => {
+  ] as const)('%s：待答抢在运行说法前面，行尾换成短标签', (pendingInteraction, spoken, compact) => {
     const view = mount([{ id: 't1', title: '等你的', updatedAt: AT, pendingInteraction }], ['t1'])
     const row = rowOf(view, '等你的')
-    expect(row.querySelector('[data-state="warning"]')).not.toBeNull()
-    expect(row.querySelector('[data-state="ongoing"]')).toBeNull()
+    expect(row.textContent).not.toContain('进行中')
     expect(row.textContent).toContain(spoken)
     expect(row.querySelector('.assistant-thread__pending')?.textContent).toBe(compact)
     /* 待答时行尾不再报时间：同一个位置只说一句最要紧的。 */
@@ -90,7 +88,6 @@ describe('会话行：状态记号', () => {
         runningThreadIds={new Set()}
       />,
     )
-    expect(rowOf(doneUnread.container, '跑完了').querySelector('[data-state="done"]')).not.toBeNull()
     expect(rowOf(doneUnread.container, '跑完了').textContent).toContain('已完成，尚未查看')
 
     cleanup()
@@ -111,8 +108,8 @@ describe('会话行：状态记号', () => {
       />,
     )
     const row = rowOf(running.container, '跑完了')
-    expect(row.querySelector('[data-state="done"]')).toBeNull()
-    expect(row.querySelector('[data-state="ongoing"]')).not.toBeNull()
+    expect(row.textContent).not.toContain('已完成，尚未查看')
+    expect(row.textContent).toContain('进行中')
   })
 
   test('定时任务开的会话：安静时行首是闹钟；一旦开跑，运行环把它顶掉', () => {

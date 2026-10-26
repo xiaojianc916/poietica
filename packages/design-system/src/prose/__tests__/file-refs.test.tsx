@@ -72,7 +72,7 @@ describe('正文渲染', () => {
     '另见 `src/ui/b.ts:9`，以及 [官网](https://example.com)。',
   ].join('\n')
 
-  test('有宿主：文件链接带 Material 图标、点了交出原文路径（反斜杠转义不被吃掉）与行号', () => {
+  test('有宿主：点了交出原文路径（反斜杠转义不被吃掉）与行号', () => {
     const opened: FileRef[] = []
     const { container } = render(
       <ProseFileLinksContext value={{ open: (held) => opened.push(held) }}>
@@ -81,9 +81,6 @@ describe('正文渲染', () => {
     )
     const links = [...container.querySelectorAll('a[data-file-ref]')]
     expect(links.map((link) => link.textContent)).toEqual(['review-pane.tsx', '说明', 'src/ui/b.ts:9'])
-    for (const link of links) {
-      expect(link.querySelector('img[data-file-mark]')).not.toBeNull()
-    }
     expect(container.textContent).not.toContain('[blocked]')
     for (const link of links) fireEvent.click(link)
     expect(opened).toEqual([ref('C:\\repo\\.github\\_x\\review-pane.tsx'), ref('docs/a.md', 3), ref('src/ui/b.ts', 9)])

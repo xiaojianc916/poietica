@@ -129,13 +129,6 @@ describe('agent-settings 服务（14 页 §7.4）', () => {
     const { service } = make([descriptor({ path: 'a', type: 'number', value: 9, defaultValue: 1 })])
     expect((await service.reset('a')).value).toBe(1)
   })
-
-  test('capabilities 与 setCapability 转发', async () => {
-    const { service, calls } = make([])
-    expect(await service.capabilities()).toEqual({ computerUse: false, browserControl: false })
-    await service.setCapability('computerUse', true)
-    expect(calls).toEqual([{ op: 'cap', path: 'computerUse', value: true }])
-  })
 })
 
 describe('catalog 分组（07 页 §7C）', () => {

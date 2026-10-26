@@ -28,8 +28,8 @@ describe('新建 MCP 服务器的表单', () => {
     expect(screen.getByRole('button', { name: '保存' }).hasAttribute('disabled')).toBe(true)
     expect(screen.getByText(NAME_RULE)).not.toBeNull()
     expect(screen.getByPlaceholderText('my-mcp-server').getAttribute('aria-invalid')).toBe('true')
-    /* 只有字段旁这一处：底部 `.mcp__error` 那块横幅不画。 */
-    expect(document.querySelector('.mcp__error')).toBeNull()
+    /* 只有字段旁这一处：同一句话不在底部再重复一遍。 */
+    expect(screen.getAllByText(NAME_RULE)).toHaveLength(1)
 
     cleanup()
   })

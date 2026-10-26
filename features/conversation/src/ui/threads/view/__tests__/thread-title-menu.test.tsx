@@ -131,13 +131,7 @@ describe('会话页左上角标题菜单', () => {
     expect(screen.getByText('导出会话')).toBeDefined()
     expect(screen.getByText('复制会话链接')).toBeDefined()
     expect(screen.getByText('复制 Session ID')).toBeDefined()
-    /* 与另外几项一样带字形：一列里空一格会被读成另一种层级。 */
-    expect(screen.getByText('复制 Session ID').closest('button')?.querySelector('svg')).not.toBeNull()
     expect(screen.getByText('以此对话创建定时任务')).toBeDefined()
-    /*
-     * 贡献项自带字形，菜单里要跟着画：这一行若无图标，与另外三项排在一起时会被读成另一种层级。
-     */
-    expect(screen.getByText('以此对话创建定时任务').closest('button')?.querySelector('svg')).not.toBeNull()
   })
 
   test('点「复制 Session ID」把这条对话的 id 交回去', async () => {

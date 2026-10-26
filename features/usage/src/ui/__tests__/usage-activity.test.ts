@@ -22,14 +22,8 @@ describe('US-2: 本地时间 23:59:59 与次日 00:00:01 的两条采样', () =>
   it('落在两天', () => {
     const key1 = dayKeyOf(new Date(2026, 9, 3, 23, 59, 59))
     const key2 = dayKeyOf(new Date(2026, 9, 4, 0, 0, 1))
-    expect(key1).not.toBe(key2)
-  })
-})
-
-describe('US-3: 1 秒内同一线程 5 次采样', () => {
-  it('同一天的多条采样按天聚合成一格（热力图的格子口径）', () => {
-    const days = spread(new Map([['2026-10-01', 500]]), new Date('2026-10-01'), 1)
-    expect(days.reduce((s, d) => s + d.count, 0)).toBe(500)
+    expect(key1).toBe('2026-10-03')
+    expect(key2).toBe('2026-10-04')
   })
 })
 

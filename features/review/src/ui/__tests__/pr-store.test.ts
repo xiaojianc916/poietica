@@ -2,9 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { GithubComment, GithubPullRequest } from '../../contract'
 import {
   checksSummaryLabel,
-  checkTone,
   mergeStatusLabel,
-  mergeStatusTone,
   pullMetaLine,
   pullStatePresentation,
   relativeTime,
@@ -13,7 +11,7 @@ import {
 } from '../pr-format'
 import { createPrStore, FRESH_MS, filterCounts, PREFETCH_DELAY_MS, type PrGateway, visiblePulls } from '../pr-store'
 
-/* 纯函数与状态机的行为契约。UI 三块各自渲染，但它们对「多久以前」「什么颜色」「哪几条可见」的判断
+/* 纯函数与状态机的行为契约。UI 三块各自渲染，但它们对「多久以前」「哪几条可见」的判断
  * 都从这里来，所以这一份测试守的是三块共同的口径。 */
 
 const NOW = Date.parse('2026-10-14T12:00:00Z')
@@ -96,16 +94,8 @@ describe('状态呈现', () => {
     expect(pullStatePresentation(pull({ state: 'closed' })).label).toBe('Closed')
   })
 
-  test('截图里那句冲突文案就是它', () => {
+  test('冲突那一句文案就是它', () => {
     expect(mergeStatusLabel('conflicting')).toBe('Conflicts with main')
-    expect(mergeStatusTone('conflicting')).toBe('bad')
-    expect(mergeStatusTone('clean')).toBe('ok')
-  })
-
-  test('检查项：失败红、进行中黄、其余灰', () => {
-    expect(checkTone('failure')).toBe('bad')
-    expect(checkTone('pending')).toBe('warn')
-    expect(checkTone('skipped')).toBe('muted')
   })
 
   test('整份检查的结论说实话', () => {

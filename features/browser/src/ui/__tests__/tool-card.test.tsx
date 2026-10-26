@@ -97,7 +97,7 @@ describe('折叠行', () => {
     expect(screen.getByText(/浏览器 · await browser\.open/u)).toBeDefined()
   })
 
-  test('只有「进行中」会显形；失败不挂胶囊', () => {
+  test('只有「进行中」会显形', () => {
     mount({ status: 'running' })
 
     expect(screen.getByText('进行中')).toBeDefined()
@@ -105,17 +105,15 @@ describe('折叠行', () => {
     cleanup()
     mount({ status: 'failed' })
 
-    expect(screen.queryByText('失败')).toBeNull()
-    expect(document.querySelector('.browser-tool__status')).toBeNull()
+    expect(screen.queryByText('进行中')).toBeNull()
   })
 })
 
 describe('展开区', () => {
-  test('代码直接展开，不再套一层「代码」折叠', () => {
+  test('展开就能看到代码，不再是第二层折叠', () => {
     mount()
     expand()
 
-    expect(document.querySelector('details')).toBeNull()
     expect(document.body.textContent).toContain('t.screenshot()')
   })
 
@@ -138,17 +136,8 @@ describe('展开区', () => {
 
     const preview = document.querySelector('.browser-tool__preview')
     expect(preview?.querySelector('img')?.getAttribute('src')?.startsWith('data:image/png')).toBe(true)
-    expect(preview?.closest('.timeline-tool__panel')).toBeNull()
+    /* 截图那一步只给图：上游那句「Screenshot captured / Format: image/png」不是给人看的产出。 */
     expect(preview?.textContent).not.toContain('Screenshot captured')
-  })
-
-  test('展开面板与运行命令同一张纸（宽度归 timeline-tool__body / __panel）', () => {
-    mount()
-    expand()
-
-    const body = document.querySelector('.browser-tool .timeline-tool__body')
-    expect(body?.querySelector('.timeline-tool__panel')).not.toBeNull()
-    expect(document.querySelector('.browser-tool__body')).toBeNull()
   })
 
   test('截图点一下用原生 dialog 放大，再点关闭', () => {
@@ -170,7 +159,7 @@ describe('展开区', () => {
     expect(document.querySelector('dialog')).toBeNull()
   })
 
-  test('失败时错误那段是红的', () => {
+  test('失败时错误只取正文第一段', () => {
     mount({
       result: { content: [{ type: 'text', text: '选择器没找到\n\nat Object.click' }] },
       status: 'failed',

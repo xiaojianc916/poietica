@@ -16,14 +16,11 @@ const base: CompactionTimelineItem = { type: 'compaction', id: 'c1', turn: 1, at
 const labelIn = (container: HTMLElement): string | null | undefined =>
   container.querySelector('.timeline-row__label')?.textContent
 
-test('S1 跑着：工具行的结构，没有可展开的东西就不是按钮', () => {
+test('S1 跑着：一句话说明状态，没有可展开的东西就不是按钮', () => {
   const { container } = render(<CompactionStatus isOpen={false} item={base} onToggle={() => undefined} />)
-  const row = container.querySelector('.timeline-tool > .timeline-row')
-  expect(row?.tagName).toBe('DIV')
-  const label = row?.querySelector('.timeline-row__label')
-  expect(label?.textContent).toBe('正在压缩上下文…')
-  // 旧的自绘字形不再出现
-  expect(container.textContent).not.toContain('↻')
+
+  expect(labelIn(container)).toBe('正在压缩上下文…')
+  expect(container.querySelector('button.timeline-row')).toBeNull()
 })
 
 test('S2 做完：一行短写前后两个数，不再微光；默认收着，展开先一句说明再给摘要', () => {

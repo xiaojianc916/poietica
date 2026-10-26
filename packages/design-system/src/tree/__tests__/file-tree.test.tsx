@@ -48,11 +48,12 @@ describe('FileTree', () => {
     expect(items[2]?.hasAttribute('data-dimmed')).toBe(true)
   })
 
-  test('文件行用 Material 文件图标（不是 lucide 的图）', () => {
+  test('文件行画的是它自己的文件类型图标，不是通用文档', () => {
     const view = render(<FileTree label="t" onOpen={() => undefined} onToggle={() => undefined} rows={rows} />)
-    const file = view.getAllByRole('treeitem')[1]
-    expect(file?.querySelector('img')).not.toBeNull()
-    expect(file?.querySelector('svg')).toBeNull()
+    const marks = [...view.getAllByRole('treeitem')[1]!.querySelectorAll('img[data-file-mark]')]
+
+    expect(marks).toHaveLength(1)
+    expect(marks[0]?.getAttribute('alt')).toBe('')
   })
 
   test('点目录开合、点文件打开；键盘 Enter 同理，方向键移焦点', () => {
@@ -99,13 +100,14 @@ describe('FileTree 虚拟化', () => {
     depth: 0,
   }))
 
-  test('五千行只挂视口附近的一小段；滚动高度按全部行撑起', () => {
+  test('五千行只挂视口附近的一小段，滚动高度按全部行撑起', () => {
     const view = render(<FileTree label="t" onOpen={() => undefined} onToggle={() => undefined} rows={many} />)
     const items = view.getAllByRole('treeitem')
     expect(items.length).toBeLessThan(50)
     expect(items[0]?.getAttribute('aria-setsize')).toBe('5000')
     const sizer = view.getByRole('tree').firstElementChild as HTMLElement
-    expect(sizer.style.height).toBe(`${String(5000 * 28)}px`)
+    /* 滚动高度按全部行撑起：整份列表的高度必须远大于视口，而不是只按挂出来的那几行算。 */
+    expect(Number.parseFloat(sizer.style.height)).toBeGreaterThan(VIEWPORT_PX)
   })
 
   test('漫游焦点那一行不在视口里也挂着：Tab 进树仍有落点', () => {

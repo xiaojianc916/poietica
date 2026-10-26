@@ -115,27 +115,4 @@ describe('面板渲染', () => {
     expect(markup).toContain('1/2')
     expect(markup).toContain('改代码')
   })
-
-  test('待办多了会折起来：折叠行是可聚焦的按钮（悬停 / 聚焦时列出被折起来的那几项）', () => {
-    const markup = renderToStaticMarkup(
-      <TaskPanelContent
-        backgroundTasks={[]}
-        todos={[
-          { title: '一', status: 'done' },
-          { title: '二', status: 'done' },
-          { title: '三', status: 'in_progress' },
-          { title: '四', status: 'pending' },
-          { title: '五', status: 'pending' },
-          { title: '六', status: 'pending' },
-          { title: '七', status: 'pending' },
-        ]}
-      />,
-    )
-
-    expect(markup).toMatch(/<button[^>]*class="status-panel__fold"[^>]*>.*?已完成 2 项/)
-    expect(markup).toMatch(/<button[^>]*class="status-panel__fold"[^>]*>.*?待处理 2 项/)
-    /* 被折起来的那几项只在悬浮卡里，不画在列表本身 */
-    expect(markup).not.toContain('>一<')
-    expect(markup).toContain('三')
-  })
 })

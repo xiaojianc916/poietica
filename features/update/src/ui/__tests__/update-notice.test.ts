@@ -41,9 +41,8 @@ describe('downloading', () => {
     expect(unknown?.text).toBe('正在下载 v1.2.3…')
   })
 
-  test('正在动的那一档要一枚转着的字形，且不给「稍后」', () => {
+  test('正在动的那一档不给「稍后」', () => {
     const notice = updateBannerNotice(state({ phase: 'downloading', version: '1.2.3', progress: 0 }), null)
-    expect(notice?.spinning).toBe(true)
     expect(notice?.actions).toEqual([])
     expect(notice?.progress).toBe(0)
   })
@@ -77,10 +76,9 @@ describe('不说话的那几档', () => {
 /* 「已是最新」是**手动检查**的答复，不是 Host 的一个相位：`idle` 分不出「没查过」与「查过、没有新版本」，所以这个标记由发起检查的
  * 那一侧记在 store 里，横幅只负责报，报完清掉。 */
 describe('latest（手动检查的回话）', () => {
-  test('idle + latest：说「已是最新版本」，带绿勾、没有动作', () => {
+  test('idle + latest：说「已是最新版本」，没有动作', () => {
     const notice = updateBannerNotice(state({ phase: 'idle' }), null, true)
     expect(notice?.text).toBe('已是最新版本')
-    expect(notice?.tone).toBe('success')
     expect(notice?.actions).toEqual([])
   })
 
