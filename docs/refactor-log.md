@@ -66,6 +66,8 @@
 
 - manifest 不能由「实际生成的子集」定义完整性。构建与校验共用固定必需产物清单，缺少必需的 Windows natives 就失败。必需清单以**上游实际发布的文件**为准：`@oh-my-pi/pi-natives-win32-x64@18.12.6` 只随包发布 `baseline.node`（其 `package.json` 的 `main` 也指向它），因此 `baseline` 是必需项；`modern.node` 是可选增强，上游若带上就一并复制并纳入哈希，绝不伪造不存在的文件。全部哈希都对只代表静态完整性，运行是否可用仍由 Windows probe 验收。Linux 的默认安装不带 Windows 可选依赖时，构建失败是正确行为，不能降级成可发布产物。
 
+**legacy-pi 空注册表**：omp 的 `legacy-pi-compat.ts` 里有一句字面量 `import('omp-legacy-pi-modules')`，那是它自己 monorepo 的构建插件（`scripts/legacy-pi-virtual-module.ts`）注入的虚拟模块，用来把旧 scope（`@mariozechner/pi-*` 等）的扩展 import 重定向到宿主内已打包的实例。Poietica 不加载用户扩展（会话走 `disableExtensionDiscovery`），不需要那张注册表，但那一句在依赖图里是静态可见的，不解析就整个 Core 构建失败。所以构建脚本固定注入一个空注册表（`BUNDLED_PI_MODULE_LOADERS = {}`），**不再尝试调用官方插件**：它扫 `<包>/../../packages/<pkg>/package.json`，npm 安装形态里没有那一级，必然 ENOENT。manifest 里的 `legacyPiPlugin` 字段随之删除 —— 它只描述那次注定失败的尝试。
+
 ### 功能生命周期边界（2026-10-26）
 
 - UI 的失败隔离必须回收已注册资源，而不只是记一条 failures；服务注册表增加永久撤销作用域，UI 按功能持有资源并阻止失败依赖继续启动。不支持同一注册表内热重装，重启内核会创建新注册表。
@@ -149,7 +151,7 @@
 - `features/conversation/src/ui/timeline/tools/views/integrations.ts` 的 `hub` 视图**保留**：它读的是盘上已有会话文件里的工具调用，删掉会让旧会话里那些行退化成无词汇的「工具」—— 属「读已有数据不崩」，不是旧用户迁移。
 - `apps/desktop/electron-builder.yml` 的两段注释改写为发版纪律（appId/产物名为什么不能改），配置值一字未动；`features/platform` 存储统计里「旧版本留下的分区」改成「别的分区」。
 
-**明确没删的**（口径记录）：「照 legacy 的界面 / 文案 / 类名」这类**设计出处**说明全仓保留；`tooling/depcruise` 的 `no-legacy` 规则（防历史遗留目录被引用的闸门）、`apps/core/scripts/build.ts` 的 legacy-pi 桩（omp 官方构建插件名）、`tooling/release` 里的「上一版安装包 / lockfile」表述（发行语义）均不动。
+**明确没删的**（口径记录）：「照 legacy 的界面 / 文案 / 类名」这类**设计出处**说明全仓保留；`tooling/depcruise` 的 `no-legacy` 规则（防历史遗留目录被引用的闸门）、`tooling/release` 里的「上一版安装包 / lockfile」表述（发行语义）均不动。
 
 ### 内聚与边界审计（2026-10-25）
 
@@ -178,7 +180,7 @@
 - **设置键**：`tools.approvalMode` 新增 `always-ask-cached`（补了中文标签）；18.10.4 移除的 `providers.openai-codex.codeMode` / `codeModeDirectTools` 两条中文文案已删。`modelRoles` 新增内置角色 `widget`（后台作业小组件规格的作者，没配时与 `smol` 同路），`role-catalog.ts` 的 `ROLE_TEXT` / `ROLE_FOLLOWS` 都已补上（`models.test.ts` 钉住）。
 - **cli 自派发 / browser relay**：`cli.ts` 与 18.10.3 逐字相同（自派发判据不变）；relay 只给 `hello` 加了可选 `browserSession?`，`browser-relay-conformance.ts` 仍通过。
 - **测试环境的日志目录**：18.12.6 起 `getLogsDir()` 在 `PI_TEST_RUNTIME=1` 时返回 `<tmpdir>/omp-test-logs-<uid>`（隔离根之外）。T-ISO-5 夹具改为模拟生产启动（`PI_TEST_RUNTIME=0`）；生产 Core 本就被 `buildCoreLaunch` 剔掉全部 `PI_*`，`core:probe` 的目录泄漏检查照旧通过。
-- **产物**：`core:build` / `core:probe` / `core:verify-dist` 全绿。`legacyPiPlugin: "stub"` 与缺 `modern` natives 是 18.10.3 就有的现象（发布版 omp 不带 `packages/`、`docs/`，natives 包只含 baseline），不是本次升级引入。
+- **产物**：`core:build` / `core:probe` / `core:verify-dist` 全绿。缺 `modern` natives 是 18.10.3 就有的现象（发布版 omp 不带 `packages/`、`docs/`，natives 包只含 baseline），不是本次升级引入。当时 manifest 里的 `legacyPiPlugin: "stub"` 已随构建脚本改动删除（见下方「legacy-pi 空注册表」）。
 
 ## 历史条目索引
 

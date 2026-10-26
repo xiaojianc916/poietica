@@ -24,32 +24,36 @@ const ompPkg = JSON.parse(readFileSync(path.join(ompRoot, 'package.json'), 'utf8
 
 const exe = path.join(outDir, CORE_ARTIFACTS[0])
 
-/**
- * legacy-pi 桩插件：omp 官方插件会去 `<repoRoot>/packages/<pkg>` 扫源码生成旧 Pi 模块注册表 ——
- * 那是 omp 自仓库的布局，装进 node_modules 的发布版里没有 packages/，插件会以 ENOENT 失败。
- * Poietica 不使用任何 legacy Pi 扩展导入，所以退化为空注册表的桩。
- */
-async function ompBuildParts(): Promise<{ plugins: unknown[]; docs: string; legacyPi: 'omp' | 'stub' }> {
+function createLegacyPiEmptyRegistryPlugin(): unknown {
+  return {
+    name: 'poietica:legacy-pi-empty',
+    setup(build: {
+      onResolve: (o: { filter: RegExp }, cb: () => unknown) => void
+      onLoad: (o: { filter: RegExp; namespace: string }, cb: () => unknown) => void
+    }) {
+      build.onResolve({ filter: /^omp-legacy-pi-modules$/ }, () => ({
+        path: 'empty',
+        namespace: 'poietica-legacy-pi-empty',
+      }))
+      build.onLoad({ filter: /.*/, namespace: 'poietica-legacy-pi-empty' }, () => ({
+        contents: 'export const BUNDLED_PI_MODULE_LOADERS = {};\n',
+        loader: 'ts',
+      }))
+    },
+  }
+}
+
+async function ompBuildPlugins(): Promise<{ plugins: unknown[]; docs: string }> {
   const jsonParse = (await import(path.join(ompRoot, 'scripts/json-parse-plugin.ts'))) as {
     createJsonParsePlugin: () => unknown
   }
   const docsIndex = (await import(path.join(ompRoot, 'scripts/generate-docs-index.ts'))) as {
     buildDocsIndexPayload: () => Promise<{ payload: string }>
   }
-  const plugins: unknown[] = [jsonParse.createJsonParsePlugin()]
-  let legacyPi: 'omp' | 'stub' = 'omp'
-  try {
-    const mod = (await import(path.join(ompRoot, 'scripts/legacy-pi-virtual-module.ts'))) as {
-      createLegacyPiVirtualModulePlugin: () => Promise<unknown>
-      LEGACY_PI_MODULES_SPECIFIER: string
-    }
-    plugins.push(await mod.createLegacyPiVirtualModulePlugin())
-  } catch (e) {
-    legacyPi = 'stub'
-    console.warn(`[build] omp 的 legacy-pi 插件不可用（${String(e)}），改用空注册表桩`)
-    plugins.push(createLegacyPiStubPlugin())
+  return {
+    plugins: [jsonParse.createJsonParsePlugin(), createLegacyPiEmptyRegistryPlugin()],
+    docs: await docsPayload(docsIndex),
   }
-  return { plugins, docs: await docsPayload(docsIndex), legacyPi }
 }
 
 /**
@@ -65,32 +69,10 @@ async function docsPayload(mod: { buildDocsIndexPayload: () => Promise<{ payload
   }
 }
 
-/** 空注册表的 legacy-pi 桩：Poietica 不使用任何 legacy Pi 扩展导入 */
-function createLegacyPiStubPlugin(): unknown {
-  const specifier = 'omp-legacy-pi-modules'
-  return {
-    name: 'poietica:legacy-pi-stub',
-    setup(build: {
-      onResolve: (o: { filter: RegExp }, cb: () => unknown) => void
-      onLoad: (o: { filter: RegExp; namespace: string }, cb: () => unknown) => void
-    }) {
-      build.onResolve({ filter: /^omp-legacy-pi-modules$/ }, () => ({
-        path: 'empty',
-        namespace: 'poietica-legacy-pi-stub',
-      }))
-      build.onLoad({ filter: /.*/, namespace: 'poietica-legacy-pi-stub' }, () => ({
-        contents: 'export const BUNDLED_PI_MODULE_LOADERS = {};\n',
-        loader: 'ts',
-      }))
-      void specifier
-    },
-  }
-}
-
 rmSync(outDir, { recursive: true, force: true })
 mkdirSync(outDir, { recursive: true })
 
-const { plugins, docs, legacyPi } = await ompBuildParts()
+const { plugins, docs } = await ompBuildPlugins()
 const result = await Bun.build({
   entrypoints: [path.join(CORE_DIR, 'src/main.ts')],
   root: ROOT,
@@ -162,7 +144,6 @@ writeFileSync(
       protocolVersion: PROTOCOL_VERSION,
       ompVersion: ompPkg.version,
       probe,
-      legacyPiPlugin: legacyPi,
       builtAt: new Date().toISOString(),
       sha256,
     },
