@@ -25,7 +25,7 @@
     },
     "apps/core": {
       "name": "@poietica/app-core",
-      "version": "0.5.17",
+      "version": "0.5.18",
       "dependencies": {
         "@oh-my-pi/pi-coding-agent": "catalog:",
         "@oh-my-pi/pi-utils": "catalog:",
@@ -57,7 +57,7 @@
     },
     "apps/desktop": {
       "name": "@poietica/desktop",
-      "version": "0.5.17",
+      "version": "0.5.18",
       "dependencies": {
         "@lydell/node-pty": "catalog:",
         "electron-updater": "^6.8.11",
@@ -598,6 +598,7 @@
         "katex": "catalog:",
         "lucide-react": "catalog:",
         "pele": "catalog:",
+        "react-dom": "catalog:",
         "shiki": "catalog:",
         "streamdown": "catalog:",
         "tailwind-merge": "catalog:",
@@ -609,7 +610,6 @@
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",
         "react": "catalog:",
-        "react-dom": "catalog:",
         "tailwindcss": "catalog:",
       },
     },
