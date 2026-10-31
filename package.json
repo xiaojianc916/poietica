@@ -105,7 +105,8 @@
     "new:feature": "bun run tooling/scaffold/new-feature.ts",
     "python:pin": "bun run features/python/scripts/pin-python.ts",
     "check:omp-doc": "bun run tooling/checks/omp-sdk-doc.ts",
-    "check:omp-doc:write": "bun run tooling/checks/omp-sdk-doc.ts --write"
+    "check:omp-doc:write": "bun run tooling/checks/omp-sdk-doc.ts --write",
+    "doctor": "npx react-doctor@latest"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
