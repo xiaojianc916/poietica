@@ -191,6 +191,8 @@ function ompOAuthOf(
        * 并发删会让后一条基于旧快照覆盖前一条；顺序执行是一致性前提。
        */
       for (const row of storage.credentials.list(provider)) {
+        /* removeById 每次都重算整份 provider 快照，顺序删是一致性前提。 */
+        // react-doctor-disable-next-line react-doctor/async-await-in-loop
         if (row.credential.type === 'oauth') await storage.credentials.removeById(provider, row.id)
       }
     },

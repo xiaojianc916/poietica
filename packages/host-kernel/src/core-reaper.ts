@@ -106,6 +106,8 @@ export async function reapStaleCoreProcesses(o: ReapOptions): Promise<StaleProce
    */
   for (const s of stale) {
     try {
+      /* taskkill 并发会放大 Windows 进程表竞争；这里逐个杀、逐个记账。 */
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop
       await kill(s.pid)
     } catch (e) {
       o.logger.warn('清理残留进程失败', { pid: s.pid, what: s.what, error: String(e) })

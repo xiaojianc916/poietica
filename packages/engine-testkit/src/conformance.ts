@@ -383,8 +383,8 @@ export function runEngineConformance(name: string, make: () => Promise<Conforman
     })
 
     test('C-POSTURE-ISOLATION', async () => {
-      const a = await openNew('ask')
-      const b = await openNew('full-access')
+      /* 两条会话互不依赖：并发开，顺带压一下同 cwd 下的开会话路径。 */
+      const [a, b] = await Promise.all([openNew('ask'), openNew('full-access')])
       const ra = recorder(a)
       const rb = recorder(b)
       const askTurn = [[{ kind: 'tool', name: 'write_test', args: { text: 'a' }, result: 'ok' }]] as const
@@ -670,9 +670,12 @@ export function runEngineConformance(name: string, make: () => Promise<Conforman
       await first.dispose()
 
       const openedBefore = target.openedCount?.()
-      const cold = await target.engine.sessionFiles.readPage(file, 'main', null)
-      const coldOlder = await target.engine.sessionFiles.readPage(file, 'main', 't3')
-      const coldUnknown = await target.engine.sessionFiles.readPage(file, 'Nobody', null)
+      /* 三次只读翻页互不依赖、也不开会话：并发取。 */
+      const [cold, coldOlder, coldUnknown] = await Promise.all([
+        target.engine.sessionFiles.readPage(file, 'main', null),
+        target.engine.sessionFiles.readPage(file, 'main', 't3'),
+        target.engine.sessionFiles.readPage(file, 'Nobody', null),
+      ])
       if (openedBefore !== undefined) expect(target.openedCount?.()).toBe(openedBefore)
       expect(turnCount(cold)).toBe(3)
       expect(allText(cold)).toContain('cold0')

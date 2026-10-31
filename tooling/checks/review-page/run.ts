@@ -224,6 +224,8 @@ async function buildPage(fixture: unknown): Promise<string> {
   const fs = await import('node:fs/promises')
   const cssParts = [await fs.readFile(cssFile, 'utf8'), await componentCss()]
   const css = { text: async () => cssParts.join('\n') }
+  /* JSON 直接塞进 <script>：数据里的 `</script>` 会提前闭合标签。把 `<` 转成 \u003c，解析出来的值不变。 */
+  const fixtureJson = JSON.stringify(fixture).replace(/</g, '\\u003c')
   const html = `<!doctype html>
 <html data-theme="dark">
   <head>
@@ -236,7 +238,7 @@ async function buildPage(fixture: unknown): Promise<string> {
   <body style="height:100%">
     <div id="root" style="height:100%"></div>
     <script type="module">
-      window.__prFixture = ${JSON.stringify(fixture)}
+      window.__prFixture = ${fixtureJson}
       import('./harness.js')
     </script>
   </body>

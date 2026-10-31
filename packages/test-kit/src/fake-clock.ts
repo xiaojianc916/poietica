@@ -76,6 +76,8 @@ export function fakeClock(start = 1_700_000_000_000): FakeClock {
        */
       for (let t = nextDue(target); t !== undefined; t = nextDue(target)) {
         fire(t)
+        /* 每拍让微任务落地，下一拍才看得见新注册的定时器；并发推进等于改写时间顺序。 */
+        // react-doctor-disable-next-line react-doctor/async-await-in-loop
         await Promise.resolve()
         await Promise.resolve()
       }

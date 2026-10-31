@@ -185,6 +185,8 @@ export class OmpModelsPort implements ModelsPort {
        * 按行删同一个 provider 的凭据：removeById 每次会重算整份快照，并发删会让后一条基于旧快照覆盖前一条。
        * 顺序执行是这里的一致性前提，不是性能缺陷。
        */
+      /* removeById 每次重算整份快照，并发删会互相覆盖。 */
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop
       for (const row of rows) await this.d.credentials.removeById(provider, row.id)
       await this.#refreshCredentials()
       this.d.logger.info('api key cleared', { provider })

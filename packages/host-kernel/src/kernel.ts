@@ -254,6 +254,8 @@ async function boot(
       disposables,
     }
     try {
+      /* 模块按拓扑序 setup：后一个可能依赖前一个装好的东西。 */
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop
       await m.setup(ctx)
     } catch (e) {
       fatal(logger, identity.layout.mainLog, m.id, e)
@@ -275,6 +277,8 @@ async function boot(
   }
 
   // beforeWindow → 协议 → 窗口：钩子按模块注册顺序串行，后面的可能依赖前面装好的东西
+  /* 注册顺序有语义，后一个钩子可能依赖前一个装好的窗口/协议。 */
+  // react-doctor-disable-next-line react-doctor/async-await-in-loop
   for (const fn of beforeWindow) await fn()
   protocol.handle(ASSET_SCHEME, (request) => assets.dispatch(request))
   protocol.handle(
@@ -297,6 +301,8 @@ async function boot(
   /* onReady 按模块注册顺序串行：后一个可能读前一个声明的状态；单个失败只记日志，不挡后面。 */
   for (const fn of onReady) {
     try {
+      /* 按模块注册顺序串行：后一个可能读前一个声明的状态。 */
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop
       await fn()
     } catch (e) {
       log.error('onReady hook failed', { error: String(e) })

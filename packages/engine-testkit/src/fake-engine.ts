@@ -376,6 +376,8 @@ class FakeSession implements EngineSession {
         this.setState('idle', { code: step.code, message: step.message })
         return
       }
+      /* 一步一步按剧本推进并即时推流：顺序本身就是要复现的时序。 */
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop
       const ops = await this.apply(step, turn, ordinal)
       this.push(ops)
     }

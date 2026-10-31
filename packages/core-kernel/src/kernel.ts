@@ -148,6 +148,8 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
     for (const h of readyHooks) {
       if (aborted()) return
       try {
+        /* 注册顺序 = 拓扑序，后一个 onReady 可能依赖前一个已就绪。 */
+        // react-doctor-disable-next-line react-doctor/async-await-in-loop
         await h.fn()
       } catch (e) {
         if (aborted()) return
@@ -219,6 +221,8 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
         disposables,
       }
       const t0 = opts.clock.now()
+      /* 模块按拓扑序 setup：后一个可能依赖前一个已装好的服务。 */
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop
       await m.setup(ctx)
       if (aborted()) return
       log.info('module ready', { module: m.id, ms: opts.clock.now() - t0 })
@@ -284,6 +288,8 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
         log.warn('shutdown budget exhausted, skipping hook', { module: h.moduleId })
         continue
       }
+      /* 逆拓扑序串行：依赖方先收、被依赖方后收；并发会让预算与依赖顺序都失去意义。 */
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop
       await withTimeout(Promise.resolve().then(h.fn), budget, () => new Error('timeout'), opts.clock).catch(
         (e: unknown) => log.warn('onShutdown hook failed', { module: h.moduleId, error: String(e) }),
       )

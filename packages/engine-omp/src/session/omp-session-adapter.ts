@@ -278,6 +278,8 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
     while (!closed && settleWatchGeneration === generation && session.hasPendingAsyncWork?.() === true) {
       const settle = session.settleAsyncWork
       if (settle === undefined) return false
+      /* 轮询判据本身：先重查 hasPendingAsyncWork 再决定要不要等，没有可并行的对象。 */
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop
       await settle.call(session)
     }
     return !closed && settleWatchGeneration === generation
