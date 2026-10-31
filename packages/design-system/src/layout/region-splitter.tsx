@@ -131,17 +131,20 @@ export function RegionSplitter({
    */
   const release = useRef<() => void>(() => undefined)
 
-  release.current = (): void => {
-    const current = session.current
+  /* 监听只装一次，回调读当前这一帧的 props：写放在提交后，渲染期保持纯。 */
+  useEffect(() => {
+    release.current = (): void => {
+      const current = session.current
 
-    if (current === null) {
-      onActivity('idle')
+      if (current === null) {
+        onActivity('idle')
 
-      return
+        return
+      }
+
+      settle(current, widthAt(current, deltaAt(current, current.point)), 'idle')
     }
-
-    settle(current, widthAt(current, deltaAt(current, current.point)), 'idle')
-  }
+  })
 
   useEffect(() => {
     const onLeave = (): void => release.current()

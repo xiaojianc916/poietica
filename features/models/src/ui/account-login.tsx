@@ -139,7 +139,10 @@ export function useAccountLogin(api: ModelsApi): AccountLogin {
 
   /* 关掉与交回一格都要用到「此刻的流程」：放进 ref 读，副作用不写进 setState 的更新函数里 */
   const latest = useRef(flow)
-  latest.current = flow
+  /* 关闭/作答都在事件里读此刻的流程：渲染期只读，写放在提交后。 */
+  useEffect(() => {
+    latest.current = flow
+  }, [flow])
 
   const close = useCallback(() => {
     const live = latest.current

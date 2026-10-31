@@ -424,11 +424,14 @@ function PromptInputShell({
     [],
   )
 
-  report.current = onChange
-  engage.current = onEngage
-  submit.current = onSubmit
-  blocked.current = submitDisabled
-  blockedNotice.current = onSubmitBlocked
+  /* 渲染期只读不写：这几个 ref 供事件与 Lexical 命令读最新回调，写放在提交后。 */
+  useEffect(() => {
+    report.current = onChange
+    engage.current = onEngage
+    submit.current = onSubmit
+    blocked.current = submitDisabled
+    blockedNotice.current = onSubmitBlocked
+  })
 
   const listboxId = useId()
   /* HTML 不允许 form 嵌套（React 报 <form> cannot be a descendant of <form>），没有 onSubmit 时也没有提交语义，所以换成 div；
@@ -739,8 +742,10 @@ function PromptInputShell({
    */
   const pasteHandlers = useRef(inputHandlers)
   const pasteDraft = useRef(contributedDraft)
-  pasteHandlers.current = inputHandlers
-  pasteDraft.current = contributedDraft
+  useEffect(() => {
+    pasteHandlers.current = inputHandlers
+    pasteDraft.current = contributedDraft
+  })
 
   useEffect(
     () =>
@@ -912,9 +917,9 @@ function PromptInputShell({
   const paletteOpen = slashOpen || (paletteOpened && rows.length > 0)
   /* 面板退场的那几十毫秒里还画着：内容要停在收起前那一份，不然斜杠面板一收，退场的那一帧会闪成加号面板 */
   const lastShown = useRef(shownGroups)
-  if (paletteOpen) {
-    lastShown.current = shownGroups
-  }
+  useEffect(() => {
+    if (paletteOpen) lastShown.current = shownGroups
+  }, [paletteOpen, shownGroups])
   const paletteGroups = paletteOpen ? shownGroups : lastShown.current
   const active = paletteOpen ? rows[highlighted] : undefined
 

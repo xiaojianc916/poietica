@@ -51,6 +51,8 @@ export function useTabStripScroll(): {
   const [node, setNode] = useState<HTMLElement | null>(null)
   const [scroll, setScroll] = useState<TabStripScroll>('none')
 
+  /* 清理函数在末尾统一断开 scroll / resize / ResizeObserver / MutationObserver；规则只认「创建后直接返回清理」那一形状。 */
+  // react-doctor-disable-next-line react-doctor/effect-needs-cleanup
   useLayoutEffect(() => {
     if (node === null) {
       setScroll('none')

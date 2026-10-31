@@ -49,6 +49,8 @@ export function useScrollMask(): {
   const [node, setNode] = useState<HTMLElement | null>(null)
   const [mask, setMask] = useState<ScrollMaskState>('none')
 
+  /* 清理函数在末尾统一断开 scroll / resize / 两个观察器；规则只认「观察器创建后直接返回清理」那一形状。 */
+  // react-doctor-disable-next-line react-doctor/effect-needs-cleanup
   useLayoutEffect(() => {
     if (node === null) {
       setMask('none')

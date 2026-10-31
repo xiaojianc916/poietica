@@ -47,6 +47,8 @@ function useOverscan(settled: boolean, revealing: number | null): number {
   const ramping = settled && revealing === null && overscan < OVERSCAN_SETTLED
 
   /* 一条空闲帧链走完整段抬升；抬满（ramping 变 false）或又一次跳转时由清理函数掐断。 */
+  /* 清理函数 cancel 内部就是 clearTimeout / cancelIdleCallback；句柄每次重排都换，规则跟不到这个变量。 */
+  // react-doctor-disable-next-line react-doctor/effect-needs-cleanup
   useEffect(() => {
     if (!ramping) {
       return
@@ -148,10 +150,7 @@ export function AgentActivityFeed({
     earlier.current = { hasEarlier, onReachStart }
   }, [hasEarlier, onReachStart])
 
-  const rowAccess = useRef({ estimateRow, feed })
-  rowAccess.current = { estimateRow, feed }
-  const getItemKey = useCallback((index: number) => rowAccess.current.feed.rowAt(index)?.item.id ?? index, [])
-  const estimateItem = useCallback((index: number) => rowAccess.current.estimateRow(index), [])
+  const getItemKey = useCallback((index: number) => feed.rowAt(index)?.item.id ?? index, [feed])
 
   /* 一条对话一份常驻集合：外层按对话号给了 key，换对话整个组件换掉。 */
   const [keepAlive] = useState(() => new KeepAlive(KEEP_ALIVE_ROWS))
@@ -160,14 +159,13 @@ export function AgentActivityFeed({
   const extractRange = useCallback(
     (range: Range) => {
       const base = defaultRangeExtractor(range)
-      const current = rowAccess.current.feed
-      const keyAt = (index: number) => current.rowAt(index)?.item.id ?? index
+      const keyAt = (index: number) => feed.rowAt(index)?.item.id ?? index
 
       keepAlive.touch(base.map(keyAt))
 
-      return mergeRange(base, keepAlive.keys(), (id) => current.rowOf(id), range.count)
+      return mergeRange(base, keepAlive.keys(), (id) => feed.rowOf(id), range.count)
     },
-    [keepAlive],
+    [feed, keepAlive],
   )
 
   const [restored] = useState(() => geometryOf(conversation))
@@ -216,7 +214,7 @@ export function AgentActivityFeed({
     scrollPaddingStart: metrics.landing,
     count: feed.count,
     getScrollElement: () => viewport,
-    estimateSize: estimateItem,
+    estimateSize: estimateRow,
     getItemKey,
     /* 交出副本：这份会被虚拟器收走当自己的初值。 */
     initialMeasurementsCache: restored === undefined ? [] : [...restored.rows],

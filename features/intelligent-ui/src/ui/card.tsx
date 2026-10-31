@@ -436,7 +436,10 @@ function useFrameTools({
   readonly onTools: ((tools: ReactNode | null) => void) | undefined
 }): (placement: ToolPlacement) => ReactNode {
   const run = useRef(handlers)
-  run.current = handlers
+  /* 表头会跨渲染持有这份 ref：渲染期只读，写放在提交后。 */
+  useEffect(() => {
+    run.current = handlers
+  })
   const { capturing, tweakable, tweaking } = look
   useEffect(() => {
     if (onTools === undefined) return
@@ -511,11 +514,14 @@ function HtmlFrame({
     },
   }
   const actionsRef = useRef(actions)
-  actionsRef.current = actions
   const latest = useRef({ view, live })
-  latest.current = { view, live }
   const escapeRef = useRef(onEscape)
-  escapeRef.current = onEscape
+  /* 会话对象跨渲染持有这三位：渲染期只读，写放在提交后。 */
+  useEffect(() => {
+    actionsRef.current = actions
+    latest.current = { view, live }
+    escapeRef.current = onEscape
+  })
 
   useEffect(() => {
     const element = frame.current

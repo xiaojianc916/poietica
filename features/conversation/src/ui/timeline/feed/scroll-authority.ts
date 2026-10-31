@@ -73,6 +73,8 @@ export function useScrollAuthority(
       setRevealing(null)
     }
 
+    /* 清理由调用方的 effect 持有（返回的 unwatch）；规则只看本函数，看不到契约。 */
+    // react-doctor-disable-next-line react-doctor/effect-needs-cleanup
     viewport.addEventListener('wheel', wheel, { passive: true })
     viewport.addEventListener('scrollend', settle, { passive: true })
 

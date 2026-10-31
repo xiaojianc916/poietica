@@ -165,6 +165,8 @@ function AuxiliaryTab({
 function useGroupTabs(groups: readonly PanelContribution[]): readonly GroupView[] {
   const [views, setViews] = useState<readonly GroupView[]>(() => readGroupTabs(groups))
 
+  /* 订阅句柄全部收进 stops，末尾逐个 stop；规则只认「subscribe 结果直接 return」。 */
+  // react-doctor-disable-next-line react-doctor/effect-needs-cleanup
   useEffect(() => {
     setViews(readGroupTabs(groups))
 

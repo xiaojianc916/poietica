@@ -132,7 +132,7 @@ export function createConversationContributions(setup: ConversationSetup, action
     id: 'conversation.threads',
     order: 20,
     title: '项目',
-    component: () => {
+    component: function ThreadsSidebar() {
       /*
        * 必须**订阅**着读，且选择器必须交回**稳定引用**。读快照是一次性的：store 还空着时渲染一遍就再也不会重画。
        * 选择器造新数组更糟 —— useShallow 比的是元素，React 会一路重渲染到 "Maximum update depth exceeded"
@@ -326,7 +326,7 @@ export function createConversationContributions(setup: ConversationSetup, action
   ctx.contribute(builtinPoints.surfaces, {
     id: 'conversation.home',
     title: '新对话',
-    component: () => {
+    component: function ConversationHomeSurface() {
       useEffect(prefetchProse, [])
       return (
         <ConversationProviders posture={posture} transcripts={transcripts}>
@@ -350,7 +350,7 @@ export function createConversationContributions(setup: ConversationSetup, action
     title: '对话',
     /* 右坞按对话分账：每条对话自己记开没开、开着哪几格。入口页（还没有线程）不写 dockOwner，那里不画右坞。 */
     dockOwner: (params) => (params.threadId === undefined || params.threadId === '' ? null : params.threadId),
-    component: ({ params }: { readonly params: Readonly<Record<string, string>> }) => {
+    component: function ConversationThreadSurface({ params }: { readonly params: Readonly<Record<string, string>> }) {
       const threadId = String(params.threadId ?? '')
       useEffect(prefetchProse, [])
       /*

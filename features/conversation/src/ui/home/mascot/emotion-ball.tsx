@@ -60,12 +60,17 @@ export const EmotionBall = memo(function EmotionBall({ className, emotion, label
   const mount = useRef<HTMLElement | null>(null)
   const engine = useRef<EmotionBallEngine | null>(null)
   const currentEmotion = useRef(emotion)
-  currentEmotion.current = emotion
+  /* 渲染期只读不写：运行时在事件/动画帧里读最新值，写放在提交后。 */
+  useEffect(() => {
+    currentEmotion.current = emotion
+  }, [emotion])
 
   const attach = useCallback((node: HTMLElement | null) => {
     mount.current = node
   }, [])
 
+  /* 清理走 stop（解除三条监听、取消帧、销毁实例）；监听在异步装载回调里，规则看不到这条链。 */
+  // react-doctor-disable-next-line react-doctor/effect-needs-cleanup
   useEffect(() => {
     const target = mount.current
     if (target === null) {
