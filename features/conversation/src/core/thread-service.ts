@@ -1,7 +1,7 @@
 import type { AgentEngine, EngineSession, ModelRef, Posture } from '@poietica/engine'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
-import { AppError, type Clock, createId, type Logger } from '@poietica/foundation'
+import { AppError, type Clock, createId, type Logger, mapLimited } from '@poietica/foundation'
 import type { Thread, TurnState } from '../contract/entities'
 import { conversationErrors } from '../contract/errors'
 import { pendingInteractionOf } from './pending-interaction'
@@ -350,14 +350,16 @@ export class ThreadService {
 
   /** 工作区被移除：该工作区的每个线程都走一遍 delete 的清理（运行中的先取消） */
   async removeWorkspaceThreads(workspaceId: string): Promise<void> {
-    for (const row of this.d.repo.listByWorkspace(workspaceId)) {
+    /* 每条线程的清理彼此独立（各自的会话、各自的行与文件），串行等只会把「删一个工作区」拖成 N 次往返。
+       单条完成即发通知，屏幕上仍是一条一条消失。 */
+    await mapLimited(this.d.repo.listByWorkspace(workspaceId), 4, async (row) => {
       const session = this.d.peekSession(row.id)
       if (session?.isBusy() === true) await session.cancel().catch(() => undefined)
       await this.cleanup(row).catch((e: unknown) => {
         this.d.logger.warn('workspace cascade cleanup failed', { threadId: row.id, error: String(e) })
       })
       this.d.emitThreadRemoved(row.id)
-    }
+    })
   }
 
   /**
@@ -403,12 +405,10 @@ export class ThreadService {
 
   /** 回收队列重试（启动时跑一次）：上次没删掉的会话文件（被占用、权限、进程在删到一半时退出）再删一遍 */
   async reclaimPending(): Promise<{ reclaimed: number; failed: number }> {
-    let reclaimed = 0
-    let failed = 0
-    for (const entry of this.d.reclaim.pending()) {
-      if (await this.reclaimFile(entry.sessionFile)) reclaimed += 1
-      else failed += 1
-    }
+    /* 队列里每个文件彼此独立；reclaimFile 自己把成功出队 / 失败记账做完，并发不改变结果。 */
+    const outcomes = await mapLimited(this.d.reclaim.pending(), 4, (entry) => this.reclaimFile(entry.sessionFile))
+    const reclaimed = outcomes.filter(Boolean).length
+    const failed = outcomes.length - reclaimed
     if (reclaimed + failed > 0) this.d.logger.info('session file reclaim', { reclaimed, failed })
     return { reclaimed, failed }
   }
@@ -419,17 +419,22 @@ export class ThreadService {
    * 文件里本来就没有任何东西，清掉绑定不丢数据。正在打开 / 已打开的跳过（启动时不会有，防御性的）。
    */
   async reconcileSessionFiles(): Promise<{ unbound: number }> {
-    let unbound = 0
-    for (const bound of this.d.repo.listBound()) {
-      if (this.d.isOpening(bound.id) || this.d.peekSession(bound.id) !== undefined) continue
-      let exists: boolean
+    /* 读文件是否存在是独立 I/O，可以并发；解绑是同步的库写，并发版本按原顺序在第二轮落库，
+       这样一条坏行不会让整轮退化成 N 次磁盘往返。 */
+    const candidates = this.d.repo
+      .listBound()
+      .filter((bound) => !this.d.isOpening(bound.id) && this.d.peekSession(bound.id) === undefined)
+    const checked = await mapLimited(candidates, 4, async (bound) => {
       try {
-        exists = await this.d.engine.sessionFiles.exists(bound.sessionFile)
+        return { bound, exists: await this.d.engine.sessionFiles.exists(bound.sessionFile) }
       } catch (error) {
         /* 读不了（权限 / 盘符没挂上）不等于不存在：不动它 */
         this.d.logger.warn('session file check failed', { threadId: bound.id, error: String(error) })
-        continue
+        return { bound, exists: true }
       }
+    })
+    let unbound = 0
+    for (const { bound, exists } of checked) {
       if (exists) continue
       this.d.repo.update(bound.id, { sessionId: null, sessionFile: null })
       unbound += 1

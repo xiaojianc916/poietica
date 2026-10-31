@@ -84,17 +84,21 @@ export function sniffFaviconMime(bytes: Uint8Array): FaviconMime | null {
 /** 候选整理：只要 http(s) 与 data:image，去重、限量，末尾补站点根的 /favicon.ico。 */
 export function faviconCandidates(candidates: readonly string[], pageUrl: string | null): string[] {
   const out: string[] = []
+  const seen = new Set<string>()
 
   for (const raw of candidates) {
     const url = acceptable(raw)
 
-    if (url !== null && !out.includes(url)) out.push(url)
+    if (url !== null && !seen.has(url)) {
+      seen.add(url)
+      out.push(url)
+    }
     if (out.length >= MAX_CANDIDATES) break
   }
 
   const fallback = pageUrl === null ? null : rootFavicon(pageUrl)
 
-  if (fallback !== null && !out.includes(fallback)) out.push(fallback)
+  if (fallback !== null && !seen.has(fallback)) out.push(fallback)
 
   return out
 }

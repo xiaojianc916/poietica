@@ -70,6 +70,22 @@ export class CustomProvidersFile {
     return document.providers !== undefined && id in document.providers
   }
 
+  /**
+   * 一批 id 的「自定义 provider」判据：整份 models.yml 只读一次。
+   * providers() 是逐家渲染的，逐家调 defined() 会把同一份文件读 N 遍。
+   */
+  async definedMany(ids: readonly string[]): Promise<ReadonlySet<string>> {
+    const document = await readModelsFile(this.d.file)
+    const custom = new Set<string>()
+    const providers = document.providers
+    if (providers === undefined) return custom
+    for (const id of ids) {
+      /* 与 defined() 同一条 `in` 判据，只是不再为每个 id 各读一遍文件 */
+      if (id in providers) custom.add(id)
+    }
+    return custom
+  }
+
   /** 规则 2 + 规则 3：原子写，然后让 registry 重读 */
   private async write(document: ModelsFile): Promise<void> {
     /** 序列化用 omp 自己的 stringifyYamlConfig：它在 Bun.YAML 之上替 omp 的配置文件收掉块状映射行尾空格 */

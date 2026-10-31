@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { computeFile } from '@poietica/design-system/diff'
-import { AppError, invariant, type Logger } from '@poietica/foundation'
+import { AppError, invariant, type Logger, mapLimited } from '@poietica/foundation'
 import type { TurnChanges, TurnChangesEntry, TurnRewindPreview } from '../contract'
 import { reviewErrors } from '../contract/errors'
 import type { TurnFileRow, TurnFilesRepository } from './turn-files-repository'
@@ -51,6 +51,9 @@ export interface TurnRewind {
   apply(threadId: string, turn: number, workspaceRoot: string): Promise<{ turn: number; reverted: true }>
   forgetThread(threadId: string): void
 }
+
+/** 核对与回滚都只读/写互不相干的文件：限住同时打开的句柄数，别一次把整轮文件全放出去。 */
+const FILE_CONCURRENCY = 8
 
 /** 行数现算：全仓唯一的差分实现（design-system 的无头管线，不引 React）。 */
 function statOf(before: string | null, after: string | null): { added: number; removed: number } {
@@ -102,17 +105,18 @@ async function restore(one: Restore): Promise<void> {
 
 /** 写失败之后把动过的按各自的 after 放回去；回滚本身失败只记 warn，不盖掉原始错误。 */
 async function rollback(done: readonly Restore[], logger: Logger): Promise<void> {
-  for (const one of done) {
+  /* 各文件路径互不重叠：并发回滚；单个失败只记 warn，不挡其余。 */
+  await mapLimited(done, FILE_CONCURRENCY, async (one) => {
     try {
       if (one.after === null) {
         await fs.rm(one.path, { force: true })
-        continue
+        return
       }
       await fs.writeFile(one.path, one.after, 'utf8')
     } catch (e) {
       logger.warn('turn rewind rollback failed', { path: one.path, error: String(e) })
     }
-  }
+  })
 }
 
 type Obstacle = { path: string; reason: 'externally_modified' | 'missing' }
@@ -123,10 +127,14 @@ type Obstacle = { path: string; reason: 'externally_modified' | 'missing' }
  * 一半旧一半别人写的。
  */
 async function verified(rows: readonly TurnFileRow[], workspaceRoot: string): Promise<Restore[]> {
+  /* 只读核对彼此独立；结果按账本行序收回，unsafe 的清单顺序才稳定。 */
+  const checked = await mapLimited(rows, FILE_CONCURRENCY, async (row) => ({
+    row,
+    current: await readIfPresent(row.path),
+  }))
   const targets: Restore[] = []
   const unsafe: Obstacle[] = []
-  for (const row of rows) {
-    const current = await readIfPresent(row.path)
+  for (const { row, current } of checked) {
     if (current !== row.after) {
       unsafe.push({
         path: displayPath(workspaceRoot, row.path),
@@ -150,6 +158,10 @@ async function verified(rows: readonly TurnFileRow[], workspaceRoot: string): Pr
  * 挡不住，挡不住就回滚。
  */
 async function restoreAll(targets: readonly Restore[], workspaceRoot: string, logger: Logger): Promise<void> {
+  /*
+   * 文件系统没有事务：逐个写是刻意的 —— 一旦中途失败，按已写好的清单回滚再整轮报错。
+   * 并发写没法说清「写到第几个时失败」，也让回滚清单的边界失去意义。
+   */
   const done: Restore[] = []
   for (const one of targets) {
     try {
@@ -209,8 +221,12 @@ export function createTurnRewind(d: TurnRewindDeps): TurnRewind {
 
     const safe: { path: string }[] = []
     const unsafe: Obstacle[] = []
-    for (const row of rows) {
-      const current = await readIfPresent(row.path)
+    /* 只读核对彼此独立；结果按账本行序收回，safe / unsafe 顺序才稳定。 */
+    const checked = await mapLimited(rows, FILE_CONCURRENCY, async (row) => ({
+      row,
+      current: await readIfPresent(row.path),
+    }))
+    for (const { row, current } of checked) {
       const shown = displayPath(workspaceRoot, row.path)
       if (current === row.after) safe.push({ path: shown })
       else

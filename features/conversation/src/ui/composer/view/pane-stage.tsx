@@ -1,6 +1,6 @@
 import './pane-stage.css'
 
-import { motion, useReducedMotion, type Variants } from 'motion/react'
+import { domAnimation, LazyMotion, m, useReducedMotion, type Variants } from 'motion/react'
 import { memo, type ReactNode, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { ENTER_EASE, ENTER_SECONDS, EXIT_SECONDS, RISE_PX } from '../../shared/primitives/motion'
 
@@ -115,27 +115,30 @@ export const PaneStage = memo(function PaneStage({ children, depth }: PaneStageP
 
   const settle = reduced || measured?.first !== false ? AT_ONCE : MOVE
 
+  /* 用 m + LazyMotion（domAnimation）：这四个组件只做 opacity/transform 一类基础补间，不必为整包 motion 功能付首屏体积。 */
   return (
-    <motion.div
-      animate={measured?.size ?? UNMEASURED}
-      className="pane-stage"
-      initial={false}
-      ref={stage}
-      transition={settle}
-    >
-      <motion.div
-        animate="present"
-        className="pane-stage__page"
-        custom={direction}
-        initial={moved && !reduced ? 'enter' : false}
-        key={depth}
-        variants={PAGE_VARIANTS}
+    <LazyMotion features={domAnimation}>
+      <m.div
+        animate={measured?.size ?? UNMEASURED}
+        className="pane-stage"
+        initial={false}
+        ref={stage}
+        transition={settle}
       >
-        <Page onLeave={onLeave} onSize={onSize}>
-          {children}
-        </Page>
-      </motion.div>
-    </motion.div>
+        <m.div
+          animate="present"
+          className="pane-stage__page"
+          custom={direction}
+          initial={moved && !reduced ? 'enter' : false}
+          key={depth}
+          variants={PAGE_VARIANTS}
+        >
+          <Page onLeave={onLeave} onSize={onSize}>
+            {children}
+          </Page>
+        </m.div>
+      </m.div>
+    </LazyMotion>
   )
 })
 

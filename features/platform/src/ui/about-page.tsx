@@ -7,7 +7,7 @@ import {
   useCoreStatus,
   useService,
 } from '@poietica/ui-kernel'
-import { type ReactElement, useEffect, useState } from 'react'
+import { type ReactElement, useEffect, useRef, useState } from 'react'
 import type { AppInfo, CoreDiagnostics } from '../contract'
 import type { PlatformApi } from './api'
 
@@ -78,7 +78,7 @@ export function AboutPage({ api }: { readonly api: PlatformApi }): ReactElement 
   const banners = useService(BannersToken)
   const coreStatus = useCoreStatus()
   const [info, setInfo] = useState<AppInfo | null>(null)
-  const [diag, setDiag] = useState<CoreDiagnostics | null>(null)
+  const diag = useRef<CoreDiagnostics | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -91,7 +91,7 @@ export function AboutPage({ api }: { readonly api: PlatformApi }): ReactElement 
     void api
       .diagnostics()
       .then((v) => {
-        if (!cancelled) setDiag(v)
+        if (!cancelled) diag.current = v
       })
       .catch(() => undefined)
     return () => {
@@ -100,7 +100,7 @@ export function AboutPage({ api }: { readonly api: PlatformApi }): ReactElement 
   }, [api])
 
   const copyDiagnostics = async (): Promise<void> => {
-    const text = JSON.stringify({ app: info, core: diag }, null, 2)
+    const text = JSON.stringify({ app: info, core: diag.current }, null, 2)
     try {
       await navigator.clipboard.writeText(text)
     } catch (e) {

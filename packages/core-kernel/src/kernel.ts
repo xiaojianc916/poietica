@@ -144,6 +144,7 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
 
   /** 顺序执行 onReady；单个失败只记录并发 core.notice。每一步前后都重查是否已被叫停。 */
   async function runReadyHooks(): Promise<void> {
+    /* 注册顺序就是模块的拓扑序：后一个 onReady 可能依赖前一个已就绪，不能并发。 */
     for (const h of readyHooks) {
       if (aborted()) return
       try {
@@ -186,6 +187,10 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
       db,
       sorted.map((m) => ({ moduleId: m.id, migrations: m.migrations ?? [] })),
     )
+    /*
+     * setup 必须按拓扑序逐个完成：依赖方的 setup 会在此时取服务、注册 handler、订阅事件，
+     * 上游没装配完就开始下游会把「暂时没有」当成「永远没有」。这不是可以并发的 I/O 批量。
+     */
     for (const m of sorted) {
       const disposables = new DisposableStore()
       moduleDisposables.push(disposables)
@@ -272,6 +277,7 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
 
   /** 逆拓扑序串行：依赖顺序有意义，不能并发（R-05 §7） */
   async function runShutdownHooks(remaining: (cap: number) => number): Promise<void> {
+    /* 逆拓扑序串行：依赖方先收、被依赖方后收；并发会让预算与依赖顺序都失去意义。 */
     for (const h of [...shutdownHooks].reverse()) {
       const budget = remaining(SHUTDOWN_HOOK_TIMEOUT_MS)
       if (budget === 0) {

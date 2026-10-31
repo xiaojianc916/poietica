@@ -1,7 +1,7 @@
 import { existsSync, statSync } from 'node:fs'
 import { copyFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { AppError, type Clock, createId, type Logger } from '@poietica/foundation'
+import { AppError, type Clock, createId, type Logger, mapLimited } from '@poietica/foundation'
 import { ensureDir, sha256File } from '@poietica/fs-kit'
 import type { Attachment } from '../contract'
 import { MAX_ATTACHMENT_BYTES } from '../contract/entities'
@@ -14,6 +14,9 @@ import type { AttachmentsRepository, ItemRow } from './repository'
 export const SWEEP_GRACE_MS = 24 * 60 * 60 * 1000
 export const SWEEP_FIRST_DELAY_MS = 60_000
 export const SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000
+
+/** 回收孤儿文件只占 I/O：限住同时在删的份数，别一次把整个目录的句柄都打开。 */
+const SWEEP_CONCURRENCY = 8
 
 export interface AttachmentsServiceDeps {
   readonly repo: AttachmentsRepository
@@ -216,15 +219,14 @@ export function createAttachmentsService(d: AttachmentsServiceDeps): Attachments
           for (const sha256 of shas) d.repo.deleteFile(sha256)
           return { items: ids.length, orphans: shas }
         })
-        let files = 0
-        for (const sha256 of orphans) {
-          files++
-          await removeFile(contentPath(d.dir, sha256)).catch((e: unknown) => {
+        /* 各孤儿文件互不依赖（路径按 sha 分开）；单个删失败只记 warn，下次回收再试。 */
+        await mapLimited(orphans, SWEEP_CONCURRENCY, (sha256) =>
+          removeFile(contentPath(d.dir, sha256)).catch((e: unknown) => {
             // 只记 warn：文件可能被杀毒软件占用，下次回收会再试一次。
             d.logger.warn('attachment file remove failed', { sha256, error: String(e) })
-          })
-        }
-        return { items, files }
+          }),
+        )
+        return { items, files: orphans.length }
       })
     },
   }

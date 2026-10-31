@@ -40,7 +40,8 @@ export function CommandPalette({ open, onClose }: { readonly open: boolean; read
       // 最近执行的 5 条在输入为空时置顶
       const byId = new Map(scored.map((c) => [c.item.id, c]))
       const recentItems = recent.map((id) => byId.get(id)).filter((c) => c !== undefined)
-      scored.splice(0, scored.length, ...recentItems, ...scored.filter((c) => !recent.includes(c.item.id)))
+      const recentIds = new Set(recent)
+      scored.splice(0, scored.length, ...recentItems, ...scored.filter((c) => !recentIds.has(c.item.id)))
     }
 
     const byCategory = new Map<string, CommandMenuItem[]>()

@@ -90,4 +90,13 @@ describe('models.yml 的读改写', () => {
     await port.upsert({ id: 'nope', name: 'N', api: 'anthropic-messages', baseUrl: 'https://n.test', models: [] })
     expect(await port.defined('nope')).toBe(true)
   })
+
+  test('definedMany 与 defined 同一判据：一次读文件，只报点名里存在的那些', async () => {
+    const dir = tempDir()
+    const file = modelsFilePath(dir)
+    const port = new CustomProvidersFile({ file, logger: noopLogger, reload: () => undefined })
+    await port.upsert({ id: 'have', name: 'Have', api: 'anthropic-messages', baseUrl: 'https://h.test', models: [] })
+    expect([...(await port.definedMany(['have', 'nope']))]).toEqual(['have'])
+    expect((await port.definedMany(['nope'])).size).toBe(0)
+  })
 })

@@ -34,7 +34,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import { flushSync } from 'react-dom'
 import {
   type ComposerDraft as ContributedComposerDraft,
   composerActions,
@@ -409,7 +408,22 @@ function PromptInputShell({
   const blocked = useRef(submitDisabled)
   const blockedNotice = useRef(onSubmitBlocked)
 
-  handoff.current = { attachments, configuration: pendingConfiguration }
+  /*
+   * 附件列表与配置的同步事实源是 handoff：提交那一刻要立刻知道册子收下了哪几份，不能等 React 提交。
+   * 所有运行时写入都走 commitAttachments / commitConfiguration，连续两个事件在同一拍里也不会互相看不见；
+   * State 只负责把它画出来。这里刻意不在渲染期回写 handoff —— 一次被丢弃的并发渲染会把刚收下的值冲回旧的。
+   */
+  const commitAttachments = useCallback(
+    (
+      next: readonly ComposerAsset[],
+      configuration: readonly PendingPromptConfiguration[] = handoff.current.configuration,
+    ) => {
+      handoff.current = { attachments: next, configuration }
+      setAttachments(next)
+    },
+    [],
+  )
+
   report.current = onChange
   engage.current = onEngage
   submit.current = onSubmit
@@ -538,8 +552,11 @@ function PromptInputShell({
     [insertText, requestFormSubmit],
   )
 
-  /* `flushSync` 必需（等这次提交落地才知道册子收下了哪几份），判据是「收下了」而非「新来的」：
-     记号被退格删掉后字节仍在册子里，按「新来的」算，重挑一次就什么都不发生。 */
+  /*
+   * 判据是「册子收下了哪几份」而非「新来的」：记号被退格删掉后字节仍在册子里，按「新来的」算，
+   * 重挑一次就什么都不发生。合并结果在这里同步算出来、同步写进 handoff —— 既不必用 flushSync
+   * 强制提交（那会跳过 View Transition 与并发渲染），也不会拿不到这一批的准确结果。
+   */
   const addAssets = useCallback(
     (incoming: readonly ComposerAsset[]) => {
       /* 一条消息最多 10 张图片：这一批加上草稿里已有的会超，就整批拒绝，一张都不收。 */
@@ -555,12 +572,10 @@ function PromptInputShell({
         return
       }
 
-      flushSync(() => {
-        setAttachments((current) => mergeAssets(current, incoming, multiple, maxFiles))
-      })
+      const next = mergeAssets(handoff.current.attachments, incoming, multiple, maxFiles)
+      commitAttachments(next)
 
-      const held = handoff.current.attachments
-      const accepted = incoming.filter((asset) => held.some((keep) => keep.assetToken === asset.assetToken))
+      const accepted = incoming.filter((asset) => next.some((keep) => keep.assetToken === asset.assetToken))
       const chips = accepted.filter(isInlineAttachment).map(inlineChipOf)
 
       if (chips.length > 0) {
@@ -571,7 +586,7 @@ function PromptInputShell({
         })
       }
     },
-    [editor, kernel, maxFiles, multiple],
+    [commitAttachments, editor, kernel, maxFiles, multiple],
   )
 
   const attach = useCallback(
@@ -625,9 +640,9 @@ function PromptInputShell({
         intake?.discard(going)
       }
 
-      setAttachments((current) => current.filter((attachment) => attachment.assetToken !== assetToken))
+      commitAttachments(handoff.current.attachments.filter((attachment) => attachment.assetToken !== assetToken))
     },
-    [intake],
+    [commitAttachments, intake],
   )
 
   /* 加号走系统文件对话框：它交回路径，而路径正是原生入库要的东西。 */
@@ -641,17 +656,40 @@ function PromptInputShell({
     })
   }, [addAssets, intake, multiple])
 
-  const removeConfiguration = useCallback((id: string) => {
-    setPendingConfiguration((current) => current.filter((selected) => selected.id !== id))
-  }, [])
+  /*
+   * 配置列表同样以 handoff 为同步事实：选完配置立刻回车时，提交那一拍可能还没重渲染，
+   * 只写 State 会让这一份配置漏在载荷之外。
+   */
+  const commitConfiguration = useCallback(
+    (
+      next:
+        | readonly PendingPromptConfiguration[]
+        | ((current: readonly PendingPromptConfiguration[]) => readonly PendingPromptConfiguration[]),
+    ) => {
+      const resolved = typeof next === 'function' ? next(handoff.current.configuration) : next
+      handoff.current = { attachments: handoff.current.attachments, configuration: resolved }
+      setPendingConfiguration(resolved)
+    },
+    [],
+  )
 
-  const toggleConfiguration = useCallback((selected: PendingPromptConfiguration) => {
-    setPendingConfiguration((current) =>
-      current.some((candidate) => candidate.id === selected.id)
-        ? current.filter((candidate) => candidate.id !== selected.id)
-        : [...current.filter((candidate) => candidate.id !== selected.id), selected],
-    )
-  }, [])
+  const removeConfiguration = useCallback(
+    (id: string) => {
+      commitConfiguration((current) => current.filter((selected) => selected.id !== id))
+    },
+    [commitConfiguration],
+  )
+
+  const toggleConfiguration = useCallback(
+    (selected: PendingPromptConfiguration) => {
+      commitConfiguration((current) =>
+        current.some((candidate) => candidate.id === selected.id)
+          ? current.filter((candidate) => candidate.id !== selected.id)
+          : [...current.filter((candidate) => candidate.id !== selected.id), selected],
+      )
+    },
+    [commitConfiguration],
+  )
 
   /* 点加号就是要加号面板：斜杠面板开着也让位。 */
   const togglePalette = useCallback(() => {
@@ -1058,12 +1096,18 @@ function PromptInputShell({
 
                 const projection = editor.getEditorState().read(readDraft)
                 const said = projection.text.trim()
+                /*
+                 * 闸门与载荷都读 handoff 这份同步事实，而不是本次渲染闭包里的 State：
+                 * 同一拍里先 addAssets / 换配置、紧接着提交时，React 可能还没重渲染 —— 读 State 会漏掉刚收下的附件。
+                 */
+                const attached = handoff.current.attachments
+                const selectedConfiguration = handoff.current.configuration
 
                 /* 内联的几份以正文记号为准：记号已删的就地放掉不随行；留在册子里的（图片）照旧全发。 */
                 const tokens = inlineTokens(projection)
                 const assets = [
-                  ...attachments.filter((attachment) => !isInlineAttachment(attachment)),
-                  ...attachments.filter(
+                  ...attached.filter((attachment) => !isInlineAttachment(attachment)),
+                  ...attached.filter(
                     (attachment) => isInlineAttachment(attachment) && tokens.has(attachment.assetToken),
                   ),
                 ]
@@ -1072,14 +1116,14 @@ function PromptInputShell({
                   !canSubmitDraft({
                     hasText: said.length > 0,
                     hasFiles: assets.length > 0,
-                    requiresText: pendingConfiguration.length > 0,
+                    requiresText: selectedConfiguration.length > 0,
                   })
                 ) {
                   return
                 }
 
                 /* 记号被删掉的那几份先**退出正文**：屏幕上不再挂着它，字节留到这一句真的交出去之后再放。 */
-                const detached = attachments.filter(
+                const detached = attached.filter(
                   (attachment) => isInlineAttachment(attachment) && !tokens.has(attachment.assetToken),
                 )
 
@@ -1089,7 +1133,7 @@ function PromptInputShell({
                   skills: projection.skills,
                   configuration: [
                     ...carriedConfiguration,
-                    ...pendingConfiguration.map(({ id, value }) => ({ id, value })),
+                    ...selectedConfiguration.map(({ id, value }) => ({ id, value })),
                   ],
                   ...(queued.current ? { queued: true } : {}),
                 }
@@ -1104,7 +1148,7 @@ function PromptInputShell({
                     return true
                   } catch (cause) {
                     /* 留在册子里等下一次：正文与附件一起还给用户。 */
-                    setAttachments((current) => [...current, ...detached])
+                    commitAttachments([...handoff.current.attachments, ...detached])
                     setText(said)
 
                     throw cause
@@ -1117,11 +1161,10 @@ function PromptInputShell({
 
                 /* 交出去了：正文、草稿与附件一起让位（不 discard —— 那些字节已随准入交给这条对话）。 */
                 clearDraft(editor)
-                handoff.current = { attachments: NO_ATTACHMENTS, configuration: [] }
+                commitAttachments(NO_ATTACHMENTS, [])
                 drafts.keep(draftKey, undefined)
-                setPendingConfiguration([])
+                commitConfiguration([])
                 rewindPalette()
-                setAttachments([])
 
                 if (intake !== null) {
                   for (const attachment of detached) {

@@ -70,6 +70,11 @@ export function createScheduler(d: {
       }
     },
     async tick() {
+      /*
+       * 到期任务逐个启动：runner.start 会写运行行、推进 next_run_at、必要时跳过同任务重叠的那一次，
+       * 这些读写都落在同一张表上且与任务顺序有关。并发启动既省不了几次本地写入，又会让
+       * 「上一次运行还没结束」的判定与 next_run_at 推进互相穿插。
+       */
       for (const a of repo.due(clock.now())) {
         const trigger: RunTrigger = catchUps.delete(a.id) ? 'catch_up' : 'schedule'
         try {

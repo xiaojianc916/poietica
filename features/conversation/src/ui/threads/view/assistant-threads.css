@@ -162,15 +162,49 @@
 
 /* 相邻两块底色之间必须留缝（与列表行距同一条），否则组头悬停底与第一行的当前底连成一块「坏掉的高行」。 */
 .assistant-threads__group,
-.thread-disclosure {
+.thread-disclosure__inner {
   display: flex;
   flex-direction: column;
   gap: calc(var(--ui-hairline) * 2);
 }
 
-/* 高度在动所以必须裁剪；时长与曲线在 thread-disclosure.tsx。 */
+/*
+ * 展开壳只补 grid-template-rows（0fr↔1fr），不再逐帧改 height：布局属性每帧重排，几百条会话的列里会卡。
+ * 0fr 那一档靠 overflow 裁剪；内层保持自己的列布局，内容高度仍由内容自己决定。
+ * 时长与曲线与 shared/primitives/motion.ts 的 ENTER/EXIT 同值 —— 换一处必须同时换另一处。
+ */
 .thread-disclosure {
+  --thread-disclosure-enter: 200ms;
+  --thread-disclosure-exit: 140ms;
+  --thread-disclosure-enter-ease: cubic-bezier(0.2, 0, 0, 1);
+  --thread-disclosure-exit-ease: cubic-bezier(0.4, 0, 1, 1);
+
+  display: grid;
+  grid-template-rows: 0fr;
   overflow: hidden;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--thread-disclosure-exit) var(--thread-disclosure-exit-ease),
+    opacity calc(var(--thread-disclosure-exit) * 0.7) linear;
+}
+
+.thread-disclosure[data-open='true'] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows var(--thread-disclosure-enter) var(--thread-disclosure-enter-ease),
+    opacity calc(var(--thread-disclosure-enter) * 0.6) linear calc(var(--thread-disclosure-enter) * 0.25);
+}
+
+.thread-disclosure__inner {
+  min-block-size: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thread-disclosure,
+  .thread-disclosure[data-open='true'] {
+    transition: none;
+  }
 }
 
 /*

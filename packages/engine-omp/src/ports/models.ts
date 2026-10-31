@@ -119,26 +119,25 @@ export class OmpModelsPort implements ModelsPort {
       for (const model of this.d.registry.available()) {
         if (!models.has(model.provider)) models.set(model.provider, model)
       }
-      const out: z.infer<typeof ProviderInfo>[] = []
-      for (const [id, model] of [...models].sort(([left], [right]) => left.localeCompare(right))) {
-        out.push({
-          id,
-          /** omp 的内置目录没有单独的 provider 显示名，官方 TUI 画的也是 id */
-          name: id,
-          /*
-           * omp 知识 #18：`configured` 必须与 omp 自己「这家能不能用」的判据同源，否则界面会把 models.yml
-           * 里写死 apiKey、或声明 `auth: none` 的免密钥服务商误报成没配 —— 真机上入口页因此挂着「还没有配置
-           * 任何模型服务商」，而模型选择器一条不少地列着它们。hasConfiguredAuth 认四类来源，只查 credentials.has 就只认了凭据表这一类。
-           */
-          configured: this.d.registry.hasConfiguredAuth(model),
-          custom: await this.d.customProviders.defined(id),
-          /** 钥匙那条路；账号登录另走 loginProviders / login（一家可以两条都有） */
-          authKind: 'api_key',
-          /** omp 的目录里没有「文档地址」这一格，如实交 null，不编一个 */
-          docsUrl: null,
-        })
-      }
-      return out
+      const sorted = [...models].sort(([left], [right]) => left.localeCompare(right))
+      /* models.yml 只读一次：逐家 await defined(id) 会把同一份文件读 N 遍 */
+      const custom = await this.d.customProviders.definedMany(sorted.map(([id]) => id))
+      return sorted.map(([id, model]) => ({
+        id,
+        /** omp 的内置目录没有单独的 provider 显示名，官方 TUI 画的也是 id */
+        name: id,
+        /*
+         * omp 知识 #18：`configured` 必须与 omp 自己「这家能不能用」的判据同源，否则界面会把 models.yml
+         * 里写死 apiKey、或声明 `auth: none` 的免密钥服务商误报成没配 —— 真机上入口页因此挂着「还没有配置
+         * 任何模型服务商」，而模型选择器一条不少地列着它们。hasConfiguredAuth 认四类来源，只查 credentials.has 就只认了凭据表这一类。
+         */
+        configured: this.d.registry.hasConfiguredAuth(model),
+        custom: custom.has(id),
+        /** 钥匙那条路；账号登录另走 loginProviders / login（一家可以两条都有） */
+        authKind: 'api_key',
+        /** omp 的目录里没有「文档地址」这一格，如实交 null，不编一个 */
+        docsUrl: null,
+      }))
     } catch (error) {
       throw toEngineError(error)
     }
@@ -181,9 +180,12 @@ export class OmpModelsPort implements ModelsPort {
   async clearApiKey(provider: string): Promise<void> {
     try {
       /* 只删 API Key 那几行：同一家名下的账号登录是另一件事，走 logout */
-      for (const row of this.d.credentials.list(provider)) {
-        if (row.credential.type === 'api_key') await this.d.credentials.removeById(provider, row.id)
-      }
+      const rows = this.d.credentials.list(provider).filter((row) => row.credential.type === 'api_key')
+      /*
+       * 按行删同一个 provider 的凭据：removeById 每次会重算整份快照，并发删会让后一条基于旧快照覆盖前一条。
+       * 顺序执行是这里的一致性前提，不是性能缺陷。
+       */
+      for (const row of rows) await this.d.credentials.removeById(provider, row.id)
       await this.#refreshCredentials()
       this.d.logger.info('api key cleared', { provider })
       this.#change.fire()

@@ -13,7 +13,7 @@ function recordingPair(): { a: Transport; b: Transport; sentA: RpcMessage[]; sen
   const sentB: RpcMessage[] = []
   const tap = (transport: Transport, sink: RpcMessage[]): Transport => ({
     send: (message) => {
-      sink.push(JSON.parse(JSON.stringify(message)) as RpcMessage)
+      sink.push(structuredClone(message) as RpcMessage)
       transport.send(message)
     },
     onMessage: (listener) => transport.onMessage(listener),

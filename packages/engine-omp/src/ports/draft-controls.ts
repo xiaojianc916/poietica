@@ -40,12 +40,14 @@ export const THINKING_ORDER: readonly string[] = ['minimal', 'low', 'medium', 'h
  */
 export function clampToLadder(level: string | null | undefined, levels: readonly string[]): string | null {
   if (level === null || level === undefined || level === '' || levels.length === 0) return null
-  if (levels.includes(level)) return level
+  /* 先把梯子收成 Set：下面逐档回退时不在循环里反复线性查同一个数组 */
+  const ladder = new Set(levels)
+  if (ladder.has(level)) return level
   const rank = THINKING_ORDER.indexOf(level)
   if (rank >= 0) {
     for (let i = rank; i >= 0; i -= 1) {
       const candidate = THINKING_ORDER[i]!
-      if (levels.includes(candidate)) return candidate
+      if (ladder.has(candidate)) return candidate
     }
   }
   return levels[0] ?? null

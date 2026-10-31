@@ -161,7 +161,8 @@ function ThreadActionsMenu({
    * （那时触发器正被编辑框换掉），两边抢焦点，编辑框一闪就没。等关闭动画彻底走完
    * （onOpenChangeComplete(false)）再进编辑，顺序就只剩一种。
    */
-  const [wantsRename, setWantsRename] = useState(false)
+  /* 这一格只在「点了重命名」与「关闭动画走完」之间传话，不参与渲染；State 只会白多一轮重画。 */
+  const wantsRename = useRef(false)
   const contributions = useContributions(threadActions)
   const contributed = contributions.filter(
     (candidate) => candidate.item.visible === undefined || candidate.item.visible(thread),
@@ -172,8 +173,8 @@ function ThreadActionsMenu({
   return (
     <DropdownMenu
       onOpenChangeComplete={(open) => {
-        if (!open && wantsRename) {
-          setWantsRename(false)
+        if (!open && wantsRename.current) {
+          wantsRename.current = false
           onBeginRename?.()
         }
       }}
@@ -205,7 +206,7 @@ function ThreadActionsMenu({
           <DropdownMenuItem
             className="assistant-thread-menu__item"
             onClick={() => {
-              setWantsRename(true)
+              wantsRename.current = true
             }}
           >
             <Pencil aria-hidden="true" />

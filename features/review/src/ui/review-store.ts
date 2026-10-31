@@ -1,6 +1,6 @@
 import type { DiffFile, DiffStat } from '@poietica/design-system/diff'
 import { diffStatOf } from '@poietica/design-system/diff'
-import { InvariantError, invariant } from '@poietica/foundation'
+import { InvariantError, invariant, mapLimited } from '@poietica/foundation'
 import type { FeatureStore } from '@poietica/ui-kernel'
 import { createFeatureStore } from '@poietica/ui-kernel'
 import type { GitStatus, ReviewFile } from '../contract'
@@ -81,6 +81,8 @@ export type ReviewCommitIntent = 'commit' | 'commit-and-push' | 'push'
 /* 命令体是 `git apply --3way` 读 stdin。逐行的三行上下文由 git 自己的默认值给。 */
 const APPLY_HEAD = "git apply --3way - <<'PATCH'\n"
 const APPLY_TAIL = '\nPATCH\n'
+/* 一条命令要取全部文件的补丁；进程往返可重叠，但并发封顶，别把整张清单一次全打给 git。 */
+const APPLY_CONCURRENCY = 8
 
 export const WORKTREE_BASE = 'HEAD'
 export const TREE_MIN = 180
@@ -398,11 +400,12 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
       if (held === null || held.changes.length === 0) {
         return ''
       }
+      const base = read().base
       const ignoreWhitespace = read().presentation.hideWhitespace
-      const patches: string[] = []
-      for (const change of held.changes) {
-        patches.push(await gateway.filePatch(read().base, change.path, ignoreWhitespace))
-      }
+      /* 每个补丁的 git 调用互不依赖，拼进同一条命令时顺序仍按清单；有界并发只压住同时在跑的进程数。 */
+      const patches = await mapLimited(held.changes, APPLY_CONCURRENCY, (change) =>
+        gateway.filePatch(base, change.path, ignoreWhitespace),
+      )
       const joined = patches.filter((patch) => patch !== '').join('')
       return joined === '' ? '' : APPLY_HEAD + joined + APPLY_TAIL
     },

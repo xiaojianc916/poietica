@@ -1,6 +1,6 @@
 import './composer-palette.css'
 
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, domAnimation, LazyMotion, m, useReducedMotion } from 'motion/react'
 import { type KeyboardEvent, type ReactNode, type RefObject, useEffect, useRef } from 'react'
 import type { PromptConfiguration } from '../../shared/model/session'
 import { AttachIcon, CheckIcon } from '../../shared/primitives/icons'
@@ -240,75 +240,78 @@ export function ComposerPalette({ groups, highlighted, isOpen, listboxId, onHigh
     panel.current?.querySelectorAll<HTMLElement>('[role="option"]')[highlighted]?.scrollIntoView?.({ block: 'nearest' })
   }, [highlighted, isOpen])
 
+  /* 用 m + LazyMotion（domAnimation）：这里只做 opacity/transform 一类基础补间，不必为整包 motion 功能付首屏体积。 */
   return (
-    <div className="composer-palette">
-      {/* initial={false}：开窗那一帧不该播一遍，那不是一次交互。 */}
-      <AnimatePresence initial={false}>
-        {isOpen ? (
-          <motion.div
-            animate={{
-              opacity: 1,
-              scale: 1,
-              transition: { duration: enter, ease: ENTER_EASE },
-              y: 0,
-            }}
-            className="composer-palette__panel"
-            exit={{
-              opacity: 0,
-              /* 退场那几十毫秒里它还在，别让一次误点落在正在消失的行上。 */
-              pointerEvents: 'none',
-              scale: 0.98,
-              transition: { duration: exit, ease: EXIT_EASE },
-              y: RISE_PX,
-            }}
-            id={listboxId}
-            initial={{ opacity: 0, scale: 0.98, y: RISE_PX }}
-            key="composer-palette"
-            ref={panel}
-            role="listbox"
-          >
-            {laid.map(({ group, start }) => (
-              <div className="composer-palette__group" key={group.id}>
-                <div className="composer-palette__heading">{group.heading}</div>
+    <LazyMotion features={domAnimation}>
+      <div className="composer-palette">
+        {/* initial={false}：开窗那一帧不该播一遍，那不是一次交互。 */}
+        <AnimatePresence initial={false}>
+          {isOpen ? (
+            <m.div
+              animate={{
+                opacity: 1,
+                scale: 1,
+                transition: { duration: enter, ease: ENTER_EASE },
+                y: 0,
+              }}
+              className="composer-palette__panel"
+              exit={{
+                opacity: 0,
+                /* 退场那几十毫秒里它还在，别让一次误点落在正在消失的行上。 */
+                pointerEvents: 'none',
+                scale: 0.98,
+                transition: { duration: exit, ease: EXIT_EASE },
+                y: RISE_PX,
+              }}
+              id={listboxId}
+              initial={{ opacity: 0, scale: 0.98, y: RISE_PX }}
+              key="composer-palette"
+              ref={panel}
+              role="listbox"
+            >
+              {laid.map(({ group, start }) => (
+                <div className="composer-palette__group" key={group.id}>
+                  <div className="composer-palette__heading">{group.heading}</div>
 
-                {group.rows.map((row, offset) => {
-                  const at = start + offset
+                  {group.rows.map((row, offset) => {
+                    const at = start + offset
 
-                  return (
-                    /* mousedown 而不是 click：preventDefault 拦住焦点转移，落点由 onPick 决定。 */
-                    <button
-                      aria-selected={at === highlighted}
-                      aria-disabled={row.disabled === true ? true : undefined}
-                      className="composer-palette__row"
-                      data-disabled={row.disabled === true ? 'true' : undefined}
-                      data-highlighted={at === highlighted ? 'true' : undefined}
-                      id={paletteOptionId(listboxId, row.id)}
-                      key={row.id}
-                      onMouseDown={(event) => {
-                        event.preventDefault()
-                        onPick(row, 'enter')
-                      }}
-                      onMouseEnter={() => {
-                        /* 已经高亮的那一行不重复 set：state 不变、effect 不跑，标记会留到下一次键盘操作上。 */
-                        if (at === highlighted) {
-                          return
-                        }
-                        /* 记一笔来源：下面那个滚动 effect 据此把「指针挪过来的」那一跳跳过去。 */
-                        pointerPicked.current = at
-                        onHighlight(at)
-                      }}
-                      role="option"
-                      type="button"
-                    >
-                      <PaletteRowContent row={row} />
-                    </button>
-                  )
-                })}
-              </div>
-            ))}
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-    </div>
+                    return (
+                      /* mousedown 而不是 click：preventDefault 拦住焦点转移，落点由 onPick 决定。 */
+                      <button
+                        aria-selected={at === highlighted}
+                        aria-disabled={row.disabled === true ? true : undefined}
+                        className="composer-palette__row"
+                        data-disabled={row.disabled === true ? 'true' : undefined}
+                        data-highlighted={at === highlighted ? 'true' : undefined}
+                        id={paletteOptionId(listboxId, row.id)}
+                        key={row.id}
+                        onMouseDown={(event) => {
+                          event.preventDefault()
+                          onPick(row, 'enter')
+                        }}
+                        onMouseEnter={() => {
+                          /* 已经高亮的那一行不重复 set：state 不变、effect 不跑，标记会留到下一次键盘操作上。 */
+                          if (at === highlighted) {
+                            return
+                          }
+                          /* 记一笔来源：下面那个滚动 effect 据此把「指针挪过来的」那一跳跳过去。 */
+                          pointerPicked.current = at
+                          onHighlight(at)
+                        }}
+                        role="option"
+                        type="button"
+                      >
+                        <PaletteRowContent row={row} />
+                      </button>
+                    )
+                  })}
+                </div>
+              ))}
+            </m.div>
+          ) : null}
+        </AnimatePresence>
+      </div>
+    </LazyMotion>
   )
 }

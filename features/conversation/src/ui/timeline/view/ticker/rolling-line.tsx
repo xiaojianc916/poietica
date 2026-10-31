@@ -3,7 +3,7 @@ import './shimmer.css'
 
 import { cn } from '@poietica/design-system'
 import { systemClock } from '@poietica/foundation'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, domAnimation, LazyMotion, m, useReducedMotion } from 'motion/react'
 import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { StaticLine, TickerLine } from './marquee-track'
 import { createRollScheduler, FAST_ROLL_MS, type LineSnapshot, ROLL_MS } from './roll-scheduler'
@@ -75,30 +75,35 @@ export const RollingLine = memo(function RollingLine({
   const line = shownLine.key === contentKey ? { key: contentKey, text } : shownLine
   const ticking = following && variant === 'thought' && !shimmer
 
+  /* 用 m + LazyMotion（domAnimation）：这里只做基础补间，不必为整包 motion 功能付首屏体积。 */
   return (
-    <span className="rolling-line" data-following={following ? '' : undefined} data-variant={variant}>
-      <AnimatePresence initial={false} mode="popLayout">
-        <motion.span
-          animate={{ opacity: 1, y: 0 }}
-          className={cn('rolling-line__slot', shimmer && 'timeline-shimmer')}
-          data-line-key={line.key}
-          exit={{ opacity: 0, y: `-${ROLL_DISTANCE}` }}
-          initial={{ opacity: 0, y: ROLL_DISTANCE }}
-          key={line.key}
-          transition={reduced ? AT_ONCE : { duration: (rolled.fast ? FAST_ROLL_MS : ROLL_MS) / 1000, ease: ROLL_EASE }}
-        >
-          {ticking ? (
-            <TickerLine
-              finishing={waiting}
-              fresh={line.key !== mountedKey.current}
-              reduced={reduced}
-              text={line.text}
-            />
-          ) : (
-            <StaticLine text={line.text} />
-          )}
-        </motion.span>
-      </AnimatePresence>
-    </span>
+    <LazyMotion features={domAnimation}>
+      <span className="rolling-line" data-following={following ? '' : undefined} data-variant={variant}>
+        <AnimatePresence initial={false} mode="popLayout">
+          <m.span
+            animate={{ opacity: 1, y: 0 }}
+            className={cn('rolling-line__slot', shimmer && 'timeline-shimmer')}
+            data-line-key={line.key}
+            exit={{ opacity: 0, y: `-${ROLL_DISTANCE}` }}
+            initial={{ opacity: 0, y: ROLL_DISTANCE }}
+            key={line.key}
+            transition={
+              reduced ? AT_ONCE : { duration: (rolled.fast ? FAST_ROLL_MS : ROLL_MS) / 1000, ease: ROLL_EASE }
+            }
+          >
+            {ticking ? (
+              <TickerLine
+                finishing={waiting}
+                fresh={line.key !== mountedKey.current}
+                reduced={reduced}
+                text={line.text}
+              />
+            ) : (
+              <StaticLine text={line.text} />
+            )}
+          </m.span>
+        </AnimatePresence>
+      </span>
+    </LazyMotion>
   )
 })

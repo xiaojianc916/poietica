@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { AppError, type Logger } from '@poietica/foundation'
+import { AppError, type Logger, mapLimited } from '@poietica/foundation'
 import {
   assertSafeRefName,
   type Git,
@@ -37,6 +37,9 @@ export interface GitBranchInfo {
   readonly upstream: string | null
   readonly lastCommitAt: number | null
 }
+
+/** 未跟踪文件逐份读：限住同时打开的句柄数，别一次把整棵新目录放出去。 */
+const COUNT_CONCURRENCY = 8
 
 const EMPTY: GitStatus = {
   isRepo: false,
@@ -228,8 +231,12 @@ async function reviewFiles(git: Git, base: 'HEAD' | 'index'): Promise<ReviewFile
   }
   if (cached) return files
   const others = await git.run(['ls-files', '--others', '--exclude-standard', '-z'])
-  for (const relative of parseNulList(others.stdout)) {
-    const counted = await countLines(git.cwd, relative)
+  /* 每个未跟踪文件各自读、互不依赖；有界并发，结果按 git 给出的顺序收回。 */
+  const untracked = await mapLimited(parseNulList(others.stdout), COUNT_CONCURRENCY, async (relative) => ({
+    relative,
+    counted: await countLines(git.cwd, relative),
+  }))
+  for (const { relative, counted } of untracked) {
     files.push({ path: relative, oldPath: null, change: 'untracked', ...counted })
   }
   return files

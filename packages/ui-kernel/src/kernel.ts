@@ -115,6 +115,10 @@ export function createUiKernel(opts: UiKernelOptions): UiKernel {
     }
     await Promise.all(
       [...groups.values()].map(async (hooks) => {
+        /*
+         * 同一功能的多个 onCoreReady 钩子串行：功能内部的前后关系只有它自己知道。
+         * 功能之间走外层 Promise.all —— 一个功能的慢请求不压住别的功能。
+         */
         for (const h of hooks) {
           if (signal.aborted || failures.has(h.featureId)) return
           try {

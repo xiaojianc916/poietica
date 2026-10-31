@@ -140,11 +140,13 @@ function QuestionOptionList({
 }) {
   const otherSelected = draft.written.trim().length > 0
   const OtherMark = otherSelected ? CircleCheck : Circle
+  /* 选项表一次渲染里逐行查同一份 picked：先摊成 Set，避免每个选项都线性扫一遍。 */
+  const picked = new Set(draft.picked)
   return (
     <>
       <div className="assistant-question-panel__options" data-skipped={draft.skipped ? 'true' : undefined}>
         {current.options.map((option, at) => {
-          const selected = draft.picked.includes(option.id)
+          const selected = picked.has(option.id)
           const Mark = selected ? CircleCheck : Circle
           return (
             <button

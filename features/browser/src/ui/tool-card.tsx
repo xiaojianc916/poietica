@@ -27,6 +27,8 @@ const BROWSER_ACTIONS: Readonly<Record<string, string>> = {
 
 const SHOT_CAP = 4
 const LINE_CAP = 120
+const SHOT_ACTIONS: ReadonlySet<string> = new Set(['screenshot'])
+const RUN_ACTIONS: ReadonlySet<string> = new Set(['run', 'call'])
 
 function dot(...parts: readonly (string | null)[]): string {
   return parts.filter((part): part is string => part !== null && part !== '').join(' · ')
@@ -56,10 +58,10 @@ function lineOf(step: BrowserStep, code: string | null): string {
 
 /* 截图与代码各归各自那一步：有截图步就只归截图步，有执行脚本步就归脚本步；
  * 老会话只有一条 open 时两者都没有，退回最后一步（那时图与代码确实是那次调用唯一的产出）。 */
-function stepIndexOf(steps: readonly BrowserStep[], actions: readonly string[]): number {
+function stepIndexOf(steps: readonly BrowserStep[], actions: ReadonlySet<string>): number {
   for (let at = steps.length - 1; at >= 0; at -= 1) {
     const action = steps[at]?.action ?? ''
-    if (actions.includes(action)) {
+    if (actions.has(action)) {
       return at
     }
   }
@@ -207,8 +209,8 @@ export function BrowserToolCard({ args, result, status }: ToolCallRendererProps)
   const model = browserCallModel(args, result, status === 'failed')
   const [openAt, setOpenAt] = useState<number | null>(null)
   const steps = model.steps.length === 0 ? [placeholderStep(model.code)] : model.steps
-  const shotStep = stepIndexOf(steps, ['screenshot'])
-  const runStep = stepIndexOf(steps, ['run', 'call'])
+  const shotStep = stepIndexOf(steps, SHOT_ACTIONS)
+  const runStep = stepIndexOf(steps, RUN_ACTIONS)
   const legacy = shotStep < 0 && runStep < 0
   const shotsAt = shotStep >= 0 ? shotStep : legacy ? steps.length - 1 : -1
   const codeAt = runStep >= 0 ? runStep : legacy ? steps.length - 1 : -1

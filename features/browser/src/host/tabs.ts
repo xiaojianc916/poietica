@@ -159,7 +159,8 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
 
   const find = (id: number): Tab | undefined => tabs.find((tab) => tab.id === id)
 
-  const require = (id: number): Tab => {
+  /* 不叫 require：静态检查会把它误认成动态 require()，而这里只是按 id 取标签。 */
+  const requireTab = (id: number): Tab => {
     const tab = find(id)
 
     if (tab === undefined) {
@@ -573,7 +574,7 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
   }
 
   function closeTab(id: number): void {
-    const tab = require(id)
+    const tab = requireTab(id)
     const index = tabs.indexOf(tab)
 
     if (pickingTabId === id) {
@@ -649,7 +650,7 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
     closeTab,
 
     selectTab(id) {
-      const tab = require(id)
+      const tab = requireTab(id)
 
       /* relay 的 activateTab 可能点到备用标签：它不在面板里，没有可切换的画面；在 relay 那一侧它本来就算活动。 */
       if (tab.reserve) {
@@ -673,7 +674,7 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
     },
 
     navigate(id, address) {
-      const tab = require(id)
+      const tab = requireTab(id)
 
       if (pickingTabId === id) {
         cancelPick(id)
@@ -685,7 +686,7 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
     },
 
     back(id) {
-      const tab = require(id)
+      const tab = requireTab(id)
 
       if (tab.view.webContents.navigationHistory.canGoBack()) {
         tab.view.webContents.navigationHistory.goBack()
@@ -696,7 +697,7 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
     },
 
     forward(id) {
-      const tab = require(id)
+      const tab = requireTab(id)
 
       if (tab.view.webContents.navigationHistory.canGoForward()) {
         tab.view.webContents.navigationHistory.goForward()
@@ -707,7 +708,7 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
     },
 
     reload(id) {
-      const tab = require(id)
+      const tab = requireTab(id)
 
       tab.view.webContents.reload()
       layout()
@@ -715,14 +716,14 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
     },
 
     stop(id) {
-      const tab = require(id)
+      const tab = requireTab(id)
 
       tab.view.webContents.stop()
       publish()
     },
 
     setZoom(id, level) {
-      const tab = require(id)
+      const tab = requireTab(id)
 
       tab.zoom = level
       tab.view.webContents.setZoomLevel(level)

@@ -218,6 +218,7 @@ async function boot(
   // 模块 setup（拓扑序）
   const beforeWindow: Array<() => void | Promise<void>> = []
   const onReady: Array<() => void | Promise<void>> = []
+  /* 模块 setup 按拓扑序串行：依赖方在 setup 里取服务、订阅事件，上游必须先装配完。 */
   for (const m of sortModules(opts.modules)) {
     const disposables = new DisposableStore()
     quit.addDisposables(disposables)
@@ -273,7 +274,7 @@ async function boot(
     return
   }
 
-  // beforeWindow → 协议 → 窗口
+  // beforeWindow → 协议 → 窗口：钩子按模块注册顺序串行，后面的可能依赖前面装好的东西
   for (const fn of beforeWindow) await fn()
   protocol.handle(ASSET_SCHEME, (request) => assets.dispatch(request))
   protocol.handle(
@@ -293,6 +294,7 @@ async function boot(
    * Core 先于它们 ready 也不会漏。
    */
   void supervisor.start()
+  /* onReady 按模块注册顺序串行：后一个可能读前一个声明的状态；单个失败只记日志，不挡后面。 */
   for (const fn of onReady) {
     try {
       await fn()

@@ -14,7 +14,8 @@ export const PRELUDE_NAMES: Readonly<Record<string, string>> = {
 
 /** 这次 eval 调过的 prelude 名（原始 op，不是给人看的那句）。 */
 export function preludeOpsOf(ctx: Ctx): readonly string[] {
-  const ops: string[] = []
+  /* 去重与成员判断共用一份 Set；最后才摊回数组，保留事件出现次序。 */
+  const ops = new Set<string>()
   /* 事件既可能挂在整次调用上，也可能挂在产生它的那个 cell 上。 */
   const events = [...list(ctx.details, 'statusEvents')]
 
@@ -25,12 +26,12 @@ export function preludeOpsOf(ctx: Ctx): readonly string[] {
   for (const event of events) {
     const op = pick(event, 'op')
 
-    if (op !== undefined && PRELUDE_NAMES[op] !== undefined && !ops.includes(op)) {
-      ops.push(op)
+    if (op !== undefined && PRELUDE_NAMES[op] !== undefined) {
+      ops.add(op)
     }
   }
 
-  return ops
+  return [...ops]
 }
 
 /** 这次 eval 调了哪些 prelude，各做了什么。 */

@@ -106,7 +106,12 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
     steps: ReadonlyArray<readonly [string, () => unknown]>,
     signal: AbortSignal,
   ): Promise<void> {
-    /* 每一步各自兜底：某一格抛错不该把后面的恢复步骤跳过 —— 原先整段共用一次 await，第一步失败就等于「重启之后什么都不再同步」。 */
+    /*
+     * 顺序 await 是有意的：这些步骤共用上面那几台 store，且有明确先后 ——
+     * 「落地判线程还在不在」要等 threads 刷新完；entryDefaults 要等 drafts 读回来。
+     * 并行会把「后一步看见前一步的结果」这个前提拆掉，换来的是偶发的空草稿与错跳转。
+     * 每一步各自兜底：某一格抛错不该把后面的恢复步骤跳过 —— 原先整段共用一次 await，第一步失败就等于「重启之后什么都不再同步」。
+     */
     for (const [name, run] of steps) {
       if (signal.aborted) return
       try {

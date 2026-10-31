@@ -112,7 +112,7 @@ describe('FrameByteDecoder（Host 读 Core stdout）', () => {
         at = cut
       }
       return {
-        messages: messages.map((m) => JSON.parse(JSON.stringify(m)) as unknown),
+        messages: messages.map((m) => structuredClone(m) as unknown),
         strays,
       }
     }

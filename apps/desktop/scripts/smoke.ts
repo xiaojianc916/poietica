@@ -85,6 +85,7 @@ function corePids(): readonly number[] {
 const baseline = topLevelEntries()
 const hadDotOmp = existsSync(path.join(homedir(), '.omp'))
 const hadLocalShareOmp = existsSync(path.join(homedir(), '.local', 'share', 'omp'))
+const baselineSet = new Set(baseline)
 log(`1/7 用户目录基线：${String(baseline.length)} 个顶层条目；.omp=${String(hadDotOmp)}`)
 
 // ── 2. 静默安装 ─────────────────────────────────────────────────────────────
@@ -135,7 +136,7 @@ for (const dir of [path.join(APP_DATA, 'omp', 'agent'), path.join(APP_DATA, 'nat
 }
 {
   const after = topLevelEntries()
-  const added = after.filter((name) => !baseline.includes(name) && name !== 'AppData')
+  const added = after.filter((name) => !baselineSet.has(name) && name !== 'AppData')
   if (added.length > 0) fail(`用户目录多出了条目（隔离被破坏）：${added.join(', ')}`)
   if (existsSync(path.join(homedir(), '.omp')) && !hadDotOmp) fail('用户目录多出了 .omp')
   if (existsSync(path.join(homedir(), '.local', 'share', 'omp')) && !hadLocalShareOmp) {

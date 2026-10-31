@@ -1,7 +1,14 @@
 import { describe, expect, test } from 'bun:test'
 import type { SubmitInput } from '@poietica/engine'
 import { AppError } from '@poietica/foundation'
-import { type ExpandSkillOptions, expandSkillMessage, preparePrompt, splitWireText, wireTextOf } from '../prompt'
+import {
+  type ExpandSkillOptions,
+  expandSkillMessage,
+  loadImages,
+  preparePrompt,
+  splitWireText,
+  wireTextOf,
+} from '../prompt'
 
 /*
  * SubmitInput → omp 输入。输入面收窄了一档（images / files / skills 都是数组，缺席即空数组），
@@ -117,6 +124,57 @@ describe('preparePrompt：图片', () => {
   })
 })
 
+describe('loadImages：turn 那条路的异步读图', () => {
+  test('多张图并发读，结果按输入顺序交回', async () => {
+    let active = 0
+    let peak = 0
+    const images = [
+      { path: 'C:/tmp/a.png', mime: 'image/png' },
+      { path: 'C:/tmp/b.jpg', mime: 'image/jpeg' },
+    ]
+    const loaded = await loadImages(images, {
+      statSize: () => 4,
+      readFile: async (path) => {
+        active += 1
+        peak = Math.max(peak, active)
+        await new Promise((resolve) => setTimeout(resolve, 10))
+        active -= 1
+        return Buffer.from(path)
+      },
+    })
+    expect(peak).toBe(2)
+    expect(loaded.map((image) => [image.path, image.mime])).toEqual([
+      ['C:/tmp/a.png', 'image/png'],
+      ['C:/tmp/b.jpg', 'image/jpeg'],
+    ])
+  })
+
+  test('任一图超过 20 MB：一张都不读', async () => {
+    let reads = 0
+    const error = await (async () => {
+      try {
+        await loadImages(
+          [
+            { path: 'C:/tmp/ok.png', mime: 'image/png' },
+            { path: 'C:/tmp/huge.png', mime: 'image/png' },
+          ],
+          {
+            statSize: (path) => (path.endsWith('huge.png') ? 20 * 1024 * 1024 + 1 : 4),
+            readFile: async () => {
+              reads += 1
+              return Buffer.from('')
+            },
+          },
+        )
+        return undefined
+      } catch (caught) {
+        return caught
+      }
+    })()
+    expect(codeOf(error)).toBe('kernel.invalid_params')
+    expect(reads).toBe(0)
+  })
+})
 describe('preparePrompt：普通文件与正文', () => {
   test('普通文件以 @"绝对路径" (文件名) 逐行附在正文后面，由 agent 自己去读', () => {
     const prepared = preparePrompt(

@@ -51,10 +51,11 @@ if (manifest.sha256 === null || typeof manifest.sha256 !== 'object') {
 const expected = manifest.sha256 as Record<string, unknown>
 const problems: string[] = []
 const distEntries = readdirSync(dist).filter((name) => name !== 'core-manifest.json')
+const distEntrySet = new Set(distEntries)
 
 // 哈希自洽只证明「这些文件没有变」，不证明必需文件都在；完整性由固定产物契约约束。
 for (const name of CORE_ARTIFACTS) {
-  if (!distEntries.includes(name)) problems.push(`${name}：缺少必需产物`)
+  if (!distEntrySet.has(name)) problems.push(`${name}：缺少必需产物`)
   if (!Object.hasOwn(expected, name)) problems.push(`${name}：manifest 缺少必需产物的哈希`)
 }
 
@@ -72,7 +73,7 @@ for (const name of distEntries) {
 }
 
 for (const name of Object.keys(expected)) {
-  if (!distEntries.includes(name)) problems.push(`${name}：manifest 里有，盘上却没有`)
+  if (!distEntrySet.has(name)) problems.push(`${name}：manifest 里有，盘上却没有`)
 }
 
 if (problems.length > 0) {

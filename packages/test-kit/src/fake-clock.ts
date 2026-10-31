@@ -70,6 +70,10 @@ export function fakeClock(start = 1_700_000_000_000): FakeClock {
     async advanceAsync(ms) {
       const target = now + ms
       await Promise.resolve()
+      /*
+       * 逐个定时器推进并让微任务跑完，是假时钟的全部语义：前一个定时器 resolve 的 Promise
+       * 可能在 nextDue 之前又注册新定时器，必须让它先落地再决定下一拍。并发推进等于改写时间顺序。
+       */
       for (let t = nextDue(target); t !== undefined; t = nextDue(target)) {
         fire(t)
         await Promise.resolve()

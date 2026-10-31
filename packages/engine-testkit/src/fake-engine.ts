@@ -353,6 +353,10 @@ class FakeSession implements EngineSession {
 
   /** `prompt` 要带到每一次 turn.upsert 上：轮头是整头替换，收尾时漏了它，开轮那句话就从屏幕上消失 */
   private async run(steps: readonly ScenarioStep[], turn: string, ordinal: number, prompt: string): Promise<void> {
+    /*
+     * 剧本步骤逐条执行、逐条上报：每个 op 的可见顺序就是剧本顺序（时间线依赖它），
+     * 而且上一步的 state / step 计数会被下一步读取。并发会改写剧本的含义。
+     */
     for (const step of steps) {
       if (this.disposed) return
       if (step.kind === 'fail') {

@@ -8,6 +8,8 @@
  *
  * `update` 一律经 flushSync 落地：它常常只是改一个 Observable / dataset，React 那边是**排队**的；
  * 不在回调返回前画完，浏览器拍到的「新快照」还是旧画面，补出来是同一张脸。
+ * 静态检查把 flushSync 读成「跳过 View Transition」，这里恰恰相反：拿掉它才会补出旧画面；
+ * startTransition 是非紧急调度，无法保证 update 回调返回前提交，不能替代。
  */
 
 import { flushSync } from 'react-dom'

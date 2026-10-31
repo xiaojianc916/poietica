@@ -100,6 +100,10 @@ export async function reapStaleCoreProcesses(o: ReapOptions): Promise<StaleProce
   o.logger.warn('发现上一代 Core / omp 后台进程，启动前清理', {
     processes: stale.map((s) => ({ pid: s.pid, what: s.what })),
   })
+  /*
+   * 逐个杀、逐个记账：taskkill 同一映像的多个 pid 并发会放大 Windows 上的进程表竞争，
+   * 而这里每个失败都只记 warn、清理照常继续 —— 顺序执行换来稳定的日志与可控的资源占用。
+   */
   for (const s of stale) {
     try {
       await kill(s.pid)

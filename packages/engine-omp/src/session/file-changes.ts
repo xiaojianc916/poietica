@@ -1,5 +1,6 @@
 import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
+import { mapLimited } from '@poietica/foundation'
 
 /*
  * 工具写文件的前后正文。撤销一轮的改动只能靠它：写完之后工作区里只剩新内容，
@@ -19,6 +20,9 @@ const WRITE_TOOLS: ReadonlySet<string> = new Set(['apply_patch', 'ast_edit', 'ed
 
 /** 超过这么多字节的文件不记：撤销要把整份 before 写回内存和库里，日志与产物级的大文件不在此列。 */
 const MAX_BYTES = 4 * 1024 * 1024
+
+/** 文件读只占 I/O 队列，不占 CPU：限住同时打开的句柄数即可。 */
+const READ_CONCURRENCY = 8
 
 /** 从入参里能认出来的路径键。omp 的 write 用 path，别的工具多了 file_path / paths 两种写法。 */
 const PATH_KEYS = ['path', 'file_path'] as const
@@ -98,17 +102,28 @@ export async function captureBefore(
   cwd: string,
   paths: readonly string[],
 ): Promise<Map<string, string | null | undefined>> {
-  const held = new Map<string, string | null | undefined>()
+  const unique: string[] = []
+  const seen = new Set<string>()
 
   for (const raw of paths) {
     const absolute = path.resolve(cwd, raw)
 
-    if (held.has(absolute)) {
+    if (seen.has(absolute)) {
       continue
     }
 
-    const text = await readText(absolute)
+    seen.add(absolute)
+    unique.push(absolute)
+  }
 
+  /* 各文件互不依赖；有界并发比逐个 await 快，又不至于一次把几百个读全放出去。 */
+  const read = await mapLimited(unique, READ_CONCURRENCY, async (absolute) => ({
+    absolute,
+    text: await readText(absolute),
+  }))
+  const held = new Map<string, string | null | undefined>()
+
+  for (const { absolute, text } of read) {
     if (text !== null) {
       held.set(absolute, text)
     }
@@ -214,26 +229,20 @@ export async function changesOf(
     return []
   }
 
+  const entries = entriesOf(result.details)
+  const seen = new Set(entries.map((entry) => path.resolve(cwd, entry.path)))
+  /* 两条来源互不依赖：两条读取并行跑，各自内部有界并发，结果仍按来源与输入顺序拼回。 */
+  const [fromDetails, fromCaptured] = await Promise.all([
+    mapLimited(entries, READ_CONCURRENCY, (entry) => changeOfEntry(cwd, entry, captured)),
+    mapLimited(
+      [...captured].filter(([absolute]) => !seen.has(absolute)),
+      READ_CONCURRENCY,
+      ([absolute, before]) => changeOfCaptured(absolute, before),
+    ),
+  ])
   const changes: FileWrite[] = []
-  const seen = new Set<string>()
 
-  for (const entry of entriesOf(result.details)) {
-    const change = await changeOfEntry(cwd, entry, captured)
-
-    seen.add(path.resolve(cwd, entry.path))
-
-    if (change !== null) {
-      changes.push(change)
-    }
-  }
-
-  for (const [absolute, before] of captured) {
-    if (seen.has(absolute)) {
-      continue
-    }
-
-    const change = await changeOfCaptured(absolute, before)
-
+  for (const change of [...fromDetails, ...fromCaptured]) {
     if (change !== null) {
       changes.push(change)
     }

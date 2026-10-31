@@ -186,6 +186,10 @@ function ompOAuthOf(
     },
     login: (providerId, ctrl) => storage.oauth.login(providerId, ctrl),
     logout: async (provider) => {
+      /*
+       * 逐行删同一个 provider 的凭据：removeById 每次都重算整份 provider 快照，
+       * 并发删会让后一条基于旧快照覆盖前一条；顺序执行是一致性前提。
+       */
       for (const row of storage.credentials.list(provider)) {
         if (row.credential.type === 'oauth') await storage.credentials.removeById(provider, row.id)
       }

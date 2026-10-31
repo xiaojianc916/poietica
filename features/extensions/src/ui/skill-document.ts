@@ -35,6 +35,8 @@ function scalar(raw: string): string | undefined {
 }
 
 function field(lines: readonly string[], closing: number, keys: readonly string[]): string | undefined {
+  const wanted = new Set(keys)
+
   for (const line of lines.slice(1, closing)) {
     const at = line.indexOf(':')
 
@@ -42,7 +44,7 @@ function field(lines: readonly string[], closing: number, keys: readonly string[
       continue
     }
 
-    if (!keys.includes(line.slice(0, at).trim())) {
+    if (!wanted.has(line.slice(0, at).trim())) {
       continue
     }
 

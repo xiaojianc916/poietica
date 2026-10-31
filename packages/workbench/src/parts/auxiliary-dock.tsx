@@ -243,7 +243,9 @@ function SettingsDock({
   readonly paneSet: DockPaneSet | null
   readonly panels: readonly PanelContribution[]
 }): ReactNode {
-  const open = paneSet === null ? [] : panels.filter((c) => paneSet.ids.includes(c.item.id))
+  /* filter 里不逐格扫 paneSet.ids；结果顺序仍由 panels 决定。 */
+  const openIds = new Set(paneSet?.ids ?? [])
+  const open = panels.filter((c) => openIds.has(c.item.id))
   const body = open.find((c) => c.item.id === paneSet?.activeId) ?? open.at(-1) ?? null
   return body === null ? null : <PanelBody contribution={body} />
 }

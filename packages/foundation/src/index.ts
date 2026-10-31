@@ -1,5 +1,5 @@
 export { assertNever, InvariantError, invariant } from './assert'
-export { Deferred, withTimeout } from './async'
+export { Deferred, mapLimited, withTimeout } from './async'
 export { Batcher } from './batcher'
 export { type Clock, systemClock } from './clock'
 export { type Disposable, DisposableStore, toDisposable } from './disposable'

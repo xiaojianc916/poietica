@@ -209,7 +209,8 @@ export function describeSchedule(schedule: string | null): string {
   }
   const time = common.time ?? DEFAULT_SCHEDULE_TIME
   if (common.kind === 'weekly') {
-    const days = WEEKDAY_ORDER.filter((day) => common.weekdays.includes(day))
+    const selected = new Set(common.weekdays)
+    const days = WEEKDAY_ORDER.filter((day) => selected.has(day))
       .map((day) => WEEKDAY_LABELS[day])
       .join('、')
     return `每周${days} ${time}`

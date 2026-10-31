@@ -41,13 +41,17 @@ async function saveCustomProvider(
           ? 'openai-responses'
           : 'openai-completions',
     baseUrl: source.baseUrl ?? '',
-    models: source.models.map((model) => ({
-      id: model.model,
-      name: model.displayName ?? model.model,
-      contextWindow: model.maxContextSize,
-      reasoning: model.adaptiveThinking === true,
-      vision: (model.capabilities ?? []).includes('vision'),
-    })),
+    models: source.models.map((model) => {
+      const capabilities = new Set(model.capabilities ?? [])
+
+      return {
+        id: model.model,
+        name: model.displayName ?? model.model,
+        contextWindow: model.maxContextSize,
+        reasoning: model.adaptiveThinking === true,
+        vision: capabilities.has('vision'),
+      }
+    }),
   })
   if (operation.kind === 'replace' && operation.providerId !== id) {
     await api.removeCustomProvider(operation.providerId)

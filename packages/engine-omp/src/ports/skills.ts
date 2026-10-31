@@ -4,7 +4,7 @@ import path from 'node:path'
 import { discoverSkills } from '@oh-my-pi/pi-coding-agent'
 import { parseFrontmatter } from '@oh-my-pi/pi-utils'
 import type { SkillInfo, SkillsPort } from '@poietica/engine'
-import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
+import { AppError, type Logger, mapLimited, SystemErrorCode } from '@poietica/foundation'
 import type { z } from 'zod'
 import { toEngineError } from '../errors'
 import { readSetting, type SettingsScope } from '../settings-access'
@@ -14,6 +14,9 @@ import { addArrayMember, flushOf, removeArrayMember } from './settings-writes'
 const DISABLED_EXTENSIONS = 'disabledExtensions'
 /** 技能目录名：<ompAgentDir>/skills。 */
 const SKILLS_DIR_NAME = 'skills'
+
+/** 解包与校验都只碰独立目录项：限住同时打开的句柄数。 */
+const STAT_CONCURRENCY = 8
 
 /** SkillsPort 需要的东西：root 设置（启用状态）、omp 的 agent 目录、logger。 */
 export interface SkillsPortDeps {
@@ -179,14 +182,26 @@ async function extractZip(zipFile: string, into: string): Promise<void> {
 async function skillRootIn(dir: string): Promise<string> {
   if (await hasSkillFile(dir)) return dir
   const entries = await Array.fromAsync(new Bun.Glob('*').scan({ cwd: dir, onlyFiles: false }))
+  /* 每个条目各自 stat，彼此独立；有界并发，结果仍按目录项顺序收回。 */
+  type StatOutcome = { readonly ok: true; readonly isDir: boolean } | { readonly ok: false; readonly error: unknown }
+  const stats = await mapLimited(entries, STAT_CONCURRENCY, async (entry): Promise<StatOutcome> => {
+    try {
+      return { ok: true, isDir: (await stat(path.join(dir, entry))).isDirectory() }
+    } catch (error) {
+      return { ok: false, error }
+    }
+  })
   const directories: string[] = []
-  for (const entry of entries) {
-    const full = path.join(dir, entry)
-    if ((await stat(full)).isDirectory()) directories.push(full)
+  /* 失败按目录项顺序抛第一条：并发只改变谁先读完，不改变报哪一个错。 */
+  for (let index = 0; index < entries.length; index += 1) {
+    const outcome = stats[index]!
+    if (!outcome.ok) throw outcome.error
+    if (outcome.isDir) directories.push(path.join(dir, entries[index]!))
   }
-  for (const candidate of directories) {
-    if (await hasSkillFile(candidate)) return candidate
-  }
+  /* 逐个探测第一个带 SKILL.md 的壳目录；探测彼此独立，但命中顺序必须是目录项顺序。 */
+  const hasSkill = await mapLimited(directories, STAT_CONCURRENCY, hasSkillFile)
+  const first = hasSkill.findIndex((found) => found)
+  if (first >= 0) return directories[first]!
   throw new AppError(SystemErrorCode.invalidParams, '压缩包里没有 SKILL.md')
 }
 

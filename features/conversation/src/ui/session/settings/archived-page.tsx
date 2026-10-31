@@ -8,7 +8,7 @@ import {
   SettingsPage,
 } from '@poietica/design-system'
 import { type WorkspacesUi, WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
-import { isAppError } from '@poietica/foundation'
+import { isAppError, mapLimited } from '@poietica/foundation'
 import { useService } from '@poietica/ui-kernel'
 import { ArchiveRestore, Search, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
@@ -102,24 +102,32 @@ function failureText(cause: unknown): string {
   return isAppError(cause) && cause.message.length > 0 ? cause.message : describeFailure(cause)
 }
 
-/** 逐条删；失败的记日志、继续下一条 */
+/**
+ * 逐条删：每条删除是彼此独立的 I/O，串行等会把「全部删除」拖成 N 次往返；
+ * 用有界并发（4）既提速，又不至于一次向 Core 压上几百个请求。
+ * 失败仍逐条记日志、继续下一条；汇总的「第一条失败」按原列表顺序取，与并发完成顺序无关。
+ */
 async function deleteEach(
   api: ConversationApi,
   items: readonly Thread[],
   removed: (threadId: string) => void,
   logger: ArchivedPageLogger | undefined,
 ): Promise<{ failed: number; firstFailure: unknown }> {
-  let failed = 0
-  let firstFailure: unknown
-  for (const item of items) {
+  const outcomes = await mapLimited(items, 4, async (item) => {
     const outcome = await deleteOutcome(api, item.id)
     if (outcome.ok) {
       removed(item.id)
-      continue
+    } else {
+      logger?.warn('archived thread delete failed', { threadId: item.id, error: describeFailure(outcome.cause) })
     }
+    return outcome
+  })
+  let failed = 0
+  let firstFailure: unknown
+  for (const outcome of outcomes) {
+    if (outcome.ok) continue
     failed += 1
     if (failed === 1) firstFailure = outcome.cause
-    logger?.warn('archived thread delete failed', { threadId: item.id, error: describeFailure(outcome.cause) })
   }
   return { failed, firstFailure }
 }

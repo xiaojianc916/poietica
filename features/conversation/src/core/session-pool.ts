@@ -1,5 +1,13 @@
 import type { AgentEngine, EngineSession, EngineSessionEvent, OpenSessionSpec } from '@poietica/engine'
-import { AppError, type Clock, Deferred, type Disposable, type Logger, SystemErrorCode } from '@poietica/foundation'
+import {
+  AppError,
+  type Clock,
+  Deferred,
+  type Disposable,
+  type Logger,
+  mapLimited,
+  SystemErrorCode,
+} from '@poietica/foundation'
 
 export const MAX_IDLE_SESSIONS = 6
 export const IDLE_TTL_MS = 10 * 60_000
@@ -111,9 +119,11 @@ type Slot = OpeningSlot | LiveSlot
    */
   async invalidate(): Promise<void> {
     this.generation += 1
-    for (const [threadId, slot] of [...this.slots]) {
-      if (slot.phase === 'live' && !slot.session.isBusy()) await this.release(threadId)
-    }
+    /* 各线程的会话互不共享状态，释放是独立 I/O；有界并发避免一次向引擎压上几十个 dispose。 */
+    const idle = [...this.slots]
+      .filter((entry): entry is [string, LiveSlot] => entry[1].phase === 'live' && !entry[1].session.isBusy())
+      .map(([threadId]) => threadId)
+    await mapLimited(idle, 4, (threadId) => this.release(threadId))
   }
 
   async dispose(): Promise<void> {
@@ -209,11 +219,17 @@ type Slot = OpeningSlot | LiveSlot
 
   private async sweep(): Promise<void> {
     const now = this.d.clock.now()
-    for (const [threadId, slot] of [...this.slots]) {
-      if (slot.phase !== 'live' || slot.session.isBusy()) continue
-      // 旧代且空闲的一并释放：忙会话错过了 invalidate 的那一次，这里兜住
-      if (slot.generation !== this.generation || now - slot.lastUsed > IDLE_TTL_MS) await this.release(threadId)
-    }
+    /* 旧代且空闲的一并释放：忙会话错过了 invalidate 的那一次，这里兜住。
+       每条会话的释放互不依赖，串行 await 只会把一次清扫拖成 N 次往返。 */
+    const expired = [...this.slots]
+      .filter(
+        ([, slot]) =>
+          slot.phase === 'live' &&
+          !slot.session.isBusy() &&
+          (slot.generation !== this.generation || now - slot.lastUsed > IDLE_TTL_MS),
+      )
+      .map(([threadId]) => threadId)
+    await mapLimited(expired, 4, (threadId) => this.release(threadId))
   }
 
   private async evictOverflow(keep: string): Promise<void> {

@@ -271,6 +271,10 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
     (session.queuedMessageCount ?? 0) === 0
   /** 等排程中的后台活排干净；返回 false = 换代或会话已关，别再往下走 */
   const drainAsyncWork = async (generation: number): Promise<boolean> => {
+    /*
+     * 这里是「等会话自己排干净」的轮询：每次都先重查 hasPendingAsyncWork 再决定要不要等，
+     * 顺序是判据本身；并发等待既没有第二个可并行的对象，也会让换代检查失去时机。
+     */
     while (!closed && settleWatchGeneration === generation && session.hasPendingAsyncWork?.() === true) {
       const settle = session.settleAsyncWork
       if (settle === undefined) return false

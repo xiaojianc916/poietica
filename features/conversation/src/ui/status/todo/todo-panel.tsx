@@ -757,14 +757,17 @@ export function TaskPanelContent({
    * 而 defaultValue 只在挂载那一刻算一次 —— 晚到的那一格挂上来就是收起的。这里新出现的一格补进开着的名单（**只补一次**，之后人在它上面收起来就一直是收的）。
    */
   const [open, setOpen] = useState<string[]>([...expanded])
-  const seen = useRef(new Set(expanded))
+  /* 惰性建：useRef(new Set(...)) 的初始化参数每次渲染都会求值，白白造一份再丢掉。 */
+  const seen = useRef<Set<string> | null>(null)
   useEffect(() => {
-    const fresh = expanded.filter((value) => !seen.current.has(value))
+    seen.current ??= new Set(expanded)
+    const seenBefore = seen.current
+    const fresh = expanded.filter((value) => !seenBefore.has(value))
     if (fresh.length === 0) {
       return
     }
     for (const value of fresh) {
-      seen.current.add(value)
+      seenBefore.add(value)
     }
     setOpen((held) => [...held, ...fresh])
   }, [expanded])

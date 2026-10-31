@@ -3,10 +3,13 @@ import { readFile } from 'node:fs/promises'
 import { isUserInvokedSkillPrompt, SKILL_PROMPT_MESSAGE_TYPE } from '@oh-my-pi/pi-coding-agent/session/messages'
 import { tagImageAttachmentSource } from '@oh-my-pi/pi-tui/prompt/image-source'
 import type { SubmitInput, TurnContextBlock } from '@poietica/engine'
-import { AppError, SystemErrorCode } from '@poietica/foundation'
+import { AppError, mapLimited, SystemErrorCode } from '@poietica/foundation'
 
 /** 一张图片超过 20 MB 就拒收：base64 要进上下文，太大等于把一轮直接撑爆 */
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024
+
+/** 图片与技能都只是独立读盘：限住同时在读的份数，别让一次附件把句柄队列打满。 */
+const READ_CONCURRENCY = 4
 
 export interface PreparedImage {
   readonly mediaType: string
@@ -175,13 +178,29 @@ export async function loadImages(
 ): Promise<LoadedImage[]> {
   const statSize = o.statSize ?? ((p: string) => statSync(p).size)
   const read = o.readFile ?? ((p: string) => readFile(p))
-  const out: LoadedImage[] = []
+  /* 先同步把大小都验一遍：超限的那张一张都不读；随后各图独立读盘，结果按输入顺序收回。 */
   for (const image of images) {
-    const size = statSize(image.path)
-    if (size > MAX_IMAGE_BYTES) {
+    if (statSize(image.path) > MAX_IMAGE_BYTES) {
       throw new AppError(SystemErrorCode.invalidParams, `图片超过 20 MB：${image.path}`)
     }
-    out.push({ path: image.path, mime: image.mime, base64: (await read(image.path)).toBase64() })
+  }
+  /* 读失败先收成结果，再按输入顺序抛第一条：谁先读完不影响报哪一个错。 */
+  type ReadOutcome =
+    { readonly ok: true; readonly image: LoadedImage } | { readonly ok: false; readonly error: unknown }
+  const outcomes = await mapLimited(images, READ_CONCURRENCY, async (image): Promise<ReadOutcome> => {
+    try {
+      return {
+        ok: true,
+        image: { path: image.path, mime: image.mime, base64: (await read(image.path)).toBase64() },
+      }
+    } catch (error) {
+      return { ok: false, error }
+    }
+  })
+  const out: LoadedImage[] = []
+  for (const outcome of outcomes) {
+    if (!outcome.ok) throw outcome.error
+    out.push(outcome.image)
   }
   return out
 }
@@ -249,13 +268,29 @@ export async function expandSkillMessage(
   o: ExpandSkillOptions,
 ): Promise<SkillPromptMessage | null> {
   if (input.skills.length === 0) return null
-  const blocks: { message: string; details: unknown }[] = []
+  /* 可用技能表收成 Set：逐个技能校验时不再反复线性扫数组 */
+  const available = new Set(o.availableSkills)
+  /* 先按输入顺序把名册验完，任何一个不在都不开始读盘；随后 SKILL.md 各读各的，结果按输入顺序收回。 */
   for (const name of input.skills) {
-    if (!o.availableSkills.includes(name)) {
+    if (!available.has(name)) {
       throw new AppError(SystemErrorCode.notFound, `这个技能现在不在会话里：${name}`)
     }
-    const block = await o.skillMessage(name, input.text)
-    if (block !== null) blocks.push(block)
+  }
+  type ExpandOutcome =
+    | { readonly ok: true; readonly block: { message: string; details: unknown } | null }
+    | { readonly ok: false; readonly error: unknown }
+  /* 展开失败先收成结果，再按输入顺序抛第一条：与逐个 await 时「先点名的先报错」一致。 */
+  const outcomes = await mapLimited(input.skills, READ_CONCURRENCY, async (name): Promise<ExpandOutcome> => {
+    try {
+      return { ok: true, block: await o.skillMessage(name, input.text) }
+    } catch (error) {
+      return { ok: false, error }
+    }
+  })
+  const blocks: { message: string; details: unknown }[] = []
+  for (const outcome of outcomes) {
+    if (!outcome.ok) throw outcome.error
+    if (outcome.block !== null) blocks.push(outcome.block)
   }
   if (blocks.length === 0) return null
   /* 技能消息不走 wireTextOf：附带上下文作为额外的文本块交给模型。气泡读 details 里的 prompt / args，不读 content */

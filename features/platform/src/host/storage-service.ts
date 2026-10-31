@@ -1,7 +1,7 @@
 import type { Dirent } from 'node:fs'
 import { readdir, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
-import { type Logger, noopLogger } from '@poietica/foundation'
+import { type Logger, mapLimited, noopLogger } from '@poietica/foundation'
 import { createJsonDocument } from '@poietica/fs-kit'
 import { CHROMIUM_CODE_CACHE_BYTES, CHROMIUM_HTTP_CACHE_BYTES, type DataLayout } from '@poietica/runtime-layout'
 import { type StorageEntryId, StorageUsage } from '../contract/entities'
@@ -57,6 +57,9 @@ const CODE_CACHE_DIR = 'Code Cache'
 
 /** HTTP 缓存的账与目录大小有出入（索引、预分配）：超出预算四分之一才算真的超 */
 const HTTP_OVERSHOOT = 1.25
+
+/** 清理目录项只占 I/O：限住同时在删的份数，别一次把整个目录的句柄都打开。 */
+const REMOVE_CONCURRENCY = 8
 
 export const STORAGE_LABELS: Readonly<Record<StorageEntryId, string>> = Object.freeze({
   /* 聊天 = omp 的会话文件 + 会话里的图片（omp 的 blob 目录）：图片是对话内容，跟着对话生、跟着对话回收（Core 的 omp gc）。 */
@@ -156,6 +159,10 @@ export function createStorageService(d: StorageDeps): StorageService {
     s.storagePath === null ? [] : [path.join(s.storagePath, HTTP_CACHE_DIR), path.join(s.storagePath, CODE_CACHE_DIR)]
 
   const cacheBytes = async (scan: Scan): Promise<number> => {
+    /*
+     * 共用同一个 scan（文件数上限、硬链接去重、目录扫描计数）时不能并发：scan.files 是同步累加的
+     * 共享可变状态，并发会让上限判定与总量对不上。这里只有四个目录，顺序走的成本可以忽略。
+     */
     let total = 0
     for (const dir of [...cacheDirsOf(d.appSession()), ...cacheDirsOf(d.browserSession())])
       total += await sizeOf(scan, dir)
@@ -245,14 +252,11 @@ export function createStorageService(d: StorageDeps): StorageService {
     } catch {
       return
     }
-    for (const entry of entries) {
-      if (keep(entry.name)) continue
-      try {
-        await rm(path.join(dir, entry.name), { recursive: true, force: true })
-      } catch {
-        /* freedBytes 用清理前后相减得到，不自己累加。 */
-      }
-    }
+    const doomed = entries.filter((entry) => !keep(entry.name)).map((entry) => path.join(dir, entry.name))
+    /* 各目录项路径互不重叠，删除彼此独立；单个删失败不挡其余。 */
+    await mapLimited(doomed, REMOVE_CONCURRENCY, (target) =>
+      rm(target, { recursive: true, force: true }).catch(() => undefined),
+    )
   }
 
   /** 清理前后只量受影响的那一格：不必为了一个数字把整个数据根走两遍 */
@@ -269,10 +273,11 @@ export function createStorageService(d: StorageDeps): StorageService {
       if (kind === 'cache') {
         /* 只走 Electron 的接口：缓存后端正开着这些文件，从外面删会删到一半（Windows 上被占用的删不掉）还骗过后端的索引。 */
         return await freed(cacheBytes, async () => {
-          for (const s of [d.appSession(), d.browserSession()]) {
+          /* 主窗口与浏览器分区是两个独立会话；每个会话内部的两步保持顺序，会话之间并发。 */
+          await mapLimited([d.appSession(), d.browserSession()], 2, async (s) => {
             await s.clearCache()
             await s.clearCodeCaches({})
-          }
+          })
         })
       }
       if (kind === 'logs') {
@@ -285,22 +290,28 @@ export function createStorageService(d: StorageDeps): StorageService {
       return await freed(browserDataBytes, () => d.browserSession().clearStorageData())
     },
     async enforceBudgets() {
-      const trimmed: string[] = []
-      for (const [name, s] of [
+      const sessions = [
         ['app', d.appSession()],
         ['browser', d.browserSession()],
-      ] as const) {
+      ] as const
+      /*
+       * 两会话的缓存互不相干，可以并发；每个会话内部仍然是「先量、超了才清、再量代码缓存」的顺序。
+       * 每会话各自交回清理清单，最后按 app → browser 摊平，结果顺序不随谁先清完而变。
+       */
+      const trimmed = await mapLimited(sessions, 2, async ([name, s]) => {
+        const hit: string[] = []
         if ((await s.getCacheSize()) > budget.httpCacheBytes * HTTP_OVERSHOOT) {
           await s.clearCache()
-          trimmed.push(`${name}:http`)
+          hit.push(`${name}:http`)
         }
-        if (s.storagePath === null) continue
+        if (s.storagePath === null) return hit
         if ((await sizeOf(newScan(), path.join(s.storagePath, CODE_CACHE_DIR))) > budget.codeCacheBytes) {
           await s.clearCodeCaches({})
-          trimmed.push(`${name}:code`)
+          hit.push(`${name}:code`)
         }
-      }
-      return trimmed
+        return hit
+      })
+      return trimmed.flat()
     },
   }
 }

@@ -159,7 +159,7 @@ function foldCommands(commands: readonly OmpAvailableCommand[], bundled: Readonl
 }
 
 function foldCommand(command: OmpAvailableCommand, source: SlashCommand['source']): SlashCommand {
-  const blockedVerbs = HOST_BLOCKED[command.name] ?? []
+  const blockedVerbs = new Set(HOST_BLOCKED[command.name] ?? [])
   const builtin = source === 'builtin'
   const description = command.description ?? null
   const hint = command.input?.hint ?? null
@@ -170,7 +170,7 @@ function foldCommand(command: OmpAvailableCommand, source: SlashCommand['source'
     hint: builtin ? builtinHintOf(command.name, hint) : hint,
     source,
     subcommands: (command.subcommands ?? [])
-      .filter((sub) => !blockedVerbs.includes(sub.name))
+      .filter((sub) => !blockedVerbs.has(sub.name))
       .map((sub) => ({ name: sub.name, description: sub.description ?? null })),
   }
 }
