@@ -39,7 +39,7 @@ import {
   WrapText,
   X,
 } from 'lucide-react'
-import { type CSSProperties, Fragment, type ReactNode, type RefObject, useRef } from 'react'
+import { type CSSProperties, Fragment, memo, type ReactNode, type RefObject, useMemo, useRef } from 'react'
 import type { FileChange } from '../contract'
 import {
   type ReviewFailureReport,
@@ -146,7 +146,16 @@ function Cards({
   return (
     <>
       {shown.map((file) => (
-        <Card file={file} key={file.path} scroller={scroller} state={state} store={store} />
+        <Card
+          file={file}
+          key={file.path}
+          onToggle={store.toggleFile}
+          onToggleGap={store.toggleGap}
+          open={state.openFiles.has(file.path)}
+          openGaps={state.openGaps}
+          scroller={scroller}
+          wrap={state.presentation.wrap}
+        />
       ))}
     </>
   )
@@ -376,23 +385,30 @@ function Commit({
     </DropdownMenu>
   )
 }
-function Card({
+/* 一张卡只认自己那一份：store 里别的字段（草稿、筛选、分隔条、别的文件的补丁）换了都不重渲 ——
+ * 一次文件解析或一次拖拽要让所有卡重画整棵 diff 是这条界面最贵的一笔。 */
+const Card = memo(function Card({
   file,
+  onToggle,
+  onToggleGap,
+  open,
+  openGaps,
   scroller,
-  state,
-  store,
+  wrap,
 }: {
   readonly file: DiffFile
+  readonly onToggle: (path: string) => void
+  readonly onToggleGap: (key: string) => void
+  readonly open: boolean
+  readonly openGaps: ReadonlySet<string>
   readonly scroller: RefObject<HTMLDivElement | null>
-  readonly state: ReviewState
-  readonly store: ReviewStore
+  readonly wrap: boolean
 }) {
-  const open = state.openFiles.has(file.path)
   const cut = file.path.lastIndexOf('/')
   const fileName = cut === -1 ? file.path : file.path.slice(cut + 1)
   const fileDir = cut === -1 ? undefined : file.path.slice(0, cut + 1)
   /* 视口外的卡跳过绘制，没有估高滚动条会随视口推进跳动；行数按展开态算。 */
-  const rows = open ? renderedRowsOf(file, state.openGaps) : 0
+  const rows = open ? renderedRowsOf(file, openGaps) : 0
   const style: ReviewStyle = { '--review-card-rows': String(rows) }
   return (
     <section className="review-card" id={cardId(file.path)} style={style}>
@@ -404,7 +420,7 @@ function Card({
             aria-expanded={open}
             className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left"
             onClick={() => {
-              store.toggleFile(file.path)
+              onToggle(file.path)
             }}
             type="button"
           >
@@ -421,21 +437,23 @@ function Card({
           </button>
         </div>
       </header>
-      {open ? <Body file={file} scroller={scroller} state={state} store={store} /> : null}
+      {open ? <Body file={file} onToggleGap={onToggleGap} openGaps={openGaps} scroller={scroller} wrap={wrap} /> : null}
     </section>
   )
-}
+})
 
 function Body({
   file,
+  onToggleGap,
+  openGaps,
   scroller,
-  state,
-  store,
+  wrap,
 }: {
   readonly file: DiffFile
+  readonly onToggleGap: (key: string) => void
+  readonly openGaps: ReadonlySet<string>
   readonly scroller: RefObject<HTMLDivElement | null>
-  readonly state: ReviewState
-  readonly store: ReviewStore
+  readonly wrap: boolean
 }) {
   if (file.binary) {
     return <Note>二进制文件，没有可对比的文本。</Note>
@@ -447,15 +465,7 @@ function Body({
       </div>
     )
   }
-  return (
-    <DiffBody
-      file={file}
-      onToggleGap={store.toggleGap}
-      openGaps={state.openGaps}
-      scroller={scroller}
-      wrap={state.presentation.wrap}
-    />
-  )
+  return <DiffBody file={file} onToggleGap={onToggleGap} openGaps={openGaps} scroller={scroller} wrap={wrap} />
 }
 function Tree({
   docked,
@@ -468,10 +478,15 @@ function Tree({
   readonly state: ReviewState
   readonly store: ReviewStore
 }) {
-  const rows: readonly FileTreeRow[] = pathTreeRows(
-    shown.map((file) => file.path),
-    state.collapsedFolders,
-  ).map((row) => (row.kind === 'folder' ? { ...row, expanded: !state.collapsedFolders.has(row.key) } : row))
+  /* 树只在路径、折叠态或处境变了时重建；打开一个文件、写草稿、拖分隔条都不该让它重排。 */
+  const paths = useMemo(() => shown.map((file) => file.path), [shown])
+  const rows: readonly FileTreeRow[] = useMemo(
+    () =>
+      pathTreeRows(paths, state.collapsedFolders).map((row) =>
+        row.kind === 'folder' ? { ...row, expanded: !state.collapsedFolders.has(row.key) } : row,
+      ),
+    [paths, state.collapsedFolders],
+  )
   const statuses = state.reading.phase === 'ready' ? state.reading.statuses : null
   return (
     <aside className="review-tree" inert={!docked}>

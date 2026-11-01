@@ -1,13 +1,12 @@
-import type { DiffFile, DiffStat } from '@poietica/design-system/diff'
+import type { DiffFile, DiffRow, DiffStat } from '@poietica/design-system/diff'
 import { diffStatOf } from '@poietica/design-system/diff'
 import { InvariantError, invariant, mapLimited } from '@poietica/foundation'
 import type { FeatureStore } from '@poietica/ui-kernel'
 import { createFeatureStore } from '@poietica/ui-kernel'
 import type { GitStatus, ReviewFile } from '../contract'
 
-/* 审查面的状态机。状态与投影规则照 legacy 逐条保留：读清单 → 打开的文件补全量补丁 → 词级强调重推。差别只在清单的来路 ——
- * legacy 的原生侧一次给回「清单 + 全部文件 -U3 补丁」，新契约把两件事分开：清单走 git.review（每个文件的加减行数就是它的字段），
- * 行带只在打开某个文件时经 git.filePatch 取回；清单里的 stat / binary 因此直接来自 git，不是从补丁正文数出来的。 */
+/* 审查面的状态机：清单走 git.review，打开的文件才经 git.filePatch 补行带。统计与处境只认清单，补丁只补正文 ——
+ * 展开、折叠与 Worker 返回都不能换成第二套数字。补丁缓存按清单的读取代次作键：净增行数相同也可能是不同内容。 */
 
 export type SplitterActivity = 'idle' | 'hover' | 'drag'
 
@@ -96,19 +95,19 @@ export type ReviewFailureReport = (
 ) => void
 
 export interface ReviewGateway {
-  review(
-    base: string,
-    ignoreWhitespace: boolean,
-  ): Promise<{
-    readonly status: GitStatus
-    readonly changes: readonly ReviewFile[]
-    readonly staged: readonly string[]
-    readonly branches: readonly string[]
-  } | null>
+  review(base: string, ignoreWhitespace: boolean): Promise<ReviewAnswer | null>
   filePatch(base: string, path: string, ignoreWhitespace: boolean): Promise<string>
   watch(onChange: () => void): Promise<() => Promise<void>>
   commit(request: { base: string; intent: ReviewCommitIntent; message: string; stageAll: boolean }): Promise<unknown>
   readonly workspaceId: string
+}
+
+/** 一趟清单读取的全部事实（`git.review` + 状态 + 分支名）。 */
+export interface ReviewAnswer {
+  readonly status: GitStatus
+  readonly changes: readonly ReviewFile[]
+  readonly staged: readonly string[]
+  readonly branches: readonly string[]
 }
 
 export interface ReviewStoreOptions {
@@ -122,6 +121,8 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
   interface Observation {
     readonly cancellation: AbortController
     readonly attempted: Map<string, string>
+    /** 这个观察者已经读过几趟清单：补丁缓存的身份就按它算。 */
+    listingVersion: number
     release: (() => Promise<void>) | null
     queued: boolean
     reading: boolean
@@ -129,21 +130,9 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
     queryVersion: number
   }
   let observation: Observation | null = null
-  let answer: {
-    readonly status: GitStatus
-    readonly changes: readonly ReviewFile[]
-    readonly staged: readonly string[]
-    readonly branches: readonly string[]
-  } | null = null
+  let answer: ReviewAnswer | null = null
   let trouble: 'asking' | 'notARepository' | 'unreadable' = 'asking'
   let listing: readonly DiffFile[] = []
-  /* keyFor 在 find/map 里逐条调用，现查一遍就是 O(n²)。 */
-  let byPath = new Map<string, DiffFile>()
-
-  function setListing(files: readonly DiffFile[]): void {
-    listing = files
-    byPath = new Map(files.map((file) => [file.path, file] as const))
-  }
 
   const wholeFiles = new Map<string, { key: string; file: DiffFile }>()
   let projectionVersion = 0
@@ -184,12 +173,14 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
     }
     store.setState(next)
   }
-  function keyFor(file: DiffFile): string {
+  /* 缓存键只说「同一份清单的哪一趟读取」：净增行数相同也可能是不同内容，所以内容身份只认清单读回来的代次，
+   * 不从补丁正文反推（那会把旧缓存自己的统计当成新清单的指纹）。 */
+  function keyFor(owner: Observation): string {
     return JSON.stringify([
       read().base,
       read().presentation.hideWhitespace,
       read().presentation.wordDiff,
-      fingerprintOf(byPath.get(file.path) ?? file),
+      owner.listingVersion,
     ])
   }
   function pending(owner: Observation): DiffFile | undefined {
@@ -197,11 +188,11 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
     if (held.reading.phase !== 'ready') {
       return undefined
     }
+    const key = keyFor(owner)
     return held.reading.files.find((file) => {
       if (!held.openFiles.has(file.path) || file.binary) {
         return false
       }
-      const key = keyFor(file)
       return wholeFiles.get(file.path)?.key !== key && owner.attempted.get(file.path) !== key
     })
   }
@@ -212,16 +203,14 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
       publish({ reading: { phase: trouble } })
       return
     }
-    const fresh = answer.changes.map(
-      (entry) =>
-        byPath.get(entry.path) ?? {
-          binary: entry.binary,
-          path: entry.path,
-          rows: [],
-          stat: { added: entry.additions, removed: entry.deletions },
-        },
-    )
-    setListing(fresh)
+    /* 清单是统计的唯一来源：这一趟读回来的加减数直接写进 shown，不从上一趟的旧条目里复用。 */
+    const fresh = answer.changes.map((entry) => ({
+      binary: entry.binary,
+      path: entry.path,
+      rows: EMPTY_ROWS,
+      stat: { added: entry.additions, removed: entry.deletions },
+    }))
+    listing = fresh
     const livePaths = new Set(listing.map((file) => file.path))
     for (const file of wholeFiles.keys()) {
       if (!livePaths.has(file)) {
@@ -229,12 +218,13 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
       }
     }
     const held = read()
+    const owner = observation
     const files = listing.map((file) => {
       const cached = wholeFiles.get(file.path)
-      if (!held.openFiles.has(file.path) || cached?.key !== keyFor(file)) {
+      if (owner === null || !held.openFiles.has(file.path) || cached === undefined) {
         return file
       }
-      return cached.file
+      return cached.key === keyFor(owner) ? cached.file : file
     })
     publish({ reading: ready(answer, files) })
     enrich()
@@ -269,7 +259,7 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
     const version = projectionVersion
     const requestedBase = read().base
     const { hideWhitespace, wordDiff } = read().presentation
-    const key = keyFor(wanted)
+    const key = keyFor(owner)
     owner.attempted.set(wanted.path, key)
     const fresh = (): boolean => current(owner) && version === projectionVersion && read().openFiles.has(wanted.path)
     try {
@@ -281,10 +271,12 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
       if (!fresh()) {
         return
       }
-      const file = files.find((item) => item.path === wanted.path)
-      if (file === undefined) {
+      const derived = files.find((item) => item.path === wanted.path)
+      if (derived === undefined) {
         invariant(false, 'Derived patch does not contain the requested file.')
       }
+      /* 补丁只补正文：统计与二进制判定仍以清单为准，展开前后与工具条、Git 工具格因此永远是同一组数。 */
+      const file: DiffFile = { ...wanted, rows: derived.rows }
       const held = read().reading
       if (held.phase !== 'ready') {
         return
@@ -313,6 +305,8 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
       }
       answer = result
       trouble = result === null ? 'notARepository' : 'asking'
+      /* 清单读回来了：补丁缓存的身份跟着这一趟走 —— 展开前后、以及与上一趟之间都不会串。 */
+      owner.listingVersion += 1
     } catch (cause: unknown) {
       if (!current(owner) || owner.queryVersion !== version) {
         return
@@ -357,10 +351,11 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
     if (observation !== null) {
       observation.queryVersion += 1
       observation.attempted.clear()
+      observation.listingVersion += 1
     }
     projectionVersion += 1
     answer = null
-    setListing([])
+    listing = EMPTY_LISTING
     wholeFiles.clear()
     trouble = 'asking'
     publish({ ...change, reading: { phase: 'asking' } })
@@ -419,6 +414,7 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
       const owner: Observation = {
         cancellation: new AbortController(),
         attempted: new Map<string, string>(),
+        listingVersion: 0,
         release: null,
         queued: false,
         reading: false,
@@ -550,28 +546,14 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
   }
 }
 
+/* 清单读回来的那一份在展开之前没有行带 —— 共享同一个空数组，省掉每条都新建。 */
+const EMPTY_ROWS: readonly DiffRow[] = []
+const EMPTY_LISTING: readonly DiffFile[] = []
 const NOTHING: DiffStat = { added: 0, removed: 0 }
 
-function fingerprintOf(file: DiffFile): string {
-  let key = `${String(file.stat.added)}/${String(file.stat.removed)}`
-  for (const row of file.rows) {
-    key += `${row.kind[0]}${row.number === null ? '' : String(row.number)}:${row.text}\n`
-  }
-  return key
-}
-
-/* 清单是权威顺序，补丁按路径对上去，补丁里有而清单里没有的照实附在后面。处境取 git.review 的字段：暂存区里有同名条目时以暂存
- * 那一份为准（它才是「相对 HEAD 的处境」）。 */
-function ready(
-  held: {
-    readonly status: GitStatus
-    readonly changes: readonly ReviewFile[]
-    readonly staged: readonly string[]
-    readonly branches: readonly string[]
-  },
-  parsed: readonly DiffFile[],
-): ReviewReading {
-  const byPath = new Map(parsed.map((file) => [file.path, file] as const))
+/* 文件清单与它的统计都从这一份来：总账就是清单上每一处加减的和，与卡头逐字同源。处境取 git.review 的字段：
+ * 暂存区里有同名条目时以那一份为准（它才是「相对 HEAD 的处境」）。 */
+function ready(held: ReviewAnswer, files: readonly DiffFile[]): ReviewReading {
   const staged = new Set(held.staged)
   const statuses = new Map<string, ReviewFile['change']>()
   for (const entry of held.status.staged) {
@@ -582,12 +564,6 @@ function ready(
       statuses.set(entry.path, entry.change)
     }
   }
-  const files: DiffFile[] = []
-  for (const change of held.changes) {
-    files.push(byPath.get(change.path) ?? blank(change.path))
-    byPath.delete(change.path)
-  }
-  files.push(...byPath.values())
   return {
     ahead: held.status.ahead,
     behind: held.status.behind,
@@ -602,10 +578,6 @@ function ready(
     unstaged: diffStatOf(files.filter((file) => !staged.has(file.path))) ?? NOTHING,
     upstream: held.status.upstream,
   }
-}
-
-function blank(path: string): DiffFile {
-  return { binary: false, path, rows: [], stat: NOTHING }
 }
 
 /* 确定性的，不牵进一次模型调用。 */
