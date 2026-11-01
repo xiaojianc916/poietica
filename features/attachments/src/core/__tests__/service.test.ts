@@ -15,13 +15,9 @@ async function make() {
   const clock = fakeClock()
   const root = await tempDir('att-')
   const dir = path.join(root.path, 'attachments')
-  const service = createAttachmentsService({
-    repo: createAttachmentsRepository(db.forModule('attachments')),
-    dir,
-    clock,
-    logger: createTestLogger(),
-  })
-  return { service, clock, root, dir, db }
+  const repo = createAttachmentsRepository(db.forModule('attachments'))
+  const service = createAttachmentsService({ repo, dir, clock, logger: createTestLogger() })
+  return { service, clock, root, dir, db, repo }
 }
 
 describe('attachments 服务（07 页 §4G、14 页 §8.6）', () => {
@@ -252,6 +248,18 @@ describe('attachments 服务（07 页 §4G、14 页 §8.6）', () => {
     const { service, root, db } = await make()
     const err = await service.importPaths([path.join(root.path, 'missing.txt')]).catch((e: unknown) => e)
     expect((err as AppError).code).toBe('attachments.unreadable')
+    db.close()
+    await root.dispose()
+  })
+
+  test('整批导入中途失败：这一次已经入库的条目跟着回滚，不留孤儿行', async () => {
+    const { service, root, repo, db } = await make()
+    const good = path.join(root.path, 'good.txt')
+    fs.writeFileSync(good, 'hello')
+    const err = await service.importPaths([good, path.join(root.path, 'missing.txt')]).catch((e: unknown) => e)
+    expect((err as AppError).code).toBe('attachments.unreadable')
+    /* 以前第一个文件已经 insertItem，异常把返回值一起丢了 → 那行没人引用，只能等 24 小时后的 sweep。 */
+    expect(repo.unreferencedItems(Number.MAX_SAFE_INTEGER)).toEqual([])
     db.close()
     await root.dispose()
   })

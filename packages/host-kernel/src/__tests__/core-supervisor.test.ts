@@ -744,4 +744,29 @@ describe('CoreSupervisor', () => {
     expect(s.sup.status.state).toBe('failed')
     expect(s.sup.status.reason).toBe('crash_loop')
   })
+
+  test('S-30 慢周期崩溃循环：启动超时连续 6 次也进 failed，而不是无限重启', async () => {
+    /*
+     * 60 秒窗口抓不到这一类：启动超时一次就要 READY_TIMEOUT_MS（45 秒），窗口里最多攒 2 条。
+     * 没有连续计数时，看护人会在 starting ↔ restarting 之间永远打转，界面上的失败提示（只在 failed 时渲染）永不出现。
+     * 这里把超时注短走同一条分支；退避仍走假时钟。
+     */
+    const s = await setup({ readyTimeoutMs: 20 })
+    await s.sup.start()
+    /* 每次重启都要真的等满一次 READY_TIMEOUT_MS（withTimeout 走平台时钟），所以按「崩溃已记账」等，不按固定时长等：
+     * status.attempt 一加，crashed() 紧接着就把退避计时器装好，这时推假时钟才会真的再 spawn。 */
+    let rounds = 0
+    while (s.sup.status.state !== 'failed' && rounds < 12) {
+      rounds += 1
+      const target = s.sup.status.attempt + 1
+      s.clock.advance(8_000)
+      await waitFor(() => s.sup.status.attempt >= target || s.sup.status.state === 'failed', {
+        timeoutMs: 2_000,
+        intervalMs: 1,
+      })
+    }
+    expect(s.sup.status.state).toBe('failed')
+    expect(s.sup.status.reason).toBe('start_timeout')
+    expect(s.spawned.length).toBe(6)
+  }, 10_000)
 })

@@ -25,6 +25,31 @@ function git(cwd: string, args: readonly string[]): string {
   return execFileSync('git', [...args], { cwd, encoding: 'utf8', windowsHide: true })
 }
 
+maybe('未跟踪文件跨流块：5000 行、无结尾换行，行数仍按整文件算', async () => {
+  const root = await tempDir('review-stat-')
+  const cwd = root.path
+  try {
+    git(cwd, ['init', '-q', '--initial-branch=main'])
+    git(cwd, ['config', 'user.email', 'test@poietica.local'])
+    git(cwd, ['config', 'user.name', 'Poietica Test'])
+    git(cwd, ['config', 'commit.gpgsign', 'false'])
+    fs.writeFileSync(path.join(cwd, 'seed.txt'), 'seed\n')
+    git(cwd, ['add', 'seed.txt'])
+    git(cwd, ['commit', '-q', '-m', 'init'])
+
+    /* 每行带中文与填充，整份约 300 KB：远超一次流的块大小，且行尾没有换行（末行也要算一行）。 */
+    const lines = Array.from({ length: 5000 }, (_, index) => `第 ${index + 1} 行 ${'x'.repeat(40)}`)
+    fs.writeFileSync(path.join(cwd, 'big.log'), lines.join('\n'))
+
+    const service = createReviewService({ gitFor: (dir) => createGit({ cwd: dir }), logger: createTestLogger() })
+    const files = await service.review(cwd, 'HEAD')
+    const listed = files.find((file) => file.path === 'big.log')
+    expect(listed?.additions).toBe(5000)
+    expect(listed?.binary).toBe(false)
+  } finally {
+    await root.dispose()
+  }
+})
 maybe('新增 300 行文件：清单、补丁与解析三处都是 +300 −0', async () => {
   const root = await tempDir('review-stat-')
   const cwd = root.path

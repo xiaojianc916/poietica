@@ -373,7 +373,8 @@ export class OmpSession implements EngineSession {
     error: { code: string; message: string } | null,
   ): void {
     try {
-      this.settleTurn(outcome, message, error)
+      /* 失败 / 未送达的一轮没进会话文件（omp 没接这条输入），轮号要按文件回摆，见 settleTurn。 */
+      this.settleTurn(outcome, message, error, { reseat: true })
     } catch (projectionError) {
       this.o.logger.warn('turn end projection failed', { error: describeError(projectionError) })
     }
@@ -387,14 +388,31 @@ export class OmpSession implements EngineSession {
     outcome: TurnOutcome['outcome'],
     message: string | null,
     error: { code: string; message: string } | null,
+    opts: { readonly reseat?: boolean } = {},
   ): void {
     try {
       this.timeline(this.o.projector.turnEnd(outcome, message))
     } finally {
       // 投影成不成功都要复位：否则下一句话（或插话）会落进已经结束的那一轮
       this.o.projector.abandonTurn()
+      /*
+       * 失败、被拦截的一轮不写进会话文件，而引擎的轮号只在命令收口时回摆 —— 不回摆的话，之后每一轮
+       * 签发的 turnId 都比文件多 1：冷读时提交行盖不上号（两个用户气泡）、分叉多截一轮、开轮屏找不到号就追加。
+       * 这一轮若其实落了盘，seat 落到的就是同一个号，是空操作。必须在 settleIdle 之前：idle 一发出，
+       * 排队的那条输入可能在同一个调用栈里开下一轮。
+       */
+      if (opts.reseat === true) this.reseatProjector()
       this.settleIdle(error)
       this.closeCommandRun()
+    }
+  }
+
+  /** 把投影的轮号摆回会话文件的位置（`seat` 在轮开着时是空操作，调用点都在 abandonTurn 之后）。 */
+  private reseatProjector(): void {
+    try {
+      this.o.reseat()
+    } catch (error) {
+      this.o.logger.warn('reseat after failed turn failed', { error: describeError(error) })
     }
   }
 
@@ -407,11 +425,7 @@ export class OmpSession implements EngineSession {
     /* 开过的那一格不必单独关：整页重取会把它换成会话文件里的那一行（失败、取消时就是没有这一行）；这里只把投影里的门复位 */
     if (this.commandRun.compacting) this.o.projector.compactionEnd(null)
     this.commandRun = null
-    try {
-      this.o.reseat()
-    } catch (error) {
-      this.o.logger.warn('reseat after command failed', { error: describeError(error) })
-    }
+    this.reseatProjector()
     this.emit({ type: 'timelineReset', agentId: 'main' })
     /* /compact、/shake、/handoff 这类本地命令不走 agent_end，用量那一格要在这里补报，否则仪表停在压缩前的读数 */
     try {

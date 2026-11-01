@@ -1,8 +1,8 @@
 import { existsSync, statSync } from 'node:fs'
-import { copyFile, rename, rm, writeFile } from 'node:fs/promises'
+import { readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { AppError, type Clock, createId, type Logger, mapLimited } from '@poietica/foundation'
-import { ensureDir, sha256File } from '@poietica/fs-kit'
+import { ensureDir } from '@poietica/fs-kit'
 import type { Attachment } from '../contract'
 import { MAX_ATTACHMENT_BYTES } from '../contract/entities'
 import { attachmentsErrors } from '../contract/errors'
@@ -17,6 +17,49 @@ export const SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000
 
 /** 回收孤儿文件只占 I/O：限住同时在删的份数，别一次把整个目录的句柄都打开。 */
 const SWEEP_CONCURRENCY = 8
+
+/** 附件上限的统一判据：带上文件名，用户才知道是哪一份被拒。 */
+function assertAttachmentSize(bytes: number, name: string): void {
+  if (bytes > MAX_ATTACHMENT_BYTES) throw new AppError(attachmentsErrors.too_large, `附件超过 50 MB：${name}`)
+}
+
+/** base64 解码后的字节数：先扣补齐位再算，不必把 50 MB 解码出来才发现超限。 */
+function decodedBase64Bytes(base64: string): number {
+  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0
+  return Math.floor(((base64.length - padding) * 3) / 4)
+}
+
+function decodeBase64(base64: string): Uint8Array {
+  try {
+    return Uint8Array.fromBase64(base64)
+  } catch (e) {
+    throw new AppError(attachmentsErrors.unreadable, '无法解码附件内容', { cause: String(e) })
+  }
+}
+
+/** 只读一次：stat 定大小 → 读字节。返回的字节就是进哈希、进仓库的那一份。 */
+async function readForImport(p: string): Promise<Uint8Array> {
+  let size: number
+  try {
+    const stat = statSync(p)
+    if (!stat.isFile()) throw new AppError(attachmentsErrors.unreadable, '不是文件')
+    size = stat.size
+  } catch (e) {
+    if (e instanceof AppError) throw e
+    throw new AppError(attachmentsErrors.unreadable, `无法读取文件：${p}`, { cause: String(e) })
+  }
+  // 大小检查在读之前：stat 一看就知道，不必读完再判断。
+  assertAttachmentSize(size, path.basename(p))
+  let bytes: Uint8Array
+  try {
+    bytes = await readFile(p)
+  } catch (e) {
+    throw new AppError(attachmentsErrors.unreadable, `无法读取文件：${p}`, { cause: String(e) })
+  }
+  /* 读的这段时间文件可能又长了：以真正读到的字节为准。 */
+  assertAttachmentSize(bytes.byteLength, path.basename(p))
+  return bytes
+}
 
 export interface AttachmentsServiceDeps {
   readonly repo: AttachmentsRepository
@@ -79,11 +122,7 @@ export function createAttachmentsService(d: AttachmentsServiceDeps): Attachments
     return row
   }
 
-  const store = async (
-    source: { kind: 'file'; path: string } | { kind: 'data'; bytes: Uint8Array },
-    sha256: string,
-    size: number,
-  ): Promise<void> => {
+  const store = async (bytes: Uint8Array, sha256: string, size: number): Promise<void> => {
     await ensureDir(d.dir)
     const target = contentPath(d.dir, sha256)
     const now = d.clock.now()
@@ -93,11 +132,7 @@ export function createAttachmentsService(d: AttachmentsServiceDeps): Attachments
     }
     await ensureDir(path.dirname(target))
     const tmp = `${target}.tmp-${createId()}`
-    if (source.kind === 'file') {
-      await copyFile(source.path, tmp)
-    } else {
-      await writeFile(tmp, source.bytes)
-    }
+    await writeFile(tmp, bytes)
     try {
       await rename(tmp, target)
     } catch (e) {
@@ -115,49 +150,39 @@ export function createAttachmentsService(d: AttachmentsServiceDeps): Attachments
     return attachmentOf(row)
   }
 
+  /* 一次读、一次哈希、一次落盘 —— 三处是同一份字节。以前是 stat → sha256File（流式）→ copyFile
+   * 三次独立快照：拖一个还在被写的文件（下载中、正在导出）会往 sha 目录里存下别的字节，而 existsSync
+   * 去重会让这个错副本永久留下。 */
+  const importOne = async (p: string): Promise<Attachment> => {
+    const bytes = await readForImport(p)
+    const sha256 = Bun.SHA256.hash(bytes, 'hex')
+    await store(bytes, sha256, bytes.byteLength)
+    const name = path.basename(p)
+    return record(sha256, bytes.byteLength, name, mimeOf(name))
+  }
+
   return {
     ...d,
     importPaths(paths) {
       return serial(async () => {
         const out: Attachment[] = []
-        for (const p of paths) {
-          let size: number
-          try {
-            const stat = statSync(p)
-            if (!stat.isFile()) throw new AppError(attachmentsErrors.unreadable, '不是文件')
-            size = stat.size
-          } catch (e) {
-            throw new AppError(attachmentsErrors.unreadable, `无法读取文件：${p}`, { cause: String(e) })
-          }
-          // 大小检查在复制之前：stat 一看就知道，不必读完再判断。
-          if (size > MAX_ATTACHMENT_BYTES) {
-            throw new AppError(attachmentsErrors.too_large, '附件超过 50 MB')
-          }
-          const sha256 = await sha256File(p)
-          await store({ kind: 'file', path: p }, sha256, size)
-          const name = path.basename(p)
-          out.push(record(sha256, size, name, mimeOf(name)))
+        try {
+          for (const p of paths) out.push(await importOne(p))
+          return out
+        } catch (e) {
+          /* 整批失败就把这次已入库的条目撤掉：以前它们会变成无人引用的 item 行，只能等 24 小时后的 sweep。 */
+          for (const attachment of out) d.repo.deleteItem(attachment.id)
+          throw e
         }
-        return out
       })
     },
     importData(name, mime, base64) {
       return serial(async () => {
-        const estimated = Math.floor((base64.length * 3) / 4)
-        if (estimated > MAX_ATTACHMENT_BYTES) {
-          throw new AppError(attachmentsErrors.too_large, '附件超过 50 MB')
-        }
-        let bytes: Uint8Array
-        try {
-          bytes = Uint8Array.fromBase64(base64)
-        } catch (e) {
-          throw new AppError(attachmentsErrors.unreadable, '无法解码附件内容', { cause: String(e) })
-        }
-        if (bytes.byteLength > MAX_ATTACHMENT_BYTES) {
-          throw new AppError(attachmentsErrors.too_large, '附件超过 50 MB')
-        }
+        assertAttachmentSize(decodedBase64Bytes(base64), name)
+        const bytes = decodeBase64(base64)
+        assertAttachmentSize(bytes.byteLength, name)
         const sha256 = Bun.SHA256.hash(bytes, 'hex')
-        await store({ kind: 'data', bytes }, sha256, bytes.byteLength)
+        await store(bytes, sha256, bytes.byteLength)
         return record(sha256, bytes.byteLength, name, mime === '' ? mimeOf(name) : mime)
       })
     },

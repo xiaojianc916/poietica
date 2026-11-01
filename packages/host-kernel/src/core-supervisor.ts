@@ -85,6 +85,11 @@ export class CoreSupervisor {
   private state: InternalState = 'idle'
   private reason: CoreFailureReason | null = null
   private crashes: number[] = []
+  /**
+   * 连续崩溃次数，`ready` 成功后清零。`CRASH_WINDOW_MS` 只抓得到快周期崩溃：
+   * 启动超时一次就要 45 秒，60 秒窗口里最多攒下 2 条，`> 5` 永不成立 —— 慢周期会无限重启且不进 `failed`。
+   */
+  private consecutiveCrashes = 0
   private child: ChildProcess | undefined
   private peer: RpcPeer | undefined
   private generation = 0
@@ -165,6 +170,7 @@ export class CoreSupervisor {
   /** 清空崩溃记录，停止当前进程（如有），再启动。 */
   async restart(): Promise<void> {
     this.crashes = []
+    this.consecutiveCrashes = 0
     if (this.child !== undefined) await this.stop()
     this.restartTimer?.dispose()
     this.restartTimer = undefined
@@ -426,6 +432,7 @@ export class CoreSupervisor {
       hostUptimeMs: Math.round(process.uptime() * 1000),
     })
     this.reason = null
+    this.consecutiveCrashes = 0
     this.setState('ready')
     this.readyEmitter.fire()
   }
@@ -478,11 +485,18 @@ export class CoreSupervisor {
   private crashed(): void {
     const now = this.clock.now()
     this.crashes = [...this.crashes.filter((t) => now - t < CRASH_WINDOW_MS), now]
-    if (this.crashes.length > MAX_CRASHES_IN_WINDOW) {
-      this.fail('crash_loop')
+    this.consecutiveCrashes += 1
+    /*
+     * 两个上限取或：窗口抓快周期（5 次 / 60 秒），连续次数抓慢周期。
+     * 后者必须存在——启动超时本身就有 45 秒，窗口里永远凑不够 6 条（见 consecutiveCrashes 的注释）。
+     */
+    if (this.crashes.length > MAX_CRASHES_IN_WINDOW || this.consecutiveCrashes > MAX_CRASHES_IN_WINDOW) {
+      this.fail(this.reason === 'start_timeout' ? 'start_timeout' : 'crash_loop')
       return
     }
-    const delay = BACKOFF_MS[Math.min(this.crashes.length - 1, BACKOFF_MS.length - 1)]!
+    /* 退避按「窗口内次数」与「连续次数」中较大的那个走：快周期时两者一致，慢周期时连续次数给出递增的间隔。 */
+    const attempt = Math.max(this.crashes.length, this.consecutiveCrashes)
+    const delay = BACKOFF_MS[Math.min(attempt - 1, BACKOFF_MS.length - 1)]!
     this.reapMs = null
     if (this.reason === null) this.reason = 'crashed'
     this.setState('restarting')

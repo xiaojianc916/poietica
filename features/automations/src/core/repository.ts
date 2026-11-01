@@ -329,10 +329,17 @@ export function createAutomationsRepository(db: ModuleDatabase): AutomationsRepo
       return rows.map(read)
     },
     trimRuns(automationId) {
+      /*
+       * 只裁**已收口**的行：`running` / `awaiting` 是「这个任务正在跑」的唯一依据（runner.isRunning 读 openRun），
+       * 裁掉它 = 下一次 tick 认为没在跑 → 同一任务并发开第二个运行，且原运行的超时看护（poll）随之撤销。
+       * 高频表达式（`* * * * *`）+ 一条等批准的运行，每分钟一条 `skipped`，50 分钟就够把那条 running 挤出前 50。
+       */
       db.prepare(
         `DELETE FROM automations_runs
-         WHERE automation_id = ? AND id NOT IN (
-           SELECT id FROM automations_runs WHERE automation_id = ? ORDER BY started_at DESC LIMIT ?
+         WHERE automation_id = ? AND outcome NOT IN ('running', 'awaiting') AND id NOT IN (
+           SELECT id FROM automations_runs
+           WHERE automation_id = ? AND outcome NOT IN ('running', 'awaiting')
+           ORDER BY started_at DESC LIMIT ?
          )`,
       ).run(automationId, automationId, RUN_HISTORY_LIMIT)
     },

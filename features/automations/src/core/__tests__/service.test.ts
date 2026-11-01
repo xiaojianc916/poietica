@@ -79,14 +79,35 @@ describe('automations service', () => {
     db.close()
   })
 
-  test('历史只保留最近 50 条运行记录', async () => {
+  test('历史只保留最近 50 条已收口的运行记录', async () => {
     const { service, repo, db } = build()
     const automation = service.create(draftOf())
     for (let i = 0; i < 55; i++) {
       const run = await service.runNow(automation.id)
       repo.updateRun({ ...run, outcome: 'succeeded', settledAt: i })
     }
+    const runs = repo.runs(automation.id, 100)
+    /* 裁剪发生在插入时，那一条插入时还开着（running 不裁），所以此刻是 50 条已收口 + 刚收口的这一条。 */
+    expect(runs.length).toBe(51)
+    expect(runs.filter((run) => run.outcome === 'succeeded').length).toBe(51)
+    /* 下一次插入（这里直接调裁剪）才把它算进上限。 */
+    repo.trimRuns(automation.id)
     expect(repo.runs(automation.id, 100).length).toBe(50)
+    db.close()
+  })
+
+  test('裁剪不会删掉还在跑的那一条：它被 60 条更新的跳过挤出前 50 也不删', async () => {
+    const { service, repo, db } = build()
+    const automation = service.create(draftOf())
+    const open = await service.runNow(automation.id)
+    for (let i = 0; i < 60; i++) {
+      repo.insertRun({ ...open, id: `skipped-${i}`, outcome: 'skipped', startedAt: i + 1, settledAt: i + 1 })
+      repo.trimRuns(automation.id)
+    }
+    /* 这一条是 isRunning 的唯一依据；被裁掉的话下一次 tick 会为同一任务再开一个运行。 */
+    expect(repo.getRun(open.id)?.outcome).toBe('running')
+    expect(repo.openRun(automation.id)?.id).toBe(open.id)
+    expect(repo.runs(automation.id, 200).length).toBe(51)
     db.close()
   })
 

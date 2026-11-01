@@ -243,18 +243,30 @@ async function reviewFiles(git: Git, base: 'HEAD' | 'index'): Promise<ReviewFile
 }
 
 /** 未跟踪文件的行数按文件自身算。二进制（含无效 UTF-8）读不出「行」，按 diff 的同一约定记 binary: true、行数 0 —— 让屏幕上
- * 的 +0 −0 与「这一份不是文本」区分开。读失败不炸整次 review。 */
+ * 的 +0 −0 与「这一份不是文本」区分开。读失败不炸整次 review。
+ * **流式**：以前整文件 `bytes()` + `split('\n')`，工作区里留一个几百 MB 的未跟踪产物就能把 Core 撑爆（OOM 后按 crash_loop
+ * 放弃重启）。现在按块数换行、按块做 fatal 解码判定 UTF-8，内存只与块大小有关。 */
 async function countLines(
   cwd: string,
   relative: string,
 ): Promise<Pick<ReviewFile, 'additions' | 'deletions' | 'binary'>> {
   try {
-    const bytes = await Bun.file(path.join(cwd, relative)).bytes()
-    if (bytes.includes(0)) return { additions: 0, deletions: 0, binary: true }
-    const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
-    if (text === '') return { additions: 0, deletions: 0, binary: false }
-    const newlines = text.split('\n').length - 1
-    return { additions: text.endsWith('\n') ? newlines : newlines + 1, deletions: 0, binary: false }
+    const decoder = new TextDecoder('utf-8', { fatal: true })
+    let newlines = 0
+    let size = 0
+    let lastByte = -1
+    for await (const chunk of Bun.file(path.join(cwd, relative)).stream()) {
+      if (chunk.includes(0)) return { additions: 0, deletions: 0, binary: true }
+      /* 合法 UTF-8 的多字节序列里不会出现 0x0A，所以按字节数换行与按字符数换行等价。 */
+      for (let i = 0; i < chunk.length; i++) if (chunk[i] === 0x0a) newlines += 1
+      size += chunk.length
+      if (chunk.length > 0) lastByte = chunk[chunk.length - 1]!
+      /* 只用来在流式里发现非法序列：fatal 解码器遇到坏字节会抛，落到下面的 binary 分支。输出不保留。 */
+      decoder.decode(chunk, { stream: true })
+    }
+    decoder.decode()
+    if (size === 0) return { additions: 0, deletions: 0, binary: false }
+    return { additions: lastByte === 0x0a ? newlines : newlines + 1, deletions: 0, binary: false }
   } catch {
     return { additions: 0, deletions: 0, binary: true }
   }
