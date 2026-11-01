@@ -15,6 +15,7 @@ import { reviewContract } from '@poietica/feature-review/contract'
 import { terminalContract } from '@poietica/feature-terminal/contract'
 import { updateContract } from '@poietica/feature-update/contract'
 import { usageContract } from '@poietica/feature-usage/contract'
+import { workbuddyContract } from '@poietica/feature-workbuddy/contract'
 import { workspacesContract } from '@poietica/feature-workspaces/contract'
 
 /**
@@ -39,6 +40,7 @@ export const appContract = composeContracts(
   automationsContract,
   updateContract,
   intelligentUiContract,
+  workbuddyContract,
 )
 
 export { contractSnapshot } from '@poietica/contract-kit'

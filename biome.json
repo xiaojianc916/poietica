@@ -19,7 +19,8 @@
       "!packages/protocol/src/__tests__/contract.snapshot.json",
       "!**/*.svg",
       "!**/*.min.js",
-      "!docs/baseline"
+      "!docs/baseline",
+      "!packages/workbuddy-client/src/vendor"
     ],
     "maxSize": 2097152
   },

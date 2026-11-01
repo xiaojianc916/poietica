@@ -1,0 +1,27 @@
+{
+  "extends": "../../../../tooling/tsconfig/bun.json",
+  "include": ["."],
+  "references": [
+    {
+      "path": "../../../../packages/core-kernel"
+    },
+    {
+      "path": "../../../../packages/engine"
+    },
+    {
+      "path": "../../../../packages/foundation"
+    },
+    {
+      "path": "../../../../packages/storage-sqlite"
+    },
+    {
+      "path": "../../../../packages/workbuddy-client"
+    },
+    {
+      "path": "../../../platform/src/contract"
+    },
+    {
+      "path": "../contract"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 {
-  "version": 51,
+  "version": 52,
   "methods": [
     {
       "name": "agentSettings.capabilities",
@@ -25703,6 +25703,2031 @@
       }
     },
     {
+      "name": "workbuddy.addApiKey",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "用 WorkBuddy API Key 添加账号",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "apiKey": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "apiKey"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "workbuddy.cancelLogin",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "放弃一次进行中的浏览器登录",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "loginId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "loginId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "workbuddy.checkin",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "领取该账号今天的积分",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "day": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "done",
+              "claimed",
+              "ineligible",
+              "inactive",
+              "failed"
+            ]
+          },
+          "credit": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "streak": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "at",
+          "day",
+          "outcome",
+          "credit",
+          "streak",
+          "message"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "workbuddy.refreshUsage",
+      "owner": "core",
+      "timeoutMs": 60000,
+      "description": "刷新一个或全部账号的积分",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "accountId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "uid": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "browser",
+                    "api_key"
+                  ]
+                },
+                "plan": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "preferred": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "expired",
+                    "error"
+                  ]
+                },
+                "statusMessage": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "usage": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "plan": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "windows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "used": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "amount": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "limit": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "balance": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "unit": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "display": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "resetsAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "runsOutAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "span": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "models": {
+                                "anyOf": [
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "refused": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "used",
+                              "amount",
+                              "limit",
+                              "balance",
+                              "unit",
+                              "display",
+                              "resetsAt",
+                              "runsOutAt",
+                              "span",
+                              "models",
+                              "refused"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "signIn": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "error": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "plan",
+                        "windows",
+                        "signIn",
+                        "error"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "usageAt": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "checkedInToday": {
+                  "type": "boolean"
+                },
+                "checkin": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "at": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "day": {
+                          "type": "string"
+                        },
+                        "outcome": {
+                          "type": "string",
+                          "enum": [
+                            "done",
+                            "claimed",
+                            "ineligible",
+                            "inactive",
+                            "failed"
+                          ]
+                        },
+                        "credit": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "streak": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "message": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "at",
+                        "day",
+                        "outcome",
+                        "credit",
+                        "streak",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "createdAt": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "uid",
+                "kind",
+                "plan",
+                "preferred",
+                "status",
+                "statusMessage",
+                "usage",
+                "usageAt",
+                "checkedInToday",
+                "checkin",
+                "createdAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "proxy": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "running": {
+                "type": "boolean"
+              },
+              "port": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "endpoint": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "providerId": {
+                "type": "string"
+              },
+              "providerState": {
+                "type": "string",
+                "enum": [
+                  "disabled",
+                  "registered",
+                  "missing",
+                  "conflict",
+                  "error"
+                ]
+              },
+              "providerMessage": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "enabled",
+              "running",
+              "port",
+              "endpoint",
+              "providerId",
+              "providerState",
+              "providerMessage"
+            ],
+            "additionalProperties": false
+          },
+          "autoCheckin": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "accounts",
+          "proxy",
+          "autoCheckin"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "workbuddy.removeAccount",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "移除一个 WorkBuddy 账号",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "workbuddy.repairProvider",
+      "owner": "core",
+      "timeoutMs": 20000,
+      "description": "重新启动反代并注册模型服务商",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {}
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "uid": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "browser",
+                    "api_key"
+                  ]
+                },
+                "plan": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "preferred": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "expired",
+                    "error"
+                  ]
+                },
+                "statusMessage": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "usage": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "plan": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "windows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "used": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "amount": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "limit": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "balance": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "unit": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "display": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "resetsAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "runsOutAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "span": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "models": {
+                                "anyOf": [
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "refused": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "used",
+                              "amount",
+                              "limit",
+                              "balance",
+                              "unit",
+                              "display",
+                              "resetsAt",
+                              "runsOutAt",
+                              "span",
+                              "models",
+                              "refused"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "signIn": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "error": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "plan",
+                        "windows",
+                        "signIn",
+                        "error"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "usageAt": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "checkedInToday": {
+                  "type": "boolean"
+                },
+                "checkin": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "at": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "day": {
+                          "type": "string"
+                        },
+                        "outcome": {
+                          "type": "string",
+                          "enum": [
+                            "done",
+                            "claimed",
+                            "ineligible",
+                            "inactive",
+                            "failed"
+                          ]
+                        },
+                        "credit": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "streak": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "message": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "at",
+                        "day",
+                        "outcome",
+                        "credit",
+                        "streak",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "createdAt": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "uid",
+                "kind",
+                "plan",
+                "preferred",
+                "status",
+                "statusMessage",
+                "usage",
+                "usageAt",
+                "checkedInToday",
+                "checkin",
+                "createdAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "proxy": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "running": {
+                "type": "boolean"
+              },
+              "port": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "endpoint": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "providerId": {
+                "type": "string"
+              },
+              "providerState": {
+                "type": "string",
+                "enum": [
+                  "disabled",
+                  "registered",
+                  "missing",
+                  "conflict",
+                  "error"
+                ]
+              },
+              "providerMessage": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "enabled",
+              "running",
+              "port",
+              "endpoint",
+              "providerId",
+              "providerState",
+              "providerMessage"
+            ],
+            "additionalProperties": false
+          },
+          "autoCheckin": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "accounts",
+          "proxy",
+          "autoCheckin"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "workbuddy.setAutoCheckin",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "打开或关闭每日自动签到",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "uid": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "browser",
+                    "api_key"
+                  ]
+                },
+                "plan": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "preferred": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "expired",
+                    "error"
+                  ]
+                },
+                "statusMessage": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "usage": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "plan": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "windows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "used": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "amount": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "limit": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "balance": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "unit": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "display": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "resetsAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "runsOutAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "span": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "models": {
+                                "anyOf": [
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "refused": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "used",
+                              "amount",
+                              "limit",
+                              "balance",
+                              "unit",
+                              "display",
+                              "resetsAt",
+                              "runsOutAt",
+                              "span",
+                              "models",
+                              "refused"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "signIn": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "error": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "plan",
+                        "windows",
+                        "signIn",
+                        "error"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "usageAt": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "checkedInToday": {
+                  "type": "boolean"
+                },
+                "checkin": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "at": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "day": {
+                          "type": "string"
+                        },
+                        "outcome": {
+                          "type": "string",
+                          "enum": [
+                            "done",
+                            "claimed",
+                            "ineligible",
+                            "inactive",
+                            "failed"
+                          ]
+                        },
+                        "credit": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "streak": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "message": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "at",
+                        "day",
+                        "outcome",
+                        "credit",
+                        "streak",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "createdAt": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "uid",
+                "kind",
+                "plan",
+                "preferred",
+                "status",
+                "statusMessage",
+                "usage",
+                "usageAt",
+                "checkedInToday",
+                "checkin",
+                "createdAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "proxy": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "running": {
+                "type": "boolean"
+              },
+              "port": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "endpoint": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "providerId": {
+                "type": "string"
+              },
+              "providerState": {
+                "type": "string",
+                "enum": [
+                  "disabled",
+                  "registered",
+                  "missing",
+                  "conflict",
+                  "error"
+                ]
+              },
+              "providerMessage": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "enabled",
+              "running",
+              "port",
+              "endpoint",
+              "providerId",
+              "providerState",
+              "providerMessage"
+            ],
+            "additionalProperties": false
+          },
+          "autoCheckin": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "accounts",
+          "proxy",
+          "autoCheckin"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "workbuddy.setEnabled",
+      "owner": "core",
+      "timeoutMs": 20000,
+      "description": "启用或停用内置反代",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "uid": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "browser",
+                    "api_key"
+                  ]
+                },
+                "plan": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "preferred": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "expired",
+                    "error"
+                  ]
+                },
+                "statusMessage": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "usage": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "plan": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "windows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "used": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "amount": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "limit": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "balance": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "unit": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "display": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "resetsAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "runsOutAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "span": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "models": {
+                                "anyOf": [
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "refused": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "used",
+                              "amount",
+                              "limit",
+                              "balance",
+                              "unit",
+                              "display",
+                              "resetsAt",
+                              "runsOutAt",
+                              "span",
+                              "models",
+                              "refused"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "signIn": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "error": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "plan",
+                        "windows",
+                        "signIn",
+                        "error"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "usageAt": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "checkedInToday": {
+                  "type": "boolean"
+                },
+                "checkin": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "at": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "day": {
+                          "type": "string"
+                        },
+                        "outcome": {
+                          "type": "string",
+                          "enum": [
+                            "done",
+                            "claimed",
+                            "ineligible",
+                            "inactive",
+                            "failed"
+                          ]
+                        },
+                        "credit": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "streak": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "message": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "at",
+                        "day",
+                        "outcome",
+                        "credit",
+                        "streak",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "createdAt": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "uid",
+                "kind",
+                "plan",
+                "preferred",
+                "status",
+                "statusMessage",
+                "usage",
+                "usageAt",
+                "checkedInToday",
+                "checkin",
+                "createdAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "proxy": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "running": {
+                "type": "boolean"
+              },
+              "port": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "endpoint": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "providerId": {
+                "type": "string"
+              },
+              "providerState": {
+                "type": "string",
+                "enum": [
+                  "disabled",
+                  "registered",
+                  "missing",
+                  "conflict",
+                  "error"
+                ]
+              },
+              "providerMessage": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "enabled",
+              "running",
+              "port",
+              "endpoint",
+              "providerId",
+              "providerState",
+              "providerMessage"
+            ],
+            "additionalProperties": false
+          },
+          "autoCheckin": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "accounts",
+          "proxy",
+          "autoCheckin"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "workbuddy.setPreferred",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "设为首选账号",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "workbuddy.snapshot",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "读取 WorkBuddy 账号、积分、签到与反代状态",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {}
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "uid": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "browser",
+                    "api_key"
+                  ]
+                },
+                "plan": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "preferred": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "expired",
+                    "error"
+                  ]
+                },
+                "statusMessage": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "usage": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "plan": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "windows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "used": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "amount": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "limit": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "balance": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "unit": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "display": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "resetsAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "runsOutAt": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "span": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "models": {
+                                "anyOf": [
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "refused": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "used",
+                              "amount",
+                              "limit",
+                              "balance",
+                              "unit",
+                              "display",
+                              "resetsAt",
+                              "runsOutAt",
+                              "span",
+                              "models",
+                              "refused"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "signIn": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "error": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "plan",
+                        "windows",
+                        "signIn",
+                        "error"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "usageAt": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "checkedInToday": {
+                  "type": "boolean"
+                },
+                "checkin": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "at": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "day": {
+                          "type": "string"
+                        },
+                        "outcome": {
+                          "type": "string",
+                          "enum": [
+                            "done",
+                            "claimed",
+                            "ineligible",
+                            "inactive",
+                            "failed"
+                          ]
+                        },
+                        "credit": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "streak": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "message": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "at",
+                        "day",
+                        "outcome",
+                        "credit",
+                        "streak",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "createdAt": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "uid",
+                "kind",
+                "plan",
+                "preferred",
+                "status",
+                "statusMessage",
+                "usage",
+                "usageAt",
+                "checkedInToday",
+                "checkin",
+                "createdAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "proxy": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "running": {
+                "type": "boolean"
+              },
+              "port": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "endpoint": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "providerId": {
+                "type": "string"
+              },
+              "providerState": {
+                "type": "string",
+                "enum": [
+                  "disabled",
+                  "registered",
+                  "missing",
+                  "conflict",
+                  "error"
+                ]
+              },
+              "providerMessage": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "enabled",
+              "running",
+              "port",
+              "endpoint",
+              "providerId",
+              "providerState",
+              "providerMessage"
+            ],
+            "additionalProperties": false
+          },
+          "autoCheckin": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "accounts",
+          "proxy",
+          "autoCheckin"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "workbuddy.startBrowserLogin",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "开始浏览器登录；accountId 非空表示重新登录该账号",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "accountId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "loginId": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "loginId",
+          "url",
+          "instructions"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "workspaces.add",
       "owner": "core",
       "timeoutMs": 30000,
@@ -32971,6 +34996,58 @@
       }
     },
     {
+      "name": "workbuddy.changed",
+      "owner": "core",
+      "description": "WorkBuddy 账号、积分或反代状态变化",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "workbuddy.loginEvent",
+      "owner": "core",
+      "description": "浏览器登录进度",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "loginId": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "waiting",
+              "done",
+              "failed"
+            ]
+          },
+          "accountId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "loginId",
+          "state",
+          "accountId",
+          "message"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "workspaces.changed",
       "owner": "core",
       "description": "工作区列表变化",
@@ -33370,6 +35447,46 @@
     {
       "code": "update.invalid_phase",
       "message": "当前状态不能执行该操作"
+    },
+    {
+      "code": "workbuddy.account_not_found",
+      "message": "WorkBuddy 账号不存在"
+    },
+    {
+      "code": "workbuddy.api_key_invalid",
+      "message": "WorkBuddy 不接受这把 API Key"
+    },
+    {
+      "code": "workbuddy.checkin_failed",
+      "message": "WorkBuddy 签到失败"
+    },
+    {
+      "code": "workbuddy.disabled",
+      "message": "内置反代未启用"
+    },
+    {
+      "code": "workbuddy.login_cancelled",
+      "message": "WorkBuddy 登录已取消"
+    },
+    {
+      "code": "workbuddy.login_failed",
+      "message": "WorkBuddy 登录失败，请重试"
+    },
+    {
+      "code": "workbuddy.not_signed_in",
+      "message": "请先登录 WorkBuddy 账号"
+    },
+    {
+      "code": "workbuddy.provider_conflict",
+      "message": "模型服务商 workbuddy 已被占用，无法注册内置反代"
+    },
+    {
+      "code": "workbuddy.proxy_failed",
+      "message": "内置反代启动失败"
+    },
+    {
+      "code": "workbuddy.usage_failed",
+      "message": "读取 WorkBuddy 积分失败"
     },
     {
       "code": "workspaces.directory_missing",

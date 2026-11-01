@@ -3,6 +3,7 @@ packages/protocol/src/__tests__/contract.snapshot.json
 **/*.snap
 **/*.svg
 **/*.min.js
+packages/workbuddy-client/src/vendor/
 docs/baseline/
 apps/desktop/release/
 dist/

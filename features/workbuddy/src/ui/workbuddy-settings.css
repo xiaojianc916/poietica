@@ -1,0 +1,244 @@
+/* WorkBuddy 设置页：账号行、积分条、签到状态。颜色与分割线一律走设置页与 design-system 的令牌。 */
+
+.workbuddy-account {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+}
+
+.workbuddy-account + .workbuddy-account::before {
+  content: '';
+  position: absolute;
+  inset-inline: var(--settings-divider-inset);
+  inset-block-start: 0;
+  block-size: 0;
+  border-block-start: 1px solid var(--settings-divider);
+}
+
+.workbuddy-account__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.workbuddy-account__mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 18px;
+  block-size: 18px;
+  margin-block-start: 1px;
+}
+
+.workbuddy-account__mark svg {
+  inline-size: 16px;
+  block-size: 16px;
+  color: var(--ui-success);
+}
+
+.workbuddy-account__identity {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-inline-size: 0;
+}
+
+.workbuddy-account__identity strong {
+  overflow: hidden;
+  color: var(--ui-foreground);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbuddy-account__actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.workbuddy-preferred {
+  padding-inline: 6px;
+  color: var(--ui-muted-foreground);
+  font-size: var(--ui-font-size-caption);
+}
+
+.workbuddy-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-muted);
+  color: var(--ui-muted-foreground);
+  font-size: var(--ui-font-size-caption);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.workbuddy-badge--warning {
+  background: color-mix(in srgb, var(--ui-warning) 14%, transparent);
+  color: var(--ui-warning);
+}
+
+.workbuddy-badge--danger {
+  background: color-mix(in srgb, var(--ui-destructive) 14%, transparent);
+  color: var(--ui-destructive);
+}
+
+.workbuddy-account__credits {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-inline-start: 28px;
+}
+
+.workbuddy-account__muted,
+.workbuddy-account__checkin,
+.workbuddy-account__error {
+  margin: 0;
+  font-size: var(--ui-font-size-caption);
+  line-height: 1.45;
+}
+
+.workbuddy-account__muted {
+  color: var(--ui-muted-foreground);
+}
+
+.workbuddy-account__checkin {
+  color: var(--ui-muted-foreground);
+}
+
+.workbuddy-account__error {
+  color: var(--ui-destructive);
+}
+
+.workbuddy-credit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.workbuddy-credit__line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--ui-muted-foreground);
+  font-size: var(--ui-font-size-caption);
+  line-height: 1.4;
+}
+
+.workbuddy-credit__track {
+  overflow: hidden;
+  block-size: 4px;
+  border-radius: var(--ui-radius-full);
+  background: var(--ui-divider);
+}
+
+.workbuddy-credit__track > span {
+  display: block;
+  block-size: 100%;
+  border-radius: inherit;
+  background: var(--ui-primary);
+}
+
+.workbuddy-empty {
+  margin: 0;
+  padding: 16px 14px;
+  color: var(--ui-muted-foreground);
+  font-size: var(--ui-font-size-caption);
+  line-height: 1.5;
+}
+
+.workbuddy-add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 11px 14px;
+  border: 0;
+  border-block-start: 1px dashed var(--settings-divider);
+  background: transparent;
+  color: var(--ui-muted-foreground);
+  font: inherit;
+  font-size: var(--ui-font-size-caption);
+  text-align: start;
+  cursor: pointer;
+}
+
+.workbuddy-add:hover {
+  color: var(--ui-foreground);
+}
+
+.workbuddy-add:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.workbuddy-add svg {
+  inline-size: 14px;
+  block-size: 14px;
+}
+
+.workbuddy-endpoint {
+  max-inline-size: 280px;
+  overflow: hidden;
+  color: var(--ui-muted-foreground);
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-font-size-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbuddy-login {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.workbuddy-login p {
+  margin: 0;
+}
+
+.workbuddy-login__url {
+  overflow-wrap: anywhere;
+  color: var(--ui-foreground);
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-font-size-caption);
+}
+
+.workbuddy-login__form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.workbuddy-login__form label {
+  color: var(--ui-foreground);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.workbuddy-login__waiting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ui-muted-foreground);
+}
+
+.workbuddy-login__waiting svg {
+  inline-size: 14px;
+  block-size: 14px;
+}

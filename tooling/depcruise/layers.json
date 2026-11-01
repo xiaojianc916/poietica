@@ -18,5 +18,6 @@
   "ui-kernel": 3,
   "design-system": 3,
   "workbench": 5,
-  "protocol": 5
+  "protocol": 5,
+  "workbuddy-client": 2
 }

@@ -14,6 +14,7 @@ import review from '@poietica/feature-review/ui'
 import terminal from '@poietica/feature-terminal/ui'
 import update from '@poietica/feature-update/ui'
 import usage from '@poietica/feature-usage/ui'
+import workbuddy from '@poietica/feature-workbuddy/ui'
 import workspaces from '@poietica/feature-workspaces/ui'
 import type { UiFeature } from '@poietica/ui-kernel'
 
@@ -42,4 +43,5 @@ export const uiFeatures: readonly UiFeature[] = [
   extensions,
   python,
   intelligentUi,
+  workbuddy,
 ]

@@ -63,6 +63,12 @@
 
 ## 偏差与裁决
 
+### 2026-11-01 WorkBuddy 内置反代
+
+- **第三方协议代码**：WorkBuddy 的鉴权、请求头、会话 ID、工具形状与 gzip 处理不复刻，逐字 vendor `magpie-community/plugins` 的 MIT 插件（0.2.10）到 `packages/workbuddy-client/src/vendor/`；升级整文件替换，类型面由同目录 `.d.mts` 收窄。反代只装在 `127.0.0.1`，不接收任意上游 URL。
+- **账号令牌落盘**：与 omp 自己的凭据同级，明文存本功能的 SQLite 表；日志不打印令牌、请求体或上游正文。若后续引入 DPAPI / safeStorage，应只换存储层，不改账号服务。
+- **服务商注册**：复用 models.yml 的自定义 provider 机制，id 固定 `workbuddy`；`provider_registered` 只用于判断“是不是本功能写的”。若进程在写 models.yml 与写设置之间退出，下次启动按 `custom && name === 'WorkBuddy'` 收养，避免把用户锁在冲突里。
+
 ### 2026-11-01 架构审查第二轮（CI 准入与边界补洞）
 
 - **CI 落点**：新增 `.github/workflows/gate.yml`（windows-latest、bun 1.4.4），按 `bun run all` 的四步**串行**跑；react-doctor 在 PR 上 `blocking: error`、push 到 main 仍只收趋势。此前完整闸门只在人的终端与发布链（`tooling/release/release.ts` 的 `gate()`，可跳过）里跑，合并前没有任何强制。

@@ -1,0 +1,691 @@
+import {
+  Button,
+  ConfirmationDialog,
+  Dialog,
+  InlineSpinner,
+  LoadingState,
+  SettingRow,
+  SettingsGroup,
+  SettingsPage,
+  ToggleRow,
+} from '@poietica/design-system'
+import { useFeatureStore } from '@poietica/ui-kernel'
+import { CheckCircle2, Plus } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { WorkBuddyAccount, WorkBuddyCheckinOutcome, WorkBuddySnapshot, WorkBuddyUsageWindow } from '../contract'
+import type { WorkBuddyApi } from './api'
+import { coreGeneration } from './store'
+import './workbuddy-settings.css'
+
+const READ_FAILED = '读不到 WorkBuddy 的状态；稍后重试。'
+const API_KEY_HINT = '在 workbuddy.cn/profile/keys 或 workbuddy.ai/profile/keys 创建'
+
+interface LoginView {
+  readonly loginId: string
+  readonly url: string
+  readonly instructions: string
+  readonly accountId: string | null
+  readonly state: 'waiting' | 'done' | 'failed'
+  readonly message: string | null
+}
+
+function messageOf(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause)
+}
+
+function dateLabel(value: string | null): string | null {
+  if (value === null) return null
+  const at = Date.parse(value)
+  if (!Number.isFinite(at)) return null
+  return new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit' }).format(new Date(at))
+}
+
+function dayLabel(at: number): string {
+  return new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit' }).format(new Date(at))
+}
+
+function windowPercent(window: WorkBuddyUsageWindow): number | null {
+  if (window.used !== null) return Math.min(100, Math.max(0, window.used))
+  if (window.amount !== null && window.limit !== null && window.limit > 0) {
+    return Math.min(100, Math.max(0, (100 * window.amount) / window.limit))
+  }
+  return null
+}
+
+function usageLine(window: WorkBuddyUsageWindow): string {
+  const reset = dateLabel(window.resetsAt)
+  const value = window.display ?? (window.balance === null ? null : `${window.balance} ${window.unit ?? ''}`.trim())
+  return [window.name, value, reset === null ? null : `${reset} 重置`].filter((part) => part !== null).join(' · ')
+}
+
+function todayKey(): string {
+  const date = new Date()
+  const pad = (value: number): string => String(value).padStart(2, '0')
+  return `${String(date.getFullYear())}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+const CHECKIN_LABEL: Record<WorkBuddyCheckinOutcome, string> = {
+  done: '已签到',
+  claimed: '已签到',
+  failed: '失败',
+  ineligible: '不可用',
+  inactive: '未开放',
+}
+
+function checkinTextOf(account: WorkBuddyAccount): string | null {
+  const checkin = account.checkin
+  if (checkin === null) return null
+  if (account.checkedInToday) {
+    const credit = checkin.credit === null ? '' : ` +${String(checkin.credit)}`
+    const streak = checkin.streak === null ? '' : ` · 连续 ${String(checkin.streak)} 天`
+    return `今日已签到${credit}${streak}`
+  }
+  if (checkin.day === todayKey()) {
+    return `今日签到：${CHECKIN_LABEL[checkin.outcome]}${checkin.message === null ? '' : ` · ${checkin.message}`}`
+  }
+  return `上次签到 ${dayLabel(checkin.at)}`
+}
+
+function CreditsView({ account }: { readonly account: WorkBuddyAccount }) {
+  const usage = account.usage
+  if (usage === null) return <p className="workbuddy-account__muted">积分尚未读取，点右上角刷新。</p>
+  if (usage.windows.length === 0) {
+    const empty =
+      account.kind === 'api_key' ? 'API Key 账号不提供积分读数。' : (usage.error ?? '上游没有返回积分窗口。')
+    return <p className="workbuddy-account__muted">{empty}</p>
+  }
+  return (
+    <>
+      {usage.windows.map((window) => {
+        const percent = windowPercent(window)
+        return (
+          <div className="workbuddy-credit" key={window.name}>
+            <div className="workbuddy-credit__line">
+              <span>{usageLine(window)}</span>
+              {window.refused ? <span className="workbuddy-badge workbuddy-badge--warning">已用尽</span> : null}
+            </div>
+            {percent === null ? null : (
+              <div
+                aria-label={`${window.name} ${String(Math.round(percent))}%`}
+                aria-valuemax={100}
+                aria-valuemin={0}
+                aria-valuenow={Math.round(percent)}
+                className="workbuddy-credit__track"
+                role="progressbar"
+              >
+                <span style={{ inlineSize: `${String(percent)}%` }} />
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
+function AccountActions({
+  account,
+  busy,
+  onCheckin,
+  onPreferred,
+  onRelogin,
+  onRemove,
+}: {
+  readonly account: WorkBuddyAccount
+  readonly busy: string | null
+  readonly onCheckin: (account: WorkBuddyAccount) => void
+  readonly onPreferred: (account: WorkBuddyAccount) => void
+  readonly onRelogin: (account: WorkBuddyAccount) => void
+  readonly onRemove: (account: WorkBuddyAccount) => void
+}) {
+  const checkinBusy = busy === `checkin:${account.id}`
+  return (
+    <div className="workbuddy-account__actions">
+      {account.preferred ? (
+        <span className="workbuddy-preferred">首选</span>
+      ) : (
+        <Button onClick={() => onPreferred(account)} size="xs" type="button" variant="ghost">
+          设为首选
+        </Button>
+      )}
+      <Button disabled={busy !== null} onClick={() => onRelogin(account)} size="xs" type="button" variant="ghost">
+        重新登录
+      </Button>
+      {account.kind === 'browser' ? (
+        <Button
+          disabled={checkinBusy || busy !== null || account.checkedInToday}
+          onClick={() => onCheckin(account)}
+          size="xs"
+          type="button"
+          variant="ghost"
+        >
+          {checkinBusy ? '签到中…' : account.checkedInToday ? '今日已签到' : '签到'}
+        </Button>
+      ) : null}
+      <Button disabled={busy !== null} onClick={() => onRemove(account)} size="xs" type="button" variant="dangerSoft">
+        移除
+      </Button>
+    </div>
+  )
+}
+
+function AccountRow({
+  account,
+  busy,
+  onCheckin,
+  onPreferred,
+  onRelogin,
+  onRemove,
+}: {
+  readonly account: WorkBuddyAccount
+  readonly busy: string | null
+  readonly onCheckin: (account: WorkBuddyAccount) => void
+  readonly onPreferred: (account: WorkBuddyAccount) => void
+  readonly onRelogin: (account: WorkBuddyAccount) => void
+  readonly onRemove: (account: WorkBuddyAccount) => void
+}) {
+  const checkinText = checkinTextOf(account)
+
+  return (
+    <article className="workbuddy-account">
+      <div className="workbuddy-account__head">
+        <span
+          aria-hidden="true"
+          className="workbuddy-account__mark"
+          data-preferred={account.preferred ? 'true' : undefined}
+        >
+          {account.preferred ? <CheckCircle2 /> : null}
+        </span>
+        <div className="workbuddy-account__identity">
+          <strong>{account.label}</strong>
+          <span className="workbuddy-badge">
+            {account.plan ?? account.usage?.plan ?? (account.kind === 'api_key' ? 'API Key' : '未读取套餐')}
+          </span>
+          {account.status === 'expired' ? (
+            <span className="workbuddy-badge workbuddy-badge--warning">需要重新登录</span>
+          ) : null}
+          {account.status === 'error' ? (
+            <span className="workbuddy-badge workbuddy-badge--danger">读取失败</span>
+          ) : null}
+        </div>
+        <AccountActions
+          account={account}
+          busy={busy}
+          onCheckin={onCheckin}
+          onPreferred={onPreferred}
+          onRelogin={onRelogin}
+          onRemove={onRemove}
+        />
+      </div>
+
+      <div className="workbuddy-account__credits">
+        <CreditsView account={account} />
+        {checkinText === null ? null : <p className="workbuddy-account__checkin">{checkinText}</p>}
+        {account.statusMessage !== null && account.status !== 'expired' ? (
+          <p className="workbuddy-account__error">{account.statusMessage}</p>
+        ) : null}
+      </div>
+    </article>
+  )
+}
+
+function AddAccountDialog({
+  busy,
+  error,
+  onApiKey,
+  onBrowser,
+  onClose,
+  open,
+}: {
+  readonly busy: boolean
+  readonly error: string | null
+  readonly onApiKey: (apiKey: string) => void
+  readonly onBrowser: () => void
+  readonly onClose: () => void
+  readonly open: boolean
+}) {
+  const [apiKey, setApiKey] = useState('')
+
+  useEffect(() => {
+    if (!open) setApiKey('')
+  }, [open])
+
+  const submit = (event: { preventDefault: () => void }) => {
+    event.preventDefault()
+    const key = apiKey.trim()
+    if (key !== '') onApiKey(key)
+  }
+
+  return (
+    <Dialog
+      busy={busy}
+      footer={
+        <>
+          <Button disabled={busy} onClick={onClose} size="sm" type="button" variant="ghost">
+            取消
+          </Button>
+          <Button onClick={onBrowser} size="sm" type="button">
+            浏览器登录
+          </Button>
+        </>
+      }
+      onOpenChange={(next) => {
+        if (!next) onClose()
+      }}
+      open={open}
+      title="添加 WorkBuddy 账号"
+    >
+      <div className="workbuddy-login">
+        <p>浏览器登录会打开 WorkBuddy 的授权页；登录完成后自动回到这里。也可以直接用 API Key。</p>
+        <form className="workbuddy-login__form" onSubmit={submit}>
+          <label htmlFor="workbuddy-api-key">API Key</label>
+          <input
+            autoComplete="off"
+            className="settings-input"
+            id="workbuddy-api-key"
+            onChange={(event) => setApiKey(event.target.value)}
+            placeholder={API_KEY_HINT}
+            spellCheck={false}
+            type="password"
+            value={apiKey}
+          />
+          <Button disabled={busy || apiKey.trim() === ''} size="sm" type="submit" variant="secondary">
+            {busy ? '校验中…' : '用 API Key 添加'}
+          </Button>
+        </form>
+        {error === null ? null : (
+          <p className="settings-error" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
+    </Dialog>
+  )
+}
+
+function LoginStatus({ login }: { readonly login: LoginView }) {
+  if (login.state === 'waiting') {
+    return (
+      <p className="workbuddy-login__waiting" role="status">
+        <InlineSpinner />
+        等待浏览器完成授权…
+      </p>
+    )
+  }
+  if (login.state === 'failed') {
+    return (
+      <p className="settings-error" role="alert">
+        {login.message ?? '登录失败'}
+      </p>
+    )
+  }
+  return null
+}
+
+function LoginDialog({
+  login,
+  onCancel,
+  onOpenUrl,
+}: {
+  readonly login: LoginView
+  readonly onCancel: () => void
+  readonly onOpenUrl: (url: string) => void
+}) {
+  return (
+    <Dialog
+      busy={login.state === 'waiting'}
+      closeOnOverlayClick={false}
+      footer={
+        <Button onClick={onCancel} size="sm" type="button" variant="ghost">
+          {login.state === 'waiting' ? '取消' : '关闭'}
+        </Button>
+      }
+      onOpenChange={(next) => {
+        if (!next) onCancel()
+      }}
+      open
+      title="WorkBuddy 登录"
+    >
+      <div className="workbuddy-login">
+        <p>{login.instructions}</p>
+        <p className="workbuddy-login__url">{login.url}</p>
+        <Button onClick={() => onOpenUrl(login.url)} size="sm" type="button" variant="secondary">
+          在浏览器中打开
+        </Button>
+        <LoginStatus login={login} />
+      </div>
+    </Dialog>
+  )
+}
+
+const PROVIDER_TEXT: Record<WorkBuddySnapshot['proxy']['providerState'], string> = {
+  disabled: '未启用',
+  registered: '已注册为模型服务商',
+  missing: '未注册',
+  conflict: 'workbuddy 已被占用',
+  error: '注册失败',
+}
+
+function AccountsGroup({
+  accounts,
+  busy,
+  onAdd,
+  onCheckin,
+  onPreferred,
+  onRefresh,
+  onRelogin,
+  onRemove,
+}: {
+  readonly accounts: readonly WorkBuddyAccount[]
+  readonly busy: string | null
+  readonly onAdd: () => void
+  readonly onCheckin: (account: WorkBuddyAccount) => void
+  readonly onPreferred: (account: WorkBuddyAccount) => void
+  readonly onRefresh: () => void
+  readonly onRelogin: (account: WorkBuddyAccount) => void
+  readonly onRemove: (account: WorkBuddyAccount) => void
+}) {
+  return (
+    <SettingsGroup
+      headerAction={
+        <Button disabled={busy !== null} onClick={onRefresh} size="xs" type="button" variant="ghost">
+          {busy === 'usage' ? '刷新中…' : '刷新积分'}
+        </Button>
+      }
+      title="账号"
+    >
+      {accounts.length === 0 ? (
+        <p className="workbuddy-empty">还没有 WorkBuddy 账号。登录后，这里会显示套餐、积分和每日签到。</p>
+      ) : (
+        accounts.map((account) => (
+          <AccountRow
+            account={account}
+            busy={busy}
+            key={account.id}
+            onCheckin={onCheckin}
+            onPreferred={onPreferred}
+            onRelogin={onRelogin}
+            onRemove={onRemove}
+          />
+        ))
+      )}
+      <button className="workbuddy-add" disabled={busy !== null} onClick={onAdd} type="button">
+        <Plus aria-hidden="true" />
+        添加另一个 WorkBuddy (CodeBuddy) 账号
+      </button>
+    </SettingsGroup>
+  )
+}
+
+function ProxyGroup({
+  autoCheckin,
+  busy,
+  hasAccounts,
+  onAutoCheckin,
+  onEnabled,
+  onRepair,
+  proxy,
+}: {
+  readonly autoCheckin: boolean
+  readonly busy: string | null
+  readonly hasAccounts: boolean
+  readonly onAutoCheckin: (enabled: boolean) => void
+  readonly onEnabled: (enabled: boolean) => void
+  readonly onRepair: () => void
+  readonly proxy: WorkBuddySnapshot['proxy']
+}) {
+  return (
+    <SettingsGroup title="反代">
+      <ToggleRow
+        checked={proxy.enabled}
+        description="只监听本机，只把 OpenAI 兼容的对话请求转发到 WorkBuddy；不代理其它站点。"
+        label="启用内置反代"
+        onChange={onEnabled}
+      />
+      <SettingRow description="omp 用这条地址访问本地反代。" label="本地端点">
+        <code className="workbuddy-endpoint">{proxy.endpoint ?? '未启动'}</code>
+      </SettingRow>
+      <SettingRow
+        description={proxy.providerMessage ?? '注册后会在「模型」里出现 WorkBuddy 服务商。'}
+        label="模型服务商"
+        warning={proxy.providerState === 'conflict' ? (proxy.providerMessage ?? undefined) : undefined}
+      >
+        <span className="workbuddy-account__muted">{PROVIDER_TEXT[proxy.providerState]}</span>
+        {hasAccounts && proxy.enabled && proxy.providerState !== 'registered' ? (
+          <Button disabled={busy !== null} onClick={onRepair} size="xs" type="button" variant="ghost">
+            重新注册
+          </Button>
+        ) : null}
+      </SettingRow>
+      <ToggleRow
+        checked={autoCheckin}
+        description="应用运行时，每天第一次打开就替所有已登录账号领一次；失败会在账号下写明。"
+        label="每日自动签到"
+        onChange={onAutoCheckin}
+      />
+    </SettingsGroup>
+  )
+}
+
+export function WorkBuddyPage({
+  api,
+  openUrl,
+}: {
+  readonly api: WorkBuddyApi
+  readonly openUrl: (url: string) => Promise<void>
+}) {
+  const [snapshot, setSnapshot] = useState<WorkBuddySnapshot | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
+  const [login, setLogin] = useState<LoginView | null>(null)
+  const [removeTarget, setRemoveTarget] = useState<WorkBuddyAccount | null>(null)
+  const generation = useFeatureStore(coreGeneration, (state) => state.value)
+  const loadedGeneration = useRef(generation)
+
+  const reload = useCallback(async () => {
+    try {
+      setSnapshot(await api.snapshot())
+      setError(null)
+    } catch (cause) {
+      setError(messageOf(cause))
+    }
+  }, [api])
+
+  useEffect(() => {
+    if (loadedGeneration.current === generation) return
+    loadedGeneration.current = generation
+    void reload()
+  }, [generation, reload])
+
+  useEffect(() => {
+    void reload()
+    const changed = api.onChanged(() => {
+      void reload()
+    })
+    return () => changed.dispose()
+  }, [api, reload])
+
+  useEffect(() => {
+    const events = api.onLoginEvent((event) => {
+      setLogin((current) => {
+        if (current === null || current.loginId !== event.loginId) return current
+        return { ...current, state: event.state, message: event.message }
+      })
+      if (event.state === 'done') {
+        setLogin(null)
+        setAddOpen(false)
+        void reload()
+      }
+    })
+    return () => events.dispose()
+  }, [api, reload])
+
+  const accounts = snapshot?.accounts ?? []
+
+  const run = useCallback(async (key: string, task: () => Promise<WorkBuddySnapshot | undefined>) => {
+    setBusy(key)
+    setError(null)
+    try {
+      const next = await task()
+      if (next !== undefined) setSnapshot(next)
+    } catch (cause) {
+      setError(messageOf(cause))
+    } finally {
+      setBusy(null)
+    }
+  }, [])
+
+  const startLogin = useCallback(
+    async (accountId: string | null) => {
+      setAddOpen(false)
+      setAddError(null)
+      setBusy('login')
+      setError(null)
+      try {
+        const started = await api.startBrowserLogin(accountId)
+        setLogin({
+          loginId: started.loginId,
+          url: started.url,
+          instructions: started.instructions,
+          accountId,
+          state: 'waiting',
+          message: null,
+        })
+      } catch (cause) {
+        setError(messageOf(cause))
+      } finally {
+        setBusy(null)
+      }
+    },
+    [api],
+  )
+
+  const addApiKey = useCallback(
+    async (apiKey: string) => {
+      setBusy('api-key')
+      setAddError(null)
+      try {
+        await api.addApiKey(apiKey)
+        setAddOpen(false)
+        await reload()
+      } catch (cause) {
+        setAddError(messageOf(cause))
+      } finally {
+        setBusy(null)
+      }
+    },
+    [api, reload],
+  )
+
+  const cancelLogin = useCallback(() => {
+    if (login !== null) void api.cancelLogin(login.loginId).catch(() => undefined)
+    setLogin(null)
+  }, [api, login])
+
+  const removeAccount = useCallback(async () => {
+    if (removeTarget === null) return
+    setBusy('remove')
+    try {
+      await api.removeAccount(removeTarget.id)
+      setRemoveTarget(null)
+      await reload()
+    } catch (cause) {
+      setError(messageOf(cause))
+    } finally {
+      setBusy(null)
+    }
+  }, [api, reload, removeTarget])
+
+  const checkin = useCallback(
+    async (account: WorkBuddyAccount) => {
+      setBusy(`checkin:${account.id}`)
+      setError(null)
+      try {
+        await api.checkin(account.id)
+        await reload()
+      } catch (cause) {
+        setError(messageOf(cause))
+      } finally {
+        setBusy(null)
+      }
+    },
+    [api, reload],
+  )
+
+  if (snapshot === null) {
+    return error === null ? (
+      <LoadingState />
+    ) : (
+      <p className="settings-error">
+        {READ_FAILED}
+        {error}
+      </p>
+    )
+  }
+
+  return (
+    <SettingsPage>
+      {error === null ? null : (
+        <p className="settings-error" role="alert">
+          {error}
+        </p>
+      )}
+
+      <AccountsGroup
+        accounts={accounts}
+        busy={busy}
+        onAdd={() => setAddOpen(true)}
+        onCheckin={(item) => void checkin(item)}
+        onPreferred={(item) => void run(`preferred:${item.id}`, () => api.setPreferred(item.id))}
+        onRefresh={() => void run('usage', () => api.refreshUsage(null))}
+        onRelogin={(item) => void startLogin(item.id)}
+        onRemove={setRemoveTarget}
+      />
+
+      <ProxyGroup
+        autoCheckin={snapshot.autoCheckin}
+        busy={busy}
+        hasAccounts={accounts.length > 0}
+        onAutoCheckin={(next) => void run('auto', () => api.setAutoCheckin(next))}
+        onEnabled={(next) => void run('enabled', () => api.setEnabled(next))}
+        onRepair={() => void run('repair', () => api.repairProvider())}
+        proxy={snapshot.proxy}
+      />
+
+      <AddAccountDialog
+        busy={busy === 'api-key'}
+        error={addError}
+        onApiKey={(key) => void addApiKey(key)}
+        onBrowser={() => void startLogin(null)}
+        onClose={() => {
+          setAddOpen(false)
+          setAddError(null)
+        }}
+        open={addOpen}
+      />
+
+      {login === null ? null : (
+        <LoginDialog
+          login={login}
+          onCancel={cancelLogin}
+          onOpenUrl={(url) => {
+            void openUrl(url).catch((cause: unknown) => setError(messageOf(cause)))
+          }}
+        />
+      )}
+
+      <ConfirmationDialog
+        busy={busy === 'remove'}
+        confirmLabel="移除"
+        description={`移除后，这个账号的令牌和积分缓存会从本机删除。${removeTarget?.preferred === true ? '它是当前首选账号，移除后会自动换下一个。' : ''}`}
+        destructive
+        onCancel={() => setRemoveTarget(null)}
+        onConfirm={() => void removeAccount()}
+        open={removeTarget !== null}
+        title={`移除 ${removeTarget?.label ?? ''}？`}
+      />
+    </SettingsPage>
+  )
+}

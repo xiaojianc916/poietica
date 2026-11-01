@@ -45,6 +45,9 @@
       "path": "../../features/usage/src/core"
     },
     {
+      "path": "../../features/workbuddy/src/core"
+    },
+    {
       "path": "../../features/workspaces/src/core"
     },
     {

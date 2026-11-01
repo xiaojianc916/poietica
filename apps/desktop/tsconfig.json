@@ -78,6 +78,9 @@
       "path": "../../features/usage/src/ui"
     },
     {
+      "path": "../../features/workbuddy/src/ui"
+    },
+    {
       "path": "../../features/workspaces/src/ui"
     },
     {

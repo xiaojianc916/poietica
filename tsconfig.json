@@ -194,6 +194,15 @@
       "path": "features/usage/src/ui"
     },
     {
+      "path": "features/workbuddy/src/contract"
+    },
+    {
+      "path": "features/workbuddy/src/core"
+    },
+    {
+      "path": "features/workbuddy/src/ui"
+    },
+    {
       "path": "features/workspaces/src/contract"
     },
     {
@@ -270,6 +279,9 @@
     },
     {
       "path": "packages/workbench"
+    },
+    {
+      "path": "packages/workbuddy-client"
     },
     {
       "path": "tooling"
