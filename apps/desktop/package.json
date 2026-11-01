@@ -1,6 +1,6 @@
 {
   "name": "@poietica/desktop",
-  "version": "0.5.18",
+  "version": "0.5.19",
   "private": true,
   "description": "Poietica — 本地 AI agent 桌面应用",
   "author": "Poietica",
