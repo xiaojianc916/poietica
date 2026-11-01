@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { type Database, openDatabase } from '../database'
-import { DataTooNewError, MigrationError, runMigrations } from '../migrations'
+import { DataTooNewError, MigrationError, runMigrations, SchemaDriftError } from '../migrations'
 
 const M1 = { version: 1, name: 'init', sql: 'CREATE TABLE a_one (id TEXT PRIMARY KEY)' }
 const M2 = { version: 2, name: 'add-two', sql: 'CREATE TABLE a_two (id TEXT PRIMARY KEY)' }
@@ -175,6 +175,74 @@ describe('runMigrations', () => {
       runMigrations(db, [{ moduleId: 'a', migrations: [M1, M2] }], () => 1000)
       expect(() => runMigrations(db, [{ moduleId: 'a', migrations: [M1] }], () => 2000)).toThrow(DataTooNewError)
       expect(versionOf(db, 'a')).toBe(2)
+    } finally {
+      db.close()
+    }
+  })
+
+  /*
+   * DB-10：同版本号、不同 SQL —— 「改表就直接改 init」在已有的库上不会生效。以前静默跳过，
+   * 运行时才在某条查询上报 no such column；现在启动即拒绝（SchemaDriftError → 退出码 5，不进退避）。
+   */
+  test('DB-10 已执行的 init 被改过 → SchemaDriftError，库不动', () => {
+    const db = openDatabase(':memory:')
+    try {
+      runMigrations(db, [{ moduleId: 'a', migrations: [M1] }], () => 1000)
+      const edited = { ...M1, sql: 'CREATE TABLE a_one (id TEXT PRIMARY KEY, extra TEXT)' }
+      let thrown: unknown = null
+      try {
+        runMigrations(db, [{ moduleId: 'a', migrations: [edited] }], () => 2000)
+      } catch (error) {
+        thrown = error
+      }
+      expect(thrown).toBeInstanceOf(SchemaDriftError)
+      expect(thrown).toBeInstanceOf(MigrationError)
+      expect(thrown).not.toBeInstanceOf(DataTooNewError)
+      expect(appliedAt(db, 'a')).toBe(1000)
+    } finally {
+      db.close()
+    }
+  })
+
+  test('DB-10 追加迁移之前先核对已执行的那一段', () => {
+    const db = openDatabase(':memory:')
+    try {
+      runMigrations(db, [{ moduleId: 'a', migrations: [M1] }], () => 1000)
+      const edited = { ...M1, sql: 'CREATE TABLE a_one (id INTEGER PRIMARY KEY)' }
+      expect(() => runMigrations(db, [{ moduleId: 'a', migrations: [edited, M2] }])).toThrow(SchemaDriftError)
+      expect(versionOf(db, 'a')).toBe(1)
+      expect(tableNames(db)).not.toContain('a_two')
+    } finally {
+      db.close()
+    }
+  })
+
+  test('DB-10 只改注释与空白不算改表', () => {
+    const db = openDatabase(':memory:')
+    try {
+      runMigrations(db, [{ moduleId: 'a', migrations: [M1] }], () => 1000)
+      const cosmetic = { ...M1, sql: '-- 说明\nCREATE TABLE   a_one (\n  id TEXT PRIMARY KEY /* 主键 */\n)' }
+      expect(() => runMigrations(db, [{ moduleId: 'a', migrations: [cosmetic] }])).not.toThrow()
+    } finally {
+      db.close()
+    }
+  })
+
+  test('DB-10 早于指纹列的库：补列、补记指纹，之后照常核对', () => {
+    const db = openDatabase(':memory:')
+    try {
+      db.raw.exec(
+        'CREATE TABLE kernel_migrations (module TEXT PRIMARY KEY, version INTEGER NOT NULL, applied_at INTEGER NOT NULL)',
+      )
+      db.raw.exec(M1.sql)
+      db.raw.exec("INSERT INTO kernel_migrations (module, version, applied_at) VALUES ('a', 1, 1000)")
+      runMigrations(db, [{ moduleId: 'a', migrations: [M1] }], () => 2000)
+      const row = db.raw.query("SELECT checksum FROM kernel_migrations WHERE module = 'a'").get() as {
+        checksum: string | null
+      }
+      expect(row.checksum).toMatch(/^[0-9a-f]{64}$/)
+      const edited = { ...M1, sql: 'CREATE TABLE a_one (id TEXT PRIMARY KEY, extra TEXT)' }
+      expect(() => runMigrations(db, [{ moduleId: 'a', migrations: [edited] }])).toThrow(SchemaDriftError)
     } finally {
       db.close()
     }
