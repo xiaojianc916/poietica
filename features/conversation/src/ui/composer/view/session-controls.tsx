@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@poietica/design-system'
 import { Check, ChevronRight } from 'lucide-react'
-import { memo, useMemo, useRef, useState } from 'react'
+import { memo, type RefObject, useMemo, useRef, useState } from 'react'
 import type { SessionConfigControl } from '../../shared/model/config'
 import { PaneStage } from './pane-stage'
 import { SWARM_CONTROL_ID } from './swarm-toggle'
@@ -117,6 +117,17 @@ function requestedPane(request: ControlsOpenRequest, hasLevel: boolean, hasModel
   return hasModel ? MODEL : null
 }
 
+/* 胶囊上那两截字：模型名与档位名，各自缺席就各自不画。 */
+function labelsOf(
+  level: SessionConfigControl | undefined,
+  model: SessionConfigControl | undefined,
+): { readonly band: string | undefined; readonly name: string | undefined } {
+  return {
+    band: level === undefined ? undefined : chosen(level),
+    name: model === undefined ? undefined : chosen(model),
+  }
+}
+
 export const SessionControls = memo(function SessionControls({
   controls,
   onSelect,
@@ -127,7 +138,6 @@ export const SessionControls = memo(function SessionControls({
   const [pane, setPane] = useState<string>(LEVEL)
   const [open, setOpen] = useState(false)
   const [seenRequest, setSeenRequest] = useState(openRequest?.seq)
-  const head = useRef<HTMLDivElement>(null)
 
   const level = rows.find((control) => control.purpose === 'thought')
   const model = rows.find((control) => control.purpose === 'model')
@@ -151,73 +161,44 @@ export const SessionControls = memo(function SessionControls({
     return null
   }
 
-  const name = model === undefined ? undefined : chosen(model)
-  const band = level === undefined ? undefined : chosen(level)
+  return (
+    <SessionControlsMenu
+      level={level}
+      model={model}
+      onSelect={onSelect}
+      open={open}
+      pane={pane}
+      pending={pending}
+      setOpen={setOpen}
+      setPane={setPane}
+    />
+  )
+})
 
+/* 菜单壳：开合、换页与档位/模型两页的组装都收在这里，胶囊本体只负责把状态算出来。 */
+function SessionControlsMenu({
+  level,
+  model,
+  onSelect,
+  open,
+  pane,
+  pending,
+  setOpen,
+  setPane,
+}: {
+  readonly level: SessionConfigControl | undefined
+  readonly model: SessionConfigControl | undefined
+  readonly onSelect: (controlId: string, value: string) => void
+  readonly open: boolean
+  readonly pane: string
+  readonly pending: boolean | undefined
+  readonly setOpen: (open: boolean) => void
+  readonly setPane: (pane: string) => void
+}) {
+  const head = useRef<HTMLDivElement>(null)
   const listing = model !== undefined && (level === undefined || pane === MODEL)
   const busy = pending === true ? true : undefined
-
-  const listPane =
-    model === undefined ? null : (
-      <div className="assistant-model-select__list-pane">
-        <DropdownMenuRadioGroup
-          onValueChange={(value) => {
-            if (value === model.current) {
-              return
-            }
-
-            onSelect(model.id, value)
-          }}
-          value={model.current}
-        >
-          {model.choices.map((choice) => (
-            <DropdownMenuRadioItem
-              className="assistant-model-select__item"
-              closeOnClick
-              key={choice.value}
-              value={choice.value}
-            >
-              <span className="assistant-model-select__item-name">{choice.label}</span>
-
-              <DropdownMenuRadioItemIndicator className="assistant-model-select__item-tick">
-                <Check aria-hidden="true" />
-              </DropdownMenuRadioItemIndicator>
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </div>
-    )
-
-  const bandPane =
-    level === undefined ? null : (
-      <div className="assistant-model-select__band-pane">
-        {/* 点击整页换成模型清单；没有模型控件时它就只是一行字。 */}
-        {model === undefined ? (
-          <div className="assistant-model-select__head">
-            <span className="assistant-model-select__head-band">{band}</span>
-          </div>
-        ) : (
-          <DropdownMenuItem
-            className="assistant-model-select__head"
-            closeOnClick={false}
-            ref={head}
-            onClick={() => {
-              setPane(MODEL)
-            }}
-          >
-            <span className="assistant-model-select__head-band">
-              {band}
-
-              <ChevronRight aria-hidden="true" className="assistant-model-select__head-chevron" />
-            </span>
-
-            <span className="assistant-model-select__head-name">{name}</span>
-          </DropdownMenuItem>
-        )}
-
-        {rail(level, band ?? level.current, onSelect)}
-      </div>
-    )
+  const { band, name } = labelsOf(level, model)
 
   return (
     <DropdownMenu
@@ -256,16 +237,7 @@ export const SessionControls = memo(function SessionControls({
       }}
       open={open}
     >
-      <DropdownMenuTrigger
-        aria-busy={busy}
-        aria-disabled={busy}
-        aria-label="模型与思考档位"
-        className="assistant-model-select__button"
-      >
-        {name === undefined ? null : <span className="assistant-model-select__name">{name}</span>}
-
-        {band === undefined ? null : <span className="assistant-model-select__band">{band}</span>}
-      </DropdownMenuTrigger>
+      <ControlsTrigger band={band} busy={busy} name={name} />
 
       <DropdownMenuContent
         align="end"
@@ -275,11 +247,142 @@ export const SessionControls = memo(function SessionControls({
         sideOffset={6}
       >
         {/* 清单页在档位页里面一层：进清单是往里走，Escape 退回是往回走。 */}
-        <PaneStage depth={listing ? 1 : 0}>{listing ? listPane : bandPane}</PaneStage>
+        <PaneStage depth={listing ? 1 : 0}>
+          {listing ? (
+            <ModelPane model={model} onSelect={onSelect} />
+          ) : (
+            <BandPane
+              band={band}
+              head={head}
+              level={level}
+              model={model}
+              name={name}
+              onSelect={onSelect}
+              setPane={setPane}
+            />
+          )}
+        </PaneStage>
       </DropdownMenuContent>
     </DropdownMenu>
   )
-})
+}
+
+function ControlsTrigger({
+  band,
+  busy,
+  name,
+}: {
+  readonly band: string | undefined
+  readonly busy: true | undefined
+  readonly name: string | undefined
+}) {
+  return (
+    <DropdownMenuTrigger
+      aria-busy={busy}
+      aria-disabled={busy}
+      aria-label="模型与思考档位"
+      className="assistant-model-select__button"
+    >
+      {name === undefined ? null : <span className="assistant-model-select__name">{name}</span>}
+
+      {band === undefined ? null : <span className="assistant-model-select__band">{band}</span>}
+    </DropdownMenuTrigger>
+  )
+}
+
+function ModelPane({
+  model,
+  onSelect,
+}: {
+  readonly model: SessionConfigControl | undefined
+  readonly onSelect: (controlId: string, value: string) => void
+}) {
+  if (model === undefined) {
+    return null
+  }
+
+  return (
+    <div className="assistant-model-select__list-pane">
+      <DropdownMenuRadioGroup
+        onValueChange={(value) => {
+          if (value === model.current) {
+            return
+          }
+
+          onSelect(model.id, value)
+        }}
+        value={model.current}
+      >
+        {model.choices.map((choice) => (
+          <DropdownMenuRadioItem
+            className="assistant-model-select__item"
+            closeOnClick
+            key={choice.value}
+            value={choice.value}
+          >
+            <span className="assistant-model-select__item-name">{choice.label}</span>
+
+            <DropdownMenuRadioItemIndicator className="assistant-model-select__item-tick">
+              <Check aria-hidden="true" />
+            </DropdownMenuRadioItemIndicator>
+          </DropdownMenuRadioItem>
+        ))}
+      </DropdownMenuRadioGroup>
+    </div>
+  )
+}
+
+function BandPane({
+  band,
+  head,
+  level,
+  model,
+  name,
+  onSelect,
+  setPane,
+}: {
+  readonly band: string | undefined
+  readonly head: RefObject<HTMLDivElement | null>
+  readonly level: SessionConfigControl | undefined
+  readonly model: SessionConfigControl | undefined
+  readonly name: string | undefined
+  readonly onSelect: (controlId: string, value: string) => void
+  readonly setPane: (pane: string) => void
+}) {
+  if (level === undefined) {
+    return null
+  }
+
+  return (
+    <div className="assistant-model-select__band-pane">
+      {/* 点击整页换成模型清单；没有模型控件时它就只是一行字。 */}
+      {model === undefined ? (
+        <div className="assistant-model-select__head">
+          <span className="assistant-model-select__head-band">{band}</span>
+        </div>
+      ) : (
+        <DropdownMenuItem
+          className="assistant-model-select__head"
+          closeOnClick={false}
+          ref={head}
+          onClick={() => {
+            setPane(MODEL)
+          }}
+        >
+          <span className="assistant-model-select__head-band">
+            {band}
+
+            <ChevronRight aria-hidden="true" className="assistant-model-select__head-chevron" />
+          </span>
+
+          <span className="assistant-model-select__head-name">{name}</span>
+        </DropdownMenuItem>
+      )}
+
+      {rail(level, band ?? level.current, onSelect)}
+    </div>
+  )
+}
 
 /*
  * 指针全归底轨自己（点一下、按住横拖都走 setPointerCapture 加落点反解）；档位是离散的，一次横拖每跨一格换一次。

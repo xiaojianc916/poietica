@@ -6,7 +6,7 @@ import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
 import { PlainTextPlugin } from '@lexical/react/LexicalPlainTextPlugin'
 import { cn } from '@poietica/design-system'
 import { invariant } from '@poietica/foundation'
-import { FeatureScope, useContributions, useKernel } from '@poietica/ui-kernel'
+import { FeatureScope, type UiKernel, useContributions, useKernel } from '@poietica/ui-kernel'
 import {
   $createParagraphNode,
   $createTextNode,
@@ -22,7 +22,18 @@ import {
   PASTE_COMMAND,
   type RangeSelection,
 } from 'lexical'
-import type { ClipboardEvent, ComponentProps, DragEvent, KeyboardEvent, MouseEvent, ReactNode, Ref } from 'react'
+import type {
+  ClipboardEvent,
+  ComponentProps,
+  ComponentType,
+  DragEvent,
+  FormEvent,
+  KeyboardEvent,
+  MouseEvent,
+  ReactNode,
+  Ref,
+  RefObject,
+} from 'react'
 import {
   createContext,
   useCallback,
@@ -35,6 +46,7 @@ import {
   useState,
 } from 'react'
 import {
+  type ComposerInputHandler,
   type ComposerDraft as ContributedComposerDraft,
   composerActions,
   composerInputHandlers,
@@ -45,8 +57,8 @@ import type { ChatStatus } from '../../shared/model/run'
 import type { PromptConfiguration, PromptSkill } from '../../shared/model/session'
 import { ResumeIcon, StopIcon, SubmitIcon } from '../../shared/primitives/icons'
 import { $createChipNode, ChipNode, type PromptChipValue, samePromptChip } from '../../shared/primitives/prompt-chip'
-import { type ComposerAsset, isInlineAttachment, useAttachmentIntake } from '../attachment'
-import type { ComposerDraft } from '../drafts'
+import { type AttachmentIntake, type ComposerAsset, isInlineAttachment, useAttachmentIntake } from '../attachment'
+import type { ComposerDraft, ComposerDrafts } from '../drafts'
 import { ENTRY_DRAFT_KEY, useComposerDraftKey, useComposerDrafts } from '../drafts-context'
 import { LiveComposersContext } from '../live-composers'
 import {
@@ -404,7 +416,6 @@ function PromptInputShell({
   const report = useRef(onChange)
   const engage = useRef(onEngage)
   const submit = useRef(onSubmit)
-  const seeded = useRef(false)
   const blocked = useRef(submitDisabled)
   const blockedNotice = useRef(onSubmitBlocked)
 
@@ -459,366 +470,75 @@ function PromptInputShell({
     setHighlighted(0)
   }, [])
 
-  useEffect(
-    () =>
-      editor.registerUpdateListener(({ editorState }: { editorState: EditorState }) => {
-        const projection = editorState.read(readDraft)
+  usePromptDraftSync({
+    drafts,
+    draftKey,
+    editor,
+    handoff,
+    initialText,
+    report,
+    restored,
+    setDraftText,
+  })
 
-        setDraftText(projection)
-        report.current?.(projection.text)
-      }),
-    [editor],
-  )
+  useEnterSubmit({ blocked, blockedNotice, editor, queued, requestFormSubmit, submit })
 
-  /* 起始正文只在挂载那一次写进去；册子里已经装着的那一份优先，它比记录新。 */
-  useEffect(() => {
-    if (seeded.current) {
-      return
-    }
-
-    seeded.current = true
-
-    if (initialText === undefined || initialText === '' || restored !== undefined) {
-      return
-    }
-
-    replaceDraft(editor, initialText)
-  }, [editor, initialText, restored])
-
-  /* 只在卸载时转移所有权；依赖变化不能把仍在编辑器里的草稿复制到离屏册子。 */
-  useEffect(
-    () => () => {
-      drafts.keep(draftKey, snapshotOf(editor, handoff.current.attachments, handoff.current.configuration))
-    },
-    [draftKey, drafts, editor],
-  )
-
-  /* Enter 发送，Shift+Enter 换行，Ctrl/Cmd+Enter 排队（插话但不打断）；组词期间一律不碰。 */
-  useEffect(
-    () =>
-      editor.registerCommand(
-        KEY_ENTER_COMMAND,
-        (event) => {
-          /* 没有收信人时 Enter 就是换行：字段不是消息框。 */
-          if (submit.current === undefined || event === null || event.shiftKey) {
-            return false
-          }
-
-          /* 不许提交时把 Enter 吃掉：既不发出，也不在正文里插一个空行。 */
-          if (blocked.current) {
-            event.preventDefault()
-            blockedNotice.current?.()
-            return true
-          }
-
-          if (editor.isComposing()) {
-            return false
-          }
-
-          event.preventDefault()
-          queued.current = event.ctrlKey || event.metaKey
-          requestFormSubmit()
-
-          return true
-        },
-        COMMAND_PRIORITY_HIGH,
-      ),
-    [editor, requestFormSubmit],
-  )
-
-  const setText = useCallback(
-    (next: string) => {
-      rewindPalette()
-      replaceDraft(editor, next)
-    },
-    [editor, rewindPalette],
-  )
-
-  const insertText = useCallback(
-    (incoming: string) => {
-      rewindPalette()
-      editor.update(() => {
-        const said = $getRoot().getTextContent()
-
-        $caret().insertText(said.trim().length === 0 ? incoming : `\n\n${incoming}`)
-      })
-      focusEditor()
-    },
-    [editor, focusEditor, rewindPalette],
-  )
-
-  const insertTextAndSubmit = useCallback(
-    (incoming: string) => {
-      insertText(incoming)
-      queueMicrotask(requestFormSubmit)
-    },
-    [insertText, requestFormSubmit],
-  )
-
-  /*
-   * 判据是「册子收下了哪几份」而非「新来的」：记号被退格删掉后字节仍在册子里，按「新来的」算，
-   * 重挑一次就什么都不发生。合并结果在这里同步算出来、同步写进 handoff —— 既不必用 flushSync
-   * 强制提交（那会跳过 View Transition 与并发渲染），也不会拿不到这一批的准确结果。
-   */
-  const addAssets = useCallback(
-    (incoming: readonly ComposerAsset[]) => {
-      /* 一条消息最多 10 张图片：这一批加上草稿里已有的会超，就整批拒绝，一张都不收。 */
-      const heldTokens = new Set(handoff.current.attachments.map((asset) => asset.assetToken))
-      const heldImages = handoff.current.attachments.filter((asset) => asset.kind === 'image').length
-      const newImages = incoming.filter((asset) => asset.kind === 'image' && !heldTokens.has(asset.assetToken)).length
-
-      if (heldImages + newImages > MAX_IMAGES_PER_SEND) {
-        kernel.kernelServices.banners.show({
-          severity: 'warning',
-          title: `一条消息最多发送 ${MAX_IMAGES_PER_SEND} 张图片，本次已拒绝`,
-        })
-        return
-      }
-
-      const next = mergeAssets(handoff.current.attachments, incoming, multiple, maxFiles)
-      commitAttachments(next)
-
-      const accepted = incoming.filter((asset) => next.some((keep) => keep.assetToken === asset.assetToken))
-      const chips = accepted.filter(isInlineAttachment).map(inlineChipOf)
-
-      if (chips.length > 0) {
-        editor.update(() => {
-          for (const chip of chips) {
-            $insertChip(chip)
-          }
-        })
-      }
-    },
-    [commitAttachments, editor, kernel, maxFiles, multiple],
-  )
-
-  const attach = useCallback(
-    (incoming: readonly ComposerAsset[], options: { readonly text?: string; readonly submit?: boolean } = {}) => {
-      addAssets(incoming)
-
-      const text = options.text?.trim() ?? ''
-      if (text === '') {
-        focusEditor()
-      } else {
-        insertText(text)
-      }
-
-      if (options.submit === true) {
-        requestFormSubmit()
-      }
-    },
-    [addAssets, focusEditor, insertText, requestFormSubmit],
-  )
-
-  /* 先换正文再并附件：文件记号是插进正文里的，反过来做，换正文那一下会把刚插的记号一起冲掉。 */
-  const restore = useCallback(
-    (text: string, restored: readonly DraftAttachment[]) => {
-      setText(text)
-      if (restored.length > 0) {
-        addAssets(restored.map(composerAssetOf))
-      }
-      focusEditor()
-    },
-    [addAssets, focusEditor, setText],
-  )
-
-  useImperativeHandle(ref, () => ({ setText, insertText, insertTextAndSubmit, attach, focus: focusEditor, restore }), [
-    attach,
-    focusEditor,
-    insertText,
-    insertTextAndSubmit,
-    restore,
+  const {
+    addAssets,
+    closePalette,
+    commitConfiguration,
+    contributedDraft,
+    openFilePicker,
+    removeAttachment,
+    removeConfiguration,
+    requestSubmit,
     setText,
-  ])
-
-  const removeAttachment = useCallback(
-    (assetToken: string) => {
-      /* **释放字节必须在 updater 之外做**：`setAttachments` 的函数是纯更新器，StrictMode 下 React 会故意调用两次，
-         第二次释放一份已放掉的资产，日志里留下「暂存附件未能释放」—— 实测字节其实释放成功了，是假警报。
-         判据读 `handoff`：闭包里的 `attachments` 可能是旧的，用旧列表实测漏过字节。 */
-      const going = handoff.current.attachments.find((attachment) => attachment.assetToken === assetToken)
-
-      /* 移掉一张卡片就是放掉那一份字节：注册表的预算是全进程共用的。 */
-      if (going !== undefined) {
-        intake?.discard(going)
-      }
-
-      commitAttachments(handoff.current.attachments.filter((attachment) => attachment.assetToken !== assetToken))
-    },
-    [commitAttachments, intake],
-  )
-
-  /* 加号走系统文件对话框：它交回路径，而路径正是原生入库要的东西。 */
-  const openFilePicker = useCallback(() => {
-    if (intake === null) {
-      return
-    }
-
-    void intake.pick(multiple).then(addAssets, () => {
-      /* 取消，或这一批一个都收不下：原因归转录，输入框只是没多出一张卡片。 */
-    })
-  }, [addAssets, intake, multiple])
-
-  /*
-   * 配置列表同样以 handoff 为同步事实：选完配置立刻回车时，提交那一拍可能还没重渲染，
-   * 只写 State 会让这一份配置漏在载荷之外。
-   */
-  const commitConfiguration = useCallback(
-    (
-      next:
-        | readonly PendingPromptConfiguration[]
-        | ((current: readonly PendingPromptConfiguration[]) => readonly PendingPromptConfiguration[]),
-    ) => {
-      const resolved = typeof next === 'function' ? next(handoff.current.configuration) : next
-      handoff.current = { attachments: handoff.current.attachments, configuration: resolved }
-      setPendingConfiguration(resolved)
-    },
-    [],
-  )
-
-  const removeConfiguration = useCallback(
-    (id: string) => {
-      commitConfiguration((current) => current.filter((selected) => selected.id !== id))
-    },
-    [commitConfiguration],
-  )
-
-  const toggleConfiguration = useCallback(
-    (selected: PendingPromptConfiguration) => {
-      commitConfiguration((current) =>
-        current.some((candidate) => candidate.id === selected.id)
-          ? current.filter((candidate) => candidate.id !== selected.id)
-          : [...current.filter((candidate) => candidate.id !== selected.id), selected],
-      )
-    },
-    [commitConfiguration],
-  )
-
-  /* 点加号就是要加号面板：斜杠面板开着也让位。 */
-  const togglePalette = useCallback(() => {
-    setHighlighted(0)
-    setSlashMuted(true)
-    setPaletteOpened((open) => !open)
-  }, [])
-
-  const closePalette = useCallback(() => {
-    setPaletteOpened(false)
-  }, [])
-
-  const requestSubmit = useCallback(() => {
-    requestFormSubmit()
-  }, [requestFormSubmit])
-
-  /* 就是壳里这一份正在编辑的草稿：加附件、写正文、提交都落在与手打一句话同一条路上。 */
-  const contributedDraft = useMemo<ContributedComposerDraft>(
-    () => ({
-      threadId: draftKey === ENTRY_DRAFT_KEY ? null : draftKey,
-      addAttachments: (items: readonly DraftAttachment[]) => {
-        addAssets(items.map(composerAssetOf))
-      },
-      insertText,
-      submit: requestFormSubmit,
-    }),
-    [addAssets, draftKey, insertText, requestFormSubmit],
-  )
-
-  /*
-   * 对话那一格挂在屏幕上就登记：别处（右坞的辅助对话、ConversationUiToken.composerOf）往「这条对话的输入框」里插字时
-   * 找到的是这一格。入口页不登记（它的键是空串 / ENTRY_DRAFT_KEY，不是对话号），照旧走草稿模型。
-   */
-  const liveComposers = useContext(LiveComposersContext)
-  useEffect(() => {
-    if (liveComposers === null || draftKey === '' || draftKey === ENTRY_DRAFT_KEY) return
-    return liveComposers.register(draftKey, contributedDraft)
-  }, [contributedDraft, draftKey, liveComposers])
+    toggleConfiguration,
+    togglePalette,
+  } = usePromptEditing({
+    commitAttachments,
+    draftKey,
+    editor,
+    focusEditor,
+    handoff,
+    intake,
+    kernel,
+    maxFiles,
+    multiple,
+    ref,
+    requestFormSubmit,
+    rewindPalette,
+    setHighlighted,
+    setPaletteOpened,
+    setPendingConfiguration,
+    setSlashMuted,
+  })
 
   /* 贡献的输入处理器：粘贴与拖放各走一遍，谁先吃掉谁负责 —— 返回 true 就跳过内置那条路。 */
   const inputHandlers = useContributions(composerInputHandlers)
-
-  /*
-   * 粘贴的「认领」必须发生在 Lexical 把文字插进 DOM 之前：它在自己的 paste 监听里无条件插入，
-   * React 的 onPaste 到时已经晚了。所以挂在 PASTE_COMMAND 上 —— 认领了就 preventDefault 并返回 true，
-   * 默认插入整条不发生；异步那半段交给贡献者（例如超长文字收成一份文件）。
-   */
-  const pasteHandlers = useRef(inputHandlers)
-  const pasteDraft = useRef(contributedDraft)
-  useEffect(() => {
-    pasteHandlers.current = inputHandlers
-    pasteDraft.current = contributedDraft
+  const { handleContributedDrop, handleContributedPaste } = usePromptPaste({
+    contributedDraft,
+    editor,
+    inputHandlers,
   })
 
-  useEffect(
-    () =>
-      editor.registerCommand(
-        PASTE_COMMAND,
-        (event) => {
-          /* React 的 ClipboardEvent 与 DOM 的同名不同型，贡献者收的是原生那一个。 */
-          const native = event as unknown as globalThis.ClipboardEvent
-          const claimed = pasteHandlers.current.filter(
-            ({ item }) => item.onPaste !== undefined && item.claims?.(native) === true,
-          )
-
-          if (claimed.length === 0) {
-            return false
-          }
-
-          const pasteDefault = (): void => {
-            /* 认领了却没接住：照默认贴回去，不能吞掉用户这一次粘贴。 */
-            const text = native.clipboardData?.getData('text/plain') ?? ''
-
-            if (text.length > 0) {
-              editor.update(() => {
-                $caret().insertText(text)
-              })
-            }
-          }
-
-          native.preventDefault()
-          void (async () => {
-            for (const { item } of claimed) {
-              if (await item.onPaste?.(native, pasteDraft.current)) {
-                return
-              }
-            }
-            pasteDefault()
-          })().catch(pasteDefault)
-
-          return true
-        },
-        COMMAND_PRIORITY_HIGH,
-      ),
-    [editor],
-  )
-
-  const handleContributedPaste = useCallback(
-    async (event: ClipboardEvent<HTMLFormElement>): Promise<boolean> => {
-      for (const { item } of inputHandlers) {
-        if (item.onPaste === undefined) {
-          continue
-        }
-        if (await item.onPaste(event.nativeEvent, contributedDraft)) {
-          return true
-        }
-      }
-      return false
+  const submitDraft = usePromptSubmit({
+    blocked,
+    blockedNotice,
+    carriedConfiguration,
+    commitAttachments,
+    commitConfiguration,
+    discardDraft: () => {
+      drafts.keep(draftKey, undefined)
     },
-    [contributedDraft, inputHandlers],
-  )
-
-  const handleContributedDrop = useCallback(
-    async (event: DragEvent<HTMLFormElement>): Promise<boolean> => {
-      for (const { item } of inputHandlers) {
-        if (item.onDrop === undefined) {
-          continue
-        }
-        if (await item.onDrop(event.nativeEvent, contributedDraft)) {
-          return true
-        }
-      }
-      return false
-    },
-    [contributedDraft, inputHandlers],
-  )
+    editor,
+    handoff,
+    intake,
+    queued,
+    rewindPalette,
+    setText,
+    submit,
+  })
 
   /* 拖文件走原生：HTML5 那条在 Windows 上收不到事件。 */
   useEffect(() => {
@@ -865,6 +585,372 @@ function PromptInputShell({
     [hasFiles, hasText, pendingConfiguration],
   )
 
+  const { onFormKeyDown, onFormMouseDown, onPaletteKeyDown, paletteAria, paletteGroups, paletteOpen, pickRow } =
+    usePromptPaletteView({
+      acceptsAttachments,
+      closePalette,
+      draftText: draftText.text,
+      editor,
+      focusEditor,
+      formRef,
+      groups,
+      highlighted,
+      listboxId,
+      openFilePicker,
+      paletteOpened,
+      pendingConfiguration,
+      requestFormSubmit,
+      setHighlighted,
+      setPaletteOpened,
+      setSlashMuted,
+      setText,
+      slashCommands,
+      slashMuted,
+      toggleConfiguration,
+    })
+
+  return (
+    <PromptInputFrame
+      actions={actions}
+      addAssets={addAssets}
+      attachments={attachments}
+      className={className}
+      contributedDraft={contributedDraft}
+      draft={draft}
+      engage={engage}
+      formRef={formRef}
+      handleContributedDrop={handleContributedDrop}
+      handleContributedPaste={handleContributedPaste}
+      highlighted={highlighted}
+      inputHandlers={inputHandlers}
+      intake={intake}
+      listboxId={listboxId}
+      onFormKeyDown={onFormKeyDown}
+      onFormMouseDown={onFormMouseDown}
+      onPaletteKeyDown={onPaletteKeyDown}
+      onSubmit={submitDraft}
+      paletteAria={paletteAria}
+      paletteGroups={paletteGroups}
+      paletteOpen={paletteOpen}
+      pickRow={pickRow}
+      setHighlighted={setHighlighted}
+      shell={Shell}
+      submitDisabled={submitDisabled}
+    >
+      {children}
+    </PromptInputFrame>
+  )
+}
+
+interface PromptInputFrameProps {
+  readonly actions: PromptInputActions
+  readonly addAssets: (incoming: readonly ComposerAsset[]) => void
+  readonly attachments: readonly ComposerAsset[]
+  readonly children: ReactNode
+  readonly className: string | undefined
+  readonly contributedDraft: ContributedComposerDraft
+  readonly draft: PromptInputDraft
+  readonly engage: RefObject<(() => void) | undefined>
+  readonly formRef: RefObject<HTMLFormElement | null>
+  readonly handleContributedDrop: (event: DragEvent<HTMLFormElement>) => Promise<boolean>
+  readonly handleContributedPaste: (event: ClipboardEvent<HTMLFormElement>) => Promise<boolean>
+  readonly highlighted: number
+  readonly inputHandlers: readonly { readonly item: ComposerInputHandler }[]
+  readonly intake: AttachmentIntake | null
+  readonly listboxId: string
+  readonly onFormKeyDown: (event: KeyboardEvent<HTMLFormElement>) => void
+  readonly onFormMouseDown: (event: MouseEvent<HTMLFormElement>) => void
+  readonly onPaletteKeyDown: (event: KeyboardEvent<HTMLFormElement>) => void
+  readonly onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  readonly paletteAria: PaletteAria
+  readonly paletteGroups: readonly PaletteGroup[]
+  readonly paletteOpen: boolean
+  readonly pickRow: (row: PaletteRow, via: PaletteVia) => void
+  readonly setHighlighted: (value: number) => void
+  readonly shell: 'form'
+  readonly submitDisabled: boolean
+}
+
+/* 输入框的壳与事件面：拖放、粘贴、键盘与面板都挂在同一棵 DOM 上。 */
+function PromptInputFrame({
+  actions,
+  addAssets,
+  attachments,
+  children,
+  className,
+  contributedDraft,
+  draft,
+  engage,
+  formRef,
+  handleContributedDrop,
+  handleContributedPaste,
+  highlighted,
+  inputHandlers,
+  intake,
+  listboxId,
+  onFormKeyDown,
+  onFormMouseDown,
+  onPaletteKeyDown,
+  onSubmit,
+  paletteAria,
+  paletteGroups,
+  paletteOpen,
+  pickRow,
+  setHighlighted,
+  shell,
+  submitDisabled,
+}: PromptInputFrameProps) {
+  const Shell = shell
+
+  return (
+    <ActionsContext value={actions}>
+      <AttachmentsContext value={attachments}>
+        <DraftContext value={draft}>
+          <ContributedDraftContext value={contributedDraft}>
+            <Shell
+              className={cn('assistant-prompt-input', className)}
+              data-slot="prompt-input"
+              onDragOver={(event) => {
+                /* 有贡献者接拖放时才允许落下；否则浏览器按默认处理（打开文件）。 */
+                const droppable = inputHandlers.some(({ item }) => item.onDrop !== undefined)
+
+                if (droppable) {
+                  event.preventDefault()
+                }
+              }}
+              onDrop={(event) => {
+                engage.current?.()
+                /* 落下必须先同步 preventDefault —— 异步回调里再补就晚了（默认动作早已发生）；只在真的有人接拖放时才拦。 */
+                if (inputHandlers.some(({ item }) => item.onDrop !== undefined)) {
+                  event.preventDefault()
+                  void handleContributedDrop(event)
+                }
+              }}
+              onFocus={() => engage.current?.()}
+              onKeyDown={onFormKeyDown}
+              onKeyDownCapture={onPaletteKeyDown}
+              onMouseDown={onFormMouseDown}
+              onPaste={(event) => {
+                /* 只在剪贴板里真的有文件时拦：纯文本粘贴是编辑器的默认动作，拦下来等于把人打的一句话吃掉。
+                   preventDefault 必须同步 —— 异步回调里再补就晚了。 */
+                const carriesFiles = event.clipboardData.files.length > 0
+
+                if (carriesFiles && inputHandlers.some(({ item }) => item.onPaste !== undefined)) {
+                  event.preventDefault()
+                  void handleContributedPaste(event)
+                  return
+                }
+
+                /* 截图没有路径，所以它是唯一还经过字节的一条。 */
+                const [pasted] = Array.from(event.clipboardData.files)
+
+                if (intake === null || pasted === undefined) {
+                  return
+                }
+
+                event.preventDefault()
+
+                void pasted
+                  .arrayBuffer()
+                  .then((buffer) =>
+                    intake.paste({
+                      bytes: new Uint8Array(buffer),
+                      filename: pasted.name,
+                      mime: pasted.type === '' ? 'image/png' : pasted.type,
+                    }),
+                  )
+                  .then(
+                    (asset) => {
+                      addAssets([asset])
+                    },
+                    () => {
+                      /* 收不下就是没多出一张卡片，不打扰用户。 */
+                    },
+                  )
+              }}
+              onSubmit={onSubmit}
+              ref={formRef}
+            >
+              <ComposerPalette
+                groups={paletteGroups}
+                highlighted={highlighted}
+                isOpen={paletteOpen}
+                listboxId={listboxId}
+                onHighlight={setHighlighted}
+                onPick={pickRow}
+              />
+
+              <PaletteAriaContext value={paletteAria}>
+                <SubmitBlockedContext value={submitDisabled}>{children}</SubmitBlockedContext>
+              </PaletteAriaContext>
+            </Shell>
+          </ContributedDraftContext>
+        </DraftContext>
+      </AttachmentsContext>
+    </ActionsContext>
+  )
+}
+
+/* 编辑器 → 草稿状态的同步、首帧装回与卸载时转移所有权。 */
+function usePromptDraftSync({
+  drafts,
+  draftKey,
+  editor,
+  handoff,
+  initialText,
+  report,
+  restored,
+  setDraftText,
+}: {
+  readonly drafts: ComposerDrafts
+  readonly draftKey: string
+  readonly editor: LexicalEditor
+  readonly handoff: RefObject<PromptHandoff>
+  readonly initialText: string | undefined
+  readonly report: RefObject<((text: string) => void) | undefined>
+  readonly restored: ComposerDraft | undefined
+  readonly setDraftText: (projection: DraftProjection) => void
+}): void {
+  const seeded = useRef(false)
+
+  useEffect(
+    () =>
+      editor.registerUpdateListener(({ editorState }: { editorState: EditorState }) => {
+        const projection = editorState.read(readDraft)
+
+        setDraftText(projection)
+        report.current?.(projection.text)
+      }),
+    [editor, report, setDraftText],
+  )
+
+  /* 起始正文只在挂载那一次写进去；册子里已经装着的那一份优先，它比记录新。 */
+  useEffect(() => {
+    if (seeded.current) {
+      return
+    }
+
+    seeded.current = true
+
+    if (initialText === undefined || initialText === '' || restored !== undefined) {
+      return
+    }
+
+    replaceDraft(editor, initialText)
+  }, [editor, initialText, restored])
+
+  /* 只在卸载时转移所有权；依赖变化不能把仍在编辑器里的草稿复制到离屏册子。 */
+  useEffect(
+    () => () => {
+      drafts.keep(draftKey, snapshotOf(editor, handoff.current.attachments, handoff.current.configuration))
+    },
+    [draftKey, drafts, editor, handoff],
+  )
+}
+
+/* Enter 发送，Shift+Enter 换行，Ctrl/Cmd+Enter 排队（插话但不打断）；组词期间一律不碰。 */
+function useEnterSubmit({
+  blocked,
+  blockedNotice,
+  editor,
+  queued,
+  requestFormSubmit,
+  submit,
+}: {
+  readonly blocked: RefObject<boolean>
+  readonly blockedNotice: RefObject<(() => void) | undefined>
+  readonly editor: LexicalEditor
+  readonly queued: RefObject<boolean>
+  readonly requestFormSubmit: () => void
+  readonly submit: RefObject<((message: PromptInputMessage) => void) | undefined>
+}): void {
+  useEffect(
+    () =>
+      editor.registerCommand(
+        KEY_ENTER_COMMAND,
+        (event) => {
+          /* 没有收信人时 Enter 就是换行：字段不是消息框。 */
+          if (submit.current === undefined || event === null || event.shiftKey) {
+            return false
+          }
+
+          /* 不许提交时把 Enter 吃掉：既不发出，也不在正文里插一个空行。 */
+          if (blocked.current) {
+            event.preventDefault()
+            blockedNotice.current?.()
+            return true
+          }
+
+          if (editor.isComposing()) {
+            return false
+          }
+
+          event.preventDefault()
+          queued.current = event.ctrlKey || event.metaKey
+          requestFormSubmit()
+
+          return true
+        },
+        COMMAND_PRIORITY_HIGH,
+      ),
+    [blocked, blockedNotice, editor, queued, requestFormSubmit, submit],
+  )
+}
+
+interface PromptPaletteView {
+  readonly onFormKeyDown: (event: KeyboardEvent<HTMLFormElement>) => void
+  readonly onFormMouseDown: (event: MouseEvent<HTMLFormElement>) => void
+  readonly onPaletteKeyDown: (event: KeyboardEvent<HTMLFormElement>) => void
+  readonly paletteAria: PaletteAria
+  readonly paletteGroups: readonly PaletteGroup[]
+  readonly paletteOpen: boolean
+  readonly pickRow: (row: PaletteRow, via: PaletteVia) => void
+}
+
+/* 加号面板与斜杠面板的合并视图：算组、压住/让位、键盘与选中都在这里。 */
+function usePromptPaletteView({
+  acceptsAttachments,
+  closePalette,
+  draftText,
+  editor,
+  focusEditor,
+  formRef,
+  groups,
+  highlighted,
+  listboxId,
+  openFilePicker,
+  paletteOpened,
+  pendingConfiguration,
+  requestFormSubmit,
+  setHighlighted,
+  setPaletteOpened,
+  setSlashMuted,
+  setText,
+  slashCommands,
+  slashMuted,
+  toggleConfiguration,
+}: {
+  readonly acceptsAttachments: boolean
+  readonly closePalette: () => void
+  readonly draftText: string
+  readonly editor: LexicalEditor
+  readonly focusEditor: () => void
+  readonly formRef: RefObject<HTMLFormElement | null>
+  readonly groups: readonly PaletteGroup[] | undefined
+  readonly highlighted: number
+  readonly listboxId: string
+  readonly openFilePicker: () => void
+  readonly paletteOpened: boolean
+  readonly pendingConfiguration: readonly PendingPromptConfiguration[]
+  readonly requestFormSubmit: () => void
+  readonly setHighlighted: (value: number) => void
+  readonly setPaletteOpened: (update: boolean | ((open: boolean) => boolean)) => void
+  readonly setSlashMuted: (value: boolean) => void
+  readonly setText: (next: string) => void
+  readonly slashCommands: readonly ComposerCommand[] | undefined
+  readonly slashMuted: boolean
+  readonly toggleConfiguration: (selected: PendingPromptConfiguration) => void
+}): PromptPaletteView {
   const allGroups = useMemo<readonly PaletteGroup[]>(
     () =>
       acceptsAttachments ? [composerComposeGroup(openFilePicker), ...(groups ?? NO_GROUPS)] : (groups ?? NO_GROUPS),
@@ -893,9 +979,7 @@ function PromptInputShell({
    * 刚敲下 `/` 那一刻加号面板收起，免得删掉斜杠时它又冒出来。
    */
   const slashQuery =
-    slashCommands === undefined || slashCommands.length === 0 || slashStateOf(draftText.text) === null
-      ? null
-      : draftText.text
+    slashCommands === undefined || slashCommands.length === 0 || slashStateOf(draftText) === null ? null : draftText
   const [slashSeen, setSlashSeen] = useState<string | null>(null)
   if (slashSeen !== slashQuery) {
     setSlashSeen(slashQuery)
@@ -967,7 +1051,7 @@ function PromptInputShell({
       if (action.kind === 'slash') {
         pickSlash(action, via)
       } else if (action.kind === 'run') {
-        action.run(draftText.text)
+        action.run(draftText)
       } else if (action.kind === 'configure') {
         toggleConfiguration({ ...action.configuration, label: action.label })
       } else {
@@ -980,12 +1064,12 @@ function PromptInputShell({
 
       focusEditor()
     },
-    [closePalette, draftText.text, editor, focusEditor, pickSlash, toggleConfiguration],
+    [closePalette, draftText, editor, focusEditor, pickSlash, toggleConfiguration],
   )
 
   const muteSlash = useCallback(() => {
     setSlashMuted(true)
-  }, [])
+  }, [setSlashMuted])
   const dismissPalette = slashOpen ? muteSlash : closePalette
 
   useDismissOutside(paletteOpen, formRef, dismissPalette)
@@ -1020,183 +1104,518 @@ function PromptInputShell({
     focusEditor()
   }
 
-  return (
-    <ActionsContext value={actions}>
-      <AttachmentsContext value={attachments}>
-        <DraftContext value={draft}>
-          <ContributedDraftContext value={contributedDraft}>
-            <Shell
-              className={cn('assistant-prompt-input', className)}
-              data-slot="prompt-input"
-              onDragOver={(event) => {
-                /* 有贡献者接拖放时才允许落下；否则浏览器按默认处理（打开文件）。 */
-                const droppable = inputHandlers.some(({ item }) => item.onDrop !== undefined)
+  return {
+    onFormKeyDown,
+    onFormMouseDown,
+    onPaletteKeyDown,
+    paletteAria,
+    paletteGroups,
+    paletteOpen,
+    pickRow,
+  }
+}
 
-                if (droppable) {
-                  event.preventDefault()
-                }
-              }}
-              onDrop={(event) => {
-                engage.current?.()
-                /* 落下必须先同步 preventDefault —— 异步回调里再补就晚了（默认动作早已发生）；只在真的有人接拖放时才拦。 */
-                if (inputHandlers.some(({ item }) => item.onDrop !== undefined)) {
-                  event.preventDefault()
-                  void handleContributedDrop(event)
-                }
-              }}
-              onFocus={() => engage.current?.()}
-              onKeyDown={onFormKeyDown}
-              onKeyDownCapture={onPaletteKeyDown}
-              onMouseDown={onFormMouseDown}
-              onPaste={(event) => {
-                /* 只在剪贴板里真的有文件时拦：纯文本粘贴是编辑器的默认动作，拦下来等于把人打的一句话吃掉。
-                   preventDefault 必须同步 —— 异步回调里再补就晚了。 */
-                const carriesFiles = event.clipboardData.files.length > 0
+interface PromptEditing {
+  readonly addAssets: (incoming: readonly ComposerAsset[]) => void
+  readonly closePalette: () => void
+  readonly commitConfiguration: (
+    next:
+      | readonly PendingPromptConfiguration[]
+      | ((current: readonly PendingPromptConfiguration[]) => readonly PendingPromptConfiguration[]),
+  ) => void
+  readonly contributedDraft: ContributedComposerDraft
+  readonly openFilePicker: () => void
+  readonly removeAttachment: (assetToken: string) => void
+  readonly removeConfiguration: (id: string) => void
+  readonly requestSubmit: () => void
+  readonly setText: (next: string) => void
+  readonly toggleConfiguration: (selected: PendingPromptConfiguration) => void
+  readonly togglePalette: () => void
+}
 
-                if (carriesFiles && inputHandlers.some(({ item }) => item.onPaste !== undefined)) {
-                  event.preventDefault()
-                  void handleContributedPaste(event)
-                  return
-                }
-
-                /* 截图没有路径，所以它是唯一还经过字节的一条。 */
-                const [pasted] = Array.from(event.clipboardData.files)
-
-                if (intake === null || pasted === undefined) {
-                  return
-                }
-
-                event.preventDefault()
-
-                void pasted
-                  .arrayBuffer()
-                  .then((buffer) =>
-                    intake.paste({
-                      bytes: new Uint8Array(buffer),
-                      filename: pasted.name,
-                      mime: pasted.type === '' ? 'image/png' : pasted.type,
-                    }),
-                  )
-                  .then(
-                    (asset) => {
-                      addAssets([asset])
-                    },
-                    () => {
-                      /* 收不下就是没多出一张卡片，不打扰用户。 */
-                    },
-                  )
-              }}
-              onSubmit={(event) => {
-                event.preventDefault()
-
-                /* 字段没有收信人、或这一刻不许发（还没选项目）：草稿不许被消费掉。 */
-                if (submit.current === undefined) {
-                  return
-                }
-
-                if (blocked.current) {
-                  blockedNotice.current?.()
-                  return
-                }
-
-                const projection = editor.getEditorState().read(readDraft)
-                const said = projection.text.trim()
-                /*
-                 * 闸门与载荷都读 handoff 这份同步事实，而不是本次渲染闭包里的 State：
-                 * 同一拍里先 addAssets / 换配置、紧接着提交时，React 可能还没重渲染 —— 读 State 会漏掉刚收下的附件。
-                 */
-                const attached = handoff.current.attachments
-                const selectedConfiguration = handoff.current.configuration
-
-                /* 内联的几份以正文记号为准：记号已删的就地放掉不随行；留在册子里的（图片）照旧全发。 */
-                const tokens = inlineTokens(projection)
-                const assets = [
-                  ...attached.filter((attachment) => !isInlineAttachment(attachment)),
-                  ...attached.filter(
-                    (attachment) => isInlineAttachment(attachment) && tokens.has(attachment.assetToken),
-                  ),
-                ]
-
-                if (
-                  !canSubmitDraft({
-                    hasText: said.length > 0,
-                    hasFiles: assets.length > 0,
-                    requiresText: selectedConfiguration.length > 0,
-                  })
-                ) {
-                  return
-                }
-
-                /* 记号被删掉的那几份先**退出正文**：屏幕上不再挂着它，字节留到这一句真的交出去之后再放。 */
-                const detached = attached.filter(
-                  (attachment) => isInlineAttachment(attachment) && !tokens.has(attachment.assetToken),
-                )
-
-                const message: PromptInputMessage = {
-                  text: said,
-                  assets,
-                  skills: projection.skills,
-                  configuration: [
-                    ...carriedConfiguration,
-                    ...selectedConfiguration.map(({ id, value }) => ({ id, value })),
-                  ],
-                  ...(queued.current ? { queued: true } : {}),
-                }
-                queued.current = false
-
-                /* 顺序不能反：`submit.current` 要是抛了，那几份被摘下来的附件必须还在册子里，用户才能原样重发
-                   —— 失败横幅只给「取回文字」，附件救不回来。 */
-                const handedOver = ((): boolean => {
-                  try {
-                    submit.current(message)
-
-                    return true
-                  } catch (cause) {
-                    /* 留在册子里等下一次：正文与附件一起还给用户。 */
-                    commitAttachments([...handoff.current.attachments, ...detached])
-                    setText(said)
-
-                    throw cause
-                  }
-                })()
-
-                if (!handedOver) {
-                  return
-                }
-
-                /* 交出去了：正文、草稿与附件一起让位（不 discard —— 那些字节已随准入交给这条对话）。 */
-                clearDraft(editor)
-                commitAttachments(NO_ATTACHMENTS, [])
-                drafts.keep(draftKey, undefined)
-                commitConfiguration([])
-                rewindPalette()
-
-                if (intake !== null) {
-                  for (const attachment of detached) {
-                    intake.discard(attachment)
-                  }
-                }
-              }}
-              ref={formRef}
-            >
-              <ComposerPalette
-                groups={paletteGroups}
-                highlighted={highlighted}
-                isOpen={paletteOpen}
-                listboxId={listboxId}
-                onHighlight={setHighlighted}
-                onPick={pickRow}
-              />
-
-              <PaletteAriaContext value={paletteAria}>
-                <SubmitBlockedContext value={submitDisabled}>{children}</SubmitBlockedContext>
-              </PaletteAriaContext>
-            </Shell>
-          </ContributedDraftContext>
-        </DraftContext>
-      </AttachmentsContext>
-    </ActionsContext>
+/* 正文、附件与配置的写入面：输入框的手、命令与提交都走同一组函数，壳里不再各写一份。 */
+function usePromptEditing({
+  commitAttachments,
+  draftKey,
+  editor,
+  focusEditor,
+  handoff,
+  intake,
+  kernel,
+  maxFiles,
+  multiple,
+  ref,
+  requestFormSubmit,
+  rewindPalette,
+  setHighlighted,
+  setPaletteOpened,
+  setPendingConfiguration,
+  setSlashMuted,
+}: {
+  readonly commitAttachments: (
+    next: readonly ComposerAsset[],
+    configuration?: readonly PendingPromptConfiguration[],
+  ) => void
+  readonly draftKey: string
+  readonly editor: LexicalEditor
+  readonly focusEditor: () => void
+  readonly handoff: RefObject<PromptHandoff>
+  readonly intake: AttachmentIntake | null
+  readonly kernel: UiKernel
+  readonly maxFiles: number | undefined
+  readonly multiple: boolean
+  readonly ref: Ref<PromptInputHandle> | undefined
+  readonly requestFormSubmit: () => void
+  readonly rewindPalette: () => void
+  readonly setHighlighted: (value: number) => void
+  readonly setPaletteOpened: (update: boolean | ((open: boolean) => boolean)) => void
+  readonly setPendingConfiguration: (next: readonly PendingPromptConfiguration[]) => void
+  readonly setSlashMuted: (value: boolean) => void
+}): PromptEditing {
+  const setText = useCallback(
+    (next: string) => {
+      rewindPalette()
+      replaceDraft(editor, next)
+    },
+    [editor, rewindPalette],
   )
+
+  const insertText = useCallback(
+    (incoming: string) => {
+      rewindPalette()
+      editor.update(() => {
+        const said = $getRoot().getTextContent()
+
+        $caret().insertText(said.trim().length === 0 ? incoming : `\n\n${incoming}`)
+      })
+      focusEditor()
+    },
+    [editor, focusEditor, rewindPalette],
+  )
+
+  const insertTextAndSubmit = useCallback(
+    (incoming: string) => {
+      insertText(incoming)
+      queueMicrotask(requestFormSubmit)
+    },
+    [insertText, requestFormSubmit],
+  )
+
+  /*
+   * 判据是「册子收下了哪几份」而非「新来的」：记号被退格删掉后字节仍在册子里，按「新来的」算，
+   * 重挑一次就什么都不发生。合并结果在这里同步算出来、同步写进 handoff —— 既不必用 flushSync
+   * 强制提交（那会跳过 View Transition 与并发渲染），也不会拿不到这一批的准确结果。
+   */
+  const addAssets = useCallback(
+    (incoming: readonly ComposerAsset[]) => {
+      /* 一条消息最多 10 张图片：这一批加上草稿里已有的会超，就整批拒绝，一张都不收。 */
+      const heldTokens = new Set(handoff.current.attachments.map((asset) => asset.assetToken))
+      const heldImages = handoff.current.attachments.filter((asset) => asset.kind === 'image').length
+      const newImages = incoming.filter((asset) => asset.kind === 'image' && !heldTokens.has(asset.assetToken)).length
+
+      if (heldImages + newImages > MAX_IMAGES_PER_SEND) {
+        kernel.kernelServices.banners.show({
+          severity: 'warning',
+          title: `一条消息最多发送 ${MAX_IMAGES_PER_SEND} 张图片，本次已拒绝`,
+        })
+        return
+      }
+
+      const next = mergeAssets(handoff.current.attachments, incoming, multiple, maxFiles)
+      commitAttachments(next)
+
+      const accepted = incoming.filter((asset) => next.some((keep) => keep.assetToken === asset.assetToken))
+      const chips = accepted.filter(isInlineAttachment).map(inlineChipOf)
+
+      if (chips.length > 0) {
+        editor.update(() => {
+          for (const chip of chips) {
+            $insertChip(chip)
+          }
+        })
+      }
+    },
+    [commitAttachments, editor, handoff, kernel, maxFiles, multiple],
+  )
+
+  const attach = useCallback(
+    (incoming: readonly ComposerAsset[], options: { readonly text?: string; readonly submit?: boolean } = {}) => {
+      addAssets(incoming)
+
+      const text = options.text?.trim() ?? ''
+      if (text === '') {
+        focusEditor()
+      } else {
+        insertText(text)
+      }
+
+      if (options.submit === true) {
+        requestFormSubmit()
+      }
+    },
+    [addAssets, focusEditor, insertText, requestFormSubmit],
+  )
+
+  /* 先换正文再并附件：文件记号是插进正文里的，反过来做，换正文那一下会把刚插的记号一起冲掉。 */
+  const restore = useCallback(
+    (text: string, restored: readonly DraftAttachment[]) => {
+      setText(text)
+      if (restored.length > 0) {
+        addAssets(restored.map(composerAssetOf))
+      }
+      focusEditor()
+    },
+    [addAssets, focusEditor, setText],
+  )
+
+  useImperativeHandle(ref, () => ({ setText, insertText, insertTextAndSubmit, attach, focus: focusEditor, restore }), [
+    attach,
+    focusEditor,
+    insertText,
+    insertTextAndSubmit,
+    restore,
+    setText,
+  ])
+
+  const removeAttachment = useCallback(
+    (assetToken: string) => {
+      /* **释放字节必须在 updater 之外做**：`setAttachments` 的函数是纯更新器，StrictMode 下 React 会故意调用两次，
+         第二次释放一份已放掉的资产，日志里留下「暂存附件未能释放」—— 实测字节其实释放成功了，是假警报。
+         判据读 `handoff`：闭包里的 `attachments` 可能是旧的，用旧列表实测漏过字节。 */
+      const going = handoff.current.attachments.find((attachment) => attachment.assetToken === assetToken)
+
+      /* 移掉一张卡片就是放掉那一份字节：注册表的预算是全进程共用的。 */
+      if (going !== undefined) {
+        intake?.discard(going)
+      }
+
+      commitAttachments(handoff.current.attachments.filter((attachment) => attachment.assetToken !== assetToken))
+    },
+    [commitAttachments, handoff, intake],
+  )
+
+  /* 加号走系统文件对话框：它交回路径，而路径正是原生入库要的东西。 */
+  const openFilePicker = useCallback(() => {
+    if (intake === null) {
+      return
+    }
+
+    void intake.pick(multiple).then(addAssets, () => {
+      /* 取消，或这一批一个都收不下：原因归转录，输入框只是没多出一张卡片。 */
+    })
+  }, [addAssets, intake, multiple])
+
+  /*
+   * 配置列表同样以 handoff 为同步事实：选完配置立刻回车时，提交那一拍可能还没重渲染，
+   * 只写 State 会让这一份配置漏在载荷之外。
+   */
+  const commitConfiguration = useCallback(
+    (
+      next:
+        | readonly PendingPromptConfiguration[]
+        | ((current: readonly PendingPromptConfiguration[]) => readonly PendingPromptConfiguration[]),
+    ) => {
+      const resolved = typeof next === 'function' ? next(handoff.current.configuration) : next
+      handoff.current = { attachments: handoff.current.attachments, configuration: resolved }
+      setPendingConfiguration(resolved)
+    },
+    [handoff, setPendingConfiguration],
+  )
+
+  const removeConfiguration = useCallback(
+    (id: string) => {
+      commitConfiguration((current) => current.filter((selected) => selected.id !== id))
+    },
+    [commitConfiguration],
+  )
+
+  const toggleConfiguration = useCallback(
+    (selected: PendingPromptConfiguration) => {
+      commitConfiguration((current) =>
+        current.some((candidate) => candidate.id === selected.id)
+          ? current.filter((candidate) => candidate.id !== selected.id)
+          : [...current.filter((candidate) => candidate.id !== selected.id), selected],
+      )
+    },
+    [commitConfiguration],
+  )
+
+  /* 点加号就是要加号面板：斜杠面板开着也让位。 */
+  const togglePalette = useCallback(() => {
+    setHighlighted(0)
+    setSlashMuted(true)
+    setPaletteOpened((open) => !open)
+  }, [setHighlighted, setPaletteOpened, setSlashMuted])
+
+  const closePalette = useCallback(() => {
+    setPaletteOpened(false)
+  }, [setPaletteOpened])
+
+  const requestSubmit = useCallback(() => {
+    requestFormSubmit()
+  }, [requestFormSubmit])
+
+  /* 就是壳里这一份正在编辑的草稿：加附件、写正文、提交都落在与手打一句话同一条路上。 */
+  const contributedDraft = useMemo<ContributedComposerDraft>(
+    () => ({
+      threadId: draftKey === ENTRY_DRAFT_KEY ? null : draftKey,
+      addAttachments: (items: readonly DraftAttachment[]) => {
+        addAssets(items.map(composerAssetOf))
+      },
+      insertText,
+      submit: requestFormSubmit,
+    }),
+    [addAssets, draftKey, insertText, requestFormSubmit],
+  )
+
+  /*
+   * 对话那一格挂在屏幕上就登记：别处（右坞的辅助对话、ConversationUiToken.composerOf）往「这条对话的输入框」里插字时
+   * 找到的是这一格。入口页不登记（它的键是空串 / ENTRY_DRAFT_KEY，不是对话号），照旧走草稿模型。
+   */
+  const liveComposers = useContext(LiveComposersContext)
+  useEffect(() => {
+    if (liveComposers === null || draftKey === '' || draftKey === ENTRY_DRAFT_KEY) return
+    return liveComposers.register(draftKey, contributedDraft)
+  }, [contributedDraft, draftKey, liveComposers])
+
+  return {
+    addAssets,
+    closePalette,
+    commitConfiguration,
+    contributedDraft,
+    openFilePicker,
+    removeAttachment,
+    removeConfiguration,
+    requestSubmit,
+    setText,
+    toggleConfiguration,
+    togglePalette,
+  }
+}
+
+/* 贡献者的粘贴/拖放：PASTE_COMMAND 上先认领再异步执行，认领失败按默认贴回去。 */
+function usePromptPaste({
+  contributedDraft,
+  editor,
+  inputHandlers,
+}: {
+  readonly contributedDraft: ContributedComposerDraft
+  readonly editor: LexicalEditor
+  readonly inputHandlers: readonly { readonly item: ComposerInputHandler }[]
+}): {
+  readonly handleContributedPaste: (event: ClipboardEvent<HTMLFormElement>) => Promise<boolean>
+  readonly handleContributedDrop: (event: DragEvent<HTMLFormElement>) => Promise<boolean>
+} {
+  /*
+   * 粘贴的「认领」必须发生在 Lexical 把文字插进 DOM 之前：它在自己的 paste 监听里无条件插入，
+   * React 的 onPaste 到时已经晚了。所以挂在 PASTE_COMMAND 上 —— 认领了就 preventDefault 并返回 true，
+   * 默认插入整条不发生；异步那半段交给贡献者（例如超长文字收成一份文件）。
+   */
+  const pasteHandlers = useRef(inputHandlers)
+  const pasteDraft = useRef(contributedDraft)
+  useEffect(() => {
+    pasteHandlers.current = inputHandlers
+    pasteDraft.current = contributedDraft
+  })
+
+  useEffect(
+    () =>
+      editor.registerCommand(
+        PASTE_COMMAND,
+        (event) => {
+          /* React 的 ClipboardEvent 与 DOM 的同名不同型，贡献者收的是原生那一个。 */
+          const native = event as unknown as globalThis.ClipboardEvent
+          const claimed = pasteHandlers.current.filter(
+            ({ item }) => item.onPaste !== undefined && item.claims?.(native) === true,
+          )
+
+          if (claimed.length === 0) {
+            return false
+          }
+
+          const pasteDefault = (): void => {
+            /* 认领了却没接住：照默认贴回去，不能吞掉用户这一次粘贴。 */
+            const text = native.clipboardData?.getData('text/plain') ?? ''
+
+            if (text.length > 0) {
+              editor.update(() => {
+                $caret().insertText(text)
+              })
+            }
+          }
+
+          native.preventDefault()
+          void (async () => {
+            for (const { item } of claimed) {
+              if (await item.onPaste?.(native, pasteDraft.current)) {
+                return
+              }
+            }
+            pasteDefault()
+          })().catch(pasteDefault)
+
+          return true
+        },
+        COMMAND_PRIORITY_HIGH,
+      ),
+    [editor],
+  )
+
+  const handleContributedPaste = async (event: ClipboardEvent<HTMLFormElement>): Promise<boolean> => {
+    for (const { item } of inputHandlers) {
+      if (item.onPaste === undefined) {
+        continue
+      }
+      if (await item.onPaste(event.nativeEvent, contributedDraft)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  const handleContributedDrop = async (event: DragEvent<HTMLFormElement>): Promise<boolean> => {
+    for (const { item } of inputHandlers) {
+      if (item.onDrop === undefined) {
+        continue
+      }
+      if (await item.onDrop(event.nativeEvent, contributedDraft)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  return { handleContributedDrop, handleContributedPaste }
+}
+
+interface PromptHandoff {
+  readonly attachments: readonly ComposerAsset[]
+  readonly configuration: readonly PendingPromptConfiguration[]
+}
+
+/* 提交这一拍：闸门、载荷、交给收信人、失败回滚与落盘清理都在这里；壳里只留一个 onSubmit。 */
+function usePromptSubmit({
+  blocked,
+  blockedNotice,
+  carriedConfiguration,
+  commitAttachments,
+  commitConfiguration,
+  discardDraft,
+  editor,
+  handoff,
+  intake,
+  queued,
+  rewindPalette,
+  setText,
+  submit,
+}: {
+  readonly blocked: RefObject<boolean>
+  readonly blockedNotice: RefObject<(() => void) | undefined>
+  readonly carriedConfiguration: readonly PromptConfiguration[]
+  readonly commitAttachments: (
+    next: readonly ComposerAsset[],
+    configuration?: readonly PendingPromptConfiguration[],
+  ) => void
+  readonly commitConfiguration: (
+    next:
+      | readonly PendingPromptConfiguration[]
+      | ((current: readonly PendingPromptConfiguration[]) => readonly PendingPromptConfiguration[]),
+  ) => void
+  readonly discardDraft: () => void
+  readonly editor: LexicalEditor
+  readonly handoff: RefObject<PromptHandoff>
+  readonly intake: AttachmentIntake | null
+  readonly queued: RefObject<boolean>
+  readonly rewindPalette: () => void
+  readonly setText: (text: string) => void
+  readonly submit: RefObject<((message: PromptInputMessage) => void) | undefined>
+}): (event: FormEvent<HTMLFormElement>) => void {
+  return (event) => {
+    event.preventDefault()
+
+    /* 字段没有收信人、或这一刻不许发（还没选项目）：草稿不许被消费掉。 */
+    if (submit.current === undefined) {
+      return
+    }
+
+    if (blocked.current) {
+      blockedNotice.current?.()
+      return
+    }
+
+    const projection = editor.getEditorState().read(readDraft)
+    const said = projection.text.trim()
+    /*
+     * 闸门与载荷都读 handoff 这份同步事实，而不是本次渲染闭包里的 State：
+     * 同一拍里先 addAssets / 换配置、紧接着提交时，React 可能还没重渲染 —— 读 State 会漏掉刚收下的附件。
+     */
+    const attached = handoff.current.attachments
+    const selectedConfiguration = handoff.current.configuration
+
+    /* 内联的几份以正文记号为准：记号已删的就地放掉不随行；留在册子里的（图片）照旧全发。 */
+    const tokens = inlineTokens(projection)
+    const assets = [
+      ...attached.filter((attachment) => !isInlineAttachment(attachment)),
+      ...attached.filter((attachment) => isInlineAttachment(attachment) && tokens.has(attachment.assetToken)),
+    ]
+
+    if (
+      !canSubmitDraft({
+        hasText: said.length > 0,
+        hasFiles: assets.length > 0,
+        requiresText: selectedConfiguration.length > 0,
+      })
+    ) {
+      return
+    }
+
+    /* 记号被删掉的那几份先**退出正文**：屏幕上不再挂着它，字节留到这一句真的交出去之后再放。 */
+    const detached = attached.filter(
+      (attachment) => isInlineAttachment(attachment) && !tokens.has(attachment.assetToken),
+    )
+
+    const message: PromptInputMessage = {
+      text: said,
+      assets,
+      skills: projection.skills,
+      configuration: [...carriedConfiguration, ...selectedConfiguration.map(({ id, value }) => ({ id, value }))],
+      ...(queued.current ? { queued: true } : {}),
+    }
+    queued.current = false
+
+    /* 顺序不能反：`submit.current` 要是抛了，那几份被摘下来的附件必须还在册子里，用户才能原样重发
+       —— 失败横幅只给「取回文字」，附件救不回来。 */
+    const handedOver = ((): boolean => {
+      try {
+        submit.current?.(message)
+
+        return true
+      } catch (cause) {
+        /* 留在册子里等下一次：正文与附件一起还给用户。 */
+        commitAttachments([...handoff.current.attachments, ...detached])
+        setText(said)
+
+        throw cause
+      }
+    })()
+
+    if (!handedOver) {
+      return
+    }
+
+    /* 交出去了：正文、草稿与附件一起让位（不 discard —— 那些字节已随准入交给这条对话）。 */
+    clearDraft(editor)
+    commitAttachments(NO_ATTACHMENTS, [])
+    discardDraft()
+    commitConfiguration([])
+    rewindPalette()
+
+    if (intake !== null) {
+      for (const attachment of detached) {
+        intake.discard(attachment)
+      }
+    }
+  }
 }
 
 export function PromptInputBody({ className, ...props }: ComponentProps<'div'>) {
@@ -1241,6 +1660,37 @@ export function PromptInputTools({ className, ...props }: ComponentProps<'div'>)
   return <div className={className} data-slot="prompt-input-tools" {...props} />
 }
 
+type SubmitButtonView = {
+  readonly icon: ComponentType<{ readonly 'aria-hidden'?: boolean }>
+  readonly label: string
+  readonly disabled: boolean
+  readonly onClick: (() => void) | undefined
+  readonly type: 'button' | 'submit'
+}
+
+/* 发送键的四个状态（停止 / 继续 / 发送 / 停止中）只在这一处判定，按钮本身不再分叉。 */
+function submitViewOf(
+  status: ChatStatus,
+  drafted: boolean,
+  blocked: boolean,
+  disabled: boolean | undefined,
+  onCancel: (() => void) | undefined,
+  onContinue: (() => void) | undefined,
+): SubmitButtonView {
+  const cancelling = status === 'cancelling'
+  const running = status === 'submitted' || status === 'streaming' || status === 'queued'
+  const canCancel = running && !drafted
+  const canContinue = status === 'interrupted' && !drafted && onContinue !== undefined
+
+  return {
+    disabled: cancelling || disabled === true || blocked || (!canCancel && !canContinue && !drafted),
+    icon: canCancel || cancelling ? StopIcon : canContinue ? ResumeIcon : SubmitIcon,
+    label: cancelling ? '正在停止' : canCancel ? '停止生成' : canContinue ? '发送“继续”' : '发送',
+    onClick: canCancel ? onCancel : canContinue ? onContinue : undefined,
+    type: canCancel || canContinue ? 'button' : 'submit',
+  }
+}
+
 export function PromptInputSubmit({
   className,
   disabled,
@@ -1255,25 +1705,21 @@ export function PromptInputSubmit({
 }) {
   const draft = usePromptInputDraft()
   const blocked = useContext(SubmitBlockedContext)
-  const cancelling = status === 'cancelling'
-  const running = status === 'submitted' || status === 'streaming' || status === 'queued'
-  const drafted = canSubmitDraft(draft)
-  const canCancel = running && !drafted
-  const canContinue = status === 'interrupted' && !drafted && onContinue !== undefined
-  const Icon = canCancel || cancelling ? StopIcon : canContinue ? ResumeIcon : SubmitIcon
+  const view = submitViewOf(status, canSubmitDraft(draft), blocked, disabled, onCancel, onContinue)
+  const Icon = view.icon
 
   return (
     <button
       {...props}
-      aria-label={cancelling ? '正在停止' : canCancel ? '停止生成' : canContinue ? '发送“继续”' : '发送'}
+      aria-label={view.label}
       className={className}
       data-slot="prompt-input-submit"
       data-status={status}
-      disabled={cancelling || disabled === true || blocked || (!canCancel && !canContinue && !drafted)}
-      onClick={canCancel ? onCancel : canContinue ? onContinue : undefined}
-      type={canCancel || canContinue ? 'button' : 'submit'}
+      disabled={view.disabled}
+      onClick={view.onClick}
+      type={view.type}
     >
-      <Icon aria-hidden="true" />
+      <Icon aria-hidden />
     </button>
   )
 }

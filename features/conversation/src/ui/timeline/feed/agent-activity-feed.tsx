@@ -1,9 +1,16 @@
 import './agent-activity-feed.css'
 
-import { defaultRangeExtractor, type Range, useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
+import {
+  defaultRangeExtractor,
+  type Range,
+  useVirtualizer,
+  type VirtualItem,
+  type Virtualizer,
+} from '@tanstack/react-virtual'
 import {
   type CSSProperties,
   type ReactNode,
+  type RefObject,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -17,7 +24,7 @@ import type { Presentation } from '../presentation'
 import { geometryOf, keepGeometry } from './conversation-geometry'
 import { KeepAlive, mergeRange } from './keep-alive'
 import { rowAtAnchor } from './reading-position'
-import { useScrollAuthority } from './scroll-authority'
+import { type ScrollAuthority, useScrollAuthority } from './scroll-authority'
 
 /* 两级而非折中值：首帧行高多是估的，铺多了白测；几何稳了再抬到盖得住一次快滚。 */
 const OVERSCAN_COLD = 6
@@ -76,6 +83,35 @@ function useOverscan(settled: boolean, revealing: number | null): number {
 
 const KEEP_ALIVE_ROWS = 80
 
+interface FeedMetrics {
+  readonly dissolve: number
+  readonly gap: number
+  readonly glyph: number
+  readonly landing: number
+  readonly prose: number
+}
+
+/* 这些令牌注册为 length，getComputedStyle 因而返回可直接相加的像素值。 */
+function useFeedMetrics(viewport: HTMLDivElement | null): FeedMetrics {
+  return useMemo(() => {
+    if (viewport === null) {
+      return { dissolve: 0, gap: 0, glyph: 0, landing: 0, prose: 0 }
+    }
+
+    const style = getComputedStyle(viewport)
+    const read = (token: string) => Number.parseFloat(style.getPropertyValue(token)) || 0
+
+    return {
+      dissolve: read('--cp-dock-dissolve'),
+      gap: read('--cp-dock-gap'),
+      glyph: read('--cp-feed-glyph-row-gap'),
+      /* 视口上沿的留白（--cp-gutter）：滚到顶时第一轮离上沿这么远，跳到哪一轮也落在这里。 */
+      landing: Number.parseFloat(style.paddingBlockStart) || 0,
+      prose: read('--cp-feed-prose-row-gap'),
+    }
+  }, [viewport])
+}
+
 /** 取 1/3 而非上沿：上沿会被上一轮残留的一个像素占住。 */
 const READING_ANCHOR_RATIO = 1 / 3
 
@@ -91,6 +127,232 @@ const END_THRESHOLD_PX = 48
  * 又不能让流式追加在让位里等太久。
  */
 const HOLD_TIMEOUT_MS = 500
+
+/* 滚动、量高与触顶取页的同一份布局效应：离开组件本体，让表面只留装配。 */
+function useFeedScrollSync({
+  earlier,
+  earlierRequest,
+  leadRef,
+  sample,
+  setReadingRow,
+  setScrollMargin,
+  spansRef,
+  transcriptRef,
+  viewport,
+  virtualizer,
+  watch,
+}: {
+  readonly earlier: RefObject<{ readonly hasEarlier: boolean; readonly onReachStart: () => Promise<void> }>
+  readonly earlierRequest: RefObject<Promise<void> | null>
+  readonly leadRef: RefObject<HTMLDivElement | null>
+  readonly sample: ScrollAuthority['sample']
+  readonly setReadingRow: (row: number) => void
+  readonly setScrollMargin: (margin: number) => void
+  readonly spansRef: RefObject<readonly VirtualItem[]>
+  readonly transcriptRef: RefObject<HTMLDivElement | null>
+  readonly viewport: HTMLDivElement | null
+  readonly virtualizer: Virtualizer<HTMLDivElement, Element>
+  readonly watch: ScrollAuthority['watch']
+}): void {
+  useLayoutEffect(() => {
+    if (viewport === null) {
+      return
+    }
+
+    let frame: number | null = null
+
+    const sync = () => {
+      if (frame !== null) {
+        return
+      }
+
+      frame = requestAnimationFrame(() => {
+        frame = null
+
+        const spans = spansRef.current
+        /* 常驻行远在上方或下方，不影响这次二分。 */
+        const reading = rowAtAnchor(spans, viewport.scrollTop + viewport.clientHeight * READING_ANCHOR_RATIO)
+
+        if (reading !== null) {
+          setReadingRow(reading.index)
+        }
+
+        /* 末端判据归虚拟器，这里只在同一次布局读取里采样。 */
+        sample(virtualizer.isAtEnd())
+
+        if (
+          earlier.current.hasEarlier &&
+          earlierRequest.current === null &&
+          viewport.scrollTop < viewport.clientHeight * EARLIER_LEAD_SCREENS
+        ) {
+          const request = Promise.resolve().then(earlier.current.onReachStart)
+
+          earlierRequest.current = request
+          void request.finally(() => {
+            if (earlierRequest.current === request) {
+              earlierRequest.current = null
+            }
+          })
+        }
+      })
+    }
+
+    /* 尾部必须按边框盒观察：它的高度整个来自 padding-block-end，content-box 不派发。 */
+    const observer = new ResizeObserver(() => {
+      if (transcriptRef.current !== null) {
+        setScrollMargin(transcriptRef.current.offsetTop)
+      }
+
+      sync()
+    })
+
+    observer.observe(viewport)
+
+    if (transcriptRef.current !== null) {
+      const transcript = transcriptRef.current
+
+      /* 首次通知晚于首帧，挂载时先同步读一次。 */
+      setScrollMargin(transcript.offsetTop)
+      observer.observe(transcript)
+    }
+
+    if (leadRef.current !== null) {
+      observer.observe(leadRef.current)
+    }
+
+    viewport.addEventListener('scroll', sync, { passive: true })
+
+    const unwatch = watch(viewport, () => virtualizer.isAtEnd())
+
+    return () => {
+      if (frame !== null) {
+        cancelAnimationFrame(frame)
+      }
+
+      viewport.removeEventListener('scroll', sync)
+      observer.disconnect()
+      unwatch()
+    }
+  }, [
+    earlier,
+    earlierRequest,
+    leadRef,
+    sample,
+    setReadingRow,
+    setScrollMargin,
+    spansRef,
+    transcriptRef,
+    viewport,
+    virtualizer,
+    watch,
+  ])
+}
+
+/* 换档那一帧把已渲染的行量一遍：行高要赶在写位置之前落地，不能等下一次 ResizeObserver。 */
+function useRunwayMeasurement(
+  runway: number,
+  transcriptRef: RefObject<HTMLDivElement | null>,
+  virtualizer: Virtualizer<HTMLDivElement, Element>,
+): void {
+  const measured = useRef(runway)
+
+  useLayoutEffect(() => {
+    if (measured.current === runway) {
+      return
+    }
+
+    measured.current = runway
+
+    /* 不走 measureElement：不带 ResizeObserver 条目时它交回缓存里的旧高，正是这里要绕开的那一份；offsetHeight 与它首次挂载时的量法同口径。 */
+    for (const row of transcriptRef.current?.querySelectorAll<HTMLElement>(':scope > .agent-activity-feed__row') ??
+      []) {
+      virtualizer.resizeItem(Number(row.dataset.index), row.offsetHeight)
+    }
+  }, [runway, transcriptRef, virtualizer])
+}
+
+/* 落点意图只在渲染后写一次；同一行再点一次仍是新意图。 */
+function useScrollIntent(
+  end: number,
+  pinned: boolean,
+  revealing: number | null,
+  settled: boolean,
+  viewport: HTMLDivElement | null,
+  virtualizer: Virtualizer<HTMLDivElement, Element>,
+): void {
+  const intent = revealing === null ? (pinned ? `end:${String(end)}` : null) : `row:${String(revealing)}:${String(end)}`
+  const wroteAt = useRef<string | null>(null)
+
+  useLayoutEffect(() => {
+    if (intent === null) {
+      /* 意图撤了也要清空：同一行再点一次仍要写一次位置。 */
+      wroteAt.current = null
+
+      return
+    }
+
+    if (viewport === null || !settled || wroteAt.current === intent) {
+      return
+    }
+
+    wroteAt.current = intent
+
+    if (revealing === null) {
+      virtualizer.scrollToEnd()
+
+      return
+    }
+
+    virtualizer.scrollToIndex(revealing, { align: 'start' })
+  }, [intent, revealing, settled, viewport, virtualizer])
+}
+
+/* 离开这条对话时把虚拟器快照与阅读行交给几何缓存：回来先按它铺，再从真布局校。 */
+function useGeometryPersistence(
+  conversation: string,
+  pinned: boolean,
+  reading: number | null,
+  virtualizer: Virtualizer<HTMLDivElement, Element>,
+): void {
+  const seen = useRef<{ pinned: boolean; reading: number | null }>({
+    pinned: true,
+    reading: null,
+  })
+
+  useLayoutEffect(() => {
+    seen.current = { pinned, reading }
+  }, [pinned, reading])
+
+  useLayoutEffect(
+    () => () => {
+      keepGeometry(conversation, {
+        rows: virtualizer.takeSnapshot(),
+        /* 在末端就不记行号：回来时继续跟随末端。 */
+        reading: seen.current.pinned ? null : seen.current.reading,
+      })
+    },
+    [conversation, virtualizer],
+  )
+}
+
+/* 自己说的话把视线带回末端：触发者是数据 —— 最后一条我说的话换了 id。换对话走挂载那一路，不算。 */
+function useOwnMessageTravel(ownMessage: string | null, travel: () => void): void {
+  const said = useRef<{ readonly message: string | null } | null>(null)
+
+  useLayoutEffect(() => {
+    const spoken = said.current
+
+    said.current = { message: ownMessage }
+
+    if (spoken === null || spoken.message === null || ownMessage === null) {
+      return
+    }
+
+    if (spoken.message !== ownMessage) {
+      travel()
+    }
+  }, [ownMessage, travel])
+}
 
 export interface FeedPort {
   readonly activeRow: number
@@ -188,23 +450,7 @@ export function AgentActivityFeed({
   const { atLatest, pinned, reveal, revealing, sample, travel, watch } = useScrollAuthority(restored?.reading ?? null)
 
   /* 这些令牌注册为 length，getComputedStyle 因而返回可直接相加的像素值。 */
-  const metrics = useMemo(() => {
-    if (viewport === null) {
-      return { dissolve: 0, gap: 0, glyph: 0, landing: 0, prose: 0 }
-    }
-
-    const style = getComputedStyle(viewport)
-    const read = (token: string) => Number.parseFloat(style.getPropertyValue(token)) || 0
-
-    return {
-      dissolve: read('--cp-dock-dissolve'),
-      gap: read('--cp-dock-gap'),
-      glyph: read('--cp-feed-glyph-row-gap'),
-      /* 视口上沿的留白（--cp-gutter）：滚到顶时第一轮离上沿这么远，跳到哪一轮也落在这里。 */
-      landing: Number.parseFloat(style.paddingBlockStart) || 0,
-      prose: read('--cp-feed-prose-row-gap'),
-    }
-  }, [viewport])
+  const metrics = useFeedMetrics(viewport)
 
   const overscan = useOverscan(settled, revealing)
 
@@ -246,9 +492,6 @@ export function AgentActivityFeed({
   /* 挂载首钉落在还没量到的假末端上，所以落末端只能是一份持续意图，坐标一动就重钉一次。 */
   const end = (scrollMargin ?? 0) + total
 
-  const intent = revealing === null ? (pinned ? `end:${String(end)}` : null) : `row:${String(revealing)}:${String(end)}`
-  const wroteAt = useRef<string | null>(null)
-
   /*
    * 跑道换档（运行行来去）与行长高必须落在同一帧。一轮结束时这两件事在同一次提交里发生：末尾留白收掉
    * 一截跑道，同时回复底下长出操作条、组头收起、封条出现。留白是渲染时就算进 total 的，行高却要等
@@ -256,44 +499,10 @@ export function AgentActivityFeed({
    * 在写位置之前（下面那个效应）把已渲染的行当场量一遍，两件事就进了同一次绘制。只在换档时量：
    * 流式的每一批照旧交给 ResizeObserver。
    */
-  const measuredRunway = useRef(runway)
+  useRunwayMeasurement(runway, transcriptRef, virtualizer)
 
-  useLayoutEffect(() => {
-    if (measuredRunway.current === runway) {
-      return
-    }
-
-    measuredRunway.current = runway
-
-    /* 不走 measureElement：不带 ResizeObserver 条目时它交回缓存里的旧高，正是这里要绕开的那一份；offsetHeight 与它首次挂载时的量法同口径。 */
-    for (const row of transcriptRef.current?.querySelectorAll<HTMLElement>(':scope > .agent-activity-feed__row') ??
-      []) {
-      virtualizer.resizeItem(Number(row.dataset.index), row.offsetHeight)
-    }
-  }, [runway, virtualizer])
-
-  useLayoutEffect(() => {
-    if (intent === null) {
-      /* 意图撤了也要清空：同一行再点一次仍要写一次位置。 */
-      wroteAt.current = null
-
-      return
-    }
-
-    if (viewport === null || !settled || wroteAt.current === intent) {
-      return
-    }
-
-    wroteAt.current = intent
-
-    if (revealing === null) {
-      virtualizer.scrollToEnd()
-
-      return
-    }
-
-    virtualizer.scrollToIndex(revealing, { align: 'start' })
-  }, [intent, revealing, settled, viewport, virtualizer])
+  /* 落点意图一变就写一次位置；同一意图不重复写。 */
+  useScrollIntent(end, pinned, revealing, settled, viewport, virtualizer)
 
   /* 换手：人刚改了展开状态 —— 记下此刻（尚未量到新布局）的总高，锚点切到起始；虚拟器报出不同的总高就算量到了。
    * 两件事都在渲染里办（官方「按 prop 调整 state」的做法）：原先放在 layout effect 里，得另用一个 ref 记住
@@ -323,124 +532,23 @@ export function AgentActivityFeed({
     spansRef.current = items
   }, [items])
 
-  const seen = useRef<{ pinned: boolean; reading: number | null }>({
-    pinned: true,
-    reading: null,
+  useGeometryPersistence(conversation, pinned, readingRow, virtualizer)
+
+  useFeedScrollSync({
+    earlier,
+    earlierRequest,
+    leadRef,
+    sample,
+    setReadingRow,
+    setScrollMargin,
+    spansRef,
+    transcriptRef,
+    viewport,
+    virtualizer,
+    watch,
   })
 
-  useLayoutEffect(() => {
-    seen.current = { pinned, reading: readingRow }
-  }, [pinned, readingRow])
-
-  useLayoutEffect(
-    () => () => {
-      keepGeometry(conversation, {
-        rows: virtualizer.takeSnapshot(),
-        /* 在末端就不记行号：回来时继续跟随末端。 */
-        reading: seen.current.pinned ? null : seen.current.reading,
-      })
-    },
-    [conversation, virtualizer],
-  )
-
-  useLayoutEffect(() => {
-    if (viewport === null) {
-      return
-    }
-
-    let frame: number | null = null
-
-    const sync = () => {
-      if (frame !== null) {
-        return
-      }
-
-      frame = requestAnimationFrame(() => {
-        frame = null
-
-        const spans = spansRef.current
-        /* 常驻行远在上方或下方，不影响这次二分。 */
-        const reading = rowAtAnchor(spans, viewport.scrollTop + viewport.clientHeight * READING_ANCHOR_RATIO)
-
-        if (reading !== null) {
-          setReadingRow(reading.index)
-        }
-
-        /* 末端判据归虚拟器，这里只在同一次布局读取里采样。 */
-        sample(virtualizer.isAtEnd())
-
-        if (
-          earlier.current.hasEarlier &&
-          earlierRequest.current === null &&
-          viewport.scrollTop < viewport.clientHeight * EARLIER_LEAD_SCREENS
-        ) {
-          const request = Promise.resolve().then(earlier.current.onReachStart)
-
-          earlierRequest.current = request
-          void request.finally(() => {
-            if (earlierRequest.current === request) {
-              earlierRequest.current = null
-            }
-          })
-        }
-      })
-    }
-
-    /* 尾部必须按边框盒观察：它的高度整个来自 padding-block-end，content-box 不派发。 */
-    const observer = new ResizeObserver(() => {
-      if (transcriptRef.current !== null) {
-        setScrollMargin(transcriptRef.current.offsetTop)
-      }
-
-      sync()
-    })
-
-    observer.observe(viewport)
-
-    if (transcriptRef.current !== null) {
-      const transcript = transcriptRef.current
-
-      /* 首次通知晚于首帧，挂载时先同步读一次。 */
-      setScrollMargin(transcript.offsetTop)
-      observer.observe(transcript)
-    }
-
-    if (leadRef.current !== null) {
-      observer.observe(leadRef.current)
-    }
-
-    viewport.addEventListener('scroll', sync, { passive: true })
-
-    const unwatch = watch(viewport, () => virtualizer.isAtEnd())
-
-    return () => {
-      if (frame !== null) {
-        cancelAnimationFrame(frame)
-      }
-
-      viewport.removeEventListener('scroll', sync)
-      observer.disconnect()
-      unwatch()
-    }
-  }, [sample, viewport, virtualizer, watch])
-
-  /* 自己说的话把视线带回末端：触发者是数据 —— 最后一条我说的话换了 id。换对话走挂载那一路，不算。 */
-  const ownMessage = feed.latestOwnMessage
-  const said = useRef<{ readonly message: string | null } | null>(null)
-
-  useLayoutEffect(() => {
-    const spoken = said.current
-
-    said.current = { message: ownMessage }
-
-    if (spoken === null || spoken.message === null || ownMessage === null) {
-      return
-    }
-
-    if (spoken.message !== ownMessage) {
-      travel()
-    }
-  }, [ownMessage, travel])
+  useOwnMessageTravel(feed.latestOwnMessage, travel)
 
   const activeRow = revealing ?? readingRow ?? Math.max(0, feed.count - 1)
 
@@ -455,11 +563,7 @@ export function AgentActivityFeed({
       }
     >
       <div className="agent-activity-feed__viewport" ref={setViewport}>
-        {lead === undefined ? null : (
-          <div className="agent-activity-feed__lead" ref={leadRef}>
-            {lead}
-          </div>
-        )}
+        <FeedLead lead={lead} leadRef={leadRef} />
 
         <div
           aria-busy={isBusy}
@@ -469,29 +573,15 @@ export function AgentActivityFeed({
           style={{ height: total }}
         >
           {/* 位置只有一个来源：虚拟器算出来的 start。 */}
-          {items.map((item) => {
-            const row = feed.rowAt(item.index)
-
-            if (row === undefined) {
-              return null
-            }
-
-            return (
-              <div
-                className="agent-activity-feed__row"
-                data-index={item.index}
-                data-rhythm={rowRhythm(item.index)}
-                data-streaming={row.isStreamingTail ? 'true' : undefined}
-                key={item.key}
-                ref={virtualizer.measureElement}
-                style={{
-                  transform: `translateY(${String(snapToDevicePixels(item.start - (scrollMargin ?? 0)))}px)`,
-                }}
-              >
-                {renderRow(item.index)}
-              </div>
-            )
-          })}
+          <FeedRows
+            feed={feed}
+            items={items}
+            renderRow={renderRow}
+            rowRhythm={rowRhythm}
+            scrollMargin={scrollMargin}
+            snapToDevicePixels={snapToDevicePixels}
+            virtualizer={virtualizer}
+          />
 
           {/*
             转录的最后一格（运行状态行）。它落在**末尾那段留白里** —— 虚拟器为输入框预留的
@@ -499,27 +589,124 @@ export function AgentActivityFeed({
             输入框上面；摆到转录盒外面则会掉进输入框底下（那一段留白是给输入框让位的）。
             它不进行测量：这一格每秒都在改字，量它等于每秒一次滚动补偿。
           */}
-          {trailing === undefined ? null : (
-            <div className="agent-activity-feed__trailing" style={{ insetBlockStart: total - paddingEnd }}>
-              {trailing}
-            </div>
-          )}
+          <FeedTrailing paddingEnd={paddingEnd} total={total} trailing={trailing} />
         </div>
       </div>
 
       {/* 常驻挂载，靠 data-shown 在静态状态间过渡；隐藏时挂 inert —— opacity 0 的按钮仍可点、仍进 Tab 序。判据是 atLatest 而非 isBusy。 */}
-      <button
-        aria-label="回到最新"
-        className="agent-activity-feed__to-latest"
-        data-shown={atLatest ? undefined : 'true'}
-        inert={atLatest}
-        onClick={travel}
-        type="button"
-      >
-        <ToLatestIcon aria-hidden="true" />
-      </button>
+      <ToLatestButton atLatest={atLatest} onTravel={travel} />
 
-      {overlay === undefined ? null : overlay({ activeRow, scrollToRow: reveal })}
+      <FeedOverlay activeRow={activeRow} onReveal={reveal} overlay={overlay} />
     </div>
   )
+}
+
+/* 虚拟器给出的可见行：位置只有 start 一个来源，行高交给测量回调。 */
+function FeedRows({
+  feed,
+  items,
+  renderRow,
+  rowRhythm,
+  scrollMargin,
+  snapToDevicePixels,
+  virtualizer,
+}: {
+  readonly feed: Presentation
+  readonly items: readonly VirtualItem[]
+  readonly renderRow: (index: number) => ReactNode
+  readonly rowRhythm: (index: number) => RowRhythm
+  readonly scrollMargin: number | null
+  readonly snapToDevicePixels: (px: number) => number
+  readonly virtualizer: Virtualizer<HTMLDivElement, Element>
+}) {
+  return (
+    <>
+      {items.map((item) => {
+        const row = feed.rowAt(item.index)
+
+        if (row === undefined) {
+          return null
+        }
+
+        return (
+          <div
+            className="agent-activity-feed__row"
+            data-index={item.index}
+            data-rhythm={rowRhythm(item.index)}
+            data-streaming={row.isStreamingTail ? 'true' : undefined}
+            key={item.key}
+            ref={virtualizer.measureElement}
+            style={{
+              transform: `translateY(${String(snapToDevicePixels(item.start - (scrollMargin ?? 0)))}px)`,
+            }}
+          >
+            {renderRow(item.index)}
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
+function FeedLead({ lead, leadRef }: { readonly lead: ReactNode; readonly leadRef: RefObject<HTMLDivElement | null> }) {
+  if (lead === undefined) {
+    return null
+  }
+
+  return (
+    <div className="agent-activity-feed__lead" ref={leadRef}>
+      {lead}
+    </div>
+  )
+}
+
+function FeedTrailing({
+  paddingEnd,
+  total,
+  trailing,
+}: {
+  readonly paddingEnd: number
+  readonly total: number
+  readonly trailing: ReactNode
+}) {
+  if (trailing === undefined) {
+    return null
+  }
+
+  return (
+    <div className="agent-activity-feed__trailing" style={{ insetBlockStart: total - paddingEnd }}>
+      {trailing}
+    </div>
+  )
+}
+
+function ToLatestButton({ atLatest, onTravel }: { readonly atLatest: boolean; readonly onTravel: () => void }) {
+  return (
+    <button
+      aria-label="回到最新"
+      className="agent-activity-feed__to-latest"
+      data-shown={atLatest ? undefined : 'true'}
+      inert={atLatest}
+      onClick={onTravel}
+      type="button"
+    >
+      <ToLatestIcon aria-hidden="true" />
+    </button>
+  )
+}
+
+function FeedOverlay({
+  activeRow,
+  onReveal,
+  overlay,
+}: {
+  readonly activeRow: number
+  readonly onReveal: (row: number) => void
+  readonly overlay: ((port: FeedPort) => ReactNode) | undefined
+}) {
+  if (overlay === undefined) {
+    return null
+  }
+
+  return overlay({ activeRow, scrollToRow: onReveal })
 }

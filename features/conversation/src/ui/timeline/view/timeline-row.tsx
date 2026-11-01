@@ -4,6 +4,7 @@ import { Prose } from '@poietica/design-system/prose'
 import { FeatureScope, useContributions } from '@poietica/ui-kernel'
 import { memo } from 'react'
 import { type ToolCallRendererProps, toolCallRenderers } from '../../../ui-api'
+import type { TimelineItem } from '../../shared/timeline/timeline-contract'
 import { type FeedRow, matchesToolName } from '../presentation'
 import { CompactionStatus } from './compaction-status'
 import { ErrorNotice } from './error-notice'
@@ -35,9 +36,55 @@ function rendererStatusOf(status: 'completed' | 'failed' | 'in_progress' | 'pend
   return 'running'
 }
 
+/* 工具调用那一支单独成层：贡献者的查找与回退不占时间线分发的分支。 */
+function ToolCallRow({
+  isInFlight,
+  isOpen,
+  item,
+  onToggle,
+  threadId,
+}: {
+  readonly isInFlight: boolean
+  readonly isOpen: boolean
+  readonly item: Extract<TimelineItem, { readonly type: 'tool_call' }>
+  readonly onToggle: (id: string) => void
+  readonly threadId: string
+}) {
+  const renderers = useContributions(toolCallRenderers)
+  const contributed = renderers.find((candidate) => matchesToolName(candidate.item.toolName, item.invokedTool))
+
+  if (contributed !== undefined) {
+    const Card = contributed.item.component
+
+    return (
+      <FeatureScope featureId={contributed.featureId}>
+        <Card
+          args={item.rawInput}
+          argsStreaming={item.status === 'pending'}
+          callId={item.toolCallId}
+          result={item.rawOutput ?? null}
+          status={rendererStatusOf(item.status)}
+          threadId={threadId}
+          toolName={item.invokedTool}
+        />
+      </FeatureScope>
+    )
+  }
+
+  return (
+    <ToolCallCard
+      isInFlight={isInFlight}
+      isOpen={isOpen}
+      item={item}
+      onToggle={() => {
+        onToggle(item.id)
+      }}
+    />
+  )
+}
+
 export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row, threadId }: TimelineRowProps) {
   const { item } = row
-  const renderers = useContributions(toolCallRenderers)
 
   switch (item.type) {
     case 'user_message':
@@ -58,38 +105,10 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row, th
     case 'agent_thought':
       return null
 
-    case 'tool_call': {
-      const contributed = renderers.find((candidate) => matchesToolName(candidate.item.toolName, item.invokedTool))
-
-      if (contributed !== undefined) {
-        const Card = contributed.item.component
-
-        return (
-          <FeatureScope featureId={contributed.featureId}>
-            <Card
-              args={item.rawInput}
-              argsStreaming={item.status === 'pending'}
-              callId={item.toolCallId}
-              result={item.rawOutput ?? null}
-              status={rendererStatusOf(item.status)}
-              threadId={threadId}
-              toolName={item.invokedTool}
-            />
-          </FeatureScope>
-        )
-      }
-
+    case 'tool_call':
       return (
-        <ToolCallCard
-          isInFlight={row.isInFlight}
-          isOpen={isOpen}
-          item={item}
-          onToggle={() => {
-            onToggle(item.id)
-          }}
-        />
+        <ToolCallRow isInFlight={row.isInFlight} isOpen={isOpen} item={item} onToggle={onToggle} threadId={threadId} />
       )
-    }
 
     case 'compaction':
       return (

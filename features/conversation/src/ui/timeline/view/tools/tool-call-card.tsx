@@ -5,6 +5,8 @@ import './tool-group.css'
 
 import { cn, GithubMark } from '@poietica/design-system'
 import { type DiffStat, diffStatOf } from '@poietica/design-system/diff'
+import type { ComponentType } from 'react'
+import type { ToolGlyph } from '../../../shared/model/tool-call'
 import { DisclosureBody } from '../../../shared/primitives/disclosure'
 import {
   BrainIcon,
@@ -43,69 +45,39 @@ import { ToolCallPanels } from './tool-call-panels'
 /*
  * 字形只有这一处分发。名字认得出就按名字给，认不出才是「从外面来的工具」。
  *
- * GithubMark 是设计系统的品牌标记：实心、没有描边概念，与其余描边字形不是一类东西，
- * 所以它单独一臂而不是混进某张表。
+ * GithubMark 是设计系统的品牌标记：实心、没有描边概念，与其余描边字形不是一类东西；
+ * 它仍占表里一格，只是这一格的值是品牌标记而不是描边图标。
  */
+const GLYPH_ICONS = {
+  bug: BugIcon,
+  clock: ClockIcon,
+  code: LspIcon,
+  computer: ComputerIcon,
+  delegate: ModelIcon,
+  device: DeviceIcon,
+  execute: TerminalIcon,
+  fetch: GlobeIcon,
+  github: GithubMark,
+  goal: GoalIcon,
+  image: ImageIcon,
+  learning: LearningIcon,
+  memory: BrainIcon,
+  other: ToolIcon,
+  plugin: PluginIcon,
+  question: QuestionIcon,
+  read: FileIcon,
+  search: SearchIcon,
+  skill: SkillIcon,
+  speech: MicIcon,
+  todo: PlanIcon,
+  wand: WandIcon,
+  write: PencilIcon,
+  yield: YieldIcon,
+} satisfies Record<ToolGlyph, ComponentType<{ readonly 'aria-hidden'?: boolean; readonly className?: string }>>
+
 export function ToolGlyphIcon({ name, scheme = '' }: { readonly name: string; readonly scheme?: string }) {
-  const glyph = toolGlyphOf(name, scheme)
-  const className = 'timeline-row__icon'
-
-  switch (glyph) {
-    case 'bug':
-      return <BugIcon aria-hidden="true" className={className} />
-    case 'clock':
-      return <ClockIcon aria-hidden="true" className={className} />
-    case 'code':
-      return <LspIcon aria-hidden="true" className={className} />
-    case 'computer':
-      return <ComputerIcon aria-hidden="true" className={className} />
-    case 'delegate':
-      return <ModelIcon aria-hidden="true" className={className} />
-    case 'device':
-      return <DeviceIcon aria-hidden="true" className={className} />
-    case 'execute':
-      return <TerminalIcon aria-hidden="true" className={className} />
-    case 'fetch':
-      return <GlobeIcon aria-hidden="true" className={className} />
-    case 'github':
-      return <GithubMark aria-hidden="true" className={className} />
-    case 'goal':
-      return <GoalIcon aria-hidden="true" className={className} />
-    case 'image':
-      return <ImageIcon aria-hidden="true" className={className} />
-    case 'learning':
-      return <LearningIcon aria-hidden="true" className={className} />
-    case 'memory':
-      return <BrainIcon aria-hidden="true" className={className} />
-    case 'other':
-      return <ToolIcon aria-hidden="true" className={className} />
-    case 'plugin':
-      return <PluginIcon aria-hidden="true" className={className} />
-    case 'question':
-      return <QuestionIcon aria-hidden="true" className={className} />
-    case 'read':
-      return <FileIcon aria-hidden="true" className={className} />
-    case 'search':
-      return <SearchIcon aria-hidden="true" className={className} />
-    case 'skill':
-      return <SkillIcon aria-hidden="true" className={className} />
-    case 'speech':
-      return <MicIcon aria-hidden="true" className={className} />
-    case 'todo':
-      return <PlanIcon aria-hidden="true" className={className} />
-    case 'wand':
-      return <WandIcon aria-hidden="true" className={className} />
-    case 'write':
-      return <PencilIcon aria-hidden="true" className={className} />
-    case 'yield':
-      return <YieldIcon aria-hidden="true" className={className} />
-    default:
-      return unreachable(glyph)
-  }
-}
-
-function unreachable(_glyph: never): null {
-  return null
+  const Icon = GLYPH_ICONS[toolGlyphOf(name, scheme)]
+  return <Icon aria-hidden className="timeline-row__icon" />
 }
 
 interface ToolCallCardView {

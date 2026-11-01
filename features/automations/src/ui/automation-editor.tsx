@@ -191,7 +191,7 @@ function EditorToolbar({
   store,
   view,
 }: {
-  readonly active: ReturnType<typeof activeRun>
+  readonly active: AutomationRun | null
   readonly automation: Automation | null
   readonly dirty: boolean
   readonly enabled: boolean
@@ -204,7 +204,7 @@ function EditorToolbar({
   readonly store: AutomationsStore
   readonly view: EditorView
 }) {
-  const submitClassName = 'bg-foreground text-background hover:opacity-90'
+  const blocked = !ready || !dirty || saving
   return (
     <div className="mt-6 flex items-center gap-3">
       <SegmentedControl
@@ -216,61 +216,106 @@ function EditorToolbar({
       />
       <div className="ml-auto flex items-center gap-2">
         {automation === null ? (
-          <Button
-            className={submitClassName}
-            disabled={!ready || !dirty || saving}
-            form={FORM_ID}
-            size="sm"
-            type="submit"
-          >
-            {saving ? '保存中…' : '创建定时任务'}
-          </Button>
+          <CreateAction blocked={blocked} saving={saving} />
         ) : (
-          <>
-            <Button disabled={!ready || !dirty || saving} form={FORM_ID} size="sm" type="submit" variant="soft">
-              {saving ? '保存中…' : '保存'}
-            </Button>
-            <Button
-              disabled={saving || dirty || active !== null}
-              onClick={() => {
-                void store.runNow(automation.id)
-              }}
-              size="sm"
-              type="button"
-              variant="soft"
-            >
-              立即运行
-            </Button>
-            <DropdownMenu>
-              {/* 方块与左边两颗同高：size="sm" 给高，宽度收回 32px。 */}
-              <DropdownMenuTrigger
-                aria-label="更多操作"
-                render={<Button className="w-8 px-0" size="sm" type="button" variant="soft" />}
-              >
-                <Ellipsis aria-hidden />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
-                {hasSchedule ? (
-                  <DropdownMenuItem
-                    onClick={() => {
-                      onToggleEnabled(!enabled)
-                    }}
-                  >
-                    {enabled ? <CirclePause aria-hidden /> : <CirclePlay aria-hidden />}
-                    {enabled ? '暂停' : '启用'}
-                  </DropdownMenuItem>
-                ) : null}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem danger disabled={active !== null} onClick={onDelete}>
-                  <Trash aria-hidden />
-                  删除
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </>
+          <EditActions
+            active={active}
+            automation={automation}
+            blocked={blocked}
+            dirty={dirty}
+            enabled={enabled}
+            hasSchedule={hasSchedule}
+            onDelete={onDelete}
+            onToggleEnabled={onToggleEnabled}
+            saving={saving}
+            store={store}
+          />
         )}
       </div>
     </div>
+  )
+}
+
+function CreateAction({ blocked, saving }: { readonly blocked: boolean; readonly saving: boolean }) {
+  return (
+    <Button
+      className="bg-foreground text-background hover:opacity-90"
+      disabled={blocked}
+      form={FORM_ID}
+      size="sm"
+      type="submit"
+    >
+      {saving ? '保存中…' : '创建定时任务'}
+    </Button>
+  )
+}
+
+function EditActions({
+  active,
+  automation,
+  blocked,
+  dirty,
+  enabled,
+  hasSchedule,
+  onDelete,
+  onToggleEnabled,
+  saving,
+  store,
+}: {
+  readonly active: AutomationRun | null
+  readonly automation: Automation
+  readonly blocked: boolean
+  readonly dirty: boolean
+  readonly enabled: boolean
+  readonly hasSchedule: boolean
+  readonly onDelete: () => void
+  readonly onToggleEnabled: (enabled: boolean) => void
+  readonly saving: boolean
+  readonly store: AutomationsStore
+}) {
+  return (
+    <>
+      <Button disabled={blocked} form={FORM_ID} size="sm" type="submit" variant="soft">
+        {saving ? '保存中…' : '保存'}
+      </Button>
+      <Button
+        disabled={saving || dirty || active !== null}
+        onClick={() => {
+          void store.runNow(automation.id)
+        }}
+        size="sm"
+        type="button"
+        variant="soft"
+      >
+        立即运行
+      </Button>
+      <DropdownMenu>
+        {/* 方块与左边两颗同高：size="sm" 给高，宽度收回 32px。 */}
+        <DropdownMenuTrigger
+          aria-label="更多操作"
+          render={<Button className="w-8 px-0" size="sm" type="button" variant="soft" />}
+        >
+          <Ellipsis aria-hidden />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-44">
+          {hasSchedule ? (
+            <DropdownMenuItem
+              onClick={() => {
+                onToggleEnabled(!enabled)
+              }}
+            >
+              {enabled ? <CirclePause aria-hidden /> : <CirclePlay aria-hidden />}
+              {enabled ? '暂停' : '启用'}
+            </DropdownMenuItem>
+          ) : null}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem danger disabled={active !== null} onClick={onDelete}>
+            <Trash aria-hidden />
+            删除
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
   )
 }
 
@@ -475,6 +520,31 @@ interface PreviewState {
   readonly error: string | null
 }
 
+/* 预览只认当前调度：改了 cron/at 但新结果还没回来时，旧预览不能冒充新的。 */
+function previewFor(
+  state: PreviewState | null,
+  key: string,
+): { readonly preview: PreviewState['preview']; readonly error: string | null } {
+  if (state === null || state.key !== key) {
+    return { preview: null, error: null }
+  }
+  return { preview: state.preview, error: state.error }
+}
+
+function isDraftDirty(automation: Automation | null, next: AutomationDraft, baseline: AutomationDraft): boolean {
+  return automation === null || !sameDraft(next, baseline)
+}
+
+function isDraftReady(title: string, prompt: string, workspaceId: string, preview: PreviewState['preview']): boolean {
+  return (
+    title.trim() !== '' &&
+    prompt.trim() !== '' &&
+    workspaceId.trim() !== '' &&
+    preview !== null &&
+    preview.problem === null
+  )
+}
+
 export function AutomationEditor({
   automation,
   draft,
@@ -544,17 +614,10 @@ export function AutomationEditor({
       workspaceId,
     ],
   )
-  const dirty = automation === null || !sameDraft(next, baselineDraft)
+  const dirty = isDraftDirty(automation, next, baselineDraft)
   const key = scheduleKey(schedule)
-  const previewMatches = previewState?.key === key
-  const preview = previewMatches ? previewState.preview : null
-  const previewError = previewMatches ? previewState.error : null
-  const ready =
-    title.trim() !== '' &&
-    prompt.trim() !== '' &&
-    workspaceId.trim() !== '' &&
-    preview !== null &&
-    preview.problem === null
+  const { preview, error: previewError } = previewFor(previewState, key)
+  const ready = isDraftReady(title, prompt, workspaceId, preview)
   const currentWorkspace = workspaceChoiceOf(workspaceId, workspaceChoices)
   const active = activeRun(runs)
 

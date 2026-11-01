@@ -157,6 +157,51 @@ function Output({ text }: { readonly text: string }): ReactNode {
     </div>
   )
 }
+function ShotsOnlyStep({ images }: { readonly images: BrowserCallModel['images'] }): ReactNode {
+  return (
+    <div className="browser-tool__preview">
+      <Shots images={images} />
+    </div>
+  )
+}
+
+/* 面板里四种内容各一格：截图、脚本、产出、错误；都没有才退回这一句旁白。 */
+function StepPanel({
+  at,
+  code,
+  codeAt,
+  model,
+  shots,
+  step,
+}: {
+  readonly at: number
+  readonly code: boolean
+  readonly codeAt: number
+  readonly model: BrowserCallModel
+  readonly shots: boolean
+  readonly step: BrowserStep
+}): ReactNode {
+  const returned = at === codeAt && (model.text !== '' || model.error !== null)
+
+  return (
+    <div className="timeline-tool__body">
+      <div className="timeline-tool__panel browser-tool__panel">
+        {shots ? <Shots images={model.images} /> : null}
+        {code && model.code !== null ? <CodeBlock code={model.code} language={model.language} /> : null}
+        {at === codeAt ? <Output text={model.text} /> : null}
+        {at === codeAt && model.error !== null ? (
+          <p className="browser-tool__error" data-browser-error="">
+            {model.error}
+          </p>
+        ) : null}
+        {code || returned ? null : (
+          <p className="browser-tool__said">{step.said === '' ? '浏览器没有返回内容。' : step.said}</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function StepBody({
   at,
   codeAt,
@@ -177,32 +222,10 @@ function StepBody({
   const code = at === codeAt && model.code !== null
 
   if (shots && at !== codeAt) {
-    return (
-      <div className="browser-tool__preview">
-        <Shots images={model.images} />
-      </div>
-    )
+    return <ShotsOnlyStep images={model.images} />
   }
 
-  const returned = at === codeAt && (model.text !== '' || model.error !== null)
-
-  return (
-    <div className="timeline-tool__body">
-      <div className="timeline-tool__panel browser-tool__panel">
-        {shots ? <Shots images={model.images} /> : null}
-        {code && model.code !== null ? <CodeBlock code={model.code} language={model.language} /> : null}
-        {at === codeAt ? <Output text={model.text} /> : null}
-        {at === codeAt && model.error !== null ? (
-          <p className="browser-tool__error" data-browser-error="">
-            {model.error}
-          </p>
-        ) : null}
-        {code || returned ? null : (
-          <p className="browser-tool__said">{step.said === '' ? '浏览器没有返回内容。' : step.said}</p>
-        )}
-      </div>
-    </div>
-  )
+  return <StepPanel at={at} code={code} codeAt={codeAt} model={model} shots={shots} step={step} />
 }
 /* 一次 eval 里每一步各成一行工具调用（图标、一句话、箭头，与别的工具行同一副长相），不再并成「等 N 步」。 */
 export function BrowserToolCard({ args, result, status }: ToolCallRendererProps): ReactNode {

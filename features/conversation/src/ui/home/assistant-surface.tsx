@@ -30,8 +30,9 @@ import type { SessionConfigControl } from '../shared/model/config'
 import type { SessionGoal } from '../shared/model/goal'
 import type { GoalActionHandler } from '../shared/model/goal-control'
 import type { AgentSessionPort, WithdrawnMessage } from '../shared/model/session'
+import type { AgentToolkit } from '../shared/model/toolkit'
 import type { SessionUsage } from '../shared/model/usage'
-import type { PlanItem } from '../shared/timeline/timeline-contract'
+import type { PlanItem, QuestionTimelineItem } from '../shared/timeline/timeline-contract'
 import {
   CONVERSATION_TODO_LAYOUT_STYLE,
   ConversationTodoPopover,
@@ -43,7 +44,7 @@ import {
 import { ThreadTitleMenu } from '../threads'
 import type { PreparedThread } from '../timeline'
 import { type AssistantSession, TranscriptView, useAssistantInteractions, useAssistantSession } from '../timeline'
-import { useSlashCommands } from './command-dispatch'
+import { type SlashCommandsView, useSlashCommands } from './command-dispatch'
 import { EmotionBall, ENTRY_EMOTION_GROUPS } from './mascot/emotion-ball'
 
 /* 连不上 agent 时输入区上沿那一句；原文（controlsFailure）只做 title。 */
@@ -127,6 +128,148 @@ function TodoPopoverLayer({
       }}
       threadId={endpoint}
     />
+  )
+}
+
+/*
+ * 输入区一整块：目标条、失败横幅、队列、前置条件与输入框。表面本体只负责相位与装配，
+ * 这些条件都在这里判，免得主组件被渲染分支撑爆。
+ */
+function AssistantDock({
+  approval,
+  assistant,
+  composer,
+  controls,
+  controlsFailure,
+  controlsPending,
+  continueConversation,
+  dismissed,
+  dismissFailure,
+  edit,
+  failure,
+  goal,
+  goalActions,
+  live,
+  onComposeIntent,
+  onRetryControls,
+  onSelectControl,
+  pendingPlan,
+  question,
+  recoverable,
+  showProjectRequired,
+  slash,
+  submit,
+  submitDisabled,
+  toolkit,
+  usage,
+}: {
+  readonly approval: PermissionDockProps | null
+  readonly assistant: AssistantSession
+  readonly composer: (handle: PromptInputHandle | null) => void
+  readonly controls: readonly SessionConfigControl[]
+  readonly controlsFailure: string | undefined
+  readonly controlsPending: boolean | undefined
+  readonly continueConversation: () => void
+  readonly dismissed: boolean
+  readonly dismissFailure: () => void
+  readonly edit: (restored: WithdrawnMessage) => void
+  readonly failure: string | null
+  readonly goal: SessionGoal | undefined
+  readonly goalActions: GoalActions
+  readonly live: boolean
+  readonly onComposeIntent: (() => void) | undefined
+  readonly onRetryControls: (() => void | Promise<void>) | undefined
+  readonly onSelectControl: (controlId: string, value: string, input?: string) => void
+  readonly pendingPlan: PlanItem | null
+  readonly question: QuestionTimelineItem | null | undefined
+  readonly recoverable: string | null
+  readonly showProjectRequired: () => void
+  readonly slash: SlashCommandsView
+  readonly submit: (message: PromptInputMessage) => void
+  readonly submitDisabled: boolean
+  readonly toolkit: AgentToolkit
+  readonly usage: SessionUsage | undefined
+}) {
+  const { mcpServers, skills } = toolkit
+
+  return (
+    <div className="assistant-surface__composer">
+      {live && goal !== undefined ? <GoalBar actions={goalActions} goal={goal} /> : null}
+
+      {failure === null || dismissed ? null : (
+        <Banner
+          {...(recoverable === null
+            ? {}
+            : { actions: [{ label: '取回文字', onClick: () => edit({ text: recoverable, attachments: [] }) }] })}
+          holdMs={FAILURE_HOLD_MS}
+          key={failure}
+          onDone={dismissFailure}
+          text={failure}
+          tone="error"
+        />
+      )}
+      <PromptQueue onEdit={edit} queue={assistant.queue} />
+
+      {/* 输入区上沿的两条前置条件：连不上 agent / 还没选项目。 */}
+      <ComposerPreconditions controlsFailure={controlsFailure} onRetryControls={onRetryControls} />
+
+      <AssistantComposer
+        approval={approval}
+        commands={slash.list}
+        contextPanelRequest={slash.contextPanelRequest}
+        controls={controls}
+        controlsPending={controlsPending}
+        mcpServers={mcpServers}
+        modelPickerRequest={slash.modelPickerRequest}
+        onAnswerDialog={assistant.answerDialog}
+        onAnswerQuestions={assistant.answerQuestions}
+        onCancel={assistant.cancel}
+        onContinue={continueConversation}
+        onDismissQuestions={assistant.dismissQuestions}
+        onEngage={onComposeIntent}
+        onResolvePlan={assistant.resolvePlan}
+        plan={pendingPlan}
+        onSelectControl={onSelectControl}
+        onSubmit={submit}
+        onSubmitBlocked={showProjectRequired}
+        question={question}
+        ref={composer}
+        skills={skills}
+        status={assistant.status}
+        submitDisabled={submitDisabled}
+        usage={usage}
+      />
+    </div>
+  )
+}
+
+/* 入口页输入区上沿那排：在哪跑、本功能贡献的上下文、Swarm 勾选。会话态已经有明确落点，不再画。 */
+function ComposerContextRow({
+  controls,
+  live,
+  onSelectControl,
+  pending,
+  workspace,
+}: {
+  readonly controls: readonly SessionConfigControl[]
+  readonly live: boolean
+  readonly onSelectControl: (controlId: string, value: string, input?: string) => void
+  readonly pending: boolean | undefined
+  readonly workspace: AssistantSurfaceProps['workspace']
+}): ReactNode {
+  if (live || workspace === undefined) {
+    return null
+  }
+
+  return (
+    <div className="composer-context">
+      <WorkspacePicker {...workspace} placement="composer" />
+
+      <ComposerContextContributed />
+
+      {/* 最右端：左边两枚说「在哪跑」，它说「这一句怎么跑」。 */}
+      <SwarmToggle controls={controls} onSelect={onSelectControl} pending={pending} />
+    </div>
   )
 }
 
@@ -296,7 +439,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   const assistant = useAssistantSession({ endpoint, onUserMessage, prepare, session })
 
   /* 技能按 cwd 分层（omp 扫工作区）；线程行还没到（点头一帧）时退到全局活动工作区。 */
-  const { mcpServers, skills } = useAgentToolkit(thread?.workspaceId ?? workspace?.current?.id ?? null)
+  const toolkit = useAgentToolkit(thread?.workspaceId ?? workspace?.current?.id ?? null)
 
   /* 连不上 agent 不在这层写：由 threads-store 打开对话失败时的 catch 统一记，与帧流里的失败同一个样子。 */
   const { permission: blocked, permissionCount: waiting, plan, question } = useAssistantInteractions(assistant.key)
@@ -395,53 +538,34 @@ export const AssistantSurface = memo(function AssistantSurface({
 
   /* 输入框只挂一处，不属于任何一个相位：相位切换时它的 DOM 位置不变，草稿、附件、光标与焦点跨相位存活。 */
   const dock = (
-    <div className="assistant-surface__composer">
-      {live && goal !== undefined ? <GoalBar actions={goalActions} goal={goal} /> : null}
-
-      {failure === null || dismissed ? null : (
-        <Banner
-          {...(recoverable === null
-            ? {}
-            : { actions: [{ label: '取回文字', onClick: () => edit({ text: recoverable, attachments: [] }) }] })}
-          holdMs={FAILURE_HOLD_MS}
-          key={failure}
-          onDone={dismissFailure}
-          text={failure}
-          tone="error"
-        />
-      )}
-      <PromptQueue onEdit={edit} queue={assistant.queue} />
-
-      {/* 输入区上沿的两条前置条件：连不上 agent / 还没选项目。 */}
-      <ComposerPreconditions controlsFailure={controlsFailure} onRetryControls={onRetryControls} />
-
-      <AssistantComposer
-        approval={approval}
-        commands={slash.list}
-        contextPanelRequest={slash.contextPanelRequest}
-        controls={controls}
-        controlsPending={controlsPending}
-        mcpServers={mcpServers}
-        modelPickerRequest={slash.modelPickerRequest}
-        onAnswerDialog={assistant.answerDialog}
-        onAnswerQuestions={assistant.answerQuestions}
-        onCancel={assistant.cancel}
-        onContinue={continueConversation}
-        onDismissQuestions={assistant.dismissQuestions}
-        onEngage={onComposeIntent}
-        onResolvePlan={assistant.resolvePlan}
-        plan={pendingPlan}
-        onSelectControl={onSelectControl}
-        onSubmit={submit}
-        onSubmitBlocked={showProjectRequired}
-        question={question}
-        submitDisabled={workspaceRequired}
-        ref={composerRef}
-        skills={skills}
-        status={assistant.status}
-        usage={usage}
-      />
-    </div>
+    <AssistantDock
+      approval={approval}
+      assistant={assistant}
+      composer={composerRef}
+      controls={controls}
+      controlsFailure={controlsFailure}
+      controlsPending={controlsPending}
+      continueConversation={continueConversation}
+      dismissed={dismissed}
+      dismissFailure={dismissFailure}
+      edit={edit}
+      failure={failure}
+      goal={goal}
+      goalActions={goalActions}
+      live={live}
+      onComposeIntent={onComposeIntent}
+      onRetryControls={onRetryControls}
+      onSelectControl={onSelectControl}
+      pendingPlan={pendingPlan}
+      question={question}
+      recoverable={recoverable}
+      showProjectRequired={showProjectRequired}
+      slash={slash}
+      submit={submit}
+      submitDisabled={workspaceRequired}
+      toolkit={toolkit}
+      usage={usage}
+    />
   )
 
   return (
@@ -520,14 +644,13 @@ export const AssistantSurface = memo(function AssistantSurface({
             <ComposerDraftKeyContext value={draftKey}>{dock}</ComposerDraftKeyContext>
 
             {live || workspace === undefined ? null : (
-              <div className="composer-context">
-                <WorkspacePicker {...workspace} placement="composer" />
-
-                <ComposerContextContributed />
-
-                {/* 最右端：左边两枚说「在哪跑」，它说「这一句怎么跑」。 */}
-                <SwarmToggle controls={controls} onSelect={onSelectControl} pending={controlsPending} />
-              </div>
+              <ComposerContextRow
+                controls={controls}
+                live={live}
+                onSelectControl={onSelectControl}
+                pending={controlsPending}
+                workspace={workspace}
+              />
             )}
           </div>
 
