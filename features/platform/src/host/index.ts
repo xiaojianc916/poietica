@@ -5,7 +5,7 @@ import { type BrowserWindow, dialog, Menu, Notification, screen, session, shell,
 import { platformContract } from '../contract'
 import { createLogSink } from './log-sink'
 import { createNotifyService } from './notify-service'
-import { openInSystemBrowser } from './open-browser'
+import { openExternal } from './open-browser'
 import { createShellService } from './shell-service'
 import { createStorageService } from './storage-service'
 import { createTray } from './tray'
@@ -32,24 +32,8 @@ export default defineHostModule({
     const shellService = createShellService({
       shell: {
         openExternal: async (url) => {
-          /*
-           * Windows 上不能把 Electron 的 shell.openExternal 当主路径：在 Windows 11 26200 +
-           * Electron 45 上它照样 resolve，浏览器却不新开任何标签（提权与不提权都复现）。
-           * 只有 url.dll,FileProtocolHandler 能稳定把 URL 交给默认浏览器。spawn 本身失败
-           * （System32 不可达等）时才退回 Electron。
-           */
-          if (process.platform === 'win32') {
-            try {
-              await openInSystemBrowser(url, ctx.logger)
-              return
-            } catch (error) {
-              ctx.logger.warn('system browser command failed; falling back to Electron shell', {
-                host: new URL(url).host,
-                error: String(error),
-              })
-            }
-          }
-          await shell.openExternal(url)
+          // 不用 rundll32：它启动成功并返回 0 也不代表系统浏览器真的打开了 URL。
+          await openExternal(shell, url)
           ctx.logger.info('opened in default browser', { host: new URL(url).host })
         },
         openPath: (path) => shell.openPath(path),

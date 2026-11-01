@@ -32,29 +32,33 @@ function messageOf(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause)
 }
 
-function dateLabel(value: string | null): string | null {
-  if (value === null) return null
-  const at = Date.parse(value)
-  if (!Number.isFinite(at)) return null
-  return new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit' }).format(new Date(at))
-}
-
 function dayLabel(at: number): string {
   return new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit' }).format(new Date(at))
 }
 
+function remainingOf(window: WorkBuddyUsageWindow): number | null {
+  if (window.amount !== null && window.limit !== null) return Math.max(0, window.limit - window.amount)
+  return window.balance
+}
+
 function windowPercent(window: WorkBuddyUsageWindow): number | null {
-  if (window.used !== null) return Math.min(100, Math.max(0, window.used))
   if (window.amount !== null && window.limit !== null && window.limit > 0) {
-    return Math.min(100, Math.max(0, (100 * window.amount) / window.limit))
+    return Math.min(100, Math.max(0, (100 * (window.limit - window.amount)) / window.limit))
   }
   return null
 }
 
+const CREDIT_FORMAT = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 })
+
 function usageLine(window: WorkBuddyUsageWindow): string {
-  const reset = dateLabel(window.resetsAt)
-  const value = window.display ?? (window.balance === null ? null : `${window.balance} ${window.unit ?? ''}`.trim())
-  return [window.name, value, reset === null ? null : `${reset} 重置`].filter((part) => part !== null).join(' · ')
+  const remaining = remainingOf(window)
+  const value =
+    remaining === null
+      ? window.display
+      : [CREDIT_FORMAT.format(remaining), window.limit === null ? null : CREDIT_FORMAT.format(window.limit)]
+          .filter((part) => part !== null)
+          .join(' / ')
+  return [window.name, value].filter((part) => part !== null).join(' · ')
 }
 
 function todayKey(): string {
@@ -105,7 +109,7 @@ function CreditsView({ account }: { readonly account: WorkBuddyAccount }) {
             </div>
             {percent === null ? null : (
               <div
-                aria-label={`${window.name} ${String(Math.round(percent))}%`}
+                aria-label={`${window.name} 剩余 ${String(Math.round(percent))}%`}
                 aria-valuemax={100}
                 aria-valuemin={0}
                 aria-valuenow={Math.round(percent)}

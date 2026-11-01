@@ -21,8 +21,8 @@ const SNAPSHOT: WorkBuddySnapshot = {
           {
             name: 'Credits',
             used: 7.5,
-            amount: 12,
-            limit: 160,
+            amount: 12.345,
+            limit: 160.129,
             balance: null,
             unit: 'credits',
             display: '12 / 160',
@@ -79,7 +79,9 @@ describe('WorkBuddy 设置页', () => {
     render(<WorkBuddyPage api={apiOf()} openUrl={async () => undefined} />)
     expect(await screen.findByText('稻黄草')).toBeDefined()
     expect(screen.getByText('Free plan')).toBeDefined()
-    expect(screen.getByText(/12 \/ 160/)).toBeDefined()
+    expect(screen.getByText('Credits · 147.78 / 160.13')).toBeDefined()
+    expect(screen.queryByText(/重置/)).toBeNull()
+    expect(screen.getByRole('progressbar', { name: 'Credits 剩余 92%' })).toBeDefined()
     expect(screen.getByText('首选')).toBeDefined()
     expect(screen.getByText('已注册为模型服务商')).toBeDefined()
   })

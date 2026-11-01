@@ -1,12 +1,19 @@
-import { describe, expect, test } from 'bun:test'
-import { browserCommand } from '../open-browser'
+import { describe, expect, mock, test } from 'bun:test'
+import { openExternal } from '../open-browser'
 
-describe('系统浏览器命令', () => {
-  test('Windows 用 System32 的 rundll32，与 magpie 的 proc.OpenBrowser 一致', () => {
-    const systemRoot = process.env.SystemRoot
-    expect(browserCommand('https://example.test/login?a=1&b=2')).toEqual({
-      file: systemRoot === undefined ? 'rundll32' : `${systemRoot}\\System32\\rundll32.exe`,
-      args: ['url.dll,FileProtocolHandler', 'https://example.test/login?a=1&b=2'],
-    })
+describe('系统浏览器', () => {
+  test('把完整 URL 交给 Electron 原生系统调用', async () => {
+    const shell = { openExternal: mock(async (_url: string) => undefined) }
+    await openExternal(shell, 'https://example.test/login?a=1&b=2')
+    expect(shell.openExternal).toHaveBeenCalledWith('https://example.test/login?a=1&b=2')
+  })
+
+  test('系统调用失败时把错误交给界面，不伪报成功', async () => {
+    const shell = {
+      openExternal: mock(async (_url: string) => {
+        throw new Error('启动失败')
+      }),
+    }
+    await expect(openExternal(shell, 'https://example.test/login?a=1&b=2')).rejects.toThrow('启动失败')
   })
 })
