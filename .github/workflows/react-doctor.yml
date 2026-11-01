@@ -35,19 +35,16 @@ jobs:
           fetch-depth: 0
 
       - uses: millionco/react-doctor@v2
-        # Advisory by default: React Doctor reports findings on every PR — a
-        # sticky summary comment, inline review comments, and a commit status
-        # with the health score — but never fails the check, so it won't red-X
-        # a teammate's PR on day one. When your team trusts the signal, graduate
-        # the gate: uncomment the block below and set blocking to "error" (fail
-        # on new error-severity findings) or "warning" (fail on any finding).
-        # Full reference: https://www.react.doctor/ci
+        # 合并前阻塞，推 main 仍只收趋势：PR 只报「相对 merge base 新增」的问题，error 级新增会让检查红；
+        # push 到 main 是整仓扫描，历史遗留项不该让主干永远红着（要收的时候把表达式换成 'error'）。
+        # 完整参考：https://www.react.doctor/ci
         #
         # Security: @v2 is a floating major tag that may move. For supply-chain-
         # hardened CI, pin to a full commit SHA with a version comment instead:
         # uses: millionco/react-doctor@<sha>  # v2.x.x
-        # with:
-        #   blocking: error          # Gate level: "none" (advisory, the default) | "warning" | "error"
+        with:
+          blocking: ${{ github.event_name == 'pull_request' && 'error' || 'none' }}
+        # 其余可调项：
         #   scope: full              # On PRs, scan the whole project instead of just changed files
         #   comment: false           # Disable the sticky PR summary comment
         #   comment-on-clean: false # Skip new comments for clean scans

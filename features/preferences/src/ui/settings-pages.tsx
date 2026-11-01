@@ -7,7 +7,7 @@ import {
   useContributions,
   useService,
 } from '@poietica/ui-kernel'
-import { type ReactElement, useCallback, useEffect, useState } from 'react'
+import { type ReactElement, Suspense, useCallback, useEffect, useState } from 'react'
 import type { Preferences } from '../contract'
 import type { PreferencesRpcApi } from './api'
 
@@ -70,7 +70,10 @@ function PageSections({ page }: { readonly page: string }): ReactElement | null 
 
         return (
           <FeatureScope featureId={featureId} key={item.id}>
-            <Component />
+            {/* 组可能是按需加载的（例如 models 的「模型角色」）：本地兜底，别让整页退成骨架屏。 */}
+            <Suspense fallback={null}>
+              <Component />
+            </Suspense>
           </FeatureScope>
         )
       })}

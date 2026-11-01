@@ -1,0 +1,49 @@
+# 唯一的准入闸门（docs/ARCHITECTURE.md §8）：类型、格式、lint（biome + 自定义检查 + depcruise）、全部测试。
+#
+# 本地 `bun run all` 与这里是同一条链；`tooling/release/release.ts` 发布前还会再跑一次。
+# 之前仓库里只有 react-doctor（advisory），三层强制与规则自检全部只在人的终端里跑 —— 这条工作流补上合并前的落点。
+#
+# 串行跑各步：测试里有计时用例，和 typecheck 抢 CPU 时会抖（本机并发跑过一次 1 fail，单独跑 0 fail）。
+# windows-latest 与开发机同平台；测试跑在 bun 上，不依赖 Electron 窗口。
+
+name: Gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: ['main']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      # 版本取自 package.json 的 packageManager（bun@1.4.4）。bun install 走仓库的 isolated linker（bunfig.toml）。
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - run: bun install --frozen-lockfile
+
+      # 与 bun run all 的四步一一对应，顺序也一致（先便宜的类型，再格式、lint、测试）。
+      - run: bun run typecheck
+      - run: bun run format:check
+      - run: bun run lint
+      - run: bun run test

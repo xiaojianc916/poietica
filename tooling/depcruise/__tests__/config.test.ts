@@ -117,6 +117,30 @@ describe('depcruise 配置的自检', () => {
   })
 
   /*
+   * timeline 的五个子目录（model / view / feed / tools / minimap）：区一级的 conversation-area-via-index
+   * 管不到第二层。两条方向：model 不碰渲染层（view/feed/minimap），tools 是叶子（model 与 view 都可以用它）。
+   */
+  test('真实解析：timeline 子目录的方向（model 不碰渲染，tools 是叶子）', async () => {
+    const result = await cruiseFixture('features/conversation/src/ui/timeline', {
+      'model/into-view.ts': "import { View } from '../view/view'\nvoid View\n",
+      'model/into-tools.ts': "import { view } from '../tools/tool-view'\nvoid view\n",
+      'tools/into-model.ts': "import { Store } from '../model/store'\nvoid Store\n",
+      'tools/into-view.ts': "import { View } from '../view/view'\nvoid View\n",
+      'view/view.ts': 'export const View = true\n',
+      'model/store.ts': 'export const Store = true\n',
+      'tools/tool-view.ts': 'export const view = true\n',
+    })
+
+    expect(violationsOf(result, 'timeline-model-no-render')).toEqual([
+      'features/conversation/src/ui/timeline/model/into-view.ts',
+    ])
+    expect(violationsOf(result, 'timeline-tools-is-leaf').sort()).toEqual([
+      'features/conversation/src/ui/timeline/tools/into-model.ts',
+      'features/conversation/src/ui/timeline/tools/into-view.ts',
+    ])
+  })
+
+  /*
    * setup 是装配层，没有 index：只出不进。曾经 to 列表漏掉 setup，于是 timeline 直取
    * ../setup/context 这种反向穿透不报错（refactor-log「内聚与边界审计」声称已覆盖，配置里没有）。
    */
@@ -160,6 +184,28 @@ describe('depcruise 配置的自检', () => {
 })
 
 /* 空间边界必须双向约束：公开入口不反向依赖实现，UI 令牌也不能流入其它进程。 */
+describe('装配方向', () => {
+  /*
+   * 依赖只向下：apps/ 与 tooling/ 可以装包，包不能反向认识应用装配与工具链。
+   * 此前没有任何规则覆盖这个方向（packages → apps / tooling 的边即使出现也无人拦）。
+   */
+  test('真实解析：packages 不得依赖 apps / tooling', async () => {
+    const result = await cruiseFixture('packages', {
+      'alpha/src/into-app.ts': "import { assemble } from '../../../apps/core/src/assemble'\nvoid assemble\n",
+      'alpha/src/into-tooling.ts': "import { check } from '../../../tooling/checks/check'\nvoid check\n",
+      'alpha/src/downward.ts': "import { foundation } from '../../foundation/src/foundation'\nvoid foundation\n",
+      '../apps/core/src/assemble.ts': 'export const assemble = true\n',
+      '../tooling/checks/check.ts': 'export const check = true\n',
+      '../../packages/foundation/src/foundation.ts': 'export const foundation = true\n',
+    })
+
+    expect(violationsOf(result, 'packages-no-apps').sort()).toEqual([
+      'packages/alpha/src/into-app.ts',
+      'packages/alpha/src/into-tooling.ts',
+    ])
+  })
+})
+
 describe('公开入口的进程与实现边界', () => {
   test('ui-api 不得反向 import 本功能 ui 的实现', async () => {
     const result = await cruiseFixture('features/attachments/src', {

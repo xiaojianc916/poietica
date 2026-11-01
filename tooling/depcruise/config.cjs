@@ -107,6 +107,15 @@ module.exports = {
       to: { path: '^features/' },
     },
     {
+      name: 'packages-no-apps',
+      severity: 'error',
+      comment:
+        '平台包不认识应用装配与工具链：依赖只向下（apps/ 与 tooling/ 可以装包，包不能反向认识它们）。' +
+        '此前没有这条规则 —— packages → apps / tooling 的边即使出现也无人拦。',
+      from: { path: '^packages/' },
+      to: { path: '^(apps/|tooling/)' },
+    },
+    {
       /*
        * 06 页 §0 铁律 2 的专名闸门（A-K1 的验证方式就是按这个名字查）：
        * 三个内核与外壳只渲染贡献点，不出现任何具体功能。
@@ -212,6 +221,28 @@ module.exports = {
       from: { path: '^features/conversation/src/ui/shared/', pathNot: TEST },
       to: { path: '^features/conversation/src/ui/(threads|composer|timeline|session|status|home|setup)/' },
     },
+    /*
+     * timeline 是全仓最大的区（~19k 行），内部按 model / view / feed / tools / minimap 五个子目录分工。
+     * 区一级的 conversation-area-via-index 管不到第二层：这里给两条方向，防止状态层被拽进渲染与滚动几何。
+     */
+    {
+      name: 'timeline-model-no-render',
+      severity: 'error',
+      comment:
+        'timeline/model 只放状态与投影（transcript-store / projector / queries），不得依赖渲染层（view、feed、minimap）：' +
+        '反向 import 会让游标与编号逻辑耦合到组件树和滚动几何。model → tools 是允许的（工具卡片的视图模型同样是纯数据）。',
+      from: { path: '^features/conversation/src/ui/timeline/model/', pathNot: TEST },
+      to: { path: '^features/conversation/src/ui/timeline/(view|feed|minimap)/' },
+    },
+    {
+      name: 'timeline-tools-is-leaf',
+      severity: 'error',
+      comment:
+        'timeline/tools 是工具卡片的视图模型构造（ompToolView / view-kit），只依赖 shared 词表；' +
+        'model 与 view 都可以用它，但它不得反向认识状态、渲染或滚动。',
+      from: { path: '^features/conversation/src/ui/timeline/tools/', pathNot: TEST },
+      to: { path: '^features/conversation/src/ui/timeline/(model|view|feed|minimap)/' },
+    },
     {
       name: 'feature-subentry-core',
       severity: 'error',
@@ -312,6 +343,13 @@ module.exports = {
      */
     doNotFollow: { path: '(^|/)(node_modules|\\.tsbuild|dist|out|release|coverage)/' },
     exclude: { path: '(^|/)(\\.tsbuild|out|release|coverage)/' },
+    /*
+     * 解析器是 swc：TypeScript 7 不在 dependency-cruiser 18 的兼容范围（每次启动会打一条
+     * `missing-tsc-transpiler` 警告）。规则用的仍是 swc 画出的依赖图 —— 实测 type-only 边照常在图里
+     * （例如 features/automations/src/core/agent-tools.ts 的 5 条 type-only 依赖），层级与子入口规则不受影响。
+     * tsc 专属能力（tsconfig 的 paths 等）在这个组合下不可用：本仓不用 paths，也不要引入 ——
+     * 引入后别名解析会静默漏边，规则照样全绿。
+     */
     parser: 'swc',
     tsPreCompilationDeps: true,
     preserveSymlinks: false,

@@ -63,6 +63,15 @@
 
 ## 偏差与裁决
 
+### 2026-11-01 架构审查第二轮（CI 准入与边界补洞）
+
+- **CI 落点**：新增 `.github/workflows/gate.yml`（windows-latest、bun 1.4.4），按 `bun run all` 的四步**串行**跑；react-doctor 在 PR 上 `blocking: error`、push 到 main 仍只收趋势。此前完整闸门只在人的终端与发布链（`tooling/release/release.ts` 的 `gate()`，可跳过）里跑，合并前没有任何强制。
+- **迁移政策仍未决**：审查指出「已发布 v0.5.10–v0.5.19 + electron-updater」与「项目未发布、改表直接改 init」相冲突。`SchemaDriftError` 会把升级挡在退出码 5（Host 进 failed，唯一恢复是删库）。本次不动数据路径，等追加式迁移或更新通道策略的裁决。
+- **timeline 第二层**：新增 `timeline-model-no-render`（model 不碰 view/feed/minimap）与 `timeline-tools-is-leaf`（tools 只依赖 shared 词表）两条规则，并进 config 自检。区一级规则管不到第二层，此前没有闸门。
+- **packages-no-apps**：平台包不得依赖 `apps/` 与 `tooling/`；此前无边也无规则。
+- **首屏按需加载**：review 的面板 / 整页、browser 的面板 / 工具卡、models 的设置页与角色组、extensions 的两个设置页改成 `lazy()`（注册仍同步）。兜底各有其主：右坞 / 主区 / 设置页由 workbench 提供，时间线工具卡与设置页内嵌组在本地各加一个边界。入口静态闭包 4.08MB → 3.82MB（−6.3%），入口分块 3.32MB → 2.49MB（−25%）；余量不大是因为共享依赖仍随首帧预载。这七个模块进 `DEFERRED_MODULES`，谁再静态带回入口构建即失败。
+- **depcruise 与 TypeScript 7**：规则依赖 swc 解析，TS 7 下 tsc 专属能力不可用（启动警告 `missing-tsc-transpiler`）；type-only 边实测仍在图里，层级与子入口规则有效。不要引入 `tsconfig` 的 `paths` —— 别名解析会静默漏边。
+
 ### 2026-11-01 架构审查执行（闸门与状态收口）
 
 - **Host 类型闸门**：`apps/desktop` 原先把 main / preload / renderer 放在一个 DOM 项目里，Host 可以用 `document` / `localStorage` 通过 typecheck。新增 `apps/desktop/tsconfig.main.json`（electron-main 预设、只收 `src/main`）并挂进 `typecheck`。它不设项目引用、直接跟随 import 检查 feature host 源码，因此把 `exactOptionalPropertyTypes` 放开：`packages/transcript` 自己的工程明确关掉了它，用严格的设置重查别人的源码会报出与其工程约定无关的错误。运行时纯度仍由 `lib: ES2023` / `types: ["node"]` 保证。

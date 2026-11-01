@@ -6,14 +6,24 @@ import {
 import { WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
 import { BannersToken, builtinPoints, defineUiFeature, LayoutToken } from '@poietica/ui-kernel'
 import { FileDiff, GitCompareArrows } from 'lucide-react'
+import { lazy } from 'react'
 import { createTurnChangesApi } from './api'
 import { ComposerBranchChip } from './composer-branch'
 import { coreSessionOf } from './core-session'
-import { BranchStatusItem, CodeReviewNavRow, CodeReviewSurface, ReviewPanel } from './surface'
+import { BranchStatusItem, CodeReviewNavRow } from './surface'
 import { createTurnChangesHolder, TurnChangesSource } from './turn-changes-source'
 import { WorkspaceGitSource } from './workspace-git-source'
 
 const PANEL_ID = 'review.panel'
+
+/*
+ * 面板与整页按需加载：diff 正文、PR 列表 / 详情 / 信息栏只在打开时求值，入口闭包只留 `surface.tsx` 里
+ * 状态栏分支名与侧栏导航行（两者随首帧渲染）。`lazy` 的 Suspense 兜底由 workbench 各落点提供。
+ */
+const ReviewPanel = lazy(() => import('./review-surface').then((module) => ({ default: module.ReviewPanel })))
+const CodeReviewSurface = lazy(() =>
+  import('./review-surface').then((module) => ({ default: module.CodeReviewSurface })),
+)
 
 /* 审查功能的 UI 装配。落点：sidebarSections（nav, order 25）「代码审查」；surfaces review.code；panels（right, order 10）
  * 「审查」—— 读活动工作区；statusItems（left, order 20）当前分支名；commands review.openChanges（Ctrl+Shift+G）/ review.commit。 */

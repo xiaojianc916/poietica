@@ -81,6 +81,17 @@ const DEFERRED_MODULES = [
   '/node_modules/shiki/',
   '/node_modules/@shikijs/',
   '/node_modules/pele/',
+  /*
+   * 插件级功能里「只在交互后出现」的界面（性能方案 P6）：右坞面板、设置页与工具卡片。
+   * 它们的注册仍是同步的，只在渲染时按需 import —— 谁把它们静态带回首屏，构建直接失败。
+   */
+  '/features/review/src/ui/review-surface.tsx',
+  '/features/browser/src/ui/panel.tsx',
+  '/features/browser/src/ui/tool-card.tsx',
+  '/features/models/src/ui/models-page.tsx',
+  '/features/models/src/ui/model-roles-group.tsx',
+  '/features/extensions/src/ui/mcp-settings.tsx',
+  '/features/extensions/src/ui/skills-settings.tsx',
 ]
 /** 有意留在首屏的样式表：streamdown 的样式随轻壳进主样式表、保住覆盖次序（见 prose-shell.tsx），不算带回 */
 const STATIC_STYLES = ['/node_modules/streamdown/styles.css']

@@ -42,7 +42,8 @@ L0  基础         foundation
 
 只能依赖**更低层**的包；同层之间禁止依赖（功能之间的有限例外见 §4.3）。L5 内部只有 `apps/*`
 可以依赖 `protocol` 与 `workbench`，这两个包互不依赖。`protocol` 汇总全部功能的 `contract`；
-**功能包绝不依赖 `protocol`**，因此不存在「功能 → 汇总 → 功能」的环。
+**功能包绝不依赖 `protocol`**，因此不存在「功能 → 汇总 → 功能」的环。反方向同样封死：`packages/*`
+不得依赖 `apps/*` 或 `tooling/*`（depcruise `packages-no-apps`）—— 装配与工具链只能在上层。
 
 三层强制（缺一层都能被绕过）：
 
@@ -132,7 +133,11 @@ UI 功能的注册项按功能持有：`setup` 中途失败时立即逆序释放
 **功能内部按区分目录。** 一个功能大到有多个区域时，每个区一个目录，区里自带状态与视图，区与区之间只能经
 `<区>/index` 互相引用；`shared/` 收跨区的模型、词表与基础件，且**不得反向依赖任何区**。conversation 是
 第一个这样组织的功能（`ui/{threads,composer,timeline,session,status,home,shared}`），两条规则由 depcruise
-的 `conversation-area-via-index` 与 `conversation-shared-is-leaf` 把关。`setup/` 是装配层（组合根
+的 `conversation-area-via-index` 与 `conversation-shared-is-leaf` 把关。timeline 是全仓最大的区（约 19k 行），
+内部再分 `model` / `view` / `feed` / `tools` / `minimap` 五个子目录：`model` 只放状态与投影、不得依赖渲染层，
+`tools` 是工具卡片的视图模型、只依赖 `shared` 词表（`model` 与 `view` 都可以用它）。这两条方向由
+`timeline-model-no-render` 与 `timeline-tools-is-leaf` 把关 —— 区一级规则管不到第二层，没有它们时
+状态层可以被拽进组件树与滚动几何。`setup/` 是装配层（组合根
 `ui/index.tsx` 逐段调它），没有 `index`，所以它只出不进：各区不得反向 import 它的段落；它与各区之间
 同样受 `conversation-area-via-index` 管辖。跨功能共享的界面仍然下沉到 design-system，不进区里。
 

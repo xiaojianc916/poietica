@@ -6,44 +6,18 @@ import {
   useNavigation,
   useService,
 } from '@poietica/ui-kernel'
-import { FileDiff, GitCompareArrows } from 'lucide-react'
+import { GitCompareArrows } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
-import { createReviewApi, createReviewGateway, openExternal } from './api'
-import { CodeReviewPage } from './pr-page'
-import { ReviewPane } from './review-pane'
-import type { ReviewFailureReport } from './review-store'
+import { createReviewApi } from './api'
 
-/* 审查功能在外壳里的落点：panels（right, order 10）「审查」；statusItems（left, order 20）当前分支名。两处都要「哪个工作区」这件事，
- * 而它属于 workspaces —— 所以 createReviewApi 把 workspaceId 固定在组合根这一层。 */
+/*
+ * 审查功能在外壳里的两格**轻**落点：statusItems（left, order 20）当前分支名与侧栏导航行。
+ * 面板与整页（diff 正文、PR 页签）在 `review-surface.tsx`，由 `index.tsx` 按需加载 ——
+ * 本模块是入口闭包的一部分，不要在这里 import 它们。
+ */
 
-function useActiveWorkspaceId(workspaces: WorkspacesUi): string | null {
+export function useActiveWorkspaceId(workspaces: WorkspacesUi): string | null {
   return useFeatureStore(workspaces.store, (held) => held.activeId)
-}
-
-export function ReviewPanel({
-  report,
-  workspaces,
-  ctx,
-}: {
-  readonly ctx: Parameters<typeof createReviewApi>[0]
-  readonly report: ReviewFailureReport
-  readonly workspaces: WorkspacesUi
-}): ReactNode {
-  const workspaceId = useActiveWorkspaceId(workspaces)
-  const gateway = useMemo(
-    () => (workspaceId === null ? null : createReviewGateway(createReviewApi(ctx, workspaceId))),
-    [ctx, workspaceId],
-  )
-  if (gateway === null) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-        <FileDiff aria-hidden className=" opacity-30" />
-        <p className="text-sm font-medium">还没有工作区</p>
-        <p className="text-xs opacity-50">先添加一个工作区，这里会展示它的 git 改动。</p>
-      </div>
-    )
-  }
-  return <ReviewPane gateway={gateway} key={workspaceId} report={report} />
 }
 
 /* 状态栏左端那一格：当前分支名。状态栏按产品决定删掉了（refactor-log 偏差 #7），这个贡献点因此暂时没有消费者；仍注册 ——
@@ -112,30 +86,5 @@ export function CodeReviewNavRow(): ReactNode {
       <GitCompareArrows aria-hidden="true" className="sidebar-nav-row__icon" />
       <span className="sidebar-nav-row__label">代码审查</span>
     </button>
-  )
-}
-
-/*
- * 侧栏导航「代码审查」那一行落到的整页：左列表 / 中详情 / 右信息栏，数据是活动工作区远端仓库上的
- * pull request（读法在 review/core 的 gh 封装里）。页面本身不知道「哪个工作区」，跟面板那一路一样由
- * 组合根这一层固定。
- */
-export function CodeReviewSurface({
-  ctx,
-  workspaces,
-}: {
-  readonly ctx: Parameters<typeof createReviewApi>[0]
-  readonly workspaces: WorkspacesUi
-}): ReactNode {
-  return (
-    <CodeReviewPage
-      ctx={ctx}
-      openExternal={(url) => {
-        void openExternal(ctx, url).catch((cause: unknown) => {
-          ctx.logger.warn('链接没能打开', { error: String(cause) })
-        })
-      }}
-      workspaces={workspaces}
-    />
   )
 }

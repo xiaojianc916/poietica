@@ -1,11 +1,16 @@
 import { composerToolkitSources, slashCommands } from '@poietica/feature-conversation/ui-api'
 import { BannersToken, builtinPoints, defineUiFeature, NavigationToken, SETTINGS_GROUPS } from '@poietica/ui-kernel'
 import { PackageOpen, Plug } from 'lucide-react'
+import { lazy } from 'react'
 import { createExtensionsApi } from './api'
 import { createComposerToolkitSource } from './composer-toolkit'
-import { McpSettingsPage } from './mcp-settings'
 import { SKILLS_SETTINGS_PAGE } from './skill-document-store'
-import { SkillsSettingsPage } from './skills-settings'
+
+/* 两个设置页只在设置里出现，按需加载：MCP 面板与技能名册 / 文档编辑器都不进首屏入口。 */
+const McpSettingsPage = lazy(() => import('./mcp-settings').then((module) => ({ default: module.McpSettingsPage })))
+const SkillsSettingsPage = lazy(() =>
+  import('./skills-settings').then((module) => ({ default: module.SkillsSettingsPage })),
+)
 
 export default defineUiFeature({
   id: 'extensions',

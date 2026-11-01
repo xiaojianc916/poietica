@@ -1,10 +1,18 @@
 import { builtinPoints, defineUiFeature, NavigationToken, SETTINGS_GROUPS } from '@poietica/ui-kernel'
 import { Cpu } from 'lucide-react'
+import { lazy } from 'react'
 import { createModelsApi } from './api'
-import { ModelRolesGroup } from './model-roles-group'
-import { ModelsPage } from './models-page'
 import './models-settings.css'
 import { ModelsBanner, useUnconfiguredVisible } from './unconfigured-banner'
+
+/*
+ * 设置页与「模型角色」那一组只在设置里出现，按需加载：目录表、认证面板与设置页本体（legacy 逐字迁移的
+ * models-settings）都不进首屏入口。入口页的未配置提示（entryNotices）随首帧渲染，保持静态。
+ */
+const ModelsPage = lazy(() => import('./models-page').then((module) => ({ default: module.ModelsPage })))
+const ModelRolesGroup = lazy(() =>
+  import('./model-roles-group').then((module) => ({ default: module.ModelRolesGroup })),
+)
 
 export default defineUiFeature({
   id: 'models',

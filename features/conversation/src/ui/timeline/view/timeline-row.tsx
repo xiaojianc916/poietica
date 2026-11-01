@@ -2,7 +2,7 @@ import './flow-row.css'
 
 import { Prose } from '@poietica/design-system/prose'
 import { FeatureScope, useContributions } from '@poietica/ui-kernel'
-import { memo } from 'react'
+import { memo, Suspense } from 'react'
 import { type ToolCallRendererProps, toolCallRenderers } from '../../../ui-api'
 import type { TimelineItem } from '../../shared/timeline/timeline-contract'
 import { type FeedRow, matchesToolName } from '../presentation'
@@ -58,15 +58,18 @@ function ToolCallRow({
 
     return (
       <FeatureScope featureId={contributed.featureId}>
-        <Card
-          args={item.rawInput}
-          argsStreaming={item.status === 'pending'}
-          callId={item.toolCallId}
-          result={item.rawOutput ?? null}
-          status={rendererStatusOf(item.status)}
-          threadId={threadId}
-          toolName={item.invokedTool}
-        />
+        {/* 贡献方可以按需加载（例如 browser 的工具卡）：本地兜底，别让整条时间线退成骨架屏。 */}
+        <Suspense fallback={null}>
+          <Card
+            args={item.rawInput}
+            argsStreaming={item.status === 'pending'}
+            callId={item.toolCallId}
+            result={item.rawOutput ?? null}
+            status={rendererStatusOf(item.status)}
+            threadId={threadId}
+            toolName={item.invokedTool}
+          />
+        </Suspense>
       </FeatureScope>
     )
   }

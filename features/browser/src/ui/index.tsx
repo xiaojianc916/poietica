@@ -10,16 +10,14 @@ import {
   useLayout,
 } from '@poietica/ui-kernel'
 import { Globe } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { lazy, type ReactNode, useEffect, useMemo, useState } from 'react'
 import type { BrowserState, PickedElement } from '../contract'
 import { createBrowserApi } from './api'
 import { createBrowserDockTabs } from './dock-tabs'
 import { revealDrivenBrowser } from './driven-open'
 import { coveredNow, watchCover } from './overlay-cover'
-import { BrowserPanel } from './panel'
 import { cancelPick, createPickDelivery } from './pick-delivery'
 import { createBrowserPanelStore } from './store'
-import { BrowserToolCard } from './tool-card'
 
 import './browser-panel.css'
 
@@ -27,6 +25,14 @@ import './browser-panel.css'
  * commands —— browser.toggle（Ctrl+Shift+B）、browser.newTab、browser.focusAddress（Ctrl+Shift+L）、browser.pickElement。 */
 
 const PANEL_ID = 'browser.panel'
+
+/*
+ * 面板与工具卡片按需加载：面板只在右坞打开时渲染，工具卡片只在浏览器工具出现时渲染。
+ * 两者都收在独立分块里，入口闭包只留装配（store / 命令 / 拾取投递）。
+ * 兜底各有其主：面板在 workbench 的右坞，工具卡片在 conversation 的时间线行。
+ */
+const BrowserPanel = lazy(() => import('./panel').then((module) => ({ default: module.BrowserPanel })))
+const BrowserToolCard = lazy(() => import('./tool-card').then((module) => ({ default: module.BrowserToolCard })))
 
 /** 视图占位（panel.tsx 的 Viewport）。浮层只有和这块地相交才需要视图让路（overlay-cover.ts）。 */
 function viewportElement(): Element | null {
@@ -122,7 +128,7 @@ export default defineUiFeature({
     /* 浏览器的每一步各成一行（见 tool-card.tsx），不再有「在面板中查看」那枚按钮。 */
     ctx.contribute(toolCallRenderers, {
       toolName: 'browser',
-      component: BrowserToolCard,
+      component: (props) => <BrowserToolCard {...props} />,
     })
 
     const visible = (): boolean => {

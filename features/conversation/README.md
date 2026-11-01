@@ -21,6 +21,20 @@ Agent 对话主干：线程、提交、时间线、运行控制与交互，统�
 | `ui`       | 入口页与线程页、输入框、时间线渲染、右坞辅助对话与子代理、命令与快捷键                                                                                    |
 | `ui-api`   | `ConversationUiToken` 与贡献点：工具卡、输入框处理器、草稿动作、线程动作、正文文件链接等                                                                  |
 
+## 时间线区（`ui/timeline`）
+
+全仓最大的区（约 19k 行），内部五个子目录各有事实，方向由 depcruise 把关：
+
+| 子目录     | 事实                                                 | 方向                                                             |
+| ---------- | ---------------------------------------------------- | ---------------------------------------------------------------- |
+| `model/`   | 时间线状态、投影、查询（transcript-store / queries） | 不依赖 `view` / `feed` / `minimap`（`timeline-model-no-render`） |
+| `view/`    | 行与桌面的 React 渲染                                | 可以用 `model` 的公开查询、`presentation` 与 `tools`             |
+| `feed/`    | 滚动、virtual lines、几何与阅读位置                  | 与 `view` 同一侧，不反向被 `model` 依赖                          |
+| `tools/`   | 工具卡片的视图模型（ompToolView / view-kit）         | 叶子：只依赖 `shared` 词表（`timeline-tools-is-leaf`）           |
+| `minimap/` | 轨道几何与绘制                                       | 同 `view`，不反向被 `model` 依赖                                 |
+
+`model` 与 `view` 都可以用 `tools`；`tools` 不认识状态与滚动，所以同一份工具视图模型能从增量投影与历史重读两条路复用。
+
 ## 对外接口
 
 `ConversationServiceToken` 供 Core 内其它功能建线程、提交一句、取消与读取线程；`TurnContextRegistryToken` 让提供方在每次交接时同步交出下一句的上下文，送达后回调 `delivered`，排队项被丢弃或撤回时回调 `undelivered`。`ConversationUiToken` 提供 `activeThreadId`、`activeComposer`、`composerOf`、`openThread`、`sendText` 等跨功能入口。
