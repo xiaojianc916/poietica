@@ -9,7 +9,7 @@ import {
   REPORT_INSTRUCTION,
   RUN_TIMEOUT_MESSAGE,
 } from '../runner'
-import { MISSED_MESSAGE } from '../scheduler'
+import { LATE_MESSAGE, MISSED_MESSAGE } from '../scheduler'
 import { buildCore, fullDraft } from './helpers'
 
 /* R-14：S1 投给 agent 的那段话；S2–S4 续用对话；S5–S6 两条超时与等批准通知；S7 通知策略；S8 汇报；S9 一次性任务；
@@ -205,6 +205,45 @@ describe('R-14 运行与调度', () => {
     expect(repo.get(once.id)).toMatchObject({ enabled: false, nextRunAt: null })
     await scheduler.tick()
     expect(conversation.created).toHaveLength(0)
+    db.close()
+  })
+
+  /*
+   * S13：进程活着、计划时间却没在跑（睡眠 / 休眠）。以前 tick 醒来只看 next_run_at <= now 就照跑，
+   * 不补跑的任务也在几小时后被执行，触发方式还记成 schedule —— 与「应用没开着」的处理不一致。
+   */
+  test('S13 睡眠错过、不补跑：醒来记一条「错过」并推到未来，不启动运行', async () => {
+    const { service, scheduler, repo, clock, conversation, db } = buildCore()
+    const daily = service.create(
+      fullDraft({ schedule: { cron: '0 9 * * *', at: null, timeZone: 'UTC' }, catchUp: false }),
+    )
+    clock.advance(daily.nextRunAt! - clock.now() + 5 * 60 * MINUTE) // 09:00 前合盖，14:00 打开
+    await scheduler.tick()
+    expect(repo.runs(daily.id, 10)[0]).toMatchObject({ outcome: 'skipped', message: LATE_MESSAGE })
+    expect(repo.get(daily.id)!.nextRunAt).toBeGreaterThan(clock.now())
+    expect(conversation.created).toHaveLength(0)
+    db.close()
+  })
+
+  test('S13 睡眠错过、要补跑：醒来以 catch_up 跑一次，记着原定时间', async () => {
+    const { service, scheduler, repo, clock, conversation, db } = buildCore()
+    const daily = service.create(fullDraft({ schedule: { cron: '0 9 * * *', at: null, timeZone: 'UTC' } }))
+    const missedAt = daily.nextRunAt!
+    clock.advance(missedAt - clock.now() + 5 * 60 * MINUTE)
+    await scheduler.tick()
+    expect(repo.runs(daily.id, 10)[0]).toMatchObject({ trigger: 'catch_up', scheduledFor: missedAt })
+    expect(conversation.created).toHaveLength(1)
+    db.close()
+  })
+
+  test('S13 准点范围内的迟到（一个 tick 以内）仍算 schedule', async () => {
+    const { service, scheduler, repo, clock, db } = buildCore()
+    const daily = service.create(
+      fullDraft({ schedule: { cron: '0 9 * * *', at: null, timeZone: 'UTC' }, catchUp: false }),
+    )
+    clock.advance(daily.nextRunAt! - clock.now() + 30_000)
+    await scheduler.tick()
+    expect(repo.runs(daily.id, 10)[0]).toMatchObject({ trigger: 'schedule' })
     db.close()
   })
 

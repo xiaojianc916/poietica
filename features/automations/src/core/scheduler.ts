@@ -8,6 +8,14 @@ export const TICK_MS = 30_000
 
 export const OVERLAP_MESSAGE = '上一次运行还没结束，跳过这一次'
 export const MISSED_MESSAGE = '错过：计划时间应用没有运行'
+export const LATE_MESSAGE = '错过：计划时间电脑在睡眠或应用被挂起'
+
+/**
+ * 到期多久之内仍算「准点」。正常情况下迟到不超过一个 TICK_MS（加上事件循环的抖动）；
+ * 迟到得远超于此，说明计划时间那一刻进程虽然活着却没在跑 —— 睡眠 / 休眠、调试器暂停、事件循环被长时间占住。
+ * 这和「应用没开着」是同一件事，必须同样按 catchUp 处理，而不是当成准点照跑。
+ */
+export const LATE_GRACE_MS = 5 * 60_000
 
 export interface Scheduler {
   repairOnStartup(): void
@@ -50,6 +58,26 @@ export function createScheduler(d: {
     advance(a)
   }
 
+  const launch = async (a: Automation): Promise<void> => {
+    const late = a.nextRunAt !== null && clock.now() - a.nextRunAt > LATE_GRACE_MS
+    const trigger: RunTrigger = catchUps.delete(a.id) || late ? 'catch_up' : 'schedule'
+    if (a.schedule.cron === null && a.schedule.at === null) return
+    if (late && !a.catchUp) {
+      runner.skip(a, 'schedule', a.nextRunAt, LATE_MESSAGE)
+      finish(a)
+      return
+    }
+    if (runner.isRunning(a.id)) {
+      runner.skip(a, trigger, a.nextRunAt, OVERLAP_MESSAGE)
+      finish(a)
+      return
+    }
+    /* 逐个启动是表格一致性前提（见 tick 注释），不是可并行的独立工作。 */
+    // react-doctor-disable-next-line react-doctor/async-await-in-loop
+    await runner.start(a, trigger, a.nextRunAt)
+    finish(a)
+  }
+
   return {
     repairOnStartup() {
       const now = clock.now()
@@ -76,18 +104,9 @@ export function createScheduler(d: {
        * 「上一次运行还没结束」的判定与 next_run_at 推进互相穿插。
        */
       for (const a of repo.due(clock.now())) {
-        const trigger: RunTrigger = catchUps.delete(a.id) ? 'catch_up' : 'schedule'
         try {
-          if (a.schedule.cron === null && a.schedule.at === null) continue
-          if (runner.isRunning(a.id)) {
-            runner.skip(a, trigger, a.nextRunAt, OVERLAP_MESSAGE)
-            finish(a)
-            continue
-          }
-          /* 逐个启动是表格一致性前提（见 tick 注释），不是可并行的独立工作。 */
           // react-doctor-disable-next-line react-doctor/async-await-in-loop
-          await runner.start(a, trigger, a.nextRunAt)
-          finish(a)
+          await launch(a)
         } catch (e) {
           logger.error('automation tick failed', { automationId: a.id, error: String(e) })
         }
