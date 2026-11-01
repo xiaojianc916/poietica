@@ -49,6 +49,45 @@ describe('createJsonDocument', () => {
     expect(await doc.load()).toEqual({ a: 5, b: 'x' })
   })
 
+  /*
+   * 以前 save() 的 Promise 就是那条吞掉失败的链：写盘失败也 resolve，prefs-service「写盘失败时不广播、错误返回 UI」
+   * 那条顺序因此从来没生效过 —— 界面显示已保存，重启后设置回到旧值。
+   */
+  test('save 写盘失败 → reject，current() 退回上一份；链不被这次失败卡住', async () => {
+    const blocker = path.join(dir, 'blocker')
+    const doc = createJsonDocument({
+      file: path.join(blocker, 'doc.json'),
+      schema,
+      defaults: () => ({ a: 0, b: 'default' }),
+      logger: noopLogger,
+    })
+    await doc.load()
+    /* 目录的位置被一个普通文件占住：mkdir / open 必然失败 */
+    await writeFile(blocker, 'not a directory')
+    await expect(doc.save({ a: 1, b: 'one' })).rejects.toBeDefined()
+    expect(doc.current()).toEqual({ a: 0, b: 'default' })
+
+    await rm(blocker)
+    await doc.save({ a: 2, b: 'two' })
+    expect(JSON.parse(await readFile(path.join(blocker, 'doc.json'), 'utf8'))).toEqual({ a: 2, b: 'two' })
+    expect(doc.current()).toEqual({ a: 2, b: 'two' })
+  })
+
+  test('flush 在写盘失败时不 reject（退出路径上逐个 flush）', async () => {
+    const blocker = path.join(dir, 'blocker')
+    const doc = createJsonDocument({
+      file: path.join(blocker, 'doc.json'),
+      schema,
+      defaults: () => ({ a: 0, b: 'default' }),
+      logger: noopLogger,
+      debounceMs: 10_000,
+    })
+    await doc.load()
+    await writeFile(blocker, 'not a directory')
+    doc.saveDebounced({ a: 3, b: 'three' })
+    await expect(doc.flush()).resolves.toBeUndefined()
+  })
+
   test('saveDebounced 连续 3 次只落盘最后一次', async () => {
     const doc = makeDocument({ debounceMs: 20 })
     await doc.load()

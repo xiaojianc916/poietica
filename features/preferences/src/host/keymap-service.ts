@@ -12,7 +12,7 @@ export interface KeymapService {
   flush(): Promise<void>
 }
 
-/** 独立于 preferences.json 的 keymap.json；每次变化立即落盘。 */
+/** 独立于 preferences.json 的 keymap.json；每次变化立即落盘。set / reset 是同步接口，写盘失败只记日志（由 JsonDocument 记）。 */
 export function createKeymapService(d: { file: string; logger: Logger }): KeymapService {
   const doc: JsonDocument<KeyOverridesValue> = createJsonDocument({
     file: d.file,
@@ -26,11 +26,11 @@ export function createKeymapService(d: { file: string; logger: Logger }): Keymap
     },
     current: () => doc.current(),
     set(commandId, key) {
-      void doc.save({ ...doc.current(), [commandId]: key })
+      void doc.save({ ...doc.current(), [commandId]: key }).catch(() => undefined)
       return doc.current()
     },
     reset() {
-      void doc.save({})
+      void doc.save({}).catch(() => undefined)
       return doc.current()
     },
     async flush() {

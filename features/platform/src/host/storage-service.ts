@@ -219,7 +219,8 @@ export function createStorageService(d: StorageDeps): StorageService {
       })),
       measuredAt: now(),
     }
-    await usageDoc.save(usage)
+    /* 缓存文件写不进去不影响这一次的结果：下次打开设置页重扫即可（失败由 JsonDocument 记日志） */
+    await usageDoc.save(usage).catch(() => undefined)
     return usage
   }
 

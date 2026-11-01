@@ -91,6 +91,20 @@ describe('prefs-service', () => {
     await t.dir.dispose()
   })
 
+  test('写盘失败：update reject，不广播、不执行副作用，get() 仍是旧值', async () => {
+    const dir = await tempDir('prefs-fail-')
+    const blocker = path.join(dir.path, 'blocker')
+    const t = await makePrefs({ file: path.join(blocker, 'preferences.json') })
+    /* 目录的位置被一个普通文件占住：写盘必然失败 */
+    writeFileSync(blocker, 'not a directory')
+    await expect(t.service.update({ general: { notifyOnCompletion: false } })).rejects.toBeDefined()
+    expect(t.changed).toHaveLength(0)
+    expect(t.applied).toHaveLength(0)
+    expect(t.service.get().general.notifyOnCompletion).toBe(true)
+    await t.dir.dispose()
+    await dir.dispose()
+  })
+
   test('坏文件被改名并用默认值（记 warn）', async () => {
     const dir = await tempDir('prefs-bad-')
     const file = path.join(dir.path, 'preferences.json')
