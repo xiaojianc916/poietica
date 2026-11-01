@@ -118,6 +118,18 @@ describe('show_image（审查 R-13）', () => {
     expect(await errorOf(tool.execute({ path: '/tmp/none.png' }, ctx))).toBe(missing)
     expect(retained).toEqual([])
   })
+
+  test('I7 相对路径不许爬出工作目录；绝对路径照收（工具要能展示 agent 写在别处的图）', async () => {
+    const { tool, imported, retained } = rig()
+    const escaped = await errorOf(tool.execute({ path: '../outside.png' }, ctx))
+    expect(escaped?.code).toBe('kernel.invalid_params')
+    expect(escaped?.message).toContain('越出')
+    expect(imported).toEqual([])
+    expect(retained).toEqual([])
+
+    await tool.execute({ path: '/tmp/a.png' }, ctx)
+    expect(imported).toEqual([[path.resolve(CWD, '/tmp/a.png')]])
+  })
 })
 
 describe('show_image 经真内核（审查 R-13）', () => {

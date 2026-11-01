@@ -2,6 +2,7 @@ import path from 'node:path'
 import type { AgentToolRegistry } from '@poietica/core-kernel'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import { AppError, SystemErrorCode } from '@poietica/foundation'
+import { isInside } from '@poietica/fs-kit'
 import { z } from 'zod'
 import { OWNER_KEY } from './thread-service'
 
@@ -30,6 +31,20 @@ function altOf(caption: string | undefined, fallback: string): string {
   return cleaned === '' ? fallback.replace(/[[\]\r\n]+/g, ' ').trim() : cleaned
 }
 
+/*
+ * 相对路径按工作目录解析，且不许用 `..` 爬出去 —— 「相对本工作目录」这句话的边界就在这儿
+ * （与 files 的 resolveLexical 同一条规矩）。绝对路径照收：agent 常把图写在别处，而它本来就有
+ * 文件读权限；这一格只决定「展示哪张」，不决定「读不得到」。真正进渲染面的是附件库那一棵树。
+ */
+function resolveShowPath(cwd: string, input: string): string {
+  const given = input.trim()
+  const absolute = path.resolve(cwd, given)
+  if (!path.isAbsolute(given) && !isInside(cwd, absolute, { orEqual: true })) {
+    throw new AppError(SystemErrorCode.invalidParams, `相对路径越出了工作目录：${input}`, { path: input })
+  }
+  return absolute
+}
+
 export function registerImageTool(d: {
   readonly tools: AgentToolRegistry
   readonly attachments: AttachmentsService
@@ -49,7 +64,7 @@ export function registerImageTool(d: {
     parameters: showImageParams,
     approval: 'read',
     async execute(params: z.output<typeof showImageParams>, ctx) {
-      const file = path.resolve(ctx.cwd, params.path)
+      const file = resolveShowPath(ctx.cwd, params.path)
       const extension = path.extname(file).toLowerCase()
       if (!SHOWABLE_EXTENSIONS.has(extension)) {
         throw new AppError(

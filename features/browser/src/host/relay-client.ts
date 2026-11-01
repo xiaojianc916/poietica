@@ -403,10 +403,18 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
       }, PING_INTERVAL_MS)
     })
 
+    /*
+     * 这是本机回环 WebSocket（127.0.0.1 + 每次启动的口令），不是窗口间消息 —— 没有 origin 可校验，
+     * 边界在连接地址和口令上（relayTargetOf）。能补的是来源判断：换过连接之后，旧 socket 里还排着的
+     * 消息不许再进 RPC，否则重连那一刻会按上一份标签账执行命令。
+     */
+    // react-doctor-disable-next-line react-doctor/postmessage-origin-risk
     next.addEventListener('message', (event) => {
-      if (typeof event.data === 'string') {
-        handle(event.data)
+      if (next !== socket || typeof event.data !== 'string') {
+        return
       }
+
+      handle(event.data)
     })
 
     next.addEventListener('close', () => {

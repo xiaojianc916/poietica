@@ -113,6 +113,13 @@ export default defineCoreModule({
 
     ctx.rpc.handle('python.status', () => status)
 
+    /*
+     * 信任边界在 pin-python.ts 生成的那一条上：下载地址与 tag 钉死，边下边算 sha256、与
+     * PYTHON_ASSET_SHA256 不符就删档换镜像；解压只进暂存目录，装完先真跑一遍 python.exe 核对版本，
+     * 通过才 rename 到目标目录。react-doctor 的 plugin-update-trust-risk 只看方法名里的「install」，
+     * 这里按误报就地压掉：规则要的「钉来源、验哈希」都在链上（上游不发签名，只有 sha256 可钉）。
+     */
+    // react-doctor-disable-next-line react-doctor/plugin-update-trust-risk
     ctx.rpc.handle('python.install', async () => {
       if (status.state === 'downloading' || status.state === 'installing') {
         return status
@@ -122,6 +129,8 @@ export default defineCoreModule({
       }
 
       try {
+        /* 同上：这一处命中的是 installer.install() 这个名字，链路本身钉死了来源与哈希。 */
+        // react-doctor-disable-next-line react-doctor/plugin-update-trust-risk
         await installer.install()
         const exe = path.join(pythonDir, 'python.exe')
         setStatus(statusOf('ready', null, null, exe))
