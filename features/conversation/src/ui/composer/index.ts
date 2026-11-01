@@ -8,10 +8,12 @@ export {
   createComposerStore,
   type Draft,
   type EntrySelection,
+  isDraft,
   NEW_THREAD_KEY,
 } from './composer-store'
+export { projectDocument, textDocument } from './draft-document'
 export { createDraftPin, type DraftPinView } from './draft-pin'
-export { ComposerDraftKeyContext } from './drafts-context'
+export { ComposerDraftKeyContext, ComposerStoreContext, draftThreadIdOf, useComposerStore } from './drafts-context'
 export { createLiveComposers } from './live-composers'
 export type { PromptInputMessage } from './prompt'
 export { createSideStore } from './side-store'

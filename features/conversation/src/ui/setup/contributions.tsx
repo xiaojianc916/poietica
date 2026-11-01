@@ -340,7 +340,7 @@ export function createConversationContributions(setup: ConversationSetup, action
     component: function ConversationHomeSurface() {
       useMountPrefetch(prefetchProse)
       return (
-        <ConversationProviders transcripts={transcripts}>
+        <ConversationProviders composer={stores.composer} transcripts={transcripts}>
           <HomeSurface
             api={api}
             entryDefaults={entryDefaults}
@@ -413,6 +413,7 @@ export function createConversationContributions(setup: ConversationSetup, action
       return (
         <ConversationProviders
           agentControls={api}
+          composer={stores.composer}
           fileScope={{ threadId, workspaceId: thread?.workspaceId ?? null }}
           liveComposers={liveComposers}
           onOpenDelegateChannel={openDelegateChannel}
@@ -423,7 +424,6 @@ export function createConversationContributions(setup: ConversationSetup, action
             commands={commands}
             controls={shownControls}
             controlsFailure={controlsFailure}
-            drafts={stores.composer}
             endpoint={threadId}
             goal={goal}
             isNew={false}

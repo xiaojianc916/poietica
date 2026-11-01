@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react'
+import type { DraftAttachment } from '../../ui-api'
 
 /*
  * 输入框草稿里那批资产的形状，以及「谁来把它们弄进来」的接口。
@@ -28,6 +29,19 @@ export interface ComposerAsset {
   /** image 进内存注册表走预览；file 是暂存在原生侧的通用文件，发 file part。 */
   readonly kind: 'image' | 'file'
   readonly context?: ComposerAssetContext
+}
+
+/** 从持久化草稿 / composerOf 进来的附件：身份走 attachments 契约的 id，没有会话内 token。 */
+export function composerAssetOf(item: DraftAttachment): ComposerAsset {
+  return {
+    sessionToken: '',
+    assetToken: item.id,
+    url: item.previewUrl ?? '',
+    filename: item.name,
+    mediaType: item.kind === 'image' ? 'image/*' : 'application/octet-stream',
+    size: 0,
+    kind: item.kind,
+  }
 }
 
 /**

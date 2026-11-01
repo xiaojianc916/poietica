@@ -71,7 +71,7 @@
 - **协议版本**：`contractSnapshot` 现在必须带 `PROTOCOL_VERSION`，版本号写进快照；快照测试断言文件里的版本等于常量。`protocol:snapshot` 在写盘前比较 methods / notifications / errors：同一版本号下形状变了就拒绝，必须先去 `version.ts` 提升版本。
 - **压缩载荷词表**：`packages/transcript` 新增 `compactionMarkerPayloadSchema` / `compactionMarkerPayload()`；引擎写、UI 读同一份。删掉没有生产者的 `blocked` 状态与 `trigger` / `instruction` 字段——它们只存在于消费侧的猜测里。
 - **删除未接线的会话控件栈**：`SessionControlsStore`（452 行）、`SessionControlsContext`、`ArrivalOrder`、`ThreadPort` / `AgentThread` / `AgentHistory` 全部没有生产数据源；生产实际使用的是 `stores.controls`。`TranscriptSink.ownerOf` 的唯一读者也随之删除。`TurnMark` 移到 `shared/model/turn-mark.ts`。
-- **草稿收口（未完成项）**：编辑器每次变更已写回 `stores.composer`；盘上草稿晚到时，只要人还没动手就装回编辑器；入口页输入框也登记进在屏表，`activeComposer` 插字会真的进编辑器。**完整「Lexical 文档即唯一草稿」**仍需把 `conversation.drafts` 的持久化形状改成 `SerializedEditorState + assets + configuration`，并撤掉离屏 `ComposerDrafts`；这会改用户数据形状，留待单独裁决，不在本次顺手做。
+- **草稿迁移（已完成）**：`Draft` 现在只存 Lexical 的 `SerializedEditorState` + `assets` + `configuration` + 入口页 `selection`；`prompt-input` 直接读 `ComposerStoreContext`，每次编辑器更新与附件/配置变化都写回文档，盘上文档晚到时只要人还没动手就装回。离屏 `ComposerDrafts` 映射已删除；旧扁平形状由 `isDraft` 判掉、按「盘上没有」处置（项目未发布，不写数据搬运器）。
 - **计时测试收口**：`ThreadDisclosure` 新增可注入的收起调度口（默认仍是 `EXIT_SECONDS`），测试改用手动调度，不再在全量并发下等真实 timer。旧记录里「收起动画用例稳定超时」的那一条不再作为待决。
 
 ### 审查面板的统计只有一份来源（2026-11-01）

@@ -153,7 +153,7 @@ describe('R-04 Core 换代后的装配行为', () => {
     const picked = { provider: 'workbuddy', id: 'deepseek-v4.1-flash' }
     const bridge = testBridge({
       'conversation.drafts': {
-        __new__: { text: '', attachments: [], skills: [], selection: { model: picked, thinking: 'max' } },
+        __new__: { assets: [], configuration: [], selection: { model: picked, thinking: 'max' } },
       },
     })
     const kernel = createUiKernel({

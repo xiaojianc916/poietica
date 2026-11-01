@@ -44,6 +44,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react'
 import {
   type ComposerInputHandler,
@@ -54,13 +55,19 @@ import {
 } from '../../../ui-api'
 import { type ComposerCommand, slashStateOf } from '../../shared/model/commands'
 import type { ChatStatus } from '../../shared/model/run'
-import type { PromptConfiguration, PromptSkill } from '../../shared/model/session'
+import type { PromptConfiguration } from '../../shared/model/session'
 import { ResumeIcon, StopIcon, SubmitIcon } from '../../shared/primitives/icons'
 import { $createChipNode, ChipNode, type PromptChipValue, samePromptChip } from '../../shared/primitives/prompt-chip'
-import { type AttachmentIntake, type ComposerAsset, isInlineAttachment, useAttachmentIntake } from '../attachment'
-import { NEW_THREAD_KEY } from '../composer-store'
-import type { ComposerDraft, ComposerDrafts } from '../drafts'
-import { ENTRY_DRAFT_KEY, useComposerDraftKey, useComposerDrafts } from '../drafts-context'
+import {
+  type AttachmentIntake,
+  type ComposerAsset,
+  composerAssetOf,
+  isInlineAttachment,
+  useAttachmentIntake,
+} from '../attachment'
+import { type ComposerStore, type Draft, NEW_THREAD_KEY } from '../composer-store'
+import { type DraftProjection, type InlineChip, readDraftProjection } from '../draft-document'
+import { draftThreadIdOf, ENTRY_DRAFT_KEY, useComposerDraftKey, useComposerStore } from '../drafts-context'
 import { LiveComposersContext } from '../live-composers'
 import {
   canSubmitDraft,
@@ -100,19 +107,6 @@ const DraftContext = createContext<PromptInputDraft | null>(null)
 const ContributedDraftContext = createContext<ContributedComposerDraft | null>(null)
 /* 发送这一刻被挡住（还没选项目）。发送键不是 form 的孩子，读不到 shell 的闭包，所以经 context 传一格布尔。 */
 const SubmitBlockedContext = createContext(false)
-
-/** sessionToken 空着：附件身份走 attachments 契约的 id。 */
-function composerAssetOf(item: DraftAttachment): ComposerAsset {
-  return {
-    sessionToken: '',
-    assetToken: item.id,
-    url: item.previewUrl ?? '',
-    filename: item.name,
-    mediaType: item.kind === 'image' ? 'image/*' : 'application/octet-stream',
-    size: 0,
-    kind: item.kind,
-  }
-}
 
 /* 输入框是带 listbox 弹层的 combobox（WAI-ARIA APG）：焦点留在编辑器上，活动项靠 aria-activedescendant 指过去。 */
 export interface PaletteAria {
@@ -185,32 +179,6 @@ export interface PromptInputHandle {
   readonly restore: (text: string, attachments: readonly DraftAttachment[]) => void
 }
 
-type InlineChip = Extract<PromptChipValue, { kind: 'element' | 'file' }>
-
-interface DraftProjection {
-  readonly text: string
-  readonly skills: readonly PromptSkill[]
-  readonly inline: readonly InlineChip[]
-}
-
-/* 纯读：进 editorState.read，不许有副作用。 */
-function readDraft(): DraftProjection {
-  const skills = new Map<string, PromptSkill>()
-  const inline: InlineChip[] = []
-  for (const node of $nodesOfType(ChipNode)) {
-    const value = node.value()
-    if (value.kind === 'skill') {
-      skills.set(value.name, {
-        name: value.name,
-        ...(value.args === undefined ? {} : { args: value.args }),
-      })
-    } else if (value.kind === 'element' || value.kind === 'file') {
-      inline.push(value)
-    }
-  }
-  return { text: $getRoot().getTextContent(), skills: [...skills.values()], inline }
-}
-
 function inlineTokens(projection: DraftProjection): ReadonlySet<string> {
   return new Set(projection.inline.map((chip) => chip.assetToken))
 }
@@ -265,19 +233,12 @@ function replaceDraft(editor: LexicalEditor, text: string): void {
   })
 }
 
-function snapshotOf(
-  editor: LexicalEditor,
-  assets: readonly ComposerAsset[],
-  configuration: readonly PendingPromptConfiguration[],
-): ComposerDraft | undefined {
-  const state = editor.getEditorState()
-  const written = state.read(() => $getRoot().getTextContent().trim().length > 0 || $nodesOfType(ChipNode).length > 0)
+function stateHasContent(state: EditorState): boolean {
+  return state.read(() => $getRoot().getTextContent().trim().length > 0 || $nodesOfType(ChipNode).length > 0)
+}
 
-  if (!written && assets.length === 0 && configuration.length === 0) {
-    return undefined
-  }
-
-  return { assets, configuration, editorState: state.toJSON() }
+function hasEditorContent(editor: LexicalEditor): boolean {
+  return stateHasContent(editor.getEditorState())
 }
 
 /** 一条消息里最多带几张图片：这一批加上草稿里已有的会超，就整批拒绝，不先收下再丢。 */
@@ -346,20 +307,22 @@ export interface PromptInputProps {
 }
 
 interface PromptInputShellProps extends PromptInputProps {
-  readonly restored: ComposerDraft | undefined
+  readonly composer: ComposerStore | null
   readonly draftKey: string
+  readonly initialDraft: Draft | undefined
+  readonly threadId: string | null
 }
 
 export function PromptInput(props: PromptInputProps) {
-  const drafts = useComposerDrafts()
+  const composer = useComposerStore()
   const draftKey = useComposerDraftKey()
-
-  /* 取回即交出所有权：此后草稿又归编辑器。 */
-  const [restored] = useState(() => drafts.take(draftKey))
+  const threadId = draftThreadIdOf(draftKey)
+  /* 挂载那一刻的文档直接进 Lexical；晚到的盘上草稿由 usePromptDraftSync 再装。 */
+  const [initialDraft] = useState(() => composer?.draft(threadId))
 
   const initialConfig = useMemo(
     () => ({
-      ...(restored === undefined ? {} : { editorState: JSON.stringify(restored.editorState) }),
+      ...(initialDraft?.document === undefined ? {} : { editorState: JSON.stringify(initialDraft.document) }),
       namespace: 'assistant-composer',
       nodes: [ChipNode],
       onError: (error: Error) => {
@@ -367,14 +330,20 @@ export function PromptInput(props: PromptInputProps) {
       },
       theme: {},
     }),
-    [restored],
+    [initialDraft],
   )
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
       {/* 挂在组合根而不是编辑器那一面：撤销栈属于「这个输入框」，谁用 PromptInput 都该有，与调用方传了哪些子件无关。 */}
       <HistoryPlugin />
-      <PromptInputShell {...props} draftKey={draftKey} restored={restored} />
+      <PromptInputShell
+        {...props}
+        composer={composer}
+        draftKey={draftKey}
+        initialDraft={initialDraft}
+        threadId={threadId}
+      />
     </LexicalComposer>
   )
 }
@@ -383,9 +352,11 @@ function PromptInputShell({
   attachments: acceptsAttachments = true,
   children,
   className,
+  composer,
   configuration: carriedConfiguration = [],
   draftKey,
   groups,
+  initialDraft,
   initialText,
   maxFiles,
   multiple = false,
@@ -393,20 +364,19 @@ function PromptInputShell({
   onEngage,
   onSubmit,
   ref,
-  restored,
   slashCommands,
   submitDisabled = false,
+  threadId,
   onSubmitBlocked,
 }: PromptInputShellProps) {
   const [editor] = useLexicalComposerContext()
   const intake = useAttachmentIntake()
-  const drafts = useComposerDrafts()
   const kernel = useKernel()
   /* 初值直接读编辑器此刻的状态：装回草稿不触发更新监听器，取空会让它在首次编辑之前发不出去。 */
-  const [draftText, setDraftText] = useState<DraftProjection>(() => editor.getEditorState().read(readDraft))
-  const [attachments, setAttachments] = useState<readonly ComposerAsset[]>(restored?.assets ?? NO_ATTACHMENTS)
+  const [draftText, setDraftText] = useState<DraftProjection>(() => editor.getEditorState().read(readDraftProjection))
+  const [attachments, setAttachments] = useState<readonly ComposerAsset[]>(initialDraft?.assets ?? NO_ATTACHMENTS)
   const [pendingConfiguration, setPendingConfiguration] = useState<readonly PendingPromptConfiguration[]>(
-    restored?.configuration ?? [],
+    initialDraft?.configuration ?? [],
   )
   const [paletteOpened, setPaletteOpened] = useState(false)
   const [highlighted, setHighlighted] = useState(0)
@@ -471,15 +441,21 @@ function PromptInputShell({
     setHighlighted(0)
   }, [])
 
+  const draftReady = useDraftReady(composer)
+
   usePromptDraftSync({
-    drafts,
-    draftKey,
+    attachments,
+    commitAttachments,
+    composer,
+    configuration: pendingConfiguration,
+    draftReady,
     editor,
     handoff,
+    initialDraft,
     initialText,
     report,
-    restored,
     setDraftText,
+    threadId,
   })
 
   useEnterSubmit({ blocked, blockedNotice, editor, queued, requestFormSubmit, submit })
@@ -530,7 +506,7 @@ function PromptInputShell({
     commitAttachments,
     commitConfiguration,
     discardDraft: () => {
-      drafts.keep(draftKey, undefined)
+      composer?.setDocument(threadId, undefined, [], [])
     },
     editor,
     handoff,
@@ -792,72 +768,112 @@ function PromptInputFrame({
   )
 }
 
-/* 编辑器 → 草稿状态的同步、首帧装回与卸载时转移所有权。 */
+/* 草稿恢复是否已经结束；没有 store（单测、单独渲染）时永远算未恢复。 */
+function useDraftReady(composer: ComposerStore | null): boolean {
+  const subscribe = useCallback(
+    (listener: () => void) => composer?.store.subscribe(listener) ?? (() => undefined),
+    [composer],
+  )
+  const read = useCallback(() => composer?.store.getState().entryReady ?? false, [composer])
+
+  return useSyncExternalStore(subscribe, read, read)
+}
+
+/* 编辑器 → 草稿 store 的单向同步，以及盘上文档晚到时装回。 */
 function usePromptDraftSync({
-  drafts,
-  draftKey,
+  attachments,
+  commitAttachments,
+  composer,
+  configuration,
+  draftReady,
   editor,
   handoff,
+  initialDraft,
   initialText,
   report,
-  restored,
   setDraftText,
+  threadId,
 }: {
-  readonly drafts: ComposerDrafts
-  readonly draftKey: string
+  readonly attachments: readonly ComposerAsset[]
+  readonly commitAttachments: (
+    next: readonly ComposerAsset[],
+    configuration?: readonly PendingPromptConfiguration[],
+  ) => void
+  readonly composer: ComposerStore | null
+  readonly configuration: readonly PendingPromptConfiguration[]
+  readonly draftReady: boolean
   readonly editor: LexicalEditor
   readonly handoff: RefObject<PromptHandoff>
+  readonly initialDraft: Draft | undefined
   readonly initialText: string | undefined
   readonly report: RefObject<((text: string) => void) | undefined>
-  readonly restored: ComposerDraft | undefined
   readonly setDraftText: (projection: DraftProjection) => void
+  readonly threadId: string | null
 }): void {
-  const seeded = useRef(false)
+  /* 挂载时已经有文档：不再等盘上那一份。 */
+  const seeded = useRef(
+    initialDraft?.document !== undefined ||
+      (initialDraft?.assets.length ?? 0) > 0 ||
+      (initialDraft?.configuration.length ?? 0) > 0,
+  )
   /* 人已经在编辑器里写过：后到的盘上草稿不能再盖掉它。 */
   const edited = useRef(false)
 
   useEffect(
     () =>
       editor.registerUpdateListener(({ editorState }: { editorState: EditorState }) => {
-        const projection = editorState.read(readDraft)
+        const projection = editorState.read(readDraftProjection)
 
         edited.current = true
         setDraftText(projection)
         report.current?.(projection.text)
+        composer?.setDocument(
+          threadId,
+          stateHasContent(editorState) ? editorState.toJSON() : undefined,
+          handoff.current.attachments,
+          handoff.current.configuration,
+        )
       }),
-    [editor, report, setDraftText],
+    [composer, editor, handoff, report, setDraftText, threadId],
   )
 
+  /* 附件 / 配置变化不经过 Lexical 的 update 监听器，单独落一次。 */
+  useEffect(() => {
+    if (composer === null) return
+
+    const document = hasEditorContent(editor) ? editor.getEditorState().toJSON() : undefined
+    composer.setDocument(threadId, document, attachments, configuration)
+  }, [attachments, composer, configuration, editor, threadId])
+
   /*
-   * 起始正文：册子里已经装着的那一份优先（它比盘上记录新）；否则等盘上草稿恢复。
-   * 恢复可能晚于挂载（uiState 是异步读的），所以在写进去之前不要把自己标成「已播种」；
-   * 人一旦动手，后续再来的盘上正文一律不盖。
+   * 盘上文档晚到（uiState 是异步读的）：只有人还没动手、且这一格还没有文档时才装。
+   * 认不出的旧文档在 parseEditorState 里抛，按空草稿处理。
    */
   useEffect(() => {
-    if (seeded.current || edited.current) {
-      return
+    if (composer === null || !draftReady || edited.current || seeded.current) return
+
+    const held = composer.draft(threadId)
+    if (held.document === undefined && held.assets.length === 0 && held.configuration.length === 0) return
+
+    if (held.document !== undefined) {
+      try {
+        editor.setEditorState(editor.parseEditorState(JSON.stringify(held.document)))
+      } catch {
+        return
+      }
     }
 
-    if (restored !== undefined) {
-      seeded.current = true
-      return
-    }
+    commitAttachments(held.assets, held.configuration)
+    seeded.current = true
+  }, [commitAttachments, composer, draftReady, editor, threadId])
 
-    if (initialText === undefined || initialText === '') {
-      return
-    }
+  /* 非 store 调用方（测试、单独渲染）仍可以用 initialText 种一句正文。 */
+  useEffect(() => {
+    if (seeded.current || edited.current || initialText === undefined || initialText === '') return
 
     replaceDraft(editor, initialText)
     seeded.current = true
-  }, [editor, initialText, restored])
-
-  /* 只在卸载时转移所有权；依赖变化不能把仍在编辑器里的草稿复制到离屏册子。 */
-  useEffect(
-    () => () => {
-      drafts.keep(draftKey, snapshotOf(editor, handoff.current.attachments, handoff.current.configuration))
-    },
-    [draftKey, drafts, editor, handoff],
-  )
+  }, [editor, initialText])
 }
 
 /* Enter 发送，Shift+Enter 换行，Ctrl/Cmd+Enter 排队（插话但不打断）；组词期间一律不碰。 */
@@ -1370,7 +1386,7 @@ function usePromptEditing({
   /* 就是壳里这一份正在编辑的草稿：加附件、写正文、提交都落在与手打一句话同一条路上。 */
   const contributedDraft = useMemo<ContributedComposerDraft>(
     () => ({
-      threadId: draftKey === ENTRY_DRAFT_KEY || draftKey === '' ? null : draftKey,
+      threadId: draftThreadIdOf(draftKey),
       addAttachments: (items: readonly DraftAttachment[]) => {
         addAssets(items.map(composerAssetOf))
       },
@@ -1557,7 +1573,7 @@ function usePromptSubmit({
       return
     }
 
-    const projection = editor.getEditorState().read(readDraft)
+    const projection = editor.getEditorState().read(readDraftProjection)
     const said = projection.text.trim()
     /*
      * 闸门与载荷都读 handoff 这份同步事实，而不是本次渲染闭包里的 State：

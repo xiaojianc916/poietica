@@ -1,7 +1,7 @@
 import type { Controls, ModelRef, Posture } from '@poietica/engine'
 import { createId } from '@poietica/foundation'
 import type { ConversationApi } from '../api'
-import { type ComposerStore, createComposerStore } from '../composer'
+import { type ComposerStore, createComposerStore, projectDocument } from '../composer'
 import {
   type CompletionUnreadStore,
   createCompletionUnreadStore,
@@ -68,14 +68,15 @@ export function createStores(
       const submit = (deliverAs: 'turn' | 'steer' | 'followUp'): void => {
         if (threadId === null) return
         const current = composer.draft(threadId)
-        if (current.text.trim() === '' && current.attachments.length === 0) return
+        const projected = projectDocument(current.document)
+        if (projected.text.trim() === '' && current.assets.length === 0) return
         const clientTurnId = createId()
-        const text = current.text
-        const attachmentIds = current.attachments.map((a) => a.id)
-        const skills = [...current.skills]
+        const text = projected.text
+        const attachmentIds = current.assets.map((a) => a.assetToken)
+        const skills = projected.skills.map((s) => s.name)
         composer.clear(threadId)
         void stores.api.submit({ threadId, clientTurnId, text, attachmentIds, skills, deliverAs }).catch(() => {
-          composer.restore(threadId, { text, attachments: current.attachments, skills })
+          composer.restore(threadId, current)
         })
       }
 
@@ -88,8 +89,7 @@ export function createStores(
           composer.setText(threadId, text)
         },
         insertText: (text) => {
-          const current = composer.draft(threadId)
-          composer.setText(threadId, current.text === '' ? text : `${current.text} ${text}`)
+          composer.insertText(threadId, text)
         },
         addAttachments: (items) => {
           composer.addAttachments(threadId, items)

@@ -4,8 +4,6 @@ import { createUiKernel, KernelProvider } from '@poietica/ui-kernel'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { MotionConfig } from 'motion/react'
 import type { ReactNode } from 'react'
-import { ComposerDrafts } from '../composer/drafts'
-import { ComposerDraftsContext } from '../composer/drafts-context'
 import type { PromptInputMessage } from '../composer/prompt'
 import { ComposerActions } from '../composer/view/composer-actions'
 import {
@@ -98,24 +96,22 @@ async function mount(slashCommands: readonly ComposerCommand[] | undefined) {
     return (
       <KernelProvider kernel={kernel}>
         <MotionConfig reducedMotion="always" skipAnimations>
-          <ComposerDraftsContext value={new ComposerDrafts()}>
-            <PromptInput
-              onSubmit={(message) => {
-                submitted.push(message)
-              }}
-              ref={(next) => {
-                handle = next
-              }}
-              slashCommands={slashCommands}
-            >
-              <PromptInputBody>
-                <PromptInputEditor placeholder="问我任何问题…" />
-              </PromptInputBody>
-              <PromptInputToolbar>
-                <ComposerActions />
-              </PromptInputToolbar>
-            </PromptInput>
-          </ComposerDraftsContext>
+          <PromptInput
+            onSubmit={(message) => {
+              submitted.push(message)
+            }}
+            ref={(next) => {
+              handle = next
+            }}
+            slashCommands={slashCommands}
+          >
+            <PromptInputBody>
+              <PromptInputEditor placeholder="问我任何问题…" />
+            </PromptInputBody>
+            <PromptInputToolbar>
+              <ComposerActions />
+            </PromptInputToolbar>
+          </PromptInput>
         </MotionConfig>
       </KernelProvider>
     )

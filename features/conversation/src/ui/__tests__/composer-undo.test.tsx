@@ -7,8 +7,6 @@ import { $getRoot, type LexicalEditor, REDO_COMMAND, UNDO_COMMAND } from 'lexica
 import { MotionConfig } from 'motion/react'
 import { type ReactNode, useEffect, useRef } from 'react'
 import { composerToolkitSources } from '../../ui-api'
-import { ComposerDrafts } from '../composer/drafts'
-import { ComposerDraftsContext } from '../composer/drafts-context'
 import type { PromptInputMessage } from '../composer/prompt'
 import { ComposerActions, composerPaletteGroups } from '../composer/view/composer-actions'
 import {
@@ -103,7 +101,6 @@ async function harness(): Promise<{
   })
   await kernel.start()
 
-  const drafts = new ComposerDrafts()
   const containers: HTMLElement[] = []
 
   return {
@@ -123,26 +120,24 @@ async function harness(): Promise<{
         return (
           <KernelProvider kernel={kernel}>
             <MotionConfig reducedMotion="always" skipAnimations>
-              <ComposerDraftsContext value={drafts}>
-                <PromptInput
-                  groups={groups}
-                  onSubmit={onSubmit}
-                  ref={(next) => {
-                    ref.current = next
-                    handle = next
+              <PromptInput
+                groups={groups}
+                onSubmit={onSubmit}
+                ref={(next) => {
+                  ref.current = next
+                  handle = next
+                }}
+              >
+                <PromptInputBody>
+                  <PromptInputEditor placeholder="问我任何问题…" />
+                </PromptInputBody>
+                <EditorProbe
+                  onEditor={(next) => {
+                    editor = next
                   }}
-                >
-                  <PromptInputBody>
-                    <PromptInputEditor placeholder="问我任何问题…" />
-                  </PromptInputBody>
-                  <EditorProbe
-                    onEditor={(next) => {
-                      editor = next
-                    }}
-                  />
-                  <ComposerActions />
-                </PromptInput>
-              </ComposerDraftsContext>
+                />
+                <ComposerActions />
+              </PromptInput>
             </MotionConfig>
           </KernelProvider>
         )

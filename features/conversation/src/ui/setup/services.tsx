@@ -94,7 +94,7 @@ export function createConversationServices(setup: ConversationSetup, actions: Co
       resolveTitle: (threadId, agentId) => subagentTitleOf(transcripts.read(threadId).timeline, agentId),
     }),
     component: () => (
-      <ConversationProviders agentControls={api} transcripts={transcripts}>
+      <ConversationProviders agentControls={api} composer={stores.composer} transcripts={transcripts}>
         <SubagentDockPanel store={subagentTabs} />
       </ConversationProviders>
     ),

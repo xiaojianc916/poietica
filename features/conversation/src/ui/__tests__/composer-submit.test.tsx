@@ -5,9 +5,9 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { MotionConfig } from 'motion/react'
 import { type ReactNode, useRef } from 'react'
 import { composerToolkitSources } from '../../ui-api'
-import { NEW_THREAD_KEY } from '../composer/composer-store'
-import { ComposerDrafts } from '../composer/drafts'
-import { ComposerDraftsContext } from '../composer/drafts-context'
+import { type ComposerStore, createComposerStore, NEW_THREAD_KEY } from '../composer/composer-store'
+import { projectDocument, textDocument } from '../composer/draft-document'
+import { ComposerStoreContext } from '../composer/drafts-context'
 import { createLiveComposers, type LiveComposers, LiveComposersContext } from '../composer/live-composers'
 import type { PromptInputMessage } from '../composer/prompt'
 import { ComposerActions, composerPaletteGroups } from '../composer/view/composer-actions'
@@ -66,6 +66,7 @@ async function harness(): Promise<{
     readonly setInitialText: (text: string) => void
   }
   readonly liveComposers: LiveComposers
+  readonly composer: ComposerStore
   readonly unmount: () => void
 }> {
   const provider = defineUiFeature({
@@ -91,8 +92,8 @@ async function harness(): Promise<{
   })
   await kernel.start()
 
-  const drafts = new ComposerDrafts()
   const liveComposers = createLiveComposers()
+  const composer = createComposerStore()
   const containers: HTMLElement[] = []
 
   return {
@@ -111,7 +112,7 @@ async function harness(): Promise<{
         return (
           <KernelProvider kernel={kernel}>
             <MotionConfig reducedMotion="always" skipAnimations>
-              <ComposerDraftsContext value={drafts}>
+              <ComposerStoreContext value={composer}>
                 <LiveComposersContext value={liveComposers}>
                   <PromptInput
                     groups={groups}
@@ -133,7 +134,7 @@ async function harness(): Promise<{
                     </PromptInputToolbar>
                   </PromptInput>
                 </LiveComposersContext>
-              </ComposerDraftsContext>
+              </ComposerStoreContext>
             </MotionConfig>
           </KernelProvider>
         )
@@ -149,6 +150,7 @@ async function harness(): Promise<{
       }
     },
     liveComposers,
+    composer,
     unmount: () => {
       cleanup()
       containers.length = 0
@@ -341,6 +343,48 @@ describe('入口页在屏输入框', () => {
 
       await waitFor(() => {
         expect(editor?.textContent ?? '').toContain('从插件插进来的一句')
+      })
+    } finally {
+      harnessed.unmount()
+    }
+  })
+})
+
+/*
+ * 草稿的持久事实是 Lexical 文档：正文、附件与配置都从 store 的 `Draft` 走。
+ * 这里钉两条路：编辑器变更写回文档；盘上文档晚到时装回编辑器。
+ */
+describe('草稿文档', () => {
+  test('正文写回 store 的文档', async () => {
+    const harnessed = await harness()
+
+    try {
+      const view = harnessed.renderComposer(() => undefined)
+      view.handle()?.setText('写进文档')
+
+      await waitFor(() => {
+        expect(projectDocument(harnessed.composer.draft(null).document).text).toBe('写进文档')
+      })
+    } finally {
+      harnessed.unmount()
+    }
+  })
+
+  test('盘上文档晚到：编辑器还空着就装进去', async () => {
+    const harnessed = await harness()
+
+    try {
+      const view = harnessed.renderComposer(() => undefined)
+      const editor = view.container.querySelector<HTMLElement>('[data-slot="prompt-input-editor"]')
+      expect(editor).not.toBeNull()
+
+      harnessed.composer.hydrate({
+        [NEW_THREAD_KEY]: { document: textDocument('盘上文档'), assets: [], configuration: [] },
+      })
+      harnessed.composer.markEntryReady()
+
+      await waitFor(() => {
+        expect(editor?.textContent ?? '').toContain('盘上文档')
       })
     } finally {
       harnessed.unmount()

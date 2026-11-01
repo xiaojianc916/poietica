@@ -33,6 +33,9 @@
       "path": "../../../platform/src/ui-api"
     },
     {
+      "path": "../../../preferences/src/contract"
+    },
+    {
       "path": "../../../preferences/src/ui-api"
     },
     {

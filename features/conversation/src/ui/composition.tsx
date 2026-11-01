@@ -3,8 +3,8 @@ import { FeatureScope, useContributions } from '@poietica/ui-kernel'
 import { type ReactNode, useMemo } from 'react'
 import { composerProviders, fileReferenceOpeners, turnChangesProviders, workspaceGitProviders } from '../ui-api'
 import { AttachmentIntakeContext } from './composer/attachment'
-import { ComposerDrafts } from './composer/drafts'
-import { ComposerDraftsContext } from './composer/drafts-context'
+import type { ComposerStore } from './composer/composer-store'
+import { ComposerStoreContext } from './composer/drafts-context'
 import { type LiveComposers, LiveComposersContext } from './composer/live-composers'
 import type { TranscriptStore } from './timeline/model/transcript-store'
 import { TranscriptsContext } from './timeline/model/transcripts-context'
@@ -18,6 +18,7 @@ import { DelegateChannelContext, type OpenDelegateChannel } from './timeline/vie
 
 export interface ConversationProvidersProps {
   readonly children: ReactNode
+  readonly composer: ComposerStore
   readonly transcripts: TranscriptStore
   /** 点子代理（工具卡上的通道、状态面板的「智能体」行）时打开它的通道；缺席即不可开。 */
   readonly onOpenDelegateChannel?: OpenDelegateChannel | undefined
@@ -52,13 +53,12 @@ function useFileLinks(scope: FileScope | undefined): ProseFileLinks | null {
 export function ConversationProviders({
   agentControls,
   children,
+  composer,
   fileScope,
   liveComposers,
   onOpenDelegateChannel,
   transcripts,
 }: ConversationProvidersProps): ReactNode {
-  // 离屏草稿：一格一份，切换对话时把没发出去的内容存回来
-  const drafts = useMemo(() => new ComposerDrafts(), [])
   const openDelegate = useMemo<OpenDelegateChannel>(
     () => onOpenDelegateChannel ?? (() => undefined),
     [onOpenDelegateChannel],
@@ -103,7 +103,7 @@ export function ConversationProviders({
 
   return (
     <TranscriptsContext value={transcripts}>
-      <ComposerDraftsContext value={drafts}>
+      <ComposerStoreContext value={composer}>
         <DelegateChannelContext value={openDelegate}>
           <AgentControlsContext value={agentControls ?? null}>
             <AttachmentIntakeContext value={null}>
@@ -113,7 +113,7 @@ export function ConversationProviders({
             </AttachmentIntakeContext>
           </AgentControlsContext>
         </DelegateChannelContext>
-      </ComposerDraftsContext>
+      </ComposerStoreContext>
     </TranscriptsContext>
   )
 }

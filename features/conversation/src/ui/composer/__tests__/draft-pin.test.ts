@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { createComposerStore } from '../composer-store'
+import { projectDocument, textDocument } from '../draft-document'
 import { createDraftPin } from '../draft-pin'
 
 /**
@@ -58,7 +59,21 @@ describe('草稿附件视图（R-07 §3.4）', () => {
     const composer = createComposerStore()
     const pin = createDraftPin(composer)
     composer.hydrate({
-      t9: { text: '旧草稿', attachments: [{ id: 'z', name: 'z', kind: 'file', previewUrl: null }], skills: [] },
+      t9: {
+        document: textDocument('旧草稿'),
+        assets: [
+          {
+            assetToken: 'z',
+            filename: 'z',
+            kind: 'file',
+            mediaType: 'application/octet-stream',
+            sessionToken: '',
+            size: 0,
+            url: '',
+          },
+        ],
+        configuration: [],
+      },
     })
     pin.onChange()
     expect(pin.view.ids()).toBeNull()
@@ -75,7 +90,7 @@ describe('草稿附件视图（R-07 §3.4）', () => {
 
     expect(pin.view.drop(['x'])).toBe(1)
     expect(pin.view.ids()).toEqual([])
-    expect(composer.draft(null).text).toBe('入口草稿')
+    expect(projectDocument(composer.draft(null).document).text).toBe('入口草稿')
 
     const before = composer.store.getState().drafts
     expect(pin.view.drop(['ghost'])).toBe(0)

@@ -1,7 +1,11 @@
 import type { ModelRef } from '@poietica/engine'
 import { createFeatureStore, type FeatureStore } from '@poietica/ui-kernel'
+import type { SerializedEditorState } from 'lexical'
 import type { DraftAttachment } from '../../ui-api'
 import type { DraftSelection } from '../entry-init'
+import { type ComposerAsset, composerAssetOf } from './attachment'
+import { appendText, textDocument } from './draft-document'
+import type { PendingPromptConfiguration } from './prompt'
 
 /**
  * 入口页选择器里**还没落账**的那一笔；发送时带进 `threads.create`。模型 / 档位写穿新对话默认意图成功后由 `settleSelection` 抹掉，
@@ -10,16 +14,28 @@ import type { DraftSelection } from '../entry-init'
 /** 形状与组件那一份逐字一致（entry-init 的 DraftSelection）。 */
 export type EntrySelection = DraftSelection
 
-/** 每个线程一份草稿（文本、附件、技能）；持久化到 uiState 的 'conversation.drafts' */
+/**
+ * 每个线程一份草稿。**正文的持久事实是 Lexical 的 SerializedEditorState**：技能 chip、文件 / 元素记号
+ * 在正文里的位置、附件与待发配置都在 `document` 这一棵树里；`assets` / `configuration` 是发送需要的
+ * 随附数据，不是正文的第二份读法。持久化到 uiState 的 `conversation.drafts.v2`（旧扁平形状不再读取）。
+ */
 export interface Draft {
-  readonly text: string
-  readonly attachments: readonly DraftAttachment[]
-  readonly skills: readonly string[]
+  readonly document?: SerializedEditorState | undefined
+  readonly assets: readonly ComposerAsset[]
+  readonly configuration: readonly PendingPromptConfiguration[]
   /** 入口页选择器的值；别的键上缺席。 */
   readonly selection?: EntrySelection
 }
 
-export const EMPTY_DRAFT: Draft = { text: '', attachments: [], skills: [] }
+export const EMPTY_DRAFT: Draft = { assets: [], configuration: [] }
+
+/** 盘上读回来的形状校验：旧扁平草稿（text/attachments/skills）没有这两个数组，直接当没有存值。 */
+export function isDraft(value: unknown): value is Draft {
+  if (typeof value !== 'object' || value === null) return false
+  const draft = value as Record<string, unknown>
+  if (!Array.isArray(draft.assets) || !Array.isArray(draft.configuration)) return false
+  return draft.document === undefined || (typeof draft.document === 'object' && draft.document !== null)
+}
 
 export interface ComposerState {
   /** threadId 为键；home 页的新对话用 '__new__' */
@@ -39,10 +55,19 @@ export const draftKeyOf = (threadId: string | null): string => threadId ?? NEW_T
 export interface ComposerStore {
   readonly store: FeatureStore<ComposerState>
   draft(threadId: string | null): Draft
+  /** 编辑器的整份文档与随附数据一起落账；这是草稿的正常写入路径。 */
+  setDocument(
+    threadId: string | null,
+    document: SerializedEditorState | undefined,
+    assets: readonly ComposerAsset[],
+    configuration: readonly PendingPromptConfiguration[],
+  ): void
+  /** 纯文本写入：测试与未挂载路径用；会换成一份只有正文的文档。 */
   setText(threadId: string | null, text: string): void
+  /** 未挂载时插字：在文档末尾追加，不另存一份文本。 */
+  insertText(threadId: string | null, text: string): void
   addAttachments(threadId: string | null, items: readonly DraftAttachment[]): void
   removeAttachment(threadId: string | null, id: string): void
-  addSkill(threadId: string | null, skill: string): void
   /** 入口页改一格选择器：只动本地草稿，不下发。 */
   setSelection(threadId: string | null, patch: EntrySelection): void
   selectionOf(threadId: string | null): EntrySelection
@@ -77,7 +102,7 @@ export function createComposerStore(initial: Readonly<Record<string, Draft>> = {
   const store = createFeatureStore<ComposerState>(() => ({ drafts: initial, submitting: false, entryReady: false }))
   const read = (threadId: string | null): Draft => store.getState().drafts[draftKeyOf(threadId)] ?? EMPTY_DRAFT
 
-  /** 清空正文、附件与技能，但**保住入口页的选择器**（发送后草稿的 init 保留）。 */
+  /** 清空正文、附件与配置，但**保住入口页的选择器**（发送后草稿的 init 保留）。 */
   const cleared = (d: Draft): Draft =>
     d.selection === undefined ? EMPTY_DRAFT : { ...EMPTY_DRAFT, selection: d.selection }
 
@@ -89,18 +114,22 @@ export function createComposerStore(initial: Readonly<Record<string, Draft>> = {
   return {
     store,
     draft: read,
+    setDocument: (threadId, document, assets, configuration) => {
+      patch(threadId, (d) => ({ ...d, document, assets, configuration }))
+    },
     setText: (threadId, text) => {
-      patch(threadId, (d) => ({ ...d, text }))
+      patch(threadId, (d) => ({ ...d, document: text.trim() === '' ? undefined : textDocument(text) }))
+    },
+    insertText: (threadId, text) => {
+      if (text === '') return
+      patch(threadId, (d) => ({ ...d, document: appendText(d.document, text) }))
     },
     addAttachments: (threadId, items) => {
       if (items.length === 0) return
-      patch(threadId, (d) => ({ ...d, attachments: [...d.attachments, ...items] }))
+      patch(threadId, (d) => ({ ...d, assets: [...d.assets, ...items.map(composerAssetOf)] }))
     },
     removeAttachment: (threadId, id) => {
-      patch(threadId, (d) => ({ ...d, attachments: d.attachments.filter((a) => a.id !== id) }))
-    },
-    addSkill: (threadId, skill) => {
-      patch(threadId, (d) => (d.skills.includes(skill) ? d : { ...d, skills: [...d.skills, skill] }))
+      patch(threadId, (d) => ({ ...d, assets: d.assets.filter((a) => a.assetToken !== id) }))
     },
     setSelection: (threadId, patch_) => {
       patch(threadId, (d) => ({ ...d, selection: { ...d.selection, ...patch_ } }))
@@ -125,7 +154,7 @@ export function createComposerStore(initial: Readonly<Record<string, Draft>> = {
     },
     restore: (threadId, draft) => {
       /* 线程名下的草稿不带入口页的选择器：那是入口那一格的事。 */
-      patch(threadId, () => ({ text: draft.text, attachments: draft.attachments, skills: draft.skills }))
+      patch(threadId, () => ({ document: draft.document, assets: draft.assets, configuration: draft.configuration }))
     },
     dropAttachments: (ids) => {
       if (ids.length === 0) return 0
@@ -134,9 +163,9 @@ export function createComposerStore(initial: Readonly<Record<string, Draft>> = {
       const next: Record<string, Draft> = {}
       let removed = 0
       for (const [key, draft] of Object.entries(drafts)) {
-        const kept = draft.attachments.filter((a) => !drop.has(a.id))
-        removed += draft.attachments.length - kept.length
-        next[key] = kept.length === draft.attachments.length ? draft : { ...draft, attachments: kept }
+        const kept = draft.assets.filter((a) => !drop.has(a.assetToken))
+        removed += draft.assets.length - kept.length
+        next[key] = kept.length === draft.assets.length ? draft : { ...draft, assets: kept }
       }
       if (removed === 0) return 0
       store.setState({ drafts: next })
@@ -155,9 +184,9 @@ export function createComposerStore(initial: Readonly<Record<string, Draft>> = {
       const out: Record<string, Draft> = {}
       for (const [key, draft] of Object.entries(store.getState().drafts)) {
         if (
-          draft.text.trim() === '' &&
-          draft.attachments.length === 0 &&
-          draft.skills.length === 0 &&
+          draft.document === undefined &&
+          draft.assets.length === 0 &&
+          draft.configuration.length === 0 &&
           (draft.selection === undefined || Object.keys(draft.selection).length === 0)
         ) {
           continue

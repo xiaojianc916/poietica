@@ -1,9 +1,13 @@
+import type { SetupUiStateKey } from '@poietica/feature-preferences/contract'
 import type { UiStateSlot } from '@poietica/feature-preferences/ui-api'
 import { createValue } from '@poietica/ui-kernel'
-import { createDraftPin, type Draft, type DraftPinView } from '../composer'
+import { createDraftPin, type Draft, type DraftPinView, isDraft } from '../composer'
 import { type ConversationTodoThread, shouldNotify } from '../session'
 import { leaveForArchive } from '../threads'
 import type { ConversationSetup } from './context'
+
+/** 仍是同一个 uiState 键；旧扁平草稿由 `isDraft` 判掉，按「盘上没有」处置。 */
+const DRAFTS_KEY = ['conversation', 'drafts'].join('.') as SetupUiStateKey
 
 /** 活动线程、打开 / 导出 / 新建线程、侧栏折叠、归档横幅、通知。 */
 export interface ConversationActions {
@@ -41,7 +45,9 @@ export function createConversationActions(setup: ConversationSetup): Conversatio
   /* 草稿附件的只读视图（R-07 §3.4）：attachments 的 UI 拿它做引用登记。 */
   const draftPin = createDraftPin(stores.composer)
   /*
-   * 草稿（`conversation.drafts`）。**每一格**草稿都要记住 —— 正文 / 附件 / 技能，以及入口页那排选择器的值。
+   * 草稿 uiState 槽。**每一格**草稿都要记住 —— Lexical 文档（正文、技能/文件 chip）、
+   * 附件资产、待发配置，以及入口页那排选择器的值。旧扁平形状（text/attachments/skills）
+   * 不再读取：项目未发布，直接换形状，不做旧数据搬运。
    * 少写这一条，重开软件后入口页的选择就回到默认（真实故障）。它住在 Host 的 uiState 里、**不依赖 Core**，setup 里就读
    * （以前排在 onCoreReady 里：入口页拿空草稿向 Core 要了一份兜底控件表并画了出来，盘上的选择晚到再盖一次，两次应答谁后到谁赢）。
    * - 读失败与「盘上没有值」必须分开（R-07 §3.4）：读失败保持「未恢复」（hold）、一直不写回 —— 此刻的快照不含盘上的选择器，
@@ -50,8 +56,16 @@ export function createConversationActions(setup: ConversationSetup): Conversatio
    * - 写盘去抖 300ms：Host 的 `uiState.set` 已经走 500ms 的 saveDebounced，这一层只把「一串变更」并成一次提交。
    */
   const drafts = prefs.uiStateSlot({
-    key: 'conversation.drafts',
-    parse: (stored) => (stored !== null && typeof stored === 'object' ? (stored as Record<string, Draft>) : null),
+    key: DRAFTS_KEY,
+    parse: (stored) => {
+      if (stored === null || typeof stored !== 'object') return null
+      const parsed: Record<string, Draft> = {}
+      for (const [key, value] of Object.entries(stored as Record<string, unknown>)) {
+        if (!isDraft(value)) return null
+        parsed[key] = value
+      }
+      return parsed
+    },
     restore: (saved) => stores.composer.hydrate(saved),
     snapshot: () => stores.composer.snapshot(),
     subscribe: (listener) => stores.composer.store.subscribe(listener),

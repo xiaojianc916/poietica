@@ -1,24 +1,23 @@
-import { invariant } from '@poietica/foundation'
 import { createContext, useContext } from 'react'
-import type { ComposerDrafts } from './drafts'
+import type { ComposerStore } from './composer-store'
 
-export const ComposerDraftsContext = createContext<ComposerDrafts | null>(null)
-
-export function useComposerDrafts(): ComposerDrafts {
-  const drafts = useContext(ComposerDraftsContext)
-
-  if (drafts === null) {
-    invariant(false, '这棵组件树上没有 ComposerDraftsContext，离屏草稿无处存放。')
-  }
-
-  return drafts
-}
-
-/** 这一格的草稿归哪个键。对话是它的 id；入口那一格全局只有一个。 */
+/** 输入框离屏/在屏的草稿键：对话页是 threadId，入口页是这一个。 */
 export const ENTRY_DRAFT_KEY = 'composer:entry'
 
 export const ComposerDraftKeyContext = createContext<string>(ENTRY_DRAFT_KEY)
 
 export function useComposerDraftKey(): string {
   return useContext(ComposerDraftKeyContext)
+}
+
+/** 草稿的持久事实源；单测 / 单独渲染输入框时可以是 null（不落账，只活在这一棵树上）。 */
+export const ComposerStoreContext = createContext<ComposerStore | null>(null)
+
+export function useComposerStore(): ComposerStore | null {
+  return useContext(ComposerStoreContext)
+}
+
+/** 草稿键 → 线程号；入口页（空串 / ENTRY_DRAFT_KEY）是 null。 */
+export function draftThreadIdOf(key: string): string | null {
+  return key === '' || key === ENTRY_DRAFT_KEY ? null : key
 }

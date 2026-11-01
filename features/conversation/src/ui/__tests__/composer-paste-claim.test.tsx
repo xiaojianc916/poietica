@@ -4,8 +4,6 @@ import { createUiKernel, defineUiFeature, KernelProvider } from '@poietica/ui-ke
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { MotionConfig } from 'motion/react'
 import { type ComposerDraft as ContributedComposerDraft, composerInputHandlers } from '../../ui-api'
-import { ComposerDrafts } from '../composer/drafts'
-import { ComposerDraftsContext } from '../composer/drafts-context'
 import { ComposerActions } from '../composer/view/composer-actions'
 import { PromptInput, PromptInputBody, PromptInputEditor, PromptInputToolbar } from '../composer/view/prompt-input'
 
@@ -71,16 +69,14 @@ async function mount(): Promise<{ container: HTMLElement; editor: HTMLElement; p
   const { container } = render(
     <KernelProvider kernel={kernel}>
       <MotionConfig reducedMotion="always" skipAnimations>
-        <ComposerDraftsContext value={new ComposerDrafts()}>
-          <PromptInput>
-            <PromptInputBody>
-              <PromptInputEditor placeholder="问我任何问题…" />
-            </PromptInputBody>
-            <PromptInputToolbar>
-              <ComposerActions />
-            </PromptInputToolbar>
-          </PromptInput>
-        </ComposerDraftsContext>
+        <PromptInput>
+          <PromptInputBody>
+            <PromptInputEditor placeholder="问我任何问题…" />
+          </PromptInputBody>
+          <PromptInputToolbar>
+            <ComposerActions />
+          </PromptInputToolbar>
+        </PromptInput>
       </MotionConfig>
     </KernelProvider>,
   )

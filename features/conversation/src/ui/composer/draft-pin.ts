@@ -24,7 +24,7 @@ export function createDraftPin(composer: ComposerStore): DraftPinView {
   let restored = false
 
   const collect = (): string[] =>
-    [...new Set(Object.values(composer.snapshot()).flatMap((d) => d.attachments.map((a) => a.id)))].sort()
+    [...new Set(Object.values(composer.snapshot()).flatMap((d) => d.assets.map((a) => a.assetToken)))].sort()
   const keyOf = (ids: readonly string[]): string => ids.join('\n')
   /** 上次通知过的集合键；从当前集合起算，打字不改集合就不该通知 */
   let lastKey = keyOf(collect())
