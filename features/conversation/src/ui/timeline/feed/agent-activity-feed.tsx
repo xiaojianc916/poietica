@@ -172,10 +172,11 @@ export function AgentActivityFeed({
 
   const settled = scrollMargin !== null && dockClearance !== null
 
-  /* 人点开抽屉那一帧末端锚定让位给起始锚定：要钉的是被点的那一行。 */
-  const [held, setHeld] = useState(disclosed)
-  const holding = held !== disclosed
-  const measuredTotal = useRef(0)
+  /* 人点开抽屉那一帧末端锚定让位给起始锚定：要钉的是被点的那一行。
+   * 让位持续到「布局量过一次」为止：换手那一刻的总高记下来，虚拟器报出不同的总高就算量到了。 */
+  const [holdTotal, setHoldTotal] = useState<number | null>(null)
+  const [seenDisclosure, setSeenDisclosure] = useState(disclosed)
+  const holding = holdTotal !== null
 
   const { atLatest, pinned, reveal, revealing, sample, travel, watch } = useScrollAuthority(restored?.reading ?? null)
 
@@ -287,17 +288,16 @@ export function AgentActivityFeed({
     virtualizer.scrollToIndex(revealing, { align: 'start' })
   }, [intent, revealing, settled, viewport, virtualizer])
 
-  /* 让位只覆盖人点出来的那一次测量：量到了就当场归位。
-   * 这一处只能留在 layout effect 里：`total` 是虚拟器的布局量测（外部系统），渲染期拿不到「上一次」的值；
-   * 用 state 记上一份总量会让每次测量都多提交一帧，正好是流式时间线最贵的那条路上。 */
-  useLayoutEffect(() => {
-    if (holding && total === measuredTotal.current) {
-      return
-    }
-
-    measuredTotal.current = total
-    setHeld(disclosed)
-  }, [disclosed, holding, total])
+  /* 换手：人刚改了展开状态 —— 记下此刻（尚未量到新布局）的总高，锚点切到起始；虚拟器报出不同的总高就算量到了。
+   * 两件事都在渲染里办（官方「按 prop 调整 state」的做法）：原先放在 layout effect 里，得另用一个 ref 记住
+   * 上一次量到的总高，每次测量都写它。 */
+  if (seenDisclosure !== disclosed) {
+    setSeenDisclosure(disclosed)
+    setHoldTotal(total)
+  } else if (holdTotal !== null && holdTotal !== total) {
+    /* 量到了：总高变了，让位结束 */
+    setHoldTotal(null)
+  }
 
   const items = virtualizer.getVirtualItems()
 
