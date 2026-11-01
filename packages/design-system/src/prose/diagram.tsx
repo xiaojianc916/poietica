@@ -2,9 +2,7 @@ import { invariant } from '@poietica/foundation'
 import { code as painter } from '@streamdown/code'
 import { type RenderResult, render } from 'pele'
 import { type CSSProperties, useCallback, useEffect, useMemo, useState } from 'react'
-import { CodeBlockCopyButton } from 'streamdown'
 import { keepSvg, peekSvg, svgKey } from './diagram-cache'
-import { CodeIcon, PreviewIcon } from './icons'
 
 /* 自定义渲染器排在上游的 mermaid 分支之前，接管 mermaid 围栏；面板样式归 prose.css。
    isIncomplete 由上游给（围栏未闭合）：期间屏幕上是源码 —— pele 对半截源码一律抛 syntax，逐字重画只会闪错误。 */
@@ -115,7 +113,7 @@ function unfence(painted: Painted, lines: number): Painted['tokens'] | undefined
   return painted.tokens.length === lines ? painted.tokens : undefined
 }
 
-/* 官方代码块组件带着整只壳，这里只要 Shiki 的分词与复制按钮；highlight 首次一律返回 null，结果经回调异步到达。 */
+/* 官方代码块组件带着整只壳，这里只要 Shiki 的分词；highlight 首次一律返回 null，结果经回调异步到达。 */
 function useSource(source: string): readonly Row[] | undefined {
   const [painted, setPainted] = useState<Painted | undefined>(undefined)
 
@@ -223,27 +221,10 @@ export interface DiagramProps {
 export function Diagram({ code, isIncomplete }: DiagramProps) {
   const { failure, graphic } = useDiagramSvg(code, isIncomplete)
   const mount = useGraphic(graphic)
-  const [asCode, setAsCode] = useState(false)
-  const showCode = asCode || graphic === undefined
-  const Toggle = showCode ? PreviewIcon : CodeIcon
-  const toggle = showCode ? '看图' : '看源码'
+  const showCode = graphic === undefined
 
   return (
     <div className="timeline-prose__diagram" data-view={showCode ? 'code' : 'diagram'}>
-      <div className="timeline-prose__diagram-tools">
-        <CodeBlockCopyButton className="timeline-prose__diagram-tool" code={code} />
-        <button
-          aria-label={toggle}
-          className="timeline-prose__diagram-tool"
-          disabled={graphic === undefined}
-          onClick={() => {
-            setAsCode(!asCode)
-          }}
-          type="button"
-        >
-          <Toggle aria-hidden="true" />
-        </button>
-      </div>
       {failure !== undefined && <p className="timeline-prose__diagram-alert">这段 mermaid 没能画出来：{failure}</p>}
       <div className="timeline-prose__diagram-stage" ref={mount} />
       {showCode && <Source source={code} />}

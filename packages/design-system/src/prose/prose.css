@@ -376,13 +376,10 @@
   margin-block-start: 0;
 }
 
-/* 图直接长在正文里：没有底色、边框、固定高度，宽度跟栏宽走、高度由 viewBox 比例定；右上角一枚鼠标进来才出现的浮层。 */
+/* 图直接长在正文里：没有底色、边框、固定高度，宽度跟栏宽走、高度由 viewBox 比例定。 */
 .timeline-prose__diagram {
   --cp-diagram-pad: 0.75rem;
-  --cp-diagram-icon: 1rem;
-  --cp-diagram-hit: 1.75rem;
 
-  position: relative;
   margin-block: var(--cp-prose-flow);
 }
 
@@ -441,7 +438,7 @@
   display: none;
 }
 
-/* 源码视图：图没有固定高度，这一面也不再有可对齐的高 —— 26rem 从「共享的底」变成「只给源码的上限」，长了在自己身上滚。 */
+/* 源码视图（围栏未闭合，或引擎画不出来时）：26rem 是上限，长了在自己身上滚。 */
 .timeline-prose__diagram-source {
   margin: 0;
   max-block-size: 26rem;
@@ -456,68 +453,6 @@
 /* token 的颜色在这里花掉：Shiki 交回两套主题各一个色值，light-dark() 跟着 color-scheme 选；回落到 inherit（分词没到的那几帧是纯文本，不是透明）。 */
 .timeline-prose__diagram-ink {
   color: light-dark(var(--cp-tok, inherit), var(--cp-tok-dark, var(--cp-tok, inherit)));
-}
-
-/* 键盘走 focus-within，否则那几个按钮就是焦点顺序里几个看不见的落点。底色取抽屉那张纸兑一点透明并在背后模糊：
- * 它压着的是图或代码，实色会把下面那一块彻底盖掉，纯透明又会让图里的线条穿过图标。 */
-.timeline-prose__diagram-tools {
-  position: absolute;
-  z-index: 1;
-  inset-block-start: var(--cp-diagram-pad);
-  inset-inline-end: var(--cp-diagram-pad);
-  display: flex;
-  align-items: center;
-  gap: 0.125rem;
-  padding: 0.25rem;
-  border-radius: var(--ui-radius-md);
-  background: color-mix(in oklab, var(--cp-timeline-drawer-surface) 78%, transparent);
-  box-shadow: var(--ui-shadow-sm);
-  opacity: 0;
-  transition: opacity 120ms var(--cp-motion-ease);
-}
-
-@supports (backdrop-filter: blur(10px)) {
-  .timeline-prose__diagram-tools {
-    backdrop-filter: blur(10px) saturate(1.4);
-  }
-}
-
-.timeline-prose__diagram:hover .timeline-prose__diagram-tools,
-.timeline-prose__diagram:focus-within .timeline-prose__diagram-tools {
-  opacity: 1;
-}
-
-/* 复制键是上游组件、自带一串工具类；同一枚浮层里两套配色说不通，用两级选择器盖过去：工具类是单类，两级一定赢。 */
-.timeline-prose__diagram-tools .timeline-prose__diagram-tool {
-  display: grid;
-  place-items: center;
-  inline-size: var(--cp-diagram-hit);
-  block-size: var(--cp-diagram-hit);
-  padding: 0;
-  border: 0;
-  border-radius: var(--ui-radius-sm);
-  background: none;
-  color: var(--cp-ink-muted);
-  cursor: pointer;
-}
-
-.timeline-prose__diagram-tools .timeline-prose__diagram-tool:hover:not(:disabled) {
-  background: var(--cp-hover);
-  color: var(--cp-ink);
-}
-
-/* 按不动的按钮要留在焦点顺序里，所以是变淡，不是消失。 */
-.timeline-prose__diagram-tools .timeline-prose__diagram-tool:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-/* 16px 对上字形库 24 的 viewBox 正好是 2/3，1.5 的描边因此落成一个整像素 —— 图标发虚是描边压在半个像素上，不是分辨率不够。
- * 上游那枚复制按钮把 14 写在 svg 属性上，这一条盖掉它。 */
-.timeline-prose__diagram-tool svg {
-  display: block;
-  inline-size: var(--cp-diagram-icon);
-  block-size: var(--cp-diagram-icon);
 }
 
 .timeline-prose__diagram-alert {
