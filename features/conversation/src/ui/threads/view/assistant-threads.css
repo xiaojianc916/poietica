@@ -24,6 +24,7 @@
 }
 
 .assistant-threads__section {
+  min-inline-size: 0;
   display: flex;
   flex-direction: column;
   gap: calc(var(--ui-hairline) * 2);
@@ -152,6 +153,7 @@
 }
 
 .assistant-threads__list {
+  min-inline-size: 0;
   display: flex;
   flex-direction: column;
   gap: calc(var(--ui-hairline) * 2);
@@ -163,6 +165,7 @@
 /* 相邻两块底色之间必须留缝（与列表行距同一条），否则组头悬停底与第一行的当前底连成一块「坏掉的高行」。 */
 .assistant-threads__group,
 .thread-disclosure__inner {
+  min-inline-size: 0;
   display: flex;
   flex-direction: column;
   gap: calc(var(--ui-hairline) * 2);
@@ -174,6 +177,7 @@
  * 时长与曲线与 shared/primitives/motion.ts 的 ENTER/EXIT 同值 —— 换一处必须同时换另一处。
  */
 .thread-disclosure {
+  min-inline-size: 0;
   --thread-disclosure-enter: 200ms;
   --thread-disclosure-exit: 140ms;
   --thread-disclosure-enter-ease: cubic-bezier(0.2, 0, 0, 1);
@@ -219,6 +223,7 @@
 /* 行高读侧边栏的 --ui-row-height，不读编排器的控件尺寸：两处各读一套，同一列上下两段就不同高。 */
 .assistant-thread {
   position: relative;
+  min-inline-size: 0;
   display: flex;
   block-size: var(--ui-row-height);
   align-items: center;
@@ -260,6 +265,7 @@
 }
 
 .assistant-thread__title {
+  min-inline-size: 0;
   overflow: hidden;
   font-size: var(--cp-font-caption);
   color: var(--cp-ink);
