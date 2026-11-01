@@ -52,6 +52,12 @@
   /* w-max 父级里 flex 容器默认收缩到内容宽，显式铺满才能让增删底色到行尾。 */
   inline-size: 100%;
   border-inline-start: 4px solid transparent;
+  /*
+   * 行号槽与正文的 z-index（见下）只在这一行内部争高下。没有这一层，那个 1 会跟滚动口里任何同样
+   * sticky/z-index:1 的东西（审查面板的卡头）直接比大小：同值时后绘制的行带盖住卡头，卡头左端
+   * 就被行号槽的底色糊掉。isolation 让整行自成层叠上下文，层级不外溢，行内仍是「文字压住底色」。
+   */
+  isolation: isolate;
 }
 
 .diff-line--added {

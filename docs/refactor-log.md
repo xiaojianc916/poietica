@@ -59,8 +59,18 @@
 | 2026-10-21 | 测试不按平台跳过：Linux 上 `bun test` 稳定 62 失败 + 1 error（Windows 路径、PowerShell、`.exe` 等），另有 `agent-activity-feed.test.tsx` 两条（happy-dom 下 `offsetHeight` 桩不生效）与 `goal-continuation.test.ts` C4 满载超时。CI 只跑 windows-latest，所以从没红过；要么给平台专属用例加 `test.skipIf(process.platform !== 'win32')`，要么 CI 加一条 ubuntu 任务                                                                                                                                                                                                                                                                                                                                                   | R-48 审查                            |
 | 2026-10-20 | `PartSkeleton`（`.workbench__skeleton`：`--ui-muted` 40%）对其它懒加载部位同样是一块突兀的灰：深色主题下加载一闪而过就是一次「闪灰」。可改为延迟约 150ms 再出现，或按所在部位的底色画                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | R-49                                 |
 | 2026-10-22 | 右坞「文件」（R-50）没做的：树的右键菜单（`ContextMenu*` 模块已按零引用删除，要用得先恢复）；查看器只着色 `highlighter.ts` 已登记的语言；Markdown 预览里的相对图片不显示（正文的图片净化只放行 `poietica-asset:`，未把相对地址改写成 `workspace-file` 地址）；子代理 / 辅助对话的正文没有 `fileScope`，文件链接按当前前台的对话与工作区解析；资源协议按 `files.locate` 交回的字面路径读字节（解开链接后已校验，但校验与读取之间换掉链接不防，本机威胁模型下接受）；`isInside` 在 Linux / macOS 上也按小写比较（大小写敏感的文件系统上会把 `/A` 当成 `/a`，桌面端只发 Windows 故未改）                                                                                                                                 | R-50                                 |
+| 2026-11-01 | `features/conversation/src/ui/threads/view/__tests__/thread-disclosure.test.tsx` 的「收起动画期间内容还在但 inert」在全量 `bun test` 下稳定超时（约 220s，三条用例单独跑 1.3s 通过）：它用真实计时器等 `EXIT_SECONDS`，被全仓并发拖住。改法二选一 —— 该用例换成 `waitFor` 的假时钟，或给 `ThreadDisclosure` 的收起时长注入可替身的时钟。与审查面板的改动无关（在改动前的基线上同样失败）                                                                                                                                                                                                                                                                                                                              | 审查面板统计修复                     |
 
 ## 偏差与裁决
+
+### 审查面板的统计只有一份来源（2026-11-01）
+
+- **症状**：展开一个文件的 diff 前后，卡头与工具条的 `+N −M` 会变；新增几百行的文件显示 `+0`；打开多个文件后拖动分隔条或敲提交信息明显卡。
+- **根因（统计）**：清单 `git.review` 与按需补丁 `git.filePatch` 各自给出一套加减数，补齐时整份 `DiffFile` 被补丁覆盖，而总账要等下一次 `project()` 才重算 —— 同一屏上出现三份口径。刷新时 `project()` 又优先复用上一趟的旧条目，新清单的统计被丢掉（空文件先出现一次 `+0`，之后就一直冻结在 `+0`）；补丁缓存的身份原本由旧缓存自己的 `stat` 反推，内容变了而净增行数恰好相同时认不出来。
+- **裁决**：统计与处境只认清单（`git.review`），补丁只补行带（`rows`），`binary` 也以清单为准。缓存身份改成「清单的读取代次 + 影响问法的开关」，不再从补丁正文反推。这样卡头、总账、Git 工具格与撤销账本是同一组数，展开与折叠不再改变任何数字。
+- **根因（性能）**：`ReviewPane` 订阅整份 store，`Card` / `Body` 没有记忆化 —— 草稿每敲一键、分隔条每拖一帧、任一文件解析完成都会重画全部卡的整棵行带。`content-visibility` 只省布局与绘制，省不掉 React 计算。
+- **裁决**：`Card` 收紧到只依赖自己那一份（`file` / `open` / `openGaps` / `wrap` / 两个稳定回调），`Tree` 的行表按路径与折叠态记忆化。既有虚拟化（潜在行 > 500 走 `VirtualRows`）、按需取补丁与串行排空都不动 —— 那是已经正确的设计，本次不重写。
+- **留下未改**：`enrich` 仍是串行（一次一份文件），收益只限已打开的那几份，改并发要另做有界池与顺序测试，本次不动。
 
 ### 换肤与换面的补间（2026-10-26）
 
