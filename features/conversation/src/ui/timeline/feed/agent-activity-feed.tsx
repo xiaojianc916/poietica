@@ -85,6 +85,13 @@ const EARLIER_LEAD_SCREENS = 1
 /** 一格滚轮的量：不足它就算在末端。 */
 const END_THRESHOLD_PX = 48
 
+/*
+ * 让位的上限。正常一次换手在下一帧就被量到（total 变化即结束），这个数只兜「改了展开状态、但布局
+ * 根本没变」的那次：没有它，起始锚定会一直挂着，下一次追加就不跟到底。取值要大于一次重排的量测时间，
+ * 又不能让流式追加在让位里等太久。
+ */
+const HOLD_TIMEOUT_MS = 500
+
 export interface FeedPort {
   readonly activeRow: number
   readonly scrollToRow: (index: number) => void
@@ -298,6 +305,17 @@ export function AgentActivityFeed({
     /* 量到了：总高变了，让位结束 */
     setHoldTotal(null)
   }
+
+  /* 兜底：这次换手没有带来重排（改的东西不改变高度）时，别让起始锚定一直挂着。 */
+  useEffect(() => {
+    if (holdTotal === null) {
+      return
+    }
+
+    const timer = setTimeout(() => setHoldTotal(null), HOLD_TIMEOUT_MS)
+
+    return () => clearTimeout(timer)
+  }, [holdTotal])
 
   const items = virtualizer.getVirtualItems()
 
