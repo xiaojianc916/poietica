@@ -7,6 +7,9 @@ import { useEffect, useState } from 'react'
  */
 const PAINTED = new WeakMap<DiffFile, Promise<DiffFile>>()
 
+/* 已经上完色的那一份：同一个文件再次挂载（卡片折叠又展开、虚拟列表回收）时同步取用，不必先画一帧没上色的。 */
+const SETTLED = new WeakMap<DiffFile, DiffFile>()
+
 function paintedOnce(file: DiffFile): Promise<DiffFile> {
   const held = PAINTED.get(file)
 
@@ -19,24 +22,35 @@ function paintedOnce(file: DiffFile): Promise<DiffFile> {
     (files) => files[0] ?? file,
     () => file,
   )
+  const settled = started.then((painted) => {
+    SETTLED.set(file, painted)
+    return painted
+  })
 
-  PAINTED.set(file, started)
+  PAINTED.set(file, settled)
 
-  return started
+  return settled
 }
 
-/** 交回同一处改动、正文已上色的那一份；没上完色之前先画没上色的。 */
+/**
+ * 交回同一处改动、正文已上色的那一份；没上完色之前先画没上色的。
+ *
+ * 不在 effect 里先 setPainted(file) 再等着色：那样每换一次引用（或每次重新挂载）都要先退回黑白再变彩色，
+ * 流式期间就是一闪一闪。上色结果记在「它是谁的结果」名下，渲染时只认当前这份文件的。
+ */
 export function usePaintedDiff(file: DiffFile): DiffFile {
-  const [painted, setPainted] = useState(file)
+  const [painted, setPainted] = useState<{ readonly from: DiffFile; readonly to: DiffFile } | null>(null)
 
   useEffect(() => {
+    if (SETTLED.has(file)) {
+      return
+    }
+
     let live = true
 
-    setPainted(file)
-
-    void paintedOnce(file).then((next) => {
+    void paintedOnce(file).then((to) => {
       if (live) {
-        setPainted(next)
+        setPainted({ from: file, to })
       }
     })
 
@@ -45,5 +59,5 @@ export function usePaintedDiff(file: DiffFile): DiffFile {
     }
   }, [file])
 
-  return painted
+  return SETTLED.get(file) ?? (painted?.from === file ? painted.to : file)
 }

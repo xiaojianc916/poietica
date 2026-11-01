@@ -329,6 +329,38 @@ function frameOf(
       return toolFrameOf(frame, turn, stamp)
   }
 }
+/*
+ * 按帧身份记账：引擎在跑的整轮只开一个 step（live 投影器的 step 号恒为 0），思考 / 正文每吐一个字，那个 step
+ * 就换新对象，STEP_FRAMES 整段落空。上游 reducer 只替换变了的那一帧，其余帧引用不变 —— 在这一层接住，
+ * 已落定的工具条目才保持同一引用，下游按引用记账的 diff 计算与着色才不会每批从头来（否则 diff 面板一闪一闪）。
+ * 人话帧带附件时投影还取决于附件索引，不进这份账。
+ */
+const FRAME_ITEMS = new WeakMap<
+  TranscriptFrame,
+  { readonly turn: number; readonly stamp: number; readonly item: TimelineItem | null }
+>()
+
+const readsIndex = (frame: TranscriptFrame): boolean =>
+  frame.kind === 'text' && frame.role === 'user' && (frame.attachmentIds?.length ?? 0) > 0
+
+function projectFrame(
+  frame: TranscriptFrame,
+  turn: number,
+  stamp: number,
+  index: ReadonlyMap<string, TranscriptAttachment>,
+): TimelineItem | null {
+  if (readsIndex(frame)) {
+    return frameOf(frame, turn, stamp, index)
+  }
+  const held = FRAME_ITEMS.get(frame)
+  if (held !== undefined && held.turn === turn && held.stamp === stamp) {
+    return held.item
+  }
+  const item = frameOf(frame, turn, stamp, index)
+  FRAME_ITEMS.set(frame, { turn, stamp, item })
+  return item
+}
+
 const approvalDecision = (state: TranscriptInteraction['state']) =>
   state === 'approved' ? 'approved' : state === 'rejected' ? 'rejected' : 'cancelled'
 const questionOutcome = (state: TranscriptInteraction['state']) =>
@@ -1114,7 +1146,7 @@ function projectStep(
   }
   const items: TimelineItem[] = []
   for (const frame of step.frames) {
-    const projected = frameOf(frame, ordinal, at(step.startedAt) || fallback, index)
+    const projected = projectFrame(frame, ordinal, at(step.startedAt) || fallback, index)
     if (projected !== null) {
       items.push(projected)
     }
