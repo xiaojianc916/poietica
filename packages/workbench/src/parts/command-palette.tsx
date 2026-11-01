@@ -1,6 +1,6 @@
 import { CommandMenu, type CommandMenuGroup, type CommandMenuItem, Dialog } from '@poietica/design-system'
 import { builtinPoints, useContributions, useKernel, useObservable } from '@poietica/ui-kernel'
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 import { fuzzyScore } from '../fuzzy'
 
 /** 命令面板：高亮、跨组导航、Home/End、Enter 选中、active-descendant 语义都归 design-system 的 CommandMenu。 */
@@ -11,9 +11,13 @@ export function CommandPalette({ open, onClose }: { readonly open: boolean; read
   const [query, setQuery] = useState('')
   const [recent, setRecent] = useState<readonly string[]>([])
 
-  useEffect(() => {
+  /* 打开这一刻清空上一次的搜索词。在渲染里调平（官方「按 prop 调整 state」的做法）：写到 effect 里会让第一帧
+   * 用的是旧词，白画一次结果表。 */
+  const [wasOpen, setWasOpen] = useState(open)
+  if (wasOpen !== open) {
+    setWasOpen(open)
     if (open) setQuery('')
-  }, [open])
+  }
 
   const groups = useMemo<readonly CommandMenuGroup[]>(() => {
     void overrides // 改键后行尾的按键要立即刷新

@@ -29,8 +29,11 @@ export default defineCoreModule({
         run: async (cmd, args, timeout) => {
           /* stderr 显式 pipe：Bun.spawn 默认 inherit，流上是 undefined —— 从前那句 `new Response(proc.stderr)` 读到的永远是空串，失败详情全丢了。 */
           const proc = Bun.spawn([cmd, ...args], { timeout, stderr: 'pipe' })
-          const stdout = await Bun.readableStreamToText(proc.stdout)
-          const stderr = await Bun.readableStreamToText(proc.stderr)
+          /* 两股输出互不相干，一起读完再等退出码；串着等只是把它们的时间相加。 */
+          const [stdout, stderr] = await Promise.all([
+            Bun.readableStreamToText(proc.stdout),
+            Bun.readableStreamToText(proc.stderr),
+          ])
           const code = await proc.exited
           return { stdout, stderr, code }
         },

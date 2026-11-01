@@ -8,6 +8,7 @@ import {
   type CSSProperties,
   type ReactNode,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -204,12 +205,18 @@ function TweakField({
   readonly value: TweakValue
   readonly onChange: (value: TweakValue) => void
 }): ReactNode {
+  /* 标签只描一个控件：`<output>` 也是可被 label 认领的元素，包在一起等于一个 label 两个控件。 */
+  const id = useId()
+
   switch (control.type) {
     case 'range':
       return (
-        <label className="intelligent-ui__tweak">
-          <span className="intelligent-ui__tweak-label">{control.label}</span>
+        <div className="intelligent-ui__tweak">
+          <label className="intelligent-ui__tweak-label" htmlFor={id}>
+            {control.label}
+          </label>
           <input
+            id={id}
             max={control.max}
             min={control.min}
             onChange={(event) => onChange(Number(event.currentTarget.value))}
@@ -221,35 +228,46 @@ function TweakField({
             {String(value)}
             {control.unit}
           </output>
-        </label>
+        </div>
       )
     case 'color':
       return (
-        <label className="intelligent-ui__tweak">
-          <span className="intelligent-ui__tweak-label">{control.label}</span>
-          <input onChange={(event) => onChange(event.currentTarget.value)} type="color" value={String(value)} />
+        <div className="intelligent-ui__tweak">
+          <label className="intelligent-ui__tweak-label" htmlFor={id}>
+            {control.label}
+          </label>
+          <input id={id} onChange={(event) => onChange(event.currentTarget.value)} type="color" value={String(value)} />
           <output className="intelligent-ui__tweak-value">{String(value)}</output>
-        </label>
+        </div>
       )
     case 'toggle':
       return (
-        <label className="intelligent-ui__tweak">
-          <span className="intelligent-ui__tweak-label">{control.label}</span>
-          <input checked={value === true} onChange={(event) => onChange(event.currentTarget.checked)} type="checkbox" />
-        </label>
+        <div className="intelligent-ui__tweak">
+          <label className="intelligent-ui__tweak-label" htmlFor={id}>
+            {control.label}
+          </label>
+          <input
+            checked={value === true}
+            id={id}
+            onChange={(event) => onChange(event.currentTarget.checked)}
+            type="checkbox"
+          />
+        </div>
       )
     case 'select':
       return (
-        <label className="intelligent-ui__tweak">
-          <span className="intelligent-ui__tweak-label">{control.label}</span>
-          <select onChange={(event) => onChange(event.currentTarget.value)} value={String(value)}>
+        <div className="intelligent-ui__tweak">
+          <label className="intelligent-ui__tweak-label" htmlFor={id}>
+            {control.label}
+          </label>
+          <select id={id} onChange={(event) => onChange(event.currentTarget.value)} value={String(value)}>
             {control.options.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
           </select>
-        </label>
+        </div>
       )
   }
 }

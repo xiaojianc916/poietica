@@ -247,17 +247,24 @@ function CheckRow({ check }: { readonly check: GithubCheck }): ReactNode {
 
 function ChecksCard({ checks }: { readonly checks: readonly GithubCheck[] }): ReactNode {
   const [showAll, setShowAll] = useState(false)
-  /* 失败的排前面：这一节先回答「哪儿红了」。键里带序号是因为同名检查确实会重复出现。 */
+  /* 失败的排前面：这一节先回答「哪儿红了」。同名检查确实会重复出现，键按「这个名字第几次出现」发 ——
+   * 用数组下标的话，状态一变重排、每个行都会换身份。 */
   const ordered = sortChecks(checks)
   const visible = showAll ? ordered : ordered.slice(0, CHECKS_VISIBLE_LIMIT)
+  const seen = new Map<string, number>()
+  const rows = visible.map((check) => {
+    const nth = seen.get(check.name) ?? 0
+    seen.set(check.name, nth + 1)
+    return { check, key: `${check.name}#${String(nth)}` }
+  })
   return (
     <Card label="Checks">
       {checks.length === 0 ? (
         <p className="text-muted-foreground">No checks reported</p>
       ) : (
         <ul className="flex min-w-0 flex-col gap-1">
-          {visible.map((check, index) => (
-            <CheckRow check={check} key={`${check.name}#${String(index)}`} />
+          {rows.map((row) => (
+            <CheckRow check={row.check} key={row.key} />
           ))}
         </ul>
       )}

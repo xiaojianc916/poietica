@@ -28,6 +28,9 @@ import {
 } from './prompt-input'
 import { QuestionPanel } from './question-panel'
 
+/* 空表要是同一个引用：每次渲染现造一个 `[]`，下游两个 useMemo 每帧都失效，面板跟着整棵重建。 */
+const NO_CONTROLS: readonly SessionConfigControl[] = []
+
 export interface AssistantComposerProps {
   readonly placeholder?: string
   readonly status?: ChatStatus
@@ -181,7 +184,7 @@ export const AssistantComposer = memo(function AssistantComposer({
   const asking = question != null
 
   /* 未确认的那张表只用来画，不能拿去组装：那是把「这次也别问」押在旧值上。 */
-  const confirmed = toolbar.controlsPending === true ? [] : toolbar.controls
+  const confirmed = toolbar.controlsPending === true ? NO_CONTROLS : toolbar.controls
 
   /* 引用稳定，面板才不会每敲一字重建。 */
   const configuration = useMemo(() => activePromptConfiguration(confirmed), [confirmed])

@@ -287,7 +287,9 @@ export function AgentActivityFeed({
     virtualizer.scrollToIndex(revealing, { align: 'start' })
   }, [intent, revealing, settled, viewport, virtualizer])
 
-  /* 让位只覆盖人点出来的那一次测量：量到了就当场归位。 */
+  /* 让位只覆盖人点出来的那一次测量：量到了就当场归位。
+   * 这一处只能留在 layout effect 里：`total` 是虚拟器的布局量测（外部系统），渲染期拿不到「上一次」的值；
+   * 用 state 记上一份总量会让每次测量都多提交一帧，正好是流式时间线最贵的那条路上。 */
   useLayoutEffect(() => {
     if (holding && total === measuredTotal.current) {
       return

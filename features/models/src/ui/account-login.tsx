@@ -101,17 +101,20 @@ export function useAccountLogin(api: ModelsApi): AccountLogin {
   const [flow, setFlow] = useState<FlowState | null>(null)
   /* 事件可能比 startLogin 的回执先到：按 loginId 先收着，回执到了再认领 */
   const early = useRef(new Map<string, LoginEvent[]>())
+  /* 回执发下来的 loginId：认领以它为准，不在 setState 的更新函数里判（更新函数可能被重放，收两次就是两次授权提示）。 */
+  const claimed = useRef<string | null>(null)
   const onDone = useRef<(() => void) | undefined>(undefined)
 
   useEffect(() => {
     const sub = api.onLoginEvent(({ loginId, event }) => {
       if (event.kind === 'auth') window.open(event.launchUrl ?? event.url, '_blank', 'noopener')
       if (event.kind === 'done') onDone.current?.()
-      setFlow((current) => {
-        if (current !== null && current.loginId === loginId) return reduce(current, event)
-        early.current.set(loginId, [...(early.current.get(loginId) ?? []), event])
-        return current
-      })
+      if (claimed.current === loginId) {
+        setFlow((current) => (current === null || current.loginId !== loginId ? current : reduce(current, event)))
+        return
+      }
+      /* 事件可能比 startLogin 的回执先到：按 loginId 先收着，回执到了再认领 */
+      early.current.set(loginId, [...(early.current.get(loginId) ?? []), event])
     })
     return () => sub.dispose()
   }, [api])
@@ -119,9 +122,11 @@ export function useAccountLogin(api: ModelsApi): AccountLogin {
   const start = useCallback(
     (entry: LoginProvider, done?: () => void) => {
       onDone.current = done
+      claimed.current = null
       setFlow({ loginId: null, entry, auth: null, progress: null, prompt: null, fallback: null, outcome: null })
       api.startLogin(entry.id).then(
         (loginId) => {
+          claimed.current = loginId
           const held = early.current.get(loginId) ?? []
           early.current.delete(loginId)
           setFlow((current) =>

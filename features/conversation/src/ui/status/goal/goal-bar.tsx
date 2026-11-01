@@ -124,10 +124,13 @@ function GoalBarView({ goal, actions }: GoalBarViewProps) {
   const [draft, setDraft] = useState(goal.objective)
   const { error: actionError, pending, run } = actions
 
-  useEffect(() => {
+  /* 目标正文在别处被改掉（另一头、引擎回话）：编辑作废，输入框跟到新正文。渲染里调平，effect 会让第一帧短暂显示旧值。 */
+  const [seenObjective, setSeenObjective] = useState(goal.objective)
+  if (seenObjective !== goal.objective) {
+    setSeenObjective(goal.objective)
     setEditing(false)
     setDraft(goal.objective)
-  }, [goal.objective])
+  }
 
   const commit = useCallback(async () => {
     const objective = draft.trim()

@@ -375,16 +375,28 @@ function register(raw: EmotionRaw): { ok: boolean; id?: string | undefined; erro
 /* 种子装载阶段还没有实例，用静默出口兜底 */
 const silentLogger: EngineLogger = { warn: () => {}, error: () => {} }
 
+/* 目录里的定义：order 与 registry 理论上同步，但缺一条也不该让整个列表崩掉（取不到就跳过，不用 `!`）。 */
+function registeredDefs(): EmotionDef[] {
+  const defs: EmotionDef[] = []
+  for (const id of order) {
+    const def = registry.get(id)
+    if (def !== undefined) {
+      defs.push(def)
+    }
+  }
+  return defs
+}
+
 export const config = {
   register,
   get: (id: string): EmotionDef | null => registry.get(id) ?? null,
   list: (group?: string): EmotionDef[] => {
-    return order.map((id) => registry.get(id)!).filter((d) => !group || d.group === group)
+    return registeredDefs().filter((d) => !group || d.group === group)
   },
   groups: () => GROUPS.map((g) => ({ key: g.key, name: g.name, en: g.en || g.name })),
   exportConfig: () =>
     JSON.stringify(
-      order.map((id) => registry.get(id)!.raw),
+      registeredDefs().map((def) => def.raw),
       null,
       2,
     ),

@@ -125,13 +125,12 @@ function Rail({ activeId, busyId, marks, onSelect }: ConversationMinimapProps) {
   const indexById = useMemo(() => new Map(marks.map((mark, index) => [mark.admissionId, index])), [marks])
   const activeIndex = activeId === undefined ? 0 : (indexById.get(activeId) ?? 0)
   const [shown, setShown] = useState(-1)
-  const [tabbable, setTabbable] = useState(0)
+  const [tabbableState, setTabbable] = useState(0)
+  /* 目录变短时把**已记下的**焦点位夹回范围内，渲染里夹，不回写 state：effect 会多一次提交，且夹完的值与记号还得对账。 */
+  const tabbable = Math.min(tabbableState, Math.max(0, marks.length - 1))
   const listRef = useRef<HTMLOListElement>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
   const setRail = useRailPointer(setShown)
-  useEffect(() => {
-    setTabbable((current) => Math.min(current, Math.max(0, marks.length - 1)))
-  }, [marks.length])
   useEffect(() => {
     const scroller = scrollerRef.current
     if (scroller === null) {

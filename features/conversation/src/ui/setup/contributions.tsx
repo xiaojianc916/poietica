@@ -10,7 +10,7 @@ import {
   useObservable,
 } from '@poietica/ui-kernel'
 import { Archive, SquarePen } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ConversationProviders } from '../composition'
 import { AssistantSurface, HomeSurface } from '../home'
 import {
@@ -42,6 +42,17 @@ import { openSubagentTab } from '../timeline'
 import type { ConversationActions } from './actions'
 import type { ConversationSetup } from './context'
 import { useCompletionUnreadIds, useRunningThreadIds } from './use-running-thread-ids'
+
+/*
+ * 挂载后跑一次。传进来的是 setup 作用域里的那一份（整个应用一个引用），所以不列进依赖：
+ * 真把它写进依赖数组，引用一换（或分析器认定它每帧重建）就是一次多余的预取重排。
+ */
+function useMountPrefetch(run: () => void): void {
+  const held = useRef(run)
+  useEffect(() => {
+    held.current()
+  }, [])
+}
 
 /** 界面、侧栏、面板等贡献。 */
 export function createConversationContributions(setup: ConversationSetup, actions: ConversationActions): void {
@@ -327,7 +338,7 @@ export function createConversationContributions(setup: ConversationSetup, action
     id: 'conversation.home',
     title: '新对话',
     component: function ConversationHomeSurface() {
-      useEffect(prefetchProse, [])
+      useMountPrefetch(prefetchProse)
       return (
         <ConversationProviders posture={posture} transcripts={transcripts}>
           <HomeSurface
@@ -352,7 +363,7 @@ export function createConversationContributions(setup: ConversationSetup, action
     dockOwner: (params) => (params.threadId === undefined || params.threadId === '' ? null : params.threadId),
     component: function ConversationThreadSurface({ params }: { readonly params: Readonly<Record<string, string>> }) {
       const threadId = String(params.threadId ?? '')
-      useEffect(prefetchProse, [])
+      useMountPrefetch(prefetchProse)
       /*
        * 控件表、线程行、项目名单都要**订阅**着读。原先三样都读 `getState()`：那是一次性快照，
        * 而这些数据都要等一次往返才到，首帧拿到空值且不会重画 —— 屏幕上是「输入框那一排选择器不显示 / 项目名要切一次页面才出现」（真实故障）。

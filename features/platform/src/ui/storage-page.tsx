@@ -74,6 +74,8 @@ export function StoragePage({ api }: { readonly api: PlatformApi }): ReactElemen
       await load(true)
     } catch (e) {
       setFailure({ where: 'clear', text: `没有清干净：${reasonOf(e)}` })
+    } finally {
+      /* 成功与失败都要落回可点：清除抛错时按钮不能永远停在「清理中…」。 */
       if (alive.current) setBusy(false)
     }
   }

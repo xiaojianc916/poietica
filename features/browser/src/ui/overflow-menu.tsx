@@ -16,6 +16,23 @@ const triggerClassName =
 const labelClassName = 'min-w-0 flex-1 truncate text-xs'
 
 /*
+ * 列表键：同一地址可能真的被关掉两次，数组下标又会随增删整体漂移（下面一行的行身份就换了）——
+ * 用「第几次出现」，顺序变了键仍跟着那一行。
+ */
+function occurrenceKeyed<T>(
+  items: readonly T[],
+  keyOf: (item: T) => string,
+): readonly { readonly index: number; readonly item: T; readonly key: string }[] {
+  const seen = new Map<string, number>()
+  return items.map((item, index) => {
+    const base = keyOf(item)
+    const nth = seen.get(base) ?? 0
+    seen.set(base, nth + 1)
+    return { index, item, key: `${base}#${String(nth)}` }
+  })
+}
+
+/*
  * 菜单壳。以前这里还要量出菜单高度、报给面板让它垫一块等高占位 —— 菜单是浮层，不占布局，
  * 那块占位只会变成工具栏下方一条发亮的横线（用户 2026-10-19 报告）。量高整段删除。
  */
@@ -198,9 +215,9 @@ export function BrowserOverflowMenu({
           <span className={labelClassName}>没有最近关闭的标签页</span>
         </DropdownMenuItem>
       ) : (
-        recentlyClosed.map((tab, index) => (
+        occurrenceKeyed(recentlyClosed, (tab) => tab.url).map(({ index, item: tab, key }) => (
           <DropdownMenuItem
-            key={`${tab.url}#${String(index)}`}
+            key={key}
             onClick={() => {
               onReopen(index)
             }}

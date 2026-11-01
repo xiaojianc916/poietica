@@ -29,20 +29,27 @@ declare global {
   }
 }
 
-/* markdown 由页面注入；冒烟里给一个只认 "## 标题 + 段落" 的替身 —— 验的是版面，不是 markdown 引擎。 */
+/* markdown 由页面注入；冒烟里给一个只认 "## 标题 + 段落" 的替身 —— 验的是版面，不是 markdown 引擎。
+ * 键按内容（连同「第几次重复」）发，不拿下标：这份替身每次重跑都渲染同一批节点，键该跟着内容走。 */
 function stubMarkdown(text: string): ReactNode {
+  const sections = new Map<string, number>()
   return (
     <>
-      {text.split(/\n(?=## )/u).map((block, index) => {
+      {text.split(/\n(?=## )/u).map((block) => {
+        const nth = sections.get(block) ?? 0
+        sections.set(block, nth + 1)
         const [head = '', ...rest] = block.split('\n')
+        const lines = new Map<string, number>()
         return (
-          <section key={index}>
+          <section key={`${block}#${String(nth)}`}>
             {head.trim() === '' ? null : <h2>{head.replace(/^#+\s*/u, '')}</h2>}
             {rest
               .filter((line) => line.trim() !== '')
-              .map((line, i) => (
-                <p key={i}>{line}</p>
-              ))}
+              .map((line) => {
+                const nthLine = lines.get(line) ?? 0
+                lines.set(line, nthLine + 1)
+                return <p key={`${line}#${String(nthLine)}`}>{line}</p>
+              })}
           </section>
         )
       })}

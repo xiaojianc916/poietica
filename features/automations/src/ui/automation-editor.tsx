@@ -485,18 +485,23 @@ export function AutomationEditor({
   pickWorkspace,
   onOpenThread,
 }: AutomationEditorProps) {
-  const [baselineDraft] = useState(draft)
+  /* 草稿是这一页的初值，不是随渲染走的输入：外层按任务号给了 key，换任务整棵换掉。
+   * 一律用惰性初始化器，写明「只在挂载时读一次」，重画不重读 prop。 */
+  const [baselineDraft] = useState(() => draft)
   const [enabled, setEnabled] = useState(automation?.enabled ?? true)
-  const [title, setTitle] = useState(draft.title)
-  const [prompt, setPrompt] = useState(draft.prompt)
-  const [schedule, setSchedule] = useState<ScheduleValue>({ cron: draft.schedule.cron, at: draft.schedule.at })
-  const [posture, setPosture] = useState(draft.posture)
-  const [model, setModel] = useState(draft.model)
-  const [thinking, setThinking] = useState(draft.thinking)
-  const [threadMode, setThreadMode] = useState(draft.threadMode)
-  const [notify, setNotify] = useState(draft.notify)
-  const [catchUp, setCatchUp] = useState(draft.catchUp)
-  const [workspaceId, setWorkspaceId] = useState(draft.workspaceId)
+  const [title, setTitle] = useState(() => draft.title)
+  const [prompt, setPrompt] = useState(() => draft.prompt)
+  const [schedule, setSchedule] = useState<ScheduleValue>(() => ({
+    cron: draft.schedule.cron,
+    at: draft.schedule.at,
+  }))
+  const [posture, setPosture] = useState(() => draft.posture)
+  const [model, setModel] = useState(() => draft.model)
+  const [thinking, setThinking] = useState(() => draft.thinking)
+  const [threadMode, setThreadMode] = useState(() => draft.threadMode)
+  const [notify, setNotify] = useState(() => draft.notify)
+  const [catchUp, setCatchUp] = useState(() => draft.catchUp)
+  const [workspaceId, setWorkspaceId] = useState(() => draft.workspaceId)
   const [saving, setSaving] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [confirmingBack, setConfirmingBack] = useState(false)

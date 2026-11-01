@@ -289,13 +289,17 @@ function VirtualRows({
   const host = useRef<HTMLDivElement | null>(null)
   /*
    * 滚动口是祖先：它的 ref 在整棵树的 layout 阶段之后才挂上，虚拟器（在 layout effect 里认滚动元素）与下面的原点量测
-   * 在挂载那一遍读到的都是 null。所以挂载后用一次被动 effect 把它取进 state，再渲一遍 —— 不然要等一次外来的重渲
+   * 在挂载那一遍读到的都是 null。所以挂载后用一次被动 effect 催一次重画，重画时直接读 ref —— 不然要等一次外来的重渲
    * （着色换了一份行、拖宽了面板）才画得出行：文件查看器里不着色的长文件（bun.lock、LICENSE）打开就是一片空白。
    */
-  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null)
+  const [, reflow] = useState(0)
   useEffect(() => {
-    setScrollEl(scroller.current)
+    /* 读一次 ref：滚动口挂上了才值得重画；它本来就是整棵树提交时才挂上的，这里通常已经有值。 */
+    if (scroller.current !== null) {
+      reflow((n) => n + 1)
+    }
   }, [scroller])
+  const scrollEl = scroller.current
   const items = useMemo(() => spreadRows(file.rows, file.path, openGaps), [file.path, file.rows, openGaps])
   const widest = useMemo(() => widestOf(file.rows), [file.rows])
   /*

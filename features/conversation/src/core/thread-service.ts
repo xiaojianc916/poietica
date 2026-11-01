@@ -330,8 +330,11 @@ export class ThreadService {
       await this.d.engine.sessionFiles.exportHtml(row.sessionFile, targetPath)
       return { path: targetPath }
     }
-    const markdown = await this.d.engine.sessionFiles.exportMarkdown(row.sessionFile)
-    const { writeFileAtomic } = await import('@poietica/fs-kit')
+    /* 模块取用与正文导出互不相干：一起发出去，别让一次模块加载排在导出后面。 */
+    const [markdown, { writeFileAtomic }] = await Promise.all([
+      this.d.engine.sessionFiles.exportMarkdown(row.sessionFile),
+      import('@poietica/fs-kit'),
+    ])
     await writeFileAtomic(targetPath, markdown)
     return { path: targetPath }
   }

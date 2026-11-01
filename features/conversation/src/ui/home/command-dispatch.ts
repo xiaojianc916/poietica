@@ -115,36 +115,48 @@ function remedyOf(
   return undefined
 }
 
-/** 最近一句命令输出 → 横幅（色调由引擎适配器定）。/rename 回了话就收回「正在生成标题」 */
-function useOutputBanner(
-  output: ThreadCommands['output'],
+/** 一句命令输出 → 那张横幅：多行只放第一行，附上补救动作。 */
+function announceOutput(
   banners: BannerService,
-  hooks: { readonly onRenameOutput: () => void; readonly openRename: () => void },
+  output: NonNullable<ThreadCommands['output']>,
+  openRename: () => void,
 ): void {
+  const lines = output.text.split('\n').filter((line) => line.trim() !== '')
+  const [first = output.text] = lines
+  const action = remedyOf(output, lines.length, openRename)
+  banners.show({
+    severity: output.tone,
+    title: lines.length > 1 ? `${first}（共 ${lines.length} 行）` : first,
+    ...(action === undefined ? {} : { action, holdMs: REMEDY_HOLD_MS }),
+  })
+}
+
+/** 最近一句命令输出 → 横幅（色调由引擎适配器定）：新的那句到了就报一次。 */
+function useOutputBanner(output: ThreadCommands['output'], banners: BannerService, openRename: () => void): void {
   const shown = useRef(output?.seq)
-  const { onRenameOutput, openRename } = hooks
   useEffect(() => {
     if (output === null || output.seq === shown.current) return
     shown.current = output.seq
-    if (output.command.startsWith('/rename')) onRenameOutput()
-    const lines = output.text.split('\n').filter((line) => line.trim() !== '')
-    const [first = output.text] = lines
-    const action = remedyOf(output, lines.length, openRename)
-    banners.show({
-      severity: output.tone,
-      title: lines.length > 1 ? `${first}（共 ${lines.length} 行）` : first,
-      ...(action === undefined ? {} : { action, holdMs: REMEDY_HOLD_MS }),
-    })
-  }, [banners, onRenameOutput, openRename, output])
+    announceOutput(banners, output, openRename)
+  }, [banners, openRename, output])
 }
 
 /** 「正在生成标题」：开始于不带标题的 /rename，收于新标题到了、omp 回了话、或超时 */
-function useTitling(title: string | undefined) {
+function useTitling(title: string | undefined, output: ThreadCommands['output']) {
   const [titling, setTitling] = useState(false)
   const [seenTitle, setSeenTitle] = useState(title)
   if (seenTitle !== title) {
     setSeenTitle(title)
     if (titling) setTitling(false)
+  }
+  /*
+   * omp 对 /rename 回了话就收回「正在生成标题」（成功与否都收）。收尾条件留在这份状态自己手里：
+   * 从横幅那边回调进来，等于把同一个组件的 state 绕一圈再写回。渲染里调平，避免多一次提交。
+   */
+  const [answeredSeq, setAnsweredSeq] = useState(output?.seq)
+  if (output !== null && output.seq !== answeredSeq) {
+    setAnsweredSeq(output.seq)
+    if (output.command.startsWith('/rename')) setTitling(false)
   }
   useEffect(() => {
     if (!titling) return
@@ -166,7 +178,7 @@ export function useSlashCommands(input: SlashCommandsInput): SlashCommandsView {
   const { commands, restore, services, thread } = input
   const place = placeOf(input.isNew, input.status)
   const [requests, setRequests] = useState<Requests>({})
-  const titling = useTitling(thread?.title)
+  const titling = useTitling(thread?.title, commands?.output ?? null)
 
   const context = useMemo<CommandContext>(
     () => ({
@@ -208,7 +220,7 @@ export function useSlashCommands(input: SlashCommandsInput): SlashCommandsView {
     setRequests((held) => ({ ...held, model: { seq: (held.model?.seq ?? 0) + 1, pane } }))
   }, [])
 
-  useOutputBanner(commands?.output ?? null, services.banners, { onRenameOutput: titling.end, openRename })
+  useOutputBanner(commands?.output ?? null, services.banners, openRename)
 
   const native = useNativeActions(input, { openControls, openRename, titling: titling.begin, setRequests })
 

@@ -315,18 +315,19 @@ function ProviderWorkspace({
   }, [data.models])
   /* 单开是 Base UI 手风琴的默认形态，这里只把它的数组值收成一项。 */
   const [openId, setOpenId] = useState<string | null>(null)
-  useEffect(() => {
-    if (openId !== null && openId !== ADD_PROVIDER && !providers.some((p) => p.id === openId)) {
-      setOpenId(null)
-    }
-  }, [providers, openId])
+  /* 打开着的那一家被删掉（或者名单还没到）时按「没收着」算。渲染里调平 state，不再用 effect 回写：
+   * 回写要等一次提交，那一帧用户看到的是「已经不存在的供应商还开着」；顺带记住的 openId 也回到 null。 */
+  const open = openId === ADD_PROVIDER || (openId !== null && providers.some((p) => p.id === openId)) ? openId : null
+  if (open !== openId) {
+    setOpenId(open)
+  }
 
   return (
     <div className="models-block">
       <div className="models-provider-head">
         <span className="models-block__label">供应商</span>
         <Button
-          onClick={() => setOpenId(openId === ADD_PROVIDER ? null : ADD_PROVIDER)}
+          onClick={() => setOpenId(open === ADD_PROVIDER ? null : ADD_PROVIDER)}
           size="xs"
           type="button"
           variant="soft"
@@ -335,8 +336,8 @@ function ProviderWorkspace({
         </Button>
       </div>
       <div className="models-card">
-        <Accordion onValueChange={(next) => setOpenId(next[0] ?? null)} value={openId === null ? [] : [openId]}>
-          {openId === ADD_PROVIDER ? (
+        <Accordion onValueChange={(next) => setOpenId(next[0] ?? null)} value={open === null ? [] : [open]}>
+          {open === ADD_PROVIDER ? (
             <AddProviderItem
               auth={auth}
               data={data}
@@ -360,7 +361,7 @@ function ProviderWorkspace({
             />
           ))}
         </Accordion>
-        {providers.length === 0 && openId !== ADD_PROVIDER ? (
+        {providers.length === 0 && open !== ADD_PROVIDER ? (
           <p className="models-empty">还没有供应商，点右上角添加。</p>
         ) : null}
       </div>

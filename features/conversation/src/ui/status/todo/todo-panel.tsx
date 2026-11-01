@@ -28,7 +28,7 @@ import {
   Square,
   SquareTerminal,
 } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 import { useWorkspaceGitFacts, type WorkspaceGitStatus } from '../../../ui-api'
 import { useOptionalThreadGoal } from '../../session'
 import type { SessionGoal } from '../../shared/model/goal'
@@ -754,23 +754,11 @@ export function TaskPanelContent({
 
   /*
    * 开合**受控**，不用 Accordion 的 defaultValue：每一格的数据都是异步到的（git 那一份要走一次 RPC），「该不该默认展开」在首帧常常还没有答案，
-   * 而 defaultValue 只在挂载那一刻算一次 —— 晚到的那一格挂上来就是收起的。这里新出现的一格补进开着的名单（**只补一次**，之后人在它上面收起来就一直是收的）。
+   * 而 defaultValue 只在挂载那一刻算一次 —— 晚到的那一格挂上来就是收起的。
+   * 所以只记「人收起来的那些」，开着的名单每次从数据现推：新出现的一格自然开着，人收起来的那格就一直收着。
    */
-  const [open, setOpen] = useState<string[]>([...expanded])
-  /* 惰性建：useRef(new Set(...)) 的初始化参数每次渲染都会求值，白白造一份再丢掉。 */
-  const seen = useRef<Set<string> | null>(null)
-  useEffect(() => {
-    seen.current ??= new Set(expanded)
-    const seenBefore = seen.current
-    const fresh = expanded.filter((value) => !seenBefore.has(value))
-    if (fresh.length === 0) {
-      return
-    }
-    for (const value of fresh) {
-      seenBefore.add(value)
-    }
-    setOpen((held) => [...held, ...fresh])
-  }, [expanded])
+  const [closed, setClosed] = useState<ReadonlySet<string>>(() => new Set())
+  const open = expanded.filter((value) => !closed.has(value))
 
   return (
     <Accordion
@@ -778,7 +766,18 @@ export function TaskPanelContent({
       className="status-panel"
       multiple
       onValueChange={(next) => {
-        setOpen(next)
+        setClosed((held) => {
+          const wanted = new Set(next)
+          const result = new Set(held)
+          for (const value of expanded) {
+            if (wanted.has(value)) {
+              result.delete(value)
+            } else {
+              result.add(value)
+            }
+          }
+          return result
+        })
       }}
       value={open}
     >
