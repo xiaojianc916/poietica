@@ -16,8 +16,9 @@ import { testLayout } from './omp-home'
  * 必须给出同一张屏 —— 两条路各有一堆逐例测试，但「跑的时候一个样、重开之后另一个样」
  * （R-10 / R-12 / R-19 / R-21 / R-23 / R-25）从来没人把两边摆在一起比。这里用真 omp 跑一遍，
  * 比三张页：live、当场取的历史页、重开后的历史页。比的是界面真正用到的：每帧的种类 / 角色 /
- * 正文 / 工具名与状态，**以及帧号**（界面按帧号记量高缓存与展开状态，号错了状态错位到别的行）；
- * 段的划分两边不同，界面把段摊平了用，这里也摊平了比。
+ * 正文 / 工具名与状态，**以及帧号与段号**：界面按帧号记量高缓存与展开状态，号错了状态错位到别的行；
+ * 段是投影层记账的单位（按段身份复用投影），也是帧键（turn / step / frame）的一部分 —— 增量那条路若把整轮
+ * 塞进一个段，思考每吐一个字整轮都要重投，已落定的工具卡片跟着重算、闪烁。所以段的划分两边也必须同形。
  */
 
 interface FlatFrame {
@@ -27,20 +28,28 @@ interface FlatFrame {
   readonly origin?: string
   readonly text?: string
   readonly tool?: string
+  readonly step: string
 }
 
-function flatFrame(frame: TranscriptFrame): FlatFrame {
+function flatFrame(frame: TranscriptFrame, step: string): FlatFrame {
   switch (frame.kind) {
     case 'tool':
-      return { kind: 'tool', id: frame.frameId, tool: `${frame.name}:${frame.state}` }
+      return { kind: 'tool', id: frame.frameId, tool: `${frame.name}:${frame.state}`, step }
     case 'thinking':
-      return { kind: 'thinking', id: frame.frameId, text: frame.text }
+      return { kind: 'thinking', id: frame.frameId, text: frame.text, step }
     case 'text':
       return frame.role === 'user'
-        ? { kind: 'text', id: frame.frameId, role: 'user', text: frame.text, origin: frame.origin?.kind ?? 'none' }
-        : { kind: 'text', id: frame.frameId, role: frame.role, text: frame.text }
+        ? {
+            kind: 'text',
+            id: frame.frameId,
+            role: 'user',
+            text: frame.text,
+            origin: frame.origin?.kind ?? 'none',
+            step,
+          }
+        : { kind: 'text', id: frame.frameId, role: frame.role, text: frame.text, step }
     default:
-      return { kind: frame.kind, id: frame.frameId }
+      return { kind: frame.kind, id: frame.frameId, step }
   }
 }
 
@@ -55,7 +64,7 @@ interface FlatRow {
 function flatten(page: TranscriptPage): FlatRow[] {
   return page.items.map((item) => {
     if (item.kind !== 'turn') return { kind: item.kind }
-    const frames = item.steps.flatMap((step) => step.frames.map(flatFrame))
+    const frames = item.steps.flatMap((step) => step.frames.map((frame) => flatFrame(frame, step.stepId)))
     return { turn: item.turnId, prompt: item.prompt, state: item.state, frames }
   })
 }
@@ -114,6 +123,16 @@ const SCENARIOS: Record<string, readonly (readonly ScenarioStep[])[]> = {
     ],
   ],
   两次工具再收尾: [[tool('x'), tool('y'), { kind: 'text', text: '做完了' }]],
+  思考正文后调工具再接着想: [
+    [
+      { kind: 'thinking', text: '先看看' },
+      { kind: 'text', text: '我去读一下' },
+      tool('x'),
+      { kind: 'thinking', text: '读到了' },
+      tool('y'),
+      { kind: 'text', text: '改好了' },
+    ],
+  ],
   两轮: [
     [{ kind: 'text', text: '第一轮' }],
     [

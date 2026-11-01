@@ -73,8 +73,9 @@ export async function createOmpEngineForTest(o: CreateOmpEngineForTestOptions): 
 
 /**
  * 一轮 scenario → 一串 mock 回复。
- * 一条回复里能同时装正文、思维链与用量；工具调用必须**自己占一条回复**
- * （一次只发起一个调用，工具结果由 omp 真正执行工具得到，随后的步骤放进下一条回复）。
+ * 一条回复里能同时装正文、思维链与用量；工具调用**收住这一条回复**：排在它前面的正文 / 思维链与它同一条
+ * （真模型就是这样发的：先想、再说一句、再调工具），一次只发起一个调用，工具结果由 omp 真正执行工具得到，
+ * 随后的步骤放进下一条回复。不能先把前面的正文单独发成一条 —— 只有正文的回复在 omp 里就是这一轮的收尾。
  */
 function repliesOf(turn: readonly ScenarioStep[]): MockReply[] {
   const replies: MockReply[] = []
@@ -98,18 +99,14 @@ function repliesOf(turn: readonly ScenarioStep[]): MockReply[] {
         content.push({ type: 'thinking', thinking: step.text })
         break
       case 'tool':
-        // 工具调用自己占一条回复：omp 跑完它才发下一个 stream 请求
-        flush()
-        replies.push({
-          content: [
-            {
-              type: 'toolCall',
-              id: `call-${String(index)}`,
-              name: step.name,
-              arguments: (step.args ?? {}) as Record<string, unknown>,
-            },
-          ],
+        // 工具调用收住这条回复：omp 跑完它才发下一个 stream 请求
+        content.push({
+          type: 'toolCall',
+          id: `call-${String(index)}`,
+          name: step.name,
+          arguments: (step.args ?? {}) as Record<string, unknown>,
         })
+        flush()
         break
       case 'interaction':
         // 交互由 write_test 触发审批（姿态为 ask 时 omp 会发起）

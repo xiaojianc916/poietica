@@ -30,6 +30,17 @@ exports[`一轮的代表性形状（12 页 §9.5 的快照） 正文 + 思考 + 
               "kind": "thinking",
               "text": "先想一下",
             },
+          ],
+          "kind": "step",
+          "ordinal": 0,
+          "startedAt": "2023-11-14T22:13:20.000Z",
+          "state": "completed",
+          "stepId": "t1.0",
+          "turnId": "t1",
+        },
+        {
+          "endedAt": "2023-11-14T22:13:20.000Z",
+          "frames": [
             {
               "frameId": "tool.c1",
               "input": {
@@ -57,9 +68,10 @@ exports[`一轮的代表性形状（12 页 §9.5 的快照） 正文 + 思考 + 
             },
           ],
           "kind": "step",
-          "ordinal": 0,
+          "ordinal": 1,
+          "startedAt": "2023-11-14T22:13:20.000Z",
           "state": "completed",
-          "stepId": "t1.0",
+          "stepId": "t1.1",
           "turnId": "t1",
         },
       ],
@@ -78,8 +90,8 @@ exports[`一轮的代表性形状（12 页 §9.5 的快照） 正文 + 思考 + 
       "phase": {
         "kind": "streaming",
         "since": 1700000000000,
-        "step": 0,
-        "stepId": "t1.0",
+        "step": 1,
+        "stepId": "t1.1",
         "stream": "assistant",
         "turnId": 1,
       },

@@ -163,10 +163,27 @@ export class LiveProjector {
   private interjections = 0
   private turnOpen = false
   private stepOpen = false
+  /** 当前段开始的时刻：收段时原样带回去（step.upsert 是整头替换，不带就把开头的时刻冲掉） */
+  private stepStartedAt = ''
+  /**
+   * 段的划分与历史那条路（history.ts 的 emitMessage）同一个口径，号才对得上（live-history-parity 逐帧比段号）：
+   * - 一条助手消息从新的一段开始，一句插话自占一段；
+   * - 同一条消息里，正文 / 思维链之后的工具调用另起一段，紧挨着的几次调用同段。
+   * 段按需才开：上一段一帧都没放（轮头刚开、或这条消息一块都没上屏）就直接沿用，不留空段，也不跳号。
+   *
+   * 这也是投影层按段记账的前提：整轮塞进一个段，思考每吐一个字整轮都要重投，已落定的工具卡片跟着重算、闪烁。
+   */
+  private stepUsed = false
+  /** 当前段已封：下一次放帧先开新段（新的助手消息开始了，或插话刚落） */
+  private stepSealed = false
+  /** 当前段里、上一次工具调用之后放过几帧正文 / 思维链（history.ts 的 frame 计数） */
+  private streamFrames = 0
   private streaming: Streaming | null = null
   /** 最近流过的那一帧（封口之后也留着）：同一块被打断后接着流时接回它，见 #stream */
   private lastStream: Streaming | null = null
   private readonly tools = new Map<string, string>()
+  /** 每次调用落在哪一段（toolCallId →）：之后的 update / end 必须写回同一段，帧键含段号，写错段就是两张卡片 */
+  private readonly toolSteps = new Map<string, StepId>()
   private readonly args = new Map<string, unknown>()
   private readonly intents = new Map<string, string>()
   /** 参数还在流、工具还没开始跑的调用（toolCallId →）：toolStart 接手，轮终把剩下的收成普通 running */
@@ -329,8 +346,13 @@ export class LiveProjector {
     this.lastStream = null
     this.turnOpen = true
     this.stepOpen = true
+    this.stepStartedAt = at
+    this.stepUsed = false
+    this.stepSealed = false
+    this.streamFrames = 0
     this.streaming = null
     this.tools.clear()
+    this.toolSteps.clear()
     this.args.clear()
     this.intents.clear()
     this.inputs.clear()
@@ -357,10 +379,15 @@ export class LiveProjector {
     const attachmentIds = attachments.map((attachment) => attachment.attachmentId)
     this.streaming = null
     const turn = turnId(this.turn)
+    /* 插话自占一段：前后都是助手的产出 */
+    const opened = this.stepUsed ? this.advanceStep() : []
     const step = stepId(turn, this.step)
+    this.stepUsed = true
+    this.stepSealed = true
     this.interjections += 1
     const id = interjectionFrameId(turn, this.interjections)
     return [
+      ...opened,
       ...attachments.map((attachment): TranscriptOperation => ({ op: 'attachment.upsert', attachment })),
       {
         op: 'frame.upsert',
@@ -387,6 +414,78 @@ export class LiveProjector {
     this.message += 1
     this.block = -1
     this.streaming = null
+    /* 新的一条消息从新的一段开始；真开段要等它第一块上屏（一块都不上屏的消息不占段，与历史那条路一致） */
+    if (this.stepUsed) this.stepSealed = true
+    this.streamFrames = 0
+  }
+
+  /**
+   * 收掉当前段、开下一段。只由放帧的地方按 stepSealed / streamFrames 的口径调用，其余地方不得自己挪段号。
+   */
+  private advanceStep(): TranscriptOperation[] {
+    const turn = turnId(this.turn)
+    const at = this.now()
+    const closed = this.closeStepOp('completed', at)
+    this.step += 1
+    this.stepStartedAt = at
+    this.stepUsed = false
+    this.stepSealed = false
+    this.streamFrames = 0
+    return [
+      closed,
+      {
+        op: 'step.upsert',
+        turnId: turn,
+        step: {
+          kind: 'step',
+          stepId: stepId(turn, this.step),
+          turnId: turn,
+          ordinal: this.step,
+          state: 'running',
+          startedAt: at,
+        },
+      },
+    ]
+  }
+
+  /** 收掉当前段的那一条 op：开段时刻原样带回（step.upsert 整头替换），切段与轮终共用这一份 */
+  private closeStepOp(state: 'completed' | 'failed' | 'interrupted', at: string): TranscriptOperation {
+    const turn = turnId(this.turn)
+    return {
+      op: 'step.upsert',
+      turnId: turn,
+      step: {
+        kind: 'step',
+        stepId: stepId(turn, this.step),
+        turnId: turn,
+        ordinal: this.step,
+        state,
+        ...(this.stepStartedAt === '' ? {} : { startedAt: this.stepStartedAt }),
+        endedAt: at,
+      },
+    }
+  }
+
+  /** 放一帧正文 / 思维链之前：段封了就先开新段 */
+  private placeStream(): TranscriptOperation[] {
+    const opened = this.stepSealed ? this.advanceStep() : []
+    this.stepUsed = true
+    this.streamFrames += 1
+    return opened
+  }
+
+  /** 放一次工具调用之前：段封了、或这一段里工具前面已经有正文 / 思维链，就先开新段 */
+  private placeTool(toolCallId: string): TranscriptOperation[] {
+    const opened = this.stepSealed || this.streamFrames > 0 ? this.advanceStep() : []
+    this.stepUsed = true
+    this.streamFrames = 0
+    this.toolSteps.set(toolCallId, stepId(turnId(this.turn), this.step))
+    return opened
+  }
+
+  /** 这次调用当初落在哪一段；没登记过（不该发生）退回当前段 */
+  private toolStepOf(toolCallId: string): StepId {
+    return this.toolSteps.get(toolCallId) ?? stepId(turnId(this.turn), this.step)
   }
 
   /** `contentIndex` = omp 流式事件里块在这条助手消息 content 里的下标；号由它派生（见 frame-ids.ts） */
@@ -414,9 +513,15 @@ export class LiveProjector {
       const resumed: Streaming = { ...last, since: 0 }
       return [appendOp(turn, resumed.step, id, resumed.emitted, delta), ...this.advance(resumed, delta)]
     }
+    const opened = this.placeStream()
     const step = stepId(turn, this.step)
     const created: Streaming = { id, kind, block, step, emitted: 0, since: 0 }
-    return [streamStartOp(turn, step, kind, id), appendOp(turn, step, id, 0, delta), ...this.advance(created, delta)]
+    return [
+      ...opened,
+      streamStartOp(turn, step, kind, id),
+      appendOp(turn, step, id, 0, delta),
+      ...this.advance(created, delta),
+    ]
   }
 
   /**
@@ -480,8 +585,9 @@ export class LiveProjector {
     }
     /* 与 toolStart 同一个规矩：工具那一格之后的正文另起一帧 */
     this.streaming = null
+    const opened = held === undefined ? this.placeTool(call.toolCallId) : []
     const turn = held?.turnId ?? turnId(this.turn)
-    const step = held?.stepId ?? stepId(turn, this.step)
+    const step = held?.stepId ?? this.toolStepOf(call.toolCallId)
     const pending: PendingInput = {
       frameId: held?.frameId ?? `tool.${call.toolCallId}`,
       turnId: turn,
@@ -494,7 +600,7 @@ export class LiveProjector {
       checkedAt: at,
     }
     this.inputs.set(call.toolCallId, pending)
-    return [this.pendingInputOp(call.toolCallId, pending, true)]
+    return [...opened, this.pendingInputOp(call.toolCallId, pending, true)]
   }
 
   /**
@@ -556,14 +662,17 @@ export class LiveProjector {
     if (!this.turnOpen) return []
     this.streaming = null
     const turn = turnId(this.turn)
-    const step = stepId(turn, this.step)
     const id = `tool.${call.toolCallId}`
-    /* 参数流过的那一格就是这一格（同号整格替换，去掉 inputPending） */
+    /* 参数流过的那一格就是这一格（同号同段整格替换，去掉 inputPending），不再另占一段 */
+    const streamed = this.inputs.has(call.toolCallId) || this.toolSteps.has(call.toolCallId)
+    const opened = streamed ? [] : this.placeTool(call.toolCallId)
+    const step = this.toolStepOf(call.toolCallId)
     this.inputs.delete(call.toolCallId)
     this.tools.set(call.toolCallId, id)
     this.args.set(call.toolCallId, call.args)
     if (call.intent !== undefined && call.intent !== '') this.intents.set(call.toolCallId, call.intent)
     return [
+      ...opened,
       {
         op: 'frame.upsert',
         turnId: turn,
@@ -589,7 +698,7 @@ export class LiveProjector {
   }): TranscriptOperation[] {
     if (!this.turnOpen) return []
     const turn = turnId(this.turn)
-    const step = stepId(turn, this.step)
+    const step = this.toolStepOf(call.toolCallId)
     const id = this.tools.get(call.toolCallId) ?? `tool.${call.toolCallId}`
     const args = this.args.get(call.toolCallId)
     const intent = this.intents.get(call.toolCallId)
@@ -622,7 +731,7 @@ export class LiveProjector {
   }): TranscriptOperation[] {
     if (!this.turnOpen) return []
     const turn = turnId(this.turn)
-    const step = stepId(turn, this.step)
+    const step = this.toolStepOf(call.toolCallId)
     const id = this.tools.get(call.toolCallId) ?? `tool.${call.toolCallId}`
     const failed = call.isError === true
     const args = this.args.get(call.toolCallId)
@@ -661,18 +770,9 @@ export class LiveProjector {
     const ops: TranscriptOperation[] = this.closeRetry(outcome)
     ops.push(...this.settleInputs())
     if (this.stepOpen) {
-      ops.push({
-        op: 'step.upsert',
-        turnId: turn,
-        step: {
-          kind: 'step',
-          stepId: stepId(turn, this.step),
-          turnId: turn,
-          ordinal: this.step,
-          state: outcome === 'failed' ? 'failed' : outcome === 'cancelled' ? 'interrupted' : 'completed',
-          endedAt: at,
-        },
-      })
+      ops.push(
+        this.closeStepOp(outcome === 'failed' ? 'failed' : outcome === 'cancelled' ? 'interrupted' : 'completed', at),
+      )
     }
     ops.push({
       op: 'turn.upsert',
@@ -718,18 +818,23 @@ export class LiveProjector {
   }): TranscriptOperation[] {
     if (!this.turnOpen) return []
     const turn = turnId(this.turn)
-    const step = stepId(turn, this.step)
     const known = this.tools.get(call.toolCallId)
     const id = known ?? `tool.${call.toolCallId}`
+    let opened: TranscriptOperation[] = []
     if (known === undefined) {
-      // start 失败：照 toolStart 的规矩先封掉正在流的正文，再登记这一格
+      // start 失败：照 toolStart 的规矩先封掉正在流的正文，再登记这一格（参数流过的那一格沿用它的段）
       this.streaming = null
+      if (!this.inputs.has(call.toolCallId) && !this.toolSteps.has(call.toolCallId)) {
+        opened = this.placeTool(call.toolCallId)
+      }
       this.inputs.delete(call.toolCallId)
       this.tools.set(call.toolCallId, id)
     }
+    const step = this.toolStepOf(call.toolCallId)
     const args = this.args.get(call.toolCallId)
     const state = call.ended === null ? 'running' : call.ended ? 'error' : 'done'
     return [
+      ...opened,
       {
         op: 'frame.upsert',
         turnId: turn,
@@ -759,8 +864,12 @@ export class LiveProjector {
     this.retrySlot = null
     this.turnAttachments = []
     this.stepOpen = false
+    this.stepUsed = false
+    this.stepSealed = false
+    this.streamFrames = 0
     this.streaming = null
     this.tools.clear()
+    this.toolSteps.clear()
     this.args.clear()
     this.intents.clear()
     this.inputs.clear()

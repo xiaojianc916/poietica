@@ -6,9 +6,9 @@ import type { ToolCallTimelineItem } from '../../../shared/timeline/timeline-con
 import { type ProjectionMemo, projectTranscript } from '../transcript-projector'
 
 /*
- * 引擎在跑的整轮只开一个 step（live 投影器的 step 号恒为 0）：思考每吐一个字，那个 step 就换新对象。
- * 同一 step 里已经落定的工具帧引用没变，投影出来的条目也必须是同一个 —— 否则 diff 面板每批重算、
- * 着色从头再来，屏幕上就是「一闪一闪」。
+ * 同一 step 里既有落定的工具帧、又有正在流的帧时（例如工具之后紧跟的正文；引擎按消息切段后少见，但合法）：
+ * 每吐一个字那个 step 就换新对象。已经落定的工具帧引用没变，投影出来的条目也必须是同一个 —— 否则 diff 面板
+ * 每批重算、着色从头再来，屏幕上就是「一闪一闪」。
  */
 
 const AT = '2026-10-10T00:00:00.000Z'

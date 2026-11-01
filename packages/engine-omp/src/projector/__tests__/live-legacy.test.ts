@@ -160,8 +160,9 @@ describe('插话帧（legacy projection.test.ts 的「插话帧」）', () => {
     ])
     const turn = state.items[0]
     const steps = turn?.kind === 'turn' ? turn.steps : []
-    expect(steps).toHaveLength(1)
-    const frames = steps[0]?.frames ?? []
+    // 插话自占一段（与历史那条路同一个口径）：前后各是助手的产出
+    expect(steps.map((step) => step.frames.length)).toEqual([1, 1, 1])
+    const frames = steps.flatMap((step) => step.frames)
     // 开轮那句只在轮头（turn.prompt），帧里只有模型的输出与插话
     expect(turn?.kind === 'turn' && turn.prompt).toBe('干活')
     expect(frames.map((frame) => (frame.kind === 'text' ? frame.text : frame.kind))).toEqual([

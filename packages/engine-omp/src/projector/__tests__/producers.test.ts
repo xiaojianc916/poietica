@@ -54,12 +54,13 @@ describe('LiveProjector 的压缩标记', () => {
 })
 
 describe('LiveProjector 的插话帧', () => {
-  test('steeredFrame 有生产者：开着一轮时进当前 step，文字是人话', () => {
+  test('steeredFrame 有生产者：开着一轮时自占一段，文字是人话', () => {
     const p = projector()
     p.userTurn({ text: 'q' })
     p.textDelta('前半')
     const ops = p.steeredFrame('插一句')
-    expect(ops.length).toBe(1)
+    // 收掉正文那一段、开插话这一段，再放这一帧
+    expect(ops.map((op) => op.op)).toEqual(['step.upsert', 'step.upsert', 'frame.upsert'])
     const page = pageFromState(applyOps(emptyTimeline(), [...p.textDelta('x'), ...ops]))
     const roles = page.items.flatMap((item) =>
       item.kind === 'turn'
