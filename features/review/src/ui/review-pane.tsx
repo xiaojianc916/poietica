@@ -39,7 +39,18 @@ import {
   WrapText,
   X,
 } from 'lucide-react'
-import { type CSSProperties, Fragment, memo, type ReactNode, type RefObject, useMemo, useRef } from 'react'
+import {
+  type CSSProperties,
+  Fragment,
+  memo,
+  type ReactNode,
+  type PointerEvent as ReactPointerEvent,
+  type RefObject,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import type { FileChange } from '../contract'
 import {
   type ReviewFailureReport,
@@ -86,6 +97,8 @@ export function ReviewPane({ gateway, report }: ReviewPaneProps) {
   const scroller = useRef<HTMLDivElement | null>(null)
   const state = useFeatureStore(store.store, (held) => held)
   const reading = state.reading
+  /* 覆盖式滚动条的滑块几何：跟着滚动容器的滚动量走。 */
+  const thumb = useOverlayScrollbar(scroller)
   if (reading.phase === 'notARepository') {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
@@ -111,11 +124,129 @@ export function ReviewPane({ gateway, report }: ReviewPaneProps) {
     >
       <Toolbar reading={reading} state={state} store={store} />
       <div className="flex min-h-0 flex-1">
-        <div className="review-scroll min-h-0 flex-1 overflow-y-auto" ref={scroller}>
-          <Cards reading={reading} scroller={scroller} shown={shown} state={state} store={store} />
+        {/* 滚动条画在里面、盖在内容上：把它画在滚动体外面就要占一列宽度，变更区会跟着变窄。
+            这层只管给那条绝对定位的滑块当锚，不接任何悬停反馈。 */}
+        <div className="relative min-h-0 flex-1">
+          <div className="review-scroll h-full min-h-0 overflow-y-auto" ref={scroller}>
+            <Cards reading={reading} scroller={scroller} shown={shown} state={state} store={store} />
+          </div>
+          <OverlayScrollbar scroller={scroller} thumb={thumb} />
         </div>
         <Tree docked={treeColumn > 0} shown={shown} state={state} store={store} />
       </div>
+    </div>
+  )
+}
+
+/* 滑块的几何：内容有多长、此刻停在哪。滚动体没得滚时不画条。
+ * 公式单独导出并带单测：贴顶、贴底、不越界这三条在屏幕上看不出换算错了。 */
+export interface Thumb {
+  readonly visible: boolean
+  readonly height: number
+  readonly offset: number
+}
+
+/** 滑块最短 32px：长清单里那一条再细就抓不住了。 */
+const THUMB_MIN = 32
+
+export function thumbOf(clientHeight: number, scrollHeight: number, scrollTop: number): Thumb {
+  if (scrollHeight <= clientHeight) {
+    return { height: 0, offset: 0, visible: false }
+  }
+  const height = Math.max(THUMB_MIN, (clientHeight / scrollHeight) * clientHeight)
+  /* 滑块走多远，内容就走多少：两边都按「可走距离」的比例换算。 */
+  const offset = (scrollTop / (scrollHeight - clientHeight)) * (clientHeight - height)
+  return { height, offset, visible: true }
+}
+
+function useOverlayScrollbar(scroller: RefObject<HTMLDivElement | null>): Thumb {
+  /* 滑块高度按「可视比」走，位置按 scrollTop 比例走；两者都要在滚动、改尺寸、内容变化后重算。
+   * 内容变化（展开一份 diff、换一份清单）不会触发 scroll 事件，所以要盯子树。 */
+  const [thumb, setThumb] = useState<Thumb>({ height: 0, offset: 0, visible: false })
+  useEffect(() => {
+    const el = scroller.current
+    if (el === null) {
+      return
+    }
+    const measure = (): void => {
+      const next = thumbOf(el.clientHeight, el.scrollHeight, el.scrollTop)
+      /* 同值不换对象：滚动每帧都会调到这里。 */
+      setThumb((held) =>
+        held.visible === next.visible && held.height === next.height && Math.abs(held.offset - next.offset) < 0.5
+          ? held
+          : next,
+      )
+    }
+    measure()
+    /* 滚动体自己的盒子变了（拖宽、换窗口）要重量。 */
+    const resize = new ResizeObserver(measure)
+    resize.observe(el)
+    /* 内容高度变了（展开一份 diff、清单换了一份）也要重量，而那不会改滚动体自己的盒子。
+     * 盯子树而不是只盯当前那几个孩子：卡是整批换的，旧节点会被摘掉。 */
+    const mutation = new MutationObserver(measure)
+    mutation.observe(el, { childList: true, subtree: true })
+    el.addEventListener('scroll', measure, { passive: true })
+    return () => {
+      resize.disconnect()
+      mutation.disconnect()
+      el.removeEventListener('scroll', measure)
+    }
+  }, [scroller])
+  return thumb
+}
+
+/* 覆盖式滚动条：绝对定位在滚动体右缘，不参与布局，所以不占宽度。
+ * 能拖：按下滑块后按位移换算成滚动量，指针捕获归滑块自己，拖出滚动体也不会断。 */
+function OverlayScrollbar({
+  scroller,
+  thumb,
+}: {
+  readonly scroller: RefObject<HTMLDivElement | null>
+  readonly thumb: Thumb
+}) {
+  const drag = useRef<{ readonly startY: number; readonly startTop: number } | null>(null)
+  if (!thumb.visible) {
+    return null
+  }
+  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    const el = scroller.current
+    if (el === null) {
+      return
+    }
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    drag.current = { startTop: el.scrollTop, startY: event.clientY }
+  }
+  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    const held = drag.current
+    const el = scroller.current
+    if (held === null || el === null) {
+      return
+    }
+    /* 滑块走多远，内容就走多少：两者按 travel 的比例换算。 */
+    const travel = el.clientHeight - thumb.height
+    if (travel <= 0) {
+      return
+    }
+    const moved = event.clientY - held.startY
+    el.scrollTop = held.startTop + (moved / travel) * (el.scrollHeight - el.clientHeight)
+  }
+  const stopDrag = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    drag.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+  }
+  return (
+    <div aria-hidden className="review-scrollbar">
+      <div
+        className="review-scrollbar__thumb"
+        onPointerCancel={stopDrag}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={stopDrag}
+        style={{ height: `${String(thumb.height)}px`, transform: `translateY(${String(thumb.offset)}px)` }}
+      />
     </div>
   )
 }

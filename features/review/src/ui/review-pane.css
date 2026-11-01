@@ -135,6 +135,49 @@
 /* 也是折叠带宽度的容器查询参照（--diff-row-inline-size 量测落地前的回退）；横向不滚，所以只要 inline-size。 */
 .review-scroll {
   container-type: inline-size;
+  /* 原生条不画：它占一列宽度，变更区会跟着变窄。滚轮、键盘、拖动都照常，条由下面那层自己画。 */
+  scrollbar-width: none;
+}
+
+.review-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+ * 覆盖式滚动条：绝对定位盖在滚动体右缘，不参与布局，所以不占宽度。
+ *
+ * 形状与取色跟全仓那一条一致（5px、圆角 999px、滑块铺满槽），值取自
+ * design-system/scrollbar.css 与令牌表，不在这里另起一套。区别只有两点：原生条在滚动体之外
+ * 占位，这一条画在里面；这条还能拖（原生条在 Electron 里也能拖，行为要对齐）。
+ *
+ * 槽比滑块宽一圈：5px 的条画出来细，直接按 5px 收指针就只有 5px 的命中区，很难按住。留白用
+ * padding 出，滑块仍然是 5px —— 看得见的那一条不变宽，能抓住的范围大了。
+ */
+.review-scrollbar {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  inline-size: calc(var(--ui-scrollbar-size) + 8px);
+  padding-inline-start: 8px;
+  box-sizing: border-box;
+  /* 槽本身不挡点击：滑块之外那一片要让滚轮、划选、点卡头都照常落到内容上。 */
+  pointer-events: none;
+}
+
+.review-scrollbar__thumb {
+  inline-size: var(--ui-scrollbar-size);
+  border-radius: 999px;
+  corner-shape: round;
+  background: var(--ui-scrollbar-thumb);
+  transition: background-color 120ms ease;
+  /* 只有滑块自己接指针 —— 能拖。 */
+  pointer-events: auto;
+  cursor: default;
+}
+
+/* 悬停只认滑块自己：挂在包裹层上会让鼠标一进审查区就亮，与全仓那一条原生条的反馈也不一致。 */
+.review-scrollbar__thumb:hover {
+  background: var(--ui-scrollbar-thumb-hover);
 }
 
 /* 与外壳侧栏同一条机制：列宽是注册过的 <length> 自定义属性，插值归 CSS 引擎；收起是列宽归零、定宽底面被自己那一列裁掉，
