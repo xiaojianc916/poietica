@@ -231,14 +231,17 @@
   font-weight: 500;
 }
 
-.workbuddy-login__waiting {
+.workbuddy-login__actions {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
-  color: var(--ui-muted-foreground);
 }
 
-.workbuddy-login__waiting svg {
-  inline-size: 14px;
-  block-size: 14px;
+.workbuddy-login__hint {
+  color: var(--ui-muted-foreground);
+  font-size: var(--ui-font-size-caption);
+}
+
+.workbuddy-login__waiting {
+  color: var(--ui-muted-foreground);
 }

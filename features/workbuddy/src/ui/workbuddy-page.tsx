@@ -2,12 +2,12 @@ import {
   Button,
   ConfirmationDialog,
   Dialog,
-  InlineSpinner,
   LoadingState,
   SettingRow,
   SettingsGroup,
   SettingsPage,
   ToggleRow,
+  useCopy,
 } from '@poietica/design-system'
 import { useFeatureStore } from '@poietica/ui-kernel'
 import { CheckCircle2, Plus } from 'lucide-react'
@@ -307,7 +307,6 @@ function LoginStatus({ login }: { readonly login: LoginView }) {
   if (login.state === 'waiting') {
     return (
       <p className="workbuddy-login__waiting" role="status">
-        <InlineSpinner />
         等待浏览器完成授权…
       </p>
     )
@@ -329,11 +328,43 @@ function LoginDialog({
 }: {
   readonly login: LoginView
   readonly onCancel: () => void
-  readonly onOpenUrl: (url: string) => void
+  readonly onOpenUrl: (url: string) => Promise<void>
 }) {
+  const { copied, copy } = useCopy()
+  const [opening, setOpening] = useState(false)
+  const [opened, setOpened] = useState(false)
+  const [openError, setOpenError] = useState<string | null>(null)
+  const autoOpened = useRef(false)
+  const alive = useRef(true)
+
+  const open = useCallback(async (): Promise<void> => {
+    setOpening(true)
+    setOpenError(null)
+    try {
+      await onOpenUrl(login.url)
+      if (alive.current) setOpened(true)
+    } catch (cause) {
+      if (alive.current) setOpenError(messageOf(cause))
+    } finally {
+      if (alive.current) setOpening(false)
+    }
+  }, [login.url, onOpenUrl])
+
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (autoOpened.current) return
+    autoOpened.current = true
+    void open()
+  }, [open])
+
   return (
     <Dialog
-      busy={login.state === 'waiting'}
       closeOnOverlayClick={false}
       footer={
         <Button onClick={onCancel} size="sm" type="button" variant="ghost">
@@ -349,9 +380,24 @@ function LoginDialog({
       <div className="workbuddy-login">
         <p>{login.instructions}</p>
         <p className="workbuddy-login__url">{login.url}</p>
-        <Button onClick={() => onOpenUrl(login.url)} size="sm" type="button" variant="secondary">
-          在浏览器中打开
-        </Button>
+        <div className="workbuddy-login__actions">
+          <Button disabled={opening} onClick={() => void open()} size="sm" type="button" variant="secondary">
+            {opening ? '正在打开…' : '在浏览器中打开'}
+          </Button>
+          <Button onClick={() => copy(login.url)} size="sm" type="button" variant="ghost">
+            {copied ? '已复制' : '复制链接'}
+          </Button>
+        </div>
+        {opened ? (
+          <p className="workbuddy-login__hint" role="status">
+            已请求系统浏览器打开；如果没看到浏览器，请复制链接后手动打开。
+          </p>
+        ) : null}
+        {openError === null ? null : (
+          <p className="settings-error" role="alert">
+            打开浏览器失败：{openError}
+          </p>
+        )}
         <LoginStatus login={login} />
       </div>
     </Dialog>
@@ -496,6 +542,11 @@ export function WorkBuddyPage({
   useEffect(() => {
     if (loadedGeneration.current === generation) return
     loadedGeneration.current = generation
+    setLogin((current) =>
+      current !== null && current.state === 'waiting'
+        ? { ...current, state: 'failed', message: 'Core 已重启，请重新发起登录' }
+        : current,
+    )
     void reload()
   }, [generation, reload])
 
@@ -521,6 +572,22 @@ export function WorkBuddyPage({
     })
     return () => events.dispose()
   }, [api, reload])
+
+  useEffect(() => {
+    if (login === null || login.state !== 'waiting') return
+    const timer = setTimeout(
+      () => {
+        void api.cancelLogin(login.loginId).catch(() => undefined)
+        setLogin((current) =>
+          current !== null && current.loginId === login.loginId && current.state === 'waiting'
+            ? { ...current, state: 'failed', message: '登录超时，请重新点击浏览器登录' }
+            : current,
+        )
+      },
+      6 * 60 * 1000,
+    )
+    return () => clearTimeout(timer)
+  }, [api, login])
 
   const accounts = snapshot?.accounts ?? []
 
@@ -666,15 +733,7 @@ export function WorkBuddyPage({
         open={addOpen}
       />
 
-      {login === null ? null : (
-        <LoginDialog
-          login={login}
-          onCancel={cancelLogin}
-          onOpenUrl={(url) => {
-            void openUrl(url).catch((cause: unknown) => setError(messageOf(cause)))
-          }}
-        />
-      )}
+      {login === null ? null : <LoginDialog login={login} onCancel={cancelLogin} onOpenUrl={(url) => openUrl(url)} />}
 
       <ConfirmationDialog
         busy={busy === 'remove'}

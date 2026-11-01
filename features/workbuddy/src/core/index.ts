@@ -1,5 +1,4 @@
 import { defineCoreModule } from '@poietica/core-kernel'
-import { platformContract } from '@poietica/feature-platform/contract'
 import { workbuddyContract } from '../contract'
 import { migrations } from './migrations'
 import { createWorkBuddyRepository } from './repository'
@@ -16,9 +15,6 @@ export default defineCoreModule({
       models: ctx.engine.models,
       logger: ctx.logger,
       now: () => ctx.clock.now(),
-      openExternal: async (url) => {
-        await ctx.host.call(platformContract, 'shell.openExternal', { url })
-      },
       emitChanged: () => ctx.rpc.emit('workbuddy.changed', {}),
       emitLogin: (event) => ctx.rpc.emit('workbuddy.loginEvent', event),
     })

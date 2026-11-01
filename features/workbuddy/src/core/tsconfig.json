@@ -18,9 +18,6 @@
       "path": "../../../../packages/workbuddy-client"
     },
     {
-      "path": "../../../platform/src/contract"
-    },
-    {
       "path": "../contract"
     }
   ]

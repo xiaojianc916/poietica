@@ -40,7 +40,6 @@ export interface WorkBuddyServiceDeps {
   readonly models: ModelsPort
   readonly logger: Logger
   readonly now: () => number
-  readonly openExternal: (url: string) => Promise<void>
   readonly emitChanged: () => void
   readonly emitLogin: (event: WorkBuddyLoginEvent) => void
 }
@@ -148,7 +147,7 @@ function checkinViewOf(record: AccountCheckinRecord): WorkBuddyCheckin {
 }
 
 export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddyService {
-  const { repository, models, logger, now, openExternal, emitChanged, emitLogin } = deps
+  const { repository, models, logger, now, emitChanged, emitLogin } = deps
   const saved = repository.settings()
   let enabled = saved[SETTING_ENABLED] !== '0'
   let autoCheckin = saved[SETTING_AUTO_CHECKIN] !== '0'
@@ -556,12 +555,6 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
       const loginId = randomUUID()
       const attempt: LoginAttempt = { accountId, cancelled: false }
       logins.set(loginId, attempt)
-      try {
-        await openExternal(signIn.url)
-      } catch (cause) {
-        logins.delete(loginId)
-        throw cause
-      }
       emitLogin({ loginId, state: 'waiting', accountId, message: signIn.instructions })
       void runBrowserCallback(loginId, attempt, signIn.callback)
       return { loginId, url: signIn.url, instructions: signIn.instructions }

@@ -66,7 +66,6 @@ function seed(record: Partial<AccountRecord> = {}) {
     models,
     logger: createTestLogger(),
     now: () => NOW,
-    openExternal: async () => undefined,
     emitChanged: () => undefined,
     emitLogin: () => undefined,
   })

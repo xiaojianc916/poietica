@@ -99,6 +99,16 @@ describe('WorkBuddy 设置页', () => {
     await waitFor(() => expect(checkin).toHaveBeenCalledWith('a1'))
   })
 
+  test('浏览器登录打开授权页并给出反馈', async () => {
+    const openUrl = mock(async () => undefined)
+    render(<WorkBuddyPage api={apiOf()} openUrl={openUrl} />)
+    fireEvent.click(await screen.findByRole('button', { name: /添加另一个/ }))
+    fireEvent.click(await screen.findByRole('button', { name: '浏览器登录' }))
+    await waitFor(() => expect(openUrl).toHaveBeenCalledWith('https://example.test'))
+    expect(await screen.findByText(/已请求系统浏览器打开/)).toBeDefined()
+    expect(screen.getByRole('button', { name: '复制链接' })).toBeDefined()
+  })
+
   test('没有账号时给添加入口', async () => {
     render(
       <WorkBuddyPage
