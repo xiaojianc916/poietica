@@ -30,9 +30,7 @@ import {
 } from 'lucide-react'
 import { type ReactNode, useMemo, useState } from 'react'
 import { useWorkspaceGitFacts, type WorkspaceGitStatus } from '../../../ui-api'
-import { useOptionalThreadGoal } from '../../session'
 import type { SessionGoal } from '../../shared/model/goal'
-import { GOAL_CONTROL_ID, GOAL_PAUSED, GOAL_RESUMED } from '../../shared/model/goal-control'
 import { useSecond } from '../../shared/primitives/clock'
 import type {
   BackgroundTaskItem,
@@ -793,16 +791,16 @@ export function TaskPanelContent({
 }
 
 export function TodoPanel({
-  goal: goalProp,
+  goal,
   onOpenReview,
   onPauseGoal: onPauseGoalProp,
   onResumeGoal: onResumeGoalProp,
   threadId,
 }: {
-  /** 这条对话此刻的目标（从 Core 的控件通道来）；缺席退回 Context 读（单测夹具用）。 */
+  /** 这条对话此刻的目标（从 Core 的控件通道来）；缺席就不画目标那一格。 */
   readonly goal?: SessionGoal | undefined
   readonly onOpenReview?: (() => void) | undefined
-  /** 目标暂停 / 恢复的出口（与输入框那一排选择器同一条路）；缺席退回 Context store。 */
+  /** 目标暂停 / 恢复的出口（与输入框那一排选择器同一条路）。 */
   readonly onPauseGoal?: (() => void) | undefined
   readonly onResumeGoal?: (() => void) | undefined
   readonly threadId: string
@@ -811,8 +809,6 @@ export function TodoPanel({
   const backgroundTasks = useAssistantBackgroundTasks(threadId)
   const subagents = useAssistantSubagents(threadId)
   const timeline = useAssistantTimeline(threadId)
-  const { controls, goal: heldGoal } = useOptionalThreadGoal(threadId)
-  const goal = goalProp ?? heldGoal
   const agents = useMemo(() => agentRows(subagents, delegateCallsOf(timeline)), [subagents, timeline])
   /* Git 那一格的事实从 Context 读，不从 props 读：它由 review 贡献的 Provider 投下来，这样这一格与右侧「审查」面板读的是同一份快照，而这个组件不必认识 review。 */
   const git = useWorkspaceGitFacts()
@@ -838,18 +834,8 @@ export function TodoPanel({
       goal={goal}
       onOpenAgent={openAgent}
       onOpenReview={onOpenReview}
-      onPauseGoal={
-        onPauseGoalProp ??
-        (() => {
-          void controls?.selectControl(threadId, GOAL_CONTROL_ID, GOAL_PAUSED)
-        })
-      }
-      onResumeGoal={
-        onResumeGoalProp ??
-        (() => {
-          void controls?.selectControl(threadId, GOAL_CONTROL_ID, GOAL_RESUMED)
-        })
-      }
+      onPauseGoal={onPauseGoalProp}
+      onResumeGoal={onResumeGoalProp}
       onStopTask={stopTask}
       runningAgents={agents.running}
       todos={todos}

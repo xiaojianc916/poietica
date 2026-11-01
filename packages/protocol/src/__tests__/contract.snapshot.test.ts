@@ -3,19 +3,25 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { contractSnapshot } from '@poietica/contract-kit'
 import { appContract, ownerOf } from '../index'
+import { PROTOCOL_VERSION } from '../version'
 
 const file = path.join(import.meta.dir, 'contract.snapshot.json')
 
 describe('T-PROTO-SNAPSHOT', () => {
   test('契约快照与代码一致（不一致时运行 bun run protocol:snapshot）', () => {
     const expected = readFileSync(file, 'utf8')
-    const actual = contractSnapshot(appContract)
+    const actual = contractSnapshot(appContract, PROTOCOL_VERSION)
     if (actual !== expected) {
       throw new Error(
         '契约变了：请提升 PROTOCOL_VERSION（任何契约形状变化都要提升）并运行 bun run protocol:snapshot 更新快照。',
       )
     }
     expect(actual).toBe(expected)
+  })
+
+  test('快照里的版本号就是 PROTOCOL_VERSION', () => {
+    const snapshot = JSON.parse(readFileSync(file, 'utf8')) as { version: number }
+    expect(snapshot.version).toBe(PROTOCOL_VERSION)
   })
 
   test('system 契约已在 appContract 中', () => {

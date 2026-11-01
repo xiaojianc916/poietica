@@ -1,5 +1,8 @@
 import {
   type AgentRef,
+  type CompactionMarkerPayload,
+  compactionActionSchema,
+  compactionReasonSchema,
   type FrameId,
   frameId,
   RETRY_NOTICE_SOURCE,
@@ -992,15 +995,17 @@ export class LiveProjector {
     const markerId = this.nextCompactionId()
     const at = this.now()
     this.compactionOpen = { id: markerId, at }
+    const reason = compactionReasonSchema.safeParse(input.reason)
+    const action = compactionActionSchema.safeParse(input.action)
     return this.marker({
       markerId,
       at,
       marker: 'compaction',
       payload: {
         state: 'running',
-        ...(typeof input.reason === 'string' ? { reason: input.reason } : {}),
-        ...(typeof input.action === 'string' ? { action: input.action } : {}),
-      },
+        ...(reason.success ? { reason: reason.data } : {}),
+        ...(action.success ? { action: action.data } : {}),
+      } satisfies CompactionMarkerPayload,
     })
   }
 
@@ -1008,7 +1013,7 @@ export class LiveProjector {
    * 关门：载荷由 compactionEndPayload 算好交进来；null（这次其实没压）就撤掉开门那一格。
    * 没见过开门（订阅晚于开门）也照样落一格：关门那一刻的结果比「什么都不说」强。
    */
-  compactionEnd(payload: Record<string, unknown> | null): TranscriptOperation[] {
+  compactionEnd(payload: CompactionMarkerPayload | null): TranscriptOperation[] {
     const open = this.compactionOpen ?? { id: this.nextCompactionId(), at: this.now() }
     this.compactionOpen = null
     if (payload === null) return [{ op: 'items.remove', ids: [open.id] }]

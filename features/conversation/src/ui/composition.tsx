@@ -6,9 +6,6 @@ import { AttachmentIntakeContext } from './composer/attachment'
 import { ComposerDrafts } from './composer/drafts'
 import { ComposerDraftsContext } from './composer/drafts-context'
 import { type LiveComposers, LiveComposersContext } from './composer/live-composers'
-import type { PostureIntent } from './session/configuration/posture-intent'
-import { SessionControlsContext } from './session/configuration/session-controls-context'
-import { SessionControlsStore } from './session/configuration/session-controls-store'
 import type { TranscriptStore } from './timeline/model/transcript-store'
 import { TranscriptsContext } from './timeline/model/transcripts-context'
 import { type AgentControls, AgentControlsContext } from './timeline/view/agent-controls-context'
@@ -22,8 +19,6 @@ import { DelegateChannelContext, type OpenDelegateChannel } from './timeline/vie
 export interface ConversationProvidersProps {
   readonly children: ReactNode
   readonly transcripts: TranscriptStore
-  /** 批准方式的持久意图；两台 store（入口与单条对话）共用同一份。 */
-  readonly posture?: PostureIntent | undefined
   /** 点子代理（工具卡上的通道、状态面板的「智能体」行）时打开它的通道；缺席即不可开。 */
   readonly onOpenDelegateChannel?: OpenDelegateChannel | undefined
   /** 子代理 / 后台作业的取消与引导出口（ConversationApi 本身即满足）；缺席时这些控件画成不可用。 */
@@ -60,15 +55,10 @@ export function ConversationProviders({
   fileScope,
   liveComposers,
   onOpenDelegateChannel,
-  posture,
   transcripts,
 }: ConversationProvidersProps): ReactNode {
   // 离屏草稿：一格一份，切换对话时把没发出去的内容存回来
   const drafts = useMemo(() => new ComposerDrafts(), [])
-  const sessionControls = useMemo(
-    () => new SessionControlsStore({ ...(posture === undefined ? {} : { posture }), transcripts }),
-    [posture, transcripts],
-  )
   const openDelegate = useMemo<OpenDelegateChannel>(
     () => onOpenDelegateChannel ?? (() => undefined),
     [onOpenDelegateChannel],
@@ -114,17 +104,15 @@ export function ConversationProviders({
   return (
     <TranscriptsContext value={transcripts}>
       <ComposerDraftsContext value={drafts}>
-        <SessionControlsContext value={sessionControls}>
-          <DelegateChannelContext value={openDelegate}>
-            <AgentControlsContext value={agentControls ?? null}>
-              <AttachmentIntakeContext value={null}>
-                <LiveComposersContext value={liveComposers ?? null}>
-                  <ProseFileLinksContext value={fileLinks}>{provided}</ProseFileLinksContext>
-                </LiveComposersContext>
-              </AttachmentIntakeContext>
-            </AgentControlsContext>
-          </DelegateChannelContext>
-        </SessionControlsContext>
+        <DelegateChannelContext value={openDelegate}>
+          <AgentControlsContext value={agentControls ?? null}>
+            <AttachmentIntakeContext value={null}>
+              <LiveComposersContext value={liveComposers ?? null}>
+                <ProseFileLinksContext value={fileLinks}>{provided}</ProseFileLinksContext>
+              </LiveComposersContext>
+            </AttachmentIntakeContext>
+          </AgentControlsContext>
+        </DelegateChannelContext>
       </ComposerDraftsContext>
     </TranscriptsContext>
   )

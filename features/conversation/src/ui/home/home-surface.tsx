@@ -262,6 +262,7 @@ export function HomeSurface({
     <AssistantSurface
       commands={commands}
       controls={shownControls}
+      drafts={stores.composer}
       endpoint={threadId ?? ''}
       isNew
       onSelectControl={select}

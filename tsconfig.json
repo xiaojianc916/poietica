@@ -248,6 +248,9 @@
       "path": "packages/protocol"
     },
     {
+      "path": "packages/protocol/scripts"
+    },
+    {
       "path": "packages/rpc"
     },
     {

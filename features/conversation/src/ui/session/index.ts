@@ -15,7 +15,6 @@ export {
   withoutHiddenModels,
 } from './configuration/control-shapes'
 export { createPostureIntent, type PostureIntent, storedPostureOf } from './configuration/posture-intent'
-export { SessionControlsContext, useOptionalThreadGoal } from './configuration/session-controls-context'
 export {
   ConversationAuxiliaryToggle,
   type ConversationTodoThread,

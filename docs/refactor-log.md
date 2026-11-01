@@ -63,6 +63,17 @@
 
 ## 偏差与裁决
 
+### 2026-11-01 架构审查执行（闸门与状态收口）
+
+- **Host 类型闸门**：`apps/desktop` 原先把 main / preload / renderer 放在一个 DOM 项目里，Host 可以用 `document` / `localStorage` 通过 typecheck。新增 `apps/desktop/tsconfig.main.json`（electron-main 预设、只收 `src/main`）并挂进 `typecheck`。它不设项目引用、直接跟随 import 检查 feature host 源码，因此把 `exactOptionalPropertyTypes` 放开：`packages/transcript` 自己的工程明确关掉了它，用严格的设置重查别人的源码会报出与其工程约定无关的错误。运行时纯度仍由 `lib: ES2023` / `types: ["node"]` 保证。
+- **装配清单闸门**：新增 `tooling/checks/manifest-coverage.ts`，双向比对 `features/*/src/{core,host,ui}/index` 与三份进程清单，并核对 `protocol` 的 contract 汇总。只读文本，不 import apps，避免 tooling 反向依赖应用装配。
+- **隔离 provider 完整性**：新增 `engine-omp/src/__tests__/foreign-providers.test.ts`，直接扫随包 omp 的 `src/discovery/*.ts` 的 `PROVIDER_ID`，断言每个 id 要么在 `FOREIGN_PROVIDERS`、要么在显式放行名单。`custom-context` 是新增的第七个放行项：它只读用户在设置里显式列出的文件名，不是固定的外来工具目录。
+- **协议版本**：`contractSnapshot` 现在必须带 `PROTOCOL_VERSION`，版本号写进快照；快照测试断言文件里的版本等于常量。`protocol:snapshot` 在写盘前比较 methods / notifications / errors：同一版本号下形状变了就拒绝，必须先去 `version.ts` 提升版本。
+- **压缩载荷词表**：`packages/transcript` 新增 `compactionMarkerPayloadSchema` / `compactionMarkerPayload()`；引擎写、UI 读同一份。删掉没有生产者的 `blocked` 状态与 `trigger` / `instruction` 字段——它们只存在于消费侧的猜测里。
+- **删除未接线的会话控件栈**：`SessionControlsStore`（452 行）、`SessionControlsContext`、`ArrivalOrder`、`ThreadPort` / `AgentThread` / `AgentHistory` 全部没有生产数据源；生产实际使用的是 `stores.controls`。`TranscriptSink.ownerOf` 的唯一读者也随之删除。`TurnMark` 移到 `shared/model/turn-mark.ts`。
+- **草稿收口（未完成项）**：编辑器每次变更已写回 `stores.composer`；盘上草稿晚到时，只要人还没动手就装回编辑器；入口页输入框也登记进在屏表，`activeComposer` 插字会真的进编辑器。**完整「Lexical 文档即唯一草稿」**仍需把 `conversation.drafts` 的持久化形状改成 `SerializedEditorState + assets + configuration`，并撤掉离屏 `ComposerDrafts`；这会改用户数据形状，留待单独裁决，不在本次顺手做。
+- **计时测试收口**：`ThreadDisclosure` 新增可注入的收起调度口（默认仍是 `EXIT_SECONDS`），测试改用手动调度，不再在全量并发下等真实 timer。旧记录里「收起动画用例稳定超时」的那一条不再作为待决。
+
 ### 审查面板的统计只有一份来源（2026-11-01）
 
 - **症状**：展开一个文件的 diff 前后，卡头与工具条的 `+N −M` 会变；新增几百行的文件显示 `+0`；打开多个文件后拖动分隔条或敲提交信息明显卡。

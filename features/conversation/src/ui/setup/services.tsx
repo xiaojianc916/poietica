@@ -4,7 +4,7 @@ import { builtinPoints, isSettingsDockOwner, useFeatureStore, useLayout, useObse
 import { Bot, MessageSquareText } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 import { type ComposerDraft, ConversationUiToken } from '../../ui-api'
-import { AuxiliaryComposer } from '../composer'
+import { AuxiliaryComposer, NEW_THREAD_KEY } from '../composer'
 import { ConversationProviders } from '../composition'
 import { confirmQuit, hiddenModelsOf, sessionConfigControlsOf, withoutHiddenModels } from '../session'
 import { createSubagentDockTabs, SUBAGENT_PANEL_ID, SubagentDockPanel, subagentTitleOf } from '../timeline'
@@ -13,7 +13,7 @@ import type { ConversationSetup } from './context'
 
 /** 关窗守卫，以及 ConversationUiToken 等服务的提供。 */
 export function createConversationServices(setup: ConversationSetup, actions: ConversationActions): void {
-  const { api, ctx, dialogs, layout, liveComposers, posture, prefs, side, stores, subagentTabs, transcripts } = setup
+  const { api, ctx, dialogs, layout, liveComposers, prefs, side, stores, subagentTabs, transcripts } = setup
   const { activeThreadId, openThread, runningThreadIds, subscribeActive } = actions
 
   // 退出拦截：有运行中的对话就先确认。只答「放不放行」——真正的 app.quit 由守卫在所有处理器放行后统一发起，
@@ -94,7 +94,7 @@ export function createConversationServices(setup: ConversationSetup, actions: Co
       resolveTitle: (threadId, agentId) => subagentTitleOf(transcripts.read(threadId).timeline, agentId),
     }),
     component: () => (
-      <ConversationProviders agentControls={api} posture={posture} transcripts={transcripts}>
+      <ConversationProviders agentControls={api} transcripts={transcripts}>
         <SubagentDockPanel store={subagentTabs} />
       </ConversationProviders>
     ),
@@ -105,7 +105,7 @@ export function createConversationServices(setup: ConversationSetup, actions: Co
    * 没挂在屏幕上（切走了、入口页）才退回草稿模型。
    */
   const draftOf = (threadId: string | null): ComposerDraft => {
-    const live = threadId === null ? undefined : liveComposers.get(threadId)
+    const live = liveComposers.get(threadId ?? NEW_THREAD_KEY)
     if (live !== undefined) return live
     const handle = stores.composerFor(threadId)
     return {

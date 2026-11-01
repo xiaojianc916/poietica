@@ -1,0 +1,15 @@
+{
+  "extends": "../../../tooling/tsconfig/bun.json",
+  "compilerOptions": {
+    "types": ["bun", "node"]
+  },
+  "include": ["."],
+  "references": [
+    {
+      "path": ".."
+    },
+    {
+      "path": "../../contract-kit"
+    }
+  ]
+}

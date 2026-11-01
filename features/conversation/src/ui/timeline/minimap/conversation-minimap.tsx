@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { TurnMark } from '../../shared/model/thread'
+import type { TurnMark } from '../../shared/model/turn-mark'
 import { RAIL_PITCH_PX, RAIL_VISIBLE_TURNS, railCentre } from './conversation-minimap-geometry'
 import { useRailPointer } from './use-rail-pointer'
 

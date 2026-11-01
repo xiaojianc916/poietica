@@ -21,8 +21,8 @@ import type {
   QueuedMessages,
   RunFailed,
 } from '../../shared/model/session'
-import type { TurnMark } from '../../shared/model/thread'
 import type { TranscriptPage, TranscriptSignal } from '../../shared/model/transcript'
+import type { TurnMark } from '../../shared/model/turn-mark'
 import {
   createTimelineState,
   fileMetaLabel,
@@ -701,8 +701,6 @@ export class TranscriptStore implements TranscriptSink {
     )
   }
 
-  /* 会话号 → 对话号，`#routes` 是唯一产地（由 `#bind` 写）。现在只有 SessionControlsStore 那一支读它，而那一支还没接上数据。 */
-  ownerOf = (sessionId: string): string | undefined => this.#routes.get(sessionId)
   /* **幂等**：已绑定过且整读已落地（`loaded`）的不再整读，StrictMode 双渲染与切走再切回都不会重复全文往返。失败写进这条对话自己的 `operation`，不抛给渲染期。 */
   open = (threadId: string): void => {
     if (this.#disposed || threadId === '') {

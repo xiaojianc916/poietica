@@ -1,5 +1,7 @@
 /* UI 读到的载荷形状；对不上引擎端口的字段如实留空，不编假值。 */
 
+import type { SubmissionView } from '../../../contract'
+
 /** 此刻这份上下文的构成。缺席即这一份报数没带构成：屏幕退成只画总条。 */
 export interface AgentUsageBreakdown {
   readonly systemPrompt: number
@@ -35,22 +37,5 @@ export interface AgentSessionUsage {
 export interface AgentPromptResult {
   readonly sessionId: string
   readonly promptId: string
-  readonly submission?: import('../../../contract').SubmissionView
-}
-
-/** 一条线程在平台上的记录（对应 conversation 契约的 Thread） */
-export interface AgentThread {
-  readonly threadId: string
-  readonly sessionId: string | null
-  readonly title: string
-  readonly titleSource: string
-  readonly updatedAt: string
-  readonly pinned: boolean
-  readonly workspaceRoot: string | null
-  readonly archived: boolean
-}
-
-export interface AgentHistory {
-  readonly threads: readonly AgentThread[]
-  readonly hasMore: boolean
+  readonly submission?: SubmissionView
 }

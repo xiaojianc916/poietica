@@ -5,6 +5,8 @@
  * 「跳过」（没有可压的、没有模型）不是一次压缩：那一格直接撤掉，不留一行「完成」骗人。
  */
 
+import type { CompactionMarkerPayload } from '@poietica/transcript'
+
 /**
  * omp 知识 #20：显示经过里，被后一次压缩取代的那份摘要换成了这句占位（session-context.ts 的
  * SUPERSEDED_COMPACTION_SUMMARY，没有导出）。它不是摘要，不能当摘要摆给人看。
@@ -23,22 +25,24 @@ export interface CompactionMessage {
 }
 
 /** 落了盘的一次压缩（role: compactionSummary）：一定已经做完，所以恒为 completed */
-export function compactionPayloadOf(message: CompactionMessage): Record<string, unknown> {
-  const payload: Record<string, unknown> = { state: 'completed' }
+export function compactionPayloadOf(message: CompactionMessage): CompactionMarkerPayload {
   const summary = message.summary
-  if (summary === SUPERSEDED_SUMMARY) {
-    payload.superseded = true
-  } else {
-    if (typeof summary === 'string' && summary !== '') payload.summary = summary
-    if (typeof message.shortSummary === 'string' && message.shortSummary !== '') {
-      payload.shortSummary = message.shortSummary
-    }
+  const superseded = summary === SUPERSEDED_SUMMARY
+  return {
+    state: 'completed',
+    ...(superseded
+      ? { superseded: true as const }
+      : {
+          ...(typeof summary === 'string' && summary !== '' ? { summary } : {}),
+          ...(typeof message.shortSummary === 'string' && message.shortSummary !== ''
+            ? { shortSummary: message.shortSummary }
+            : {}),
+        }),
+    ...(isCount(message.tokensBefore) ? { tokensBefore: message.tokensBefore } : {}),
+    ...(isCount(message.tokensAfter) ? { tokensAfter: message.tokensAfter } : {}),
+    ...(typeof message.method === 'string' && message.method !== '' ? { method: message.method } : {}),
+    ...(typeof message.warning === 'string' && message.warning !== '' ? { warning: message.warning } : {}),
   }
-  if (isCount(message.tokensBefore)) payload.tokensBefore = message.tokensBefore
-  if (isCount(message.tokensAfter)) payload.tokensAfter = message.tokensAfter
-  if (typeof message.method === 'string' && message.method !== '') payload.method = message.method
-  if (typeof message.warning === 'string' && message.warning !== '') payload.warning = message.warning
-  return payload
 }
 
 /** omp 的 auto_compaction_end（只取要读的那几格） */
@@ -58,7 +62,7 @@ export interface CompactionEndEvent {
 export function compactionEndPayload(
   event: CompactionEndEvent,
   persisted: CompactionMessage | undefined,
-): Record<string, unknown> | null {
+): CompactionMarkerPayload | null {
   const error = typeof event.errorMessage === 'string' && event.errorMessage !== '' ? event.errorMessage : undefined
   if (event.aborted === true) return { state: 'cancelled', ...(error === undefined ? {} : { error }) }
   const result =

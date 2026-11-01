@@ -58,6 +58,7 @@ import type { PromptConfiguration, PromptSkill } from '../../shared/model/sessio
 import { ResumeIcon, StopIcon, SubmitIcon } from '../../shared/primitives/icons'
 import { $createChipNode, ChipNode, type PromptChipValue, samePromptChip } from '../../shared/primitives/prompt-chip'
 import { type AttachmentIntake, type ComposerAsset, isInlineAttachment, useAttachmentIntake } from '../attachment'
+import { NEW_THREAD_KEY } from '../composer-store'
 import type { ComposerDraft, ComposerDrafts } from '../drafts'
 import { ENTRY_DRAFT_KEY, useComposerDraftKey, useComposerDrafts } from '../drafts-context'
 import { LiveComposersContext } from '../live-composers'
@@ -812,31 +813,42 @@ function usePromptDraftSync({
   readonly setDraftText: (projection: DraftProjection) => void
 }): void {
   const seeded = useRef(false)
+  /* 人已经在编辑器里写过：后到的盘上草稿不能再盖掉它。 */
+  const edited = useRef(false)
 
   useEffect(
     () =>
       editor.registerUpdateListener(({ editorState }: { editorState: EditorState }) => {
         const projection = editorState.read(readDraft)
 
+        edited.current = true
         setDraftText(projection)
         report.current?.(projection.text)
       }),
     [editor, report, setDraftText],
   )
 
-  /* 起始正文只在挂载那一次写进去；册子里已经装着的那一份优先，它比记录新。 */
+  /*
+   * 起始正文：册子里已经装着的那一份优先（它比盘上记录新）；否则等盘上草稿恢复。
+   * 恢复可能晚于挂载（uiState 是异步读的），所以在写进去之前不要把自己标成「已播种」；
+   * 人一旦动手，后续再来的盘上正文一律不盖。
+   */
   useEffect(() => {
-    if (seeded.current) {
+    if (seeded.current || edited.current) {
       return
     }
 
-    seeded.current = true
+    if (restored !== undefined) {
+      seeded.current = true
+      return
+    }
 
-    if (initialText === undefined || initialText === '' || restored !== undefined) {
+    if (initialText === undefined || initialText === '') {
       return
     }
 
     replaceDraft(editor, initialText)
+    seeded.current = true
   }, [editor, initialText, restored])
 
   /* 只在卸载时转移所有权；依赖变化不能把仍在编辑器里的草稿复制到离屏册子。 */
@@ -1358,7 +1370,7 @@ function usePromptEditing({
   /* 就是壳里这一份正在编辑的草稿：加附件、写正文、提交都落在与手打一句话同一条路上。 */
   const contributedDraft = useMemo<ContributedComposerDraft>(
     () => ({
-      threadId: draftKey === ENTRY_DRAFT_KEY ? null : draftKey,
+      threadId: draftKey === ENTRY_DRAFT_KEY || draftKey === '' ? null : draftKey,
       addAttachments: (items: readonly DraftAttachment[]) => {
         addAssets(items.map(composerAssetOf))
       },
@@ -1369,13 +1381,15 @@ function usePromptEditing({
   )
 
   /*
-   * 对话那一格挂在屏幕上就登记：别处（右坞的辅助对话、ConversationUiToken.composerOf）往「这条对话的输入框」里插字时
-   * 找到的是这一格。入口页不登记（它的键是空串 / ENTRY_DRAFT_KEY，不是对话号），照旧走草稿模型。
+   * 挂在屏幕上的那一格就登记：别处（右坞的辅助对话、ConversationUiToken.composerOf / activeComposer）
+   * 往「这条对话的输入框」里插字时找到的是这一格。入口页没有对话号，用 NEW_THREAD_KEY 这一格登记 ——
+   * 它同样是屏幕上的正文，不能退回只有文本的草稿模型。
    */
   const liveComposers = useContext(LiveComposersContext)
   useEffect(() => {
-    if (liveComposers === null || draftKey === '' || draftKey === ENTRY_DRAFT_KEY) return
-    return liveComposers.register(draftKey, contributedDraft)
+    if (liveComposers === null) return
+    const liveKey = draftKey === '' || draftKey === ENTRY_DRAFT_KEY ? NEW_THREAD_KEY : draftKey
+    return liveComposers.register(liveKey, contributedDraft)
   }, [contributedDraft, draftKey, liveComposers])
 
   return {

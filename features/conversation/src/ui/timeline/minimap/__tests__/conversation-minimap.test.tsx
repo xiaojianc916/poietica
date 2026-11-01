@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { StrictMode } from 'react'
-import type { TurnMark } from '../../../shared/model/thread'
+import type { TurnMark } from '../../../shared/model/turn-mark'
 import { ConversationMinimap } from '../conversation-minimap'
 import { RAIL_PITCH_PX } from '../conversation-minimap-geometry'
 

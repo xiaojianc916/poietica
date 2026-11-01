@@ -1,0 +1,8 @@
+{
+  "extends": "../../tooling/tsconfig/electron-main.json",
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": false
+  },
+  "include": ["src/main"],
+  "exclude": ["src/main/**/__tests__/**", "src/main/**/*.test.ts"]
+}

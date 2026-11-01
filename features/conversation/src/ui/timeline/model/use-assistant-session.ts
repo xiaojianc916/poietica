@@ -13,7 +13,7 @@ import type {
   PromptDelivery,
   PromptSkill,
 } from '../../shared/model/session'
-import type { TurnMark } from '../../shared/model/thread'
+import type { TurnMark } from '../../shared/model/turn-mark'
 import type { BackgroundTaskItem, SubagentItem, TimelineState, TodoItem } from '../../shared/timeline/timeline-contract'
 import type { PendingInteractions } from '../timeline-queries'
 import { activeScope, pendingInteractions } from '../timeline-queries'

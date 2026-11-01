@@ -24,6 +24,7 @@ describe('入口提示：Core 起不来', () => {
     for (const reason of Object.keys(FAILURE_TEXT)) {
       expect(FAILURE_TEXT[reason]).not.toBe('Agent 引擎不可用')
     }
-    expect(FAILURE_TEXT['not_a_reason']).toBeUndefined()
+    const byReason: Record<string, string> = FAILURE_TEXT
+    expect(byReason.not_a_reason).toBeUndefined()
   })
 })

@@ -55,11 +55,14 @@ export function composeContracts(...contracts: readonly Contract[]): AppContract
 }
 
 /**
- * 生成稳定的契约快照（JSON 文本，末尾带换行）。内容：每个方法的名字、owner、timeoutMs、说明、
+ * 生成稳定的契约快照（JSON 文本，末尾带换行）。内容：协议版本，每个方法的名字、owner、timeoutMs、说明、
  * params（输入形态）与 result（输出形态）的 JSON Schema；每个通知的名字、owner、说明、params；全部错误码与默认文案。
- * 全部按名字排序，所以契约不变时输出逐字节不变。protocol 包的快照测试比对它（05 页 §8）。
+ * 全部按名字排序，所以契约不变时输出逐字节不变。
+ *
+ * 版本号是快照的一部分：`bun run protocol:snapshot` 无条件成功，若版本不进来，改完契约不提升版本也能刷绿，
+ * 「发现装坏了 / 忘了重建 Core」的信号就退化成口头约定（05 页 §8）。
  */
-export function contractSnapshot(app: AppContract): string {
+export function contractSnapshot(app: AppContract, version: number): string {
   const toSchema = (schema: z.ZodType, io: 'input' | 'output'): unknown =>
     z.toJSONSchema(schema, { io, unrepresentable: 'any' })
   const byName = (a: { name: string }, b: { name: string }): number => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
@@ -80,5 +83,5 @@ export function contractSnapshot(app: AppContract): string {
   const errors = Object.keys(app.errorMessages)
     .sort()
     .map((code) => ({ code, message: app.errorMessages[code] }))
-  return `${JSON.stringify({ methods, notifications, errors }, null, 2)}\n`
+  return `${JSON.stringify({ version, methods, notifications, errors }, null, 2)}\n`
 }

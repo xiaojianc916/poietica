@@ -1,7 +1,14 @@
 import '../shared/styles/surface.css'
 
 import { Banner, WorkspacePicker, type WorkspacePickerProps } from '@poietica/design-system'
-import { FeatureScope, type Observable, useContributions, useKernel, useObservable } from '@poietica/ui-kernel'
+import {
+  FeatureScope,
+  type Observable,
+  useContributions,
+  useFeatureStore,
+  useKernel,
+  useObservable,
+} from '@poietica/ui-kernel'
 import {
   memo,
   type ReactNode,
@@ -15,7 +22,7 @@ import {
 } from 'react'
 import type { Thread } from '../../contract'
 import { composerContextItems, slashCommands, threadHeaderItems } from '../../ui-api'
-import type { PermissionDockProps, PromptInputHandle, PromptInputMessage } from '../composer'
+import type { ComposerStore, PermissionDockProps, PromptInputHandle, PromptInputMessage } from '../composer'
 import {
   AssistantComposer,
   ComposerDraftKeyContext,
@@ -56,6 +63,8 @@ const PROJECT_REQUIRED = '先选择或新建一个项目，才能发送消息'
 export interface AssistantSurfaceProps {
   readonly endpoint: string
   readonly isNew: boolean
+  /** 草稿的持久事实源；缺席（替身、单独渲染）就不同步正文。 */
+  readonly drafts?: ComposerStore
   readonly prepare?: (() => Promise<PreparedThread | null>) | undefined
   /** 故意可选：缺席时整个表面挂在一份惰性 stub 上跑，真端口由 app 注入。 */
   readonly session?: AgentSessionPort
@@ -145,6 +154,7 @@ function AssistantDock({
   continueConversation,
   dismissed,
   dismissFailure,
+  drafts,
   edit,
   failure,
   goal,
@@ -160,6 +170,7 @@ function AssistantDock({
   slash,
   submit,
   submitDisabled,
+  threadId,
   toolkit,
   usage,
 }: {
@@ -172,6 +183,7 @@ function AssistantDock({
   readonly continueConversation: () => void
   readonly dismissed: boolean
   readonly dismissFailure: () => void
+  readonly drafts?: ComposerStore | undefined
   readonly edit: (restored: WithdrawnMessage) => void
   readonly failure: string | null
   readonly goal: SessionGoal | undefined
@@ -187,6 +199,7 @@ function AssistantDock({
   readonly slash: SlashCommandsView
   readonly submit: (message: PromptInputMessage) => void
   readonly submitDisabled: boolean
+  readonly threadId: string | null
   readonly toolkit: AgentToolkit
   readonly usage: SessionUsage | undefined
 }) {
@@ -213,34 +226,81 @@ function AssistantDock({
       {/* 输入区上沿的两条前置条件：连不上 agent / 还没选项目。 */}
       <ComposerPreconditions controlsFailure={controlsFailure} onRetryControls={onRetryControls} />
 
-      <AssistantComposer
-        approval={approval}
-        commands={slash.list}
-        contextPanelRequest={slash.contextPanelRequest}
-        controls={controls}
-        controlsPending={controlsPending}
-        mcpServers={mcpServers}
-        modelPickerRequest={slash.modelPickerRequest}
-        onAnswerDialog={assistant.answerDialog}
-        onAnswerQuestions={assistant.answerQuestions}
-        onCancel={assistant.cancel}
-        onContinue={continueConversation}
-        onDismissQuestions={assistant.dismissQuestions}
-        onEngage={onComposeIntent}
-        onResolvePlan={assistant.resolvePlan}
-        plan={pendingPlan}
-        onSelectControl={onSelectControl}
-        onSubmit={submit}
-        onSubmitBlocked={showProjectRequired}
-        question={question}
-        ref={composer}
-        skills={skills}
-        status={assistant.status}
-        submitDisabled={submitDisabled}
-        usage={usage}
-      />
+      <ComposerDraftBridge drafts={drafts} threadId={threadId}>
+        {(initialText, onChange) => (
+          <AssistantComposer
+            approval={approval}
+            commands={slash.list}
+            contextPanelRequest={slash.contextPanelRequest}
+            controls={controls}
+            controlsPending={controlsPending}
+            initialText={initialText}
+            mcpServers={mcpServers}
+            modelPickerRequest={slash.modelPickerRequest}
+            onAnswerDialog={assistant.answerDialog}
+            onAnswerQuestions={assistant.answerQuestions}
+            onCancel={assistant.cancel}
+            onChange={onChange}
+            onContinue={continueConversation}
+            onDismissQuestions={assistant.dismissQuestions}
+            onEngage={onComposeIntent}
+            onResolvePlan={assistant.resolvePlan}
+            plan={pendingPlan}
+            onSelectControl={onSelectControl}
+            onSubmit={submit}
+            onSubmitBlocked={showProjectRequired}
+            question={question}
+            ref={composer}
+            skills={skills}
+            status={assistant.status}
+            submitDisabled={submitDisabled}
+            usage={usage}
+          />
+        )}
+      </ComposerDraftBridge>
     </div>
   )
+}
+
+/*
+ * 输入框正文的持久事实源：编辑器每次变更写回 store（onChange），盘上草稿恢复后只在这一格还是空的时候
+ * 装回编辑器。订阅 `entryReady` 而不是正文本身：正文每次按键都变，订阅它会把整个工具条重画一遍；
+ * 这里只在「盘上草稿已恢复」翻转时读一次。
+ */
+function ComposerDraftBridge({
+  children,
+  drafts,
+  threadId,
+}: {
+  readonly children: (initialText: string | undefined, onChange: ((text: string) => void) | undefined) => ReactNode
+  readonly drafts: ComposerStore | undefined
+  readonly threadId: string | null
+}): ReactNode {
+  if (drafts === undefined) {
+    return children(undefined, undefined)
+  }
+
+  return (
+    <HydratedComposerDraft drafts={drafts} threadId={threadId}>
+      {children}
+    </HydratedComposerDraft>
+  )
+}
+
+function HydratedComposerDraft({
+  children,
+  drafts,
+  threadId,
+}: {
+  readonly children: (initialText: string | undefined, onChange: ((text: string) => void) | undefined) => ReactNode
+  readonly drafts: ComposerStore
+  readonly threadId: string | null
+}): ReactNode {
+  const ready = useFeatureStore(drafts.store, (state) => state.entryReady)
+  const initialText = ready ? drafts.draft(threadId).text : undefined
+  const onChange = useCallback((text: string) => drafts.setText(threadId, text), [drafts, threadId])
+
+  return children(initialText, onChange)
 }
 
 /* 入口页输入区上沿那排：在哪跑、本功能贡献的上下文、Swarm 勾选。会话态已经有明确落点，不再画。 */
@@ -407,6 +467,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   controls,
   controlsFailure,
   controlsPending,
+  drafts,
   endpoint,
   goal,
   isNew,
@@ -545,6 +606,8 @@ export const AssistantSurface = memo(function AssistantSurface({
       controls={controls}
       controlsFailure={controlsFailure}
       controlsPending={controlsPending}
+      drafts={drafts}
+      threadId={endpoint === '' ? null : endpoint}
       continueConversation={continueConversation}
       dismissed={dismissed}
       dismissFailure={dismissFailure}

@@ -1,5 +1,4 @@
-import type { ThreadRecord } from './thread'
-import { normalizeWorkspaceRoot, workspaceRootName } from './workspace-root'
+import { workspaceRootName } from './workspace-root'
 
 /*
  * 一级索引是工作区，不是时间：时间桶那道信息架构属于个人聊天机器人，而 agent 客户端的主线索是「在哪个项目里」，时间退回行尾那一格的元数据。
@@ -10,7 +9,7 @@ export interface ThreadListItem {
   readonly title: string
   readonly isPinned: boolean
   readonly updatedAt: string
-  /** 它属于哪个工作区。见 workspaceIdOf。 */
+  /** 它属于哪个工作区（工作区实体 id）。 */
   readonly workspaceId: string
 }
 
@@ -24,20 +23,6 @@ export interface ThreadWorkspaceGroup {
 
 /* 缺席就是「默认那一个」：那一列可空、不回填，读的地方自己兜默认。 */
 export const DEFAULT_WORKSPACE_ID = 'default'
-
-/*
- * 缺席交由宿主回答「默认那一个」（桌面宿主答用户主目录），没有目录的那些对话落进有名、有组头、可折叠的那组；
- * 给不出答案的宿主（单元测试、纯浏览器）才落回无名哨兵，那一组不画组头。
- */
-export function workspaceIdOf(thread: ThreadRecord, fallbackId?: string): string {
-  const root = thread.workspaceRoot
-
-  if (root !== null && root !== undefined && root.length > 0) {
-    return normalizeWorkspaceRoot(root)
-  }
-
-  return fallbackId ?? DEFAULT_WORKSPACE_ID
-}
 
 /*
  * 路径最后一段；路径不知道时没有名字。默认那一个交回 null 而非文案 —— 拿文案填数据的缺口会多出一个标题，用户问「这个工作区在哪」时界面答不上来。
@@ -64,10 +49,6 @@ function byPinnedThenActivity(leftPinned: boolean, leftAt: string, rightPinned: 
   const pinned = Number(rightPinned) - Number(leftPinned)
 
   return pinned === 0 ? byIsoDescending(leftAt, rightAt) : pinned
-}
-
-export function byRecency(left: ThreadRecord, right: ThreadRecord): number {
-  return byPinnedThenActivity(left.pinned === true, left.updatedAt, right.pinned === true, right.updatedAt)
 }
 
 /** 组内次序，作用在列表项上。 */

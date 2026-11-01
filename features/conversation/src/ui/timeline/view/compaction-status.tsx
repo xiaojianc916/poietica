@@ -29,8 +29,6 @@ function labelOf(item: CompactionTimelineItem): string {
   switch (item.state) {
     case 'completed':
       return completedOf(item)
-    case 'blocked':
-      return '等当前回复结束后压缩上下文'
     case 'cancelled':
       return handoff ? '已取消交接' : '已取消压缩'
     case 'failed':
@@ -47,15 +45,9 @@ function captionOf(item: CompactionTimelineItem): string | null {
   return item.handoff === true ? '之后的对话以这份交接文档为上下文继续。' : '较早的对话已替换为这份摘要。'
 }
 
-/** 展开那一面除摘要以外的几句：失败原因、事后告警、人给的要求 */
+/** 展开那一面除摘要以外的几句：失败原因、事后告警 */
 function notesOf(item: CompactionTimelineItem): string | null {
-  const parts = [
-    item.error,
-    item.warning,
-    item.instruction === undefined
-      ? undefined
-      : `${item.handoff === true ? '交接重点' : '压缩要求'}：${item.instruction}`,
-  ].filter((part): part is string => part !== undefined && part !== '')
+  const parts = [item.error, item.warning].filter((part): part is string => part !== undefined && part !== '')
 
   return parts.length === 0 ? null : parts.join('\n\n')
 }

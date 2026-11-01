@@ -12,12 +12,22 @@ import { EXIT_SECONDS } from '../../shared/primitives/motion'
 
 type Phase = 'closed' | 'opening' | 'open' | 'closing'
 
+/** 收起结束的调度口；默认等真实补间走完，测试可换成手动触发的一份。 */
+export type ExitScheduler = (close: () => void, ms: number) => () => void
+
+const scheduleTimeout: ExitScheduler = (close, ms) => {
+  const timer = window.setTimeout(close, ms)
+  return () => window.clearTimeout(timer)
+}
+
 export interface ThreadDisclosureProps {
   readonly children: ReactNode
   readonly isOpen: boolean
+  /** 收起结束的调度口；测试传手动调度，不必用真实计时器等 140ms。 */
+  readonly schedule?: ExitScheduler
 }
 
-export function ThreadDisclosure({ children, isOpen }: ThreadDisclosureProps) {
+export function ThreadDisclosure({ children, isOpen, schedule = scheduleTimeout }: ThreadDisclosureProps) {
   /* 首次挂载就开着时不播入场：那不是一次交互（与原先 AnimatePresence initial={false} 同义）。 */
   const [phase, setPhase] = useState<Phase>(isOpen ? 'open' : 'closed')
 
@@ -49,11 +59,10 @@ export function ThreadDisclosure({ children, isOpen }: ThreadDisclosureProps) {
       setPhase('closed')
       return undefined
     }
-    const timer = window.setTimeout(() => {
+    return schedule(() => {
       setPhase('closed')
     }, EXIT_SECONDS * 1000)
-    return () => window.clearTimeout(timer)
-  }, [phase])
+  }, [phase, schedule])
 
   if (phase === 'closed') return null
 

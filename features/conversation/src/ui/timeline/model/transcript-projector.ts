@@ -16,15 +16,14 @@ import type {
   TranscriptTurn,
   TurnOrigin,
 } from '@poietica/transcript'
-import { retryNoticeOf } from '@poietica/transcript'
+import { compactionMarkerPayload, retryNoticeOf } from '@poietica/transcript'
 import { mediaAssetUrl } from '../../../contract'
 import type { DialogRequest } from '../../shared/model/dialog'
 import type { QuestionChoice, QuestionItem } from '../../shared/model/question'
-import type { TurnMark } from '../../shared/model/thread'
 import type { ToolCallContent } from '../../shared/model/tool-call'
+import type { TurnMark } from '../../shared/model/turn-mark'
 import type {
   BackgroundTaskItem,
-  CompactionState,
   CompactionTimelineItem,
   MessageFile,
   MessageImage,
@@ -1030,14 +1029,7 @@ function compactedPage(
 }
 
 function compactionOf(mark: TranscriptMarker, turn: number): CompactionTimelineItem {
-  const payload =
-    typeof mark.payload === 'object' && mark.payload !== null ? (mark.payload as Record<string, unknown>) : {}
-
-  const trigger = triggerOf(payload.trigger)
-  const instruction = textOf(payload.instruction)
-  const tokensBefore = countOf(payload.tokensBefore)
-  const tokensAfter = countOf(payload.tokensAfter)
-  /* 展开那一面给人读：有 PR 式短摘要就用它，没有才用整份摘要 */
+  const payload = compactionMarkerPayload(mark.payload)
   const summary = textOf(payload.shortSummary) ?? textOf(payload.summary)
   const error = textOf(payload.error)
   const warning = textOf(payload.warning)
@@ -1048,13 +1040,11 @@ function compactionOf(mark: TranscriptMarker, turn: number): CompactionTimelineI
     turn,
     at: timeOf(mark.at) ?? 0,
     agentId: 'main',
-    state: compactionStateOf(payload.state),
-    ...(trigger === undefined ? {} : { trigger }),
+    state: payload.state,
     /* 落了盘的那一行带 method，跑着的那一格带 action（omp 压缩事件的写法） */
     ...(payload.method === 'handoff' || payload.action === 'handoff' ? { handoff: true as const } : {}),
-    ...(instruction === undefined ? {} : { instruction }),
-    ...(tokensBefore === undefined ? {} : { tokensBefore }),
-    ...(tokensAfter === undefined ? {} : { tokensAfter }),
+    ...(payload.tokensBefore === undefined ? {} : { tokensBefore: payload.tokensBefore }),
+    ...(payload.tokensAfter === undefined ? {} : { tokensAfter: payload.tokensAfter }),
     ...(summary === undefined ? {} : { summary }),
     ...(error === undefined ? {} : { error }),
     ...(warning === undefined ? {} : { warning }),
@@ -1062,22 +1052,8 @@ function compactionOf(mark: TranscriptMarker, turn: number): CompactionTimelineI
   }
 }
 
-/** 压缩是谁触发的：只认 manual / auto 两档，认不出就不写这一格 */
-function triggerOf(value: unknown): 'manual' | 'auto' | undefined {
-  return value === 'manual' || value === 'auto' ? value : undefined
-}
-
 function textOf(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() !== '' ? value : undefined
-}
-
-/** 认不出的状态按「正在跑」处理：报完成会把一次没成的压缩说成成了。 */
-function compactionStateOf(value: unknown): CompactionState {
-  return value === 'blocked' || value === 'cancelled' || value === 'completed' || value === 'failed' ? value : 'running'
-}
-
-function countOf(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
 }
 
 const phaseOf = (snapshot: AgentTranscriptSnapshot, last: TranscriptTurn | undefined) => {

@@ -218,16 +218,14 @@ interface InflightPromptItem extends TimelineEntry {
 }
 
 /** failed = agent 报了错、这次没压成（与 cancelled 分开：一个是人按了停，一个是出了事） */
-export type CompactionState = 'running' | 'blocked' | 'cancelled' | 'completed' | 'failed'
+export type CompactionState = 'running' | 'cancelled' | 'completed' | 'failed'
 
 export interface CompactionTimelineItem extends TimelineEntry {
   readonly type: 'compaction'
   readonly agentId: string
   readonly state: CompactionState
-  readonly trigger?: 'manual' | 'auto'
   /** 这是一次交接（/handoff，或 omp 按交接策略自动做的）：摘要就是交接文档 */
   readonly handoff?: true
-  readonly instruction?: string
   readonly turnId?: number
   readonly tokensBefore?: number
   readonly tokensAfter?: number
