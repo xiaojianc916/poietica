@@ -33,20 +33,24 @@ export default defineHostModule({
       shell: {
         openExternal: async (url) => {
           /*
-           * magpie 的 host.OpenURL 先走 app.Browser.OpenURL（系统 shell 自己在
-           * Electron 进程里调 ShellExecute），失败才退到 proc.OpenBrowser 的
-           * rundll32。我们之前只抄了 fallback，反而把前台权限丢给了子进程。
+           * Windows 上不能把 Electron 的 shell.openExternal 当主路径：在 Windows 11 26200 +
+           * Electron 45 上它照样 resolve，浏览器却不新开任何标签（提权与不提权都复现）。
+           * 只有 url.dll,FileProtocolHandler 能稳定把 URL 交给默认浏览器。spawn 本身失败
+           * （System32 不可达等）时才退回 Electron。
            */
-          try {
-            await shell.openExternal(url)
-            ctx.logger.info('opened in default browser', { host: new URL(url).host })
-          } catch (error) {
-            ctx.logger.warn('native open failed; falling back to rundll32', {
-              host: new URL(url).host,
-              error: String(error),
-            })
-            await openInSystemBrowser(url, ctx.logger)
+          if (process.platform === 'win32') {
+            try {
+              await openInSystemBrowser(url, ctx.logger)
+              return
+            } catch (error) {
+              ctx.logger.warn('system browser command failed; falling back to Electron shell', {
+                host: new URL(url).host,
+                error: String(error),
+              })
+            }
           }
+          await shell.openExternal(url)
+          ctx.logger.info('opened in default browser', { host: new URL(url).host })
         },
         openPath: (path) => shell.openPath(path),
         showItemInFolder: (path) => shell.showItemInFolder(path),
