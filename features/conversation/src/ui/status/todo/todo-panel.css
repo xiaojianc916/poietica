@@ -1,6 +1,7 @@
 /* 色值照 ZCode 那张卡的字面值取，不跟全站 --cp-*：自身声明恒压过祖先 [data-assistant-skin]
- * 投下来的继承值，不必比特异度；每条又都带全局兜底，换挂载点（如页头控件行）时不会解析成空值。 */
-.status-panel {
+ * 投下来的继承值，不必比特异度；每条又都带全局兜底，换挂载点（如浮层宿主）时不会解析成空值。 */
+.status-panel,
+.conversation-status-panel__surface {
   --status-panel-font-size: 14px;
   --cp-ink: #262626;
   --cp-ink-muted: #262626;
@@ -15,7 +16,7 @@
 
   /*
    * 这张卡的壳族：卡内分区线（恒定一档）、壳外框、壳底与壳影。折叠悬浮卡（__fold-card，挂 body
-   * 皮肤外）与浮层宿主（conversation-todo-popover__surface，皮肤内）是同一张壳 —— 后者的取值在
+   * 皮肤外）与浮层宿主（conversation-status-panel__surface，皮肤内）是同一张壳 —— 后者的取值在
    * 它自己文件里（挂载点跨皮肤内外，做不到一份定义），两边注释互相点名，改一处核另一处。
    */
   --status-panel-rule: #414141;
@@ -44,7 +45,7 @@
   }
 }
 
-/* 边、圆角、阴影、底色都画在宿主的壳上（conversation-todo-popover 的 __surface / __mini），
+/* 边、圆角、阴影、底色都画在宿主的壳上（conversation-status-panel 的 __surface / __mini），
  * 这里再画一遍就是双层边框。 */
 .status-panel {
   display: flex;
@@ -371,7 +372,7 @@
 
 /*
  * 折叠悬浮卡：一块小号的状态面板（同挂 .status-panel，墨色与深浅主题都从那一格来）。外壳照浮层面板
- * （conversation-todo-popover__surface）：同一圈 #2b2b2b 外框、同一档阴影、深色同一块 #202020 —— 只把圆角收一档。
+ * （conversation-status-panel__surface）：同一圈 #2b2b2b 外框、同一档阴影、深色同一块 #202020 —— 只把圆角收一档。
  * 双类是为了压过提示气泡的默认皮（.ui-tooltip 与它的 bg-foreground / px-3 / text-xs）。
  */
 .status-panel.status-panel__fold-card {
@@ -569,7 +570,8 @@
 
 /* 深色下 --cp-ground 与地色齐平只剩一圈边线，抬到产品指定的 #202020（不是 ZCode 的 #2b2b2b）；
  * 墨色档位仍照 zai-dark：正文 #d4d4d4、次要 60%、最次 30%。 */
-:root[data-theme='dark'] .status-panel {
+:root[data-theme='dark'] .status-panel,
+:root[data-theme='dark'] .conversation-status-panel__surface {
   --cp-ink: #d4d4d4;
   --cp-ink-muted: #d4d4d4;
   --cp-ink-subtle: color-mix(in oklab, #d4d4d4 60%, transparent);
@@ -578,6 +580,9 @@
   --cp-diff-added-text: #46bf72;
   --cp-diff-removed-text: #f9423e;
   --status-panel-shell: #202020;
+}
+
+:root[data-theme='dark'] .status-panel {
   background: var(--status-panel-shell);
 }
 

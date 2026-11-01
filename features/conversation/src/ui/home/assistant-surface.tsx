@@ -1,7 +1,7 @@
 import '../shared/styles/surface.css'
 
 import { Banner, WorkspacePicker, type WorkspacePickerProps } from '@poietica/design-system'
-import { FeatureScope, type Observable, useContributions, useKernel, useObservable } from '@poietica/ui-kernel'
+import { FeatureScope, useContributions, useKernel, useObservable } from '@poietica/ui-kernel'
 import {
   memo,
   type ReactNode,
@@ -34,11 +34,12 @@ import type { AgentToolkit } from '../shared/model/toolkit'
 import type { SessionUsage } from '../shared/model/usage'
 import type { PlanItem, QuestionTimelineItem } from '../shared/timeline/timeline-contract'
 import {
-  CONVERSATION_TODO_LAYOUT_STYLE,
-  ConversationTodoPopover,
+  CONVERSATION_STATUS_PANEL_LAYOUT_STYLE,
+  ConversationStatusPanel,
   EntryNotices,
   type GoalActions,
   GoalBar,
+  type SummaryPanelPreference,
   useGoalActions,
 } from '../status'
 import { ThreadTitleMenu } from '../threads'
@@ -94,39 +95,40 @@ export interface AssistantSurfaceProps {
   /** 这条对话的斜杠命令（omp 的表与执行）；入口页没有会话，缺席 */
   readonly commands?: ThreadCommands | undefined
   readonly thread?: Thread | undefined
-  readonly todoThread?: (Observable<string | null> & { set(next: string | null): void }) | undefined
+  /** 状态面板形态偏好（null = auto）；草稿态不传，面板因此不挂载。 */
+  readonly summaryPanelVariant?: SummaryPanelPreference | undefined
 }
 
 const NO_GOAL_ACTIONS: GoalActionHandler = () => Promise.resolve({ ok: false, error: '这条对话还没有会话' })
 
 /* 包一层是因为钩子不能写在三目里：useObservable 必须无条件调用。 */
-function TodoPopoverLayer({
+function StatusPanelLayer({
   endpoint,
   goal,
   goalActions,
-  todoThread,
+  summaryPanelVariant,
 }: {
   readonly endpoint: string
   readonly goal: SessionGoal | undefined
   readonly goalActions: GoalActions
-  readonly todoThread: Observable<string | null> & { set(next: string | null): void }
+  readonly summaryPanelVariant: SummaryPanelPreference
 }): ReactNode {
-  const open = useObservable(todoThread)
+  const variant = useObservable(summaryPanelVariant)
 
   return (
-    <ConversationTodoPopover
-      expanded={open === endpoint}
+    <ConversationStatusPanel
       goal={goal}
-      onCollapse={() => {
-        todoThread.set(null)
-      }}
       onPauseGoal={() => {
         void goalActions.run({ kind: 'pause' })
       }}
       onResumeGoal={() => {
         void goalActions.run({ kind: 'resume' })
       }}
+      onVariantChange={(next) => {
+        summaryPanelVariant.set(next)
+      }}
       threadId={endpoint}
+      variant={variant}
     />
   )
 }
@@ -425,8 +427,8 @@ export const AssistantSurface = memo(function AssistantSurface({
   prefill,
   prepare,
   session,
+  summaryPanelVariant,
   thread,
-  todoThread,
   usage,
   workspace,
   workspaceRequired = false,
@@ -444,7 +446,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   /* 连不上 agent 不在这层写：由 threads-store 打开对话失败时的 catch 统一记，与帧流里的失败同一个样子。 */
   const { permission: blocked, permissionCount: waiting, plan, question } = useAssistantInteractions(assistant.key)
 
-  /* 目标动作的在途与失败：目标栏与任务浮层共用这一份（审查 R-10）。 */
+  /* 目标动作的在途与失败：目标栏与状态面板共用这一份（审查 R-10）。 */
   const goalActions = useGoalActions(onGoalAction, goal?.objective)
 
   /* 整副入参当成一个 prop：引用只随「换了请求」或「分母变了」而变，流式追加动不了被 memo 过的 composer。 */
@@ -497,8 +499,8 @@ export const AssistantSurface = memo(function AssistantSurface({
     restore: restoreDraft,
     services: kernel.kernelServices,
     status: assistant.status,
+    statusPanel: summaryPanelVariant,
     thread,
-    todo: todoThread,
     usage,
   })
 
@@ -597,9 +599,9 @@ export const AssistantSurface = memo(function AssistantSurface({
         正文列。结构与 workbench 的 workspace.tsx 逐字相同（就是 conversation-body /
         conversation-canvas 这两层，形状照抄别处、改它有风险）：输入框浮起时以画布为包含块。
       */}
-      {/* 几何常量（--conversation-todo-width 320px / --conversation-todo-gap 12px）写在正文列上：
+      {/* 几何常量（--conversation-status-panel-width 320px / -gap 16px）写在正文列上：
           浮层本体与 @container 那条让位规则都从这一层继承。 */}
-      <div className="conversation-body" style={CONVERSATION_TODO_LAYOUT_STYLE}>
+      <div className="conversation-body" style={CONVERSATION_STATUS_PANEL_LAYOUT_STYLE}>
         <div className="conversation-canvas">
           {/* 页头与转录之间的雾，是正文盒顶部那一条。 */}
           <div className="conversation-veil" data-assistant-skin />
@@ -633,11 +635,17 @@ export const AssistantSurface = memo(function AssistantSurface({
           )}
 
           {/*
-            任务与后台任务浮层：让位走 --assistant-surface-inline-end-clearance 的容器查询。
-            开合由页头那枚开关写 todoThread，这里只读。同一件事只有一条写入路径。
+            状态面板：没有内容时组件自己返回 null（包括干净仓库 + 空待办）；让位走
+            --assistant-surface-inline-end-clearance 的容器查询。形态偏好由 /todo 命令或面板
+            自身的展开 / 收起按钮写入，这里只读。
           */}
-          {todoThread === undefined ? null : (
-            <TodoPopoverLayer endpoint={endpoint} goal={goal} goalActions={goalActions} todoThread={todoThread} />
+          {summaryPanelVariant === undefined ? null : (
+            <StatusPanelLayer
+              endpoint={endpoint}
+              goal={goal}
+              goalActions={goalActions}
+              summaryPanelVariant={summaryPanelVariant}
+            />
           )}
 
           <div className="assistant-surface__dock" ref={clearance.ref}>

@@ -35,7 +35,7 @@ export interface GoalActions {
   readonly run: (action: GoalAction) => Promise<GoalActionResult>
 }
 
-/** 状态挂在**调用方**而不是目标栏里：任务浮层共用这一份，失败才有地方显示（目标栏），两处按钮也不会各自连发。 */
+/** 状态挂在**调用方**而不是目标栏里：状态面板共用这一份，失败才有地方显示（目标栏），两处按钮也不会各自连发。 */
 export function useGoalActions(onAction: GoalActionHandler, objective: string | undefined): GoalActions {
   const [pending, setPending] = useState(false)
   const [failure, setFailure] = useState<GoalFailure | null>(null)
@@ -268,7 +268,7 @@ function GoalBarView({ goal, actions }: GoalBarViewProps) {
 export interface GoalBarProps {
   /** 这条对话此刻的目标；undefined 表示没有目标（整条不画）。 */
   readonly goal: SessionGoal | undefined
-  /** 与任务浮层共用同一份（由 AssistantSurface 持有）。 */
+  /** 与状态面板共用同一份（由 AssistantSurface 持有）。 */
   readonly actions: GoalActions
 }
 

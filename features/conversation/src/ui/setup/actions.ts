@@ -2,7 +2,8 @@ import type { SetupUiStateKey } from '@poietica/feature-preferences/contract'
 import type { UiStateSlot } from '@poietica/feature-preferences/ui-api'
 import { createValue } from '@poietica/ui-kernel'
 import { createDraftPin, type Draft, type DraftPinView, isDraft } from '../composer'
-import { type ConversationTodoThread, shouldNotify } from '../session'
+import { shouldNotify } from '../session'
+import type { SummaryPanelPreference, SummaryPanelVariant } from '../status'
 import { leaveForArchive } from '../threads'
 import type { ConversationSetup } from './context'
 
@@ -11,7 +12,7 @@ const DRAFTS_KEY = ['conversation', 'drafts'].join('.') as SetupUiStateKey
 
 /** 活动线程、打开 / 导出 / 新建线程、侧栏折叠、归档横幅、通知。 */
 export interface ConversationActions {
-  readonly todoThread: ReturnType<typeof createValue<string | null>>
+  readonly summaryPanelVariant: SummaryPanelPreference
   readonly activeThreadId: () => string | null
   readonly subscribeActive: (listener: () => void) => () => void
   readonly openThread: (threadId: string) => void
@@ -87,8 +88,11 @@ export function createConversationActions(setup: ConversationSetup): Conversatio
     }),
   )
 
-  /* 任务浮层开着的是哪条对话。它不属于外壳的布局意图（不落盘、不开栅格格位），所以由 conversation 自己用 ui-kernel 的最小可订阅值持有 —— 不存在第二个真相。 */
-  const todoThread: ConversationTodoThread = createValue<string | null>(null)
+  /*
+   * 状态面板的形态偏好（ZCode 的 workspace shell 偏好）：null = CSS auto，panel = 始终展开，
+   * mini = 始终收起。不落盘、不进协议 —— 它只影响这一份 renderer 的显示。
+   */
+  const summaryPanelVariant: SummaryPanelPreference = createValue<SummaryPanelVariant | null>(null)
   /*
    * 当前线程 = **路由的派生**，不是另存的一份状态。原先它是只在 openThread 里赋值的变量：从别的路径回到入口页时没人清它，
    * 侧栏那一行于是在入口页仍然亮着（真实故障）。唯一判据是路由：停在线程页才有当前线程。
@@ -254,6 +258,7 @@ export function createConversationActions(setup: ConversationSetup): Conversatio
     exportThread,
     newThread,
     shareThread,
+    summaryPanelVariant,
     notify,
     openThread,
     runningThreadIds,
@@ -264,6 +269,5 @@ export function createConversationActions(setup: ConversationSetup): Conversatio
         activeListeners.delete(listener)
       }
     },
-    todoThread,
   }
 }

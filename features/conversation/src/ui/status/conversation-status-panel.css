@@ -1,0 +1,297 @@
+/*
+ * 状态面板：ZCode V4 右上角的同一套壳 —— 收起态是单条摘要胶囊，展开态是 320px 卡片；
+ * auto 由 conversation-body 容器查询在 1280px 处裁决，React 不读宽度。
+ *
+ * 颜色、边框、阴影沿用本仓既有恒色卡（见 todo-panel.css 的 --status-panel-shell 族与
+ * refactor-log Q56）；这里只补壳、胶囊与右上角控件。基础两条（.conversation-body /
+ * .conversation-canvas）住在 skin/surface.css，几何常量由宿主的
+ * CONVERSATION_STATUS_PANEL_LAYOUT_STYLE 写在 .conversation-body 上。
+ */
+@property --assistant-surface-inline-end-clearance {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
+/* 铺满 canvas，只做定位，自己不接受指针事件；胶囊与卡片各自再把自己那一块收回来。 */
+.conversation-status-panel {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  min-block-size: 0;
+  pointer-events: none;
+}
+
+/*
+ * 展开卡与正文列的横向让位：ZCode 只在 conversation 容器达到 1280px 后让消息列与输入区
+ * 左移；窄容器、mini 和无内容状态都不偏移。因此这里同时钉住「至少 1280」与「不是收起态」。
+ */
+@container conversation-body (min-width: 1280px) {
+  .conversation-canvas:has(> .conversation-status-panel[data-state='expanded']) {
+    --assistant-surface-inline-end-clearance: calc(
+      var(--conversation-status-panel-width) + var(--conversation-status-panel-gap) +
+        var(--conversation-status-panel-gap)
+    );
+  }
+}
+
+/* 同一个 aside 承载两种形态：收起时宽度跟内容走，展开时 320；高度上限 34px / min(64dvh, 32rem)。 */
+.conversation-status-panel__surface {
+  --todo-shell-frame: #2b2b2b;
+  --todo-shell: var(--cp-ground);
+  --todo-shell-shadow: 0 4px 6px -1px rgb(0 0 0 / 10%), 0 2px 4px -2px rgb(0 0 0 / 10%);
+
+  position: absolute;
+  inset-block-start: var(--conversation-status-panel-gap);
+  inset-inline-end: var(--conversation-status-panel-gap);
+  display: flex;
+  min-block-size: 0;
+  max-block-size: 2.125rem;
+  inline-size: max-content;
+  max-inline-size: min(20rem, calc(100cqw - 2rem));
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--todo-shell-frame);
+  border-radius: 16px;
+  background: var(--todo-shell);
+  color: var(--cp-ink);
+  box-shadow: var(--todo-shell-shadow);
+  pointer-events: auto;
+  transition:
+    border-radius 300ms ease-in-out,
+    padding 300ms ease-in-out,
+    background-color 300ms ease-in-out,
+    box-shadow 300ms ease-in-out;
+}
+
+.conversation-status-panel[data-display-mode='panel'] .conversation-status-panel__surface {
+  inline-size: min(20rem, calc(100cqw - 2rem));
+  max-block-size: min(64dvh, 32rem);
+}
+
+/* 展开内容：标题固定在滚动视口之外，长列表只滚自己的区块；外层再兜一层整卡滚动。 */
+.conversation-status-panel__panel {
+  position: relative;
+  display: none;
+  min-block-size: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.conversation-status-panel[data-display-mode='panel'] .conversation-status-panel__panel {
+  display: flex;
+}
+
+.conversation-status-panel__scroll {
+  min-block-size: 0;
+  flex: 1 1 auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* 收起态：单条摘要，高度 32（外加壳的两条边 = 34）、左边 8 右边 12。 */
+.conversation-status-panel__mini {
+  display: none;
+  min-inline-size: 0;
+  flex: none;
+}
+
+.conversation-status-panel[data-display-mode='mini'] .conversation-status-panel__mini {
+  display: block;
+}
+
+.conversation-status-panel__summary {
+  display: flex;
+  block-size: 32px;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  font-size: var(--status-panel-font-size, 14px);
+  line-height: 20px;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color 150ms ease-in-out;
+}
+
+.conversation-status-panel__summary:hover {
+  background: var(--cp-hover);
+}
+
+.conversation-status-panel__summary:focus-visible {
+  outline: 2px solid var(--cp-accent);
+  outline-offset: -2px;
+}
+
+/* 悬停 / 键盘聚焦时左侧状态图标换成 maximize-2：这一下点的就是「展开」。 */
+.conversation-status-panel__summary-icon {
+  position: relative;
+  display: block;
+  block-size: 16px;
+  inline-size: 16px;
+  flex: none;
+}
+
+.conversation-status-panel__summary-glyph,
+.conversation-status-panel__summary-expand {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  block-size: 16px;
+  inline-size: 16px;
+  place-items: center;
+  transition: opacity 150ms ease-in-out;
+}
+
+.conversation-status-panel__summary-expand {
+  opacity: 0;
+}
+
+.conversation-status-panel__summary:hover .conversation-status-panel__summary-glyph,
+.conversation-status-panel__summary:focus-visible .conversation-status-panel__summary-glyph {
+  opacity: 0;
+}
+
+.conversation-status-panel__summary:hover .conversation-status-panel__summary-expand,
+.conversation-status-panel__summary:focus-visible .conversation-status-panel__summary-expand {
+  opacity: 1;
+}
+
+.conversation-status-panel__summary-icon svg {
+  block-size: 16px;
+  inline-size: 16px;
+}
+
+.conversation-status-panel__summary-title {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-status-panel__summary-added {
+  flex: none;
+  color: var(--status-panel-added);
+  font-variant-numeric: tabular-nums;
+}
+
+.conversation-status-panel__summary-removed {
+  flex: none;
+  color: var(--status-panel-removed);
+  font-variant-numeric: tabular-nums;
+}
+
+.conversation-status-panel__summary-count {
+  flex: none;
+  color: var(--cp-ink-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 展开态右上角的两个控件：更多（自动模式）与收起；位置、尺寸照 ZCode 的 right-3 top-3 / 24。 */
+.conversation-status-panel__controls {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 12px;
+  inset-inline-end: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 菜单触发的提示：与设计系统 .ui-tooltip 同一套表面/墨色，侧边 4px，延迟 150ms。 */
+.conversation-status-panel__control[data-tooltip] {
+  position: relative;
+}
+
+.conversation-status-panel__control[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 50%;
+  inset-inline-end: calc(100% + 4px);
+  padding: 6px 12px;
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-tooltip-surface);
+  color: var(--ui-tooltip-ink);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  translate: 0 -50%;
+  transition: opacity var(--ui-duration-fast) var(--ui-ease-standard);
+  transition-delay: 150ms;
+}
+
+.conversation-status-panel__control[data-tooltip]:hover::after,
+.conversation-status-panel__control[data-tooltip]:focus-visible::after {
+  opacity: 1;
+}
+
+.conversation-status-panel__control {
+  display: inline-flex;
+  block-size: 24px;
+  inline-size: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-radius-full);
+  background: transparent;
+  color: var(--cp-ink-subtle);
+  cursor: pointer;
+}
+
+.conversation-status-panel__control:hover {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+.conversation-status-panel__control:focus-visible {
+  outline: 2px solid var(--cp-accent);
+  outline-offset: -2px;
+}
+
+.conversation-status-panel__control svg {
+  block-size: 14px;
+  inline-size: 14px;
+}
+
+/* 深色下 --cp-ground 与地色齐平，只剩一圈边线；抬一档。产品指定 #202020，外框 #2b2b2b。 */
+:root[data-theme='dark'] .conversation-status-panel__surface {
+  --todo-shell: #202020;
+}
+
+/* auto：窄容器只画胶囊；1280px 起换成完整面板，形状与 panel 一直。 */
+.conversation-status-panel[data-display-mode='auto'] .conversation-status-panel__mini {
+  display: block;
+}
+
+@container conversation-body (min-width: 1280px) {
+  .conversation-status-panel[data-display-mode='auto'] .conversation-status-panel__surface {
+    inline-size: min(20rem, calc(100cqw - 2rem));
+    max-block-size: min(64dvh, 32rem);
+  }
+
+  .conversation-status-panel[data-display-mode='auto'] .conversation-status-panel__panel {
+    display: flex;
+  }
+
+  .conversation-status-panel[data-display-mode='auto'] .conversation-status-panel__mini {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conversation-status-panel__surface,
+  .conversation-status-panel__summary,
+  .conversation-status-panel__summary-glyph,
+  .conversation-status-panel__summary-expand {
+    transition: none;
+  }
+}

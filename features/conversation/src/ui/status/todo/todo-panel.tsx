@@ -234,8 +234,8 @@ function Section({
   )
 }
 
-/* 只要是 git 工作区就恒画，干净仓库照画（+0 -0）：undefined 才是「这一区不画」（不是仓库、没装 git、还没读到）。 */
-/* 导出只为测试：钉住「干净仓库也画得出 +0 -0」这一格长什么样。 */
+/* 调用方只在 added + removed > 0 时挂这一格（ZCode 的 showGit 门）；这里的两个数照实报，0 不会出现。 */
+/* 整格由 TaskPanelContent 挂载；测试经它渲染，钉住这一格的样子。 */
 function GitStatusSection({
   git,
   onOpenReview,
@@ -732,8 +732,11 @@ export function TaskPanelContent({
   const agents = runningAgents ?? []
   const showGoal = goal !== undefined && goal.status !== 'complete'
   const showAgents = agents.length > 0 || endedAgents.length > 0
-  /* Git 是工具而不是进展：只要目录是 git 工作区就恒画。 */
-  const showGit = git !== undefined
+  /*
+   * Git 只在工作区真的增删了行时才算内容（ZCode 的同一道门）：干净仓库不因为「是个 Git 仓库」
+   * 就挂出这一格，更不单独撑起整块状态面板。undefined 与 +0 -0 在这里是两件事。
+   */
+  const showGit = git !== undefined && git.added + git.removed > 0
 
   /*
    * 每一格都是有事实才出现：空表连标题都不画（原来「待办事项 / 后台任务」常驻并各说一句「暂无」，那是两块永远空着的标题加两句废话）。
@@ -744,8 +747,8 @@ export function TaskPanelContent({
       ...(showGit ? ['environment'] : []),
       ...(showGoal ? ['goal'] : []),
       ...(todos.length > 0 ? ['todo'] : []),
-      ...(showAgents ? ['agents'] : []),
       ...(backgroundTasks.length > 0 ? ['terminals'] : []),
+      ...(showAgents ? ['agents'] : []),
     ],
     [backgroundTasks.length, showAgents, showGit, showGoal, todos.length],
   )
@@ -779,13 +782,31 @@ export function TaskPanelContent({
       }}
       value={open}
     >
-      {git !== undefined ? <GitStatusSection git={git} onOpenReview={onOpenReview} picker={gitPicker} /> : null}
+      {showGit && git !== undefined ? (
+        <GitStatusSection git={git} onOpenReview={onOpenReview} picker={gitPicker} />
+      ) : null}
       {showGoal && goal !== undefined ? (
-        <GoalSection goal={goal} onPause={() => onPauseGoal?.()} onResume={() => onResumeGoal?.()} separated={false} />
+        <GoalSection
+          goal={goal}
+          onPause={() => onPauseGoal?.()}
+          onResume={() => onResumeGoal?.()}
+          separated={showGit}
+        />
       ) : null}
       <TodoSection separated={showGit || showGoal} todos={todos} />
-      {showAgents ? <AgentsSection agents={agents} ended={endedAgents} onOpenAgent={onOpenAgent} separated /> : null}
-      <TerminalsSection onStopTask={onStopTask} separated tasks={backgroundTasks} />
+      <TerminalsSection
+        onStopTask={onStopTask}
+        separated={showGit || showGoal || todos.length > 0}
+        tasks={backgroundTasks}
+      />
+      {showAgents ? (
+        <AgentsSection
+          agents={agents}
+          ended={endedAgents}
+          onOpenAgent={onOpenAgent}
+          separated={showGit || showGoal || todos.length > 0 || backgroundTasks.length > 0}
+        />
+      ) : null}
     </Accordion>
   )
 }

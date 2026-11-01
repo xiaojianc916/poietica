@@ -15,11 +15,7 @@ export {
   withoutHiddenModels,
 } from './configuration/control-shapes'
 export { createPostureIntent, type PostureIntent, storedPostureOf } from './configuration/posture-intent'
-export {
-  ConversationAuxiliaryToggle,
-  type ConversationTodoThread,
-  ConversationTodoToggle,
-} from './conversation-controls'
+export { ConversationAuxiliaryToggle } from './conversation-controls'
 export { completionBody, confirmDeleteThread, confirmQuit, isTurnSettled, shouldNotify } from './notify'
 export { createSessionRegistry, type SessionRegistry } from './session-registry'
 export { ArchivedChatsPage } from './settings/archived-page'

@@ -8,6 +8,7 @@ import { commandArgsOf, commandNameOf, findCommand, type ThreadCommands } from '
 import type { SessionConfigControl } from '../shared/model/config'
 import type { ChatStatus } from '../shared/model/run'
 import type { SessionUsage } from '../shared/model/usage'
+import type { SummaryPanelPreference } from '../status'
 import {
   type AvailableCommand,
   availableCommands,
@@ -23,7 +24,7 @@ import {
  * 或在斜杠面板里选中 —— 面板把整句放回草稿再提交，到这里是同一句话）。
  *
  * 结果各回各的地方，不再全挤进输入框上方那一块：
- *   - 打开控件（模型卡、上下文面板、改名框、任务浮层）与打开设置页 —— 那个控件 / 那一页就是结果；
+ *   - 打开控件（模型卡、上下文面板、改名框、状态面板）与打开设置页 —— 那个控件 / 那一页就是结果；
  *   - 要人确认的（分享会生成一条任何人可打开的链接）—— 确认弹窗；
  *   - omp 说的话（「已开启快速模式」「当前模型不支持慢速模式」）、此刻办不了的原因 —— 横幅，色调随成败；
  *   - 交给模型的（/review、文件命令）—— 时间线上那一轮。
@@ -44,7 +45,7 @@ export interface SlashCommandsInput {
   readonly thread: Thread | undefined
   readonly usage: SessionUsage | undefined
   readonly endpoint: string
-  readonly todo: { set(next: string | null): void } | undefined
+  readonly statusPanel: SummaryPanelPreference | undefined
   readonly onRenameThread: ((threadId: string, title: string) => void) | undefined
   readonly onExportThread: ((threadId: string) => void) | undefined
   readonly onShareThread: ((threadId: string) => void) | undefined
@@ -192,7 +193,7 @@ export function useSlashCommands(input: SlashCommandsInput): SlashCommandsView {
         export: thread !== undefined && input.onExportThread !== undefined,
         share: thread !== undefined && input.onShareThread !== undefined,
         context: input.usage !== undefined && input.usage.size > 0,
-        todo: input.todo !== undefined && input.endpoint !== '',
+        todo: input.statusPanel !== undefined && input.endpoint !== '',
       },
     }),
     [
@@ -204,7 +205,7 @@ export function useSlashCommands(input: SlashCommandsInput): SlashCommandsView {
       input.onRenameThread,
       input.onShareThread,
       input.status,
-      input.todo,
+      input.statusPanel,
       input.usage,
       place,
       thread,
@@ -280,7 +281,7 @@ function useNativeActions(
   },
 ): (action: NativeAction, args: string) => void {
   const { banners, commands: kernelCommands, dialogs } = input.services
-  const { commands, controls, endpoint, onExportThread, onRenameThread, onSelectControl, onShareThread, thread, todo } =
+  const { commands, controls, onExportThread, onRenameThread, onSelectControl, onShareThread, statusPanel, thread } =
     input
   const { openControls, openRename, setRequests, titling } = tools
 
@@ -370,7 +371,7 @@ function useNativeActions(
           void share()
           return
         case 'todo':
-          todo?.set(endpoint)
+          statusPanel?.set('panel')
           return
       }
     },
@@ -378,15 +379,14 @@ function useNativeActions(
       banners,
       choose,
       controls,
-      endpoint,
       kernelCommands,
       onExportThread,
       onSelectControl,
       rename,
       setRequests,
       share,
+      statusPanel,
       thread,
-      todo,
     ],
   )
 }

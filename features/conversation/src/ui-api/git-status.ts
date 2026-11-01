@@ -11,7 +11,8 @@ import { type ComponentType, createContext, type ReactNode, useContext } from 'r
  * 套在树上。
  *
  * 缺席用 null / undefined 表达 —— 非 git 仓库、没装 git、还没读到，都是「这一区不画」，不是
- * 一个假的 0。**干净仓库是在场的**：它只是没有增删，照样画 +0 -0。
+ * 一个假的 0。干净仓库仍是一份在场的事实（状态面板据此决定不挂载，但分支 / 上游仍可读）；
+ * 面板只在 added + removed > 0 时展示 Git 工具，干净仓库不单独撑起状态面板。
  */
 export interface WorkspaceGitStatus {
   /** 当前检出的分支；HEAD 分离时为 null。 */

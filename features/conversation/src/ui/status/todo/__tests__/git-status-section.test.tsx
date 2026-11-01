@@ -3,7 +3,10 @@ import { type WorkspaceGitFacts, workspaceGitContext } from '@poietica/feature-c
 import { renderToStaticMarkup } from 'react-dom/server'
 import { TaskPanelContent } from '../todo-panel'
 
-/* git 没有增减也要显示这一格（+0 -0）；判据在 review 的 workspaceGitFactsOf，这里看面板这一层。 */
+/*
+ * Git 那一格只在 worktree 真的增删了行时出现（ZCode 的 showGit 门）。干净仓库仍是一份在场的
+ * 事实，但不该单独挂出「Git 工具」或整块状态面板。
+ */
 
 const facts = (added: number, removed: number): WorkspaceGitFacts => ({
   status: {
@@ -30,18 +33,18 @@ function render(held: WorkspaceGitFacts | null): string {
 }
 
 describe('Git 工具那一格的渲染', () => {
-  test('干净仓库照画：标题 + 更改行 + 加 0 减 0', () => {
+  test('干净仓库不画 Git 工具，也不报 +0 -0', () => {
     const markup = render(facts(0, 0))
 
-    expect(markup).toContain('Git 工具')
-    expect(markup).toContain('更改')
-    expect(markup).toContain('+0')
-    expect(markup).toContain('-0')
+    expect(markup).not.toContain('Git 工具')
+    expect(markup).not.toContain('+0')
+    expect(markup).not.toContain('-0')
   })
 
   test('有增删时两个数照实报', () => {
     const markup = render(facts(12, 4))
 
+    expect(markup).toContain('Git 工具')
     expect(markup).toContain('+12')
     expect(markup).toContain('-4')
   })

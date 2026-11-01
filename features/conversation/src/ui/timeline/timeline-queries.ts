@@ -147,7 +147,7 @@ function delegateCallsIn(items: readonly TimelineItem[]): DelegateCalls {
 
 const sealedDelegatesOf = sealedPageMemo((page) => delegateCallsIn(page.items))
 
-/** 这条时间轴上全部 delegate 调用（任务面板「智能体」那一节）。面板随时间线每帧重算，长对话里逐条扫一遍是每帧固定开销，所以已封口页按页记账。 */
+/** 这条时间轴上全部 delegate 调用（状态面板「智能体」那一节）。面板随时间线每帧重算，长对话里逐条扫一遍是每帧固定开销，所以已封口页按页记账。 */
 export function delegateCallsOf(state: Pick<TimelineState, 'sealed' | 'active'>): DelegateCalls {
   const finished: ToolCallTimelineItem[] = []
   const running: ToolCallTimelineItem[] = []

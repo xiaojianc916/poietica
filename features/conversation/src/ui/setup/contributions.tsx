@@ -16,7 +16,6 @@ import { AssistantSurface, HomeSurface } from '../home'
 import {
   ArchivedChatsPage,
   ConversationAuxiliaryToggle,
-  ConversationTodoToggle,
   effectiveUsage,
   hiddenModelsOf,
   PLAN_CONTROL_ID,
@@ -80,7 +79,7 @@ export function createConversationContributions(setup: ConversationSetup, action
     openThread,
     shareThread,
     showArchived,
-    todoThread,
+    summaryPanelVariant,
   } = actions
   /*
    * 点一下就发出去的那些调用（置顶、改名、分叉、换模型……）没有人在等结果：失败至少记一条带上下文的 warn（AGENTS.md §8.1）。
@@ -316,13 +315,7 @@ export function createConversationContributions(setup: ConversationSetup, action
     },
   })
 
-  /* 会话页右上角的两枚开关：任务开关钉在主区右缘、辅助开关钉在窗口右缘，进入对话页才画。定位由外壳的包装层负责，组件只画按钮本体。 */
-  ctx.contribute(builtinPoints.mainControls, {
-    id: 'conversation.todo',
-    order: 10,
-    slot: 'main',
-    component: () => <ConversationTodoToggle todoThread={todoThread} />,
-  })
+  /* 会话页右上角只剩辅助面板开关（钉在窗口右缘）：状态面板收进对话画布右上角，不再由页头按钮控制。 */
   ctx.contribute(builtinPoints.mainControls, {
     id: 'conversation.auxiliary',
     order: 20,
@@ -484,7 +477,7 @@ export function createConversationContributions(setup: ConversationSetup, action
               }
             }}
             thread={thread}
-            todoThread={todoThread}
+            summaryPanelVariant={summaryPanelVariant}
             usage={effectiveUsage(pushedUsage, controls)}
             workspace={{
               choices: view.items.map((w) => ({ id: w.id, name: w.name })),
