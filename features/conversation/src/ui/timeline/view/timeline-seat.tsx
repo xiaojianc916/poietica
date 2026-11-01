@@ -15,6 +15,8 @@ export interface TimelineSeatProps {
   readonly group: ToolGroupPlan | undefined
   readonly seal: TurnSealPlan | undefined
   readonly replyText: string | undefined
+  /** 这是最后一轮：操作行常显，不必悬停。 */
+  readonly replyLatest: boolean
   readonly replyKeepTurns: number | null | undefined
   readonly replyForkReason: string | null | undefined
   readonly replyUsage: TranscriptUsage | undefined
@@ -53,6 +55,7 @@ export const TimelineSeat = memo(function TimelineSeat({
   open,
   replyKeepTurns,
   replyForkReason,
+  replyLatest,
   replyText,
   replyUsage,
   row,
@@ -100,6 +103,7 @@ export const TimelineSeat = memo(function TimelineSeat({
   ) : (
     <ReplyActionHost
       forkUnavailableReason={replyForkReason ?? null}
+      latest={replyLatest}
       onFork={onFork}
       onRewrite={onRewrite}
       text={replyText}

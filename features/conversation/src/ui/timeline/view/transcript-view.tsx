@@ -277,6 +277,7 @@ function SettledTranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite
           onToggle={toggleOpen}
           open={items}
           replyForkReason={replyAction?.forkUnavailableReason}
+          replyLatest={feed.latestReply === index}
           replyText={replyAction?.text}
           replyKeepTurns={replyAction?.keepTurns}
           replyUsage={replyAction?.usage}

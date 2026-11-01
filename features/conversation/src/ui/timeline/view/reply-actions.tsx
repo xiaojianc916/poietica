@@ -7,6 +7,8 @@ import { memo, type ReactNode } from 'react'
 
 export interface ReplyActionHostProps {
   readonly children: ReactNode
+  /** 最后一轮：操作行常显（`data-latest`），更早的轮次靠悬停/聚焦显形。 */
+  readonly latest: boolean
   /** null 表示此刻不能分叉（原因见 forkUnavailableReason），不是「保留 0 轮」。 */
   readonly keepTurns: number | null
   readonly forkUnavailableReason: string | null
@@ -19,20 +21,22 @@ export interface ReplyActionHostProps {
 }
 
 /*
- * 一轮回复末端与操作行的共同悬停边界：操作行在正常文档流里占住自己那一条，显隐全部交给 CSS :hover / :focus-within。
- * 按钮本就在悬停子树内部，从正文移到按钮不会离开热区，不需要退场宽限计时器。
+ * 一轮回复末端与操作行的包裹层：操作行在正常文档流里占住自己那一条。
+ * 最后一轮带 `data-latest`，操作行常显；更早的轮次把显隐交给 CSS :hover / :focus-within。
+ * 旧轮次的按钮本就在悬停子树内部，从正文移到按钮不会离开热区，不需要退场宽限计时器。
  */
 export function ReplyActionHost({
   children,
   keepTurns,
   forkUnavailableReason,
+  latest,
   onFork,
   onRewrite,
   text,
   usage,
 }: ReplyActionHostProps) {
   return (
-    <div className="timeline-turn-end">
+    <div className="timeline-turn-end" data-latest={latest ? 'true' : undefined}>
       {children}
       <ReplyActions
         forkUnavailableReason={forkUnavailableReason}

@@ -1,10 +1,10 @@
-/* 整轮最后一个可见条目的包裹层：只提供悬停边界，操作行在文档流里有自己的位置，不需要绝对定位参照。 */
+/* 整轮最后一个可见条目的包裹层：旧轮次靠它做悬停边界，最后一轮（data-latest）不靠悬停。 */
 .timeline-turn-end {
   min-inline-size: 0;
 }
 
 /*
- * 回复操作行：流内占位，悬停整段末端才淡入。
+ * 回复操作行：流内占位；只有最后一轮常显，更早各轮悬停整段末端才淡入。
  *
  * 行高始终保留，淡入淡出不引起布局跳动；透明时 pointer-events: none，不挡正文的选择与点击。
  * 不做绝对定位浮层：行由虚拟器绝对定位（agent-activity-feed.css），横贯整行的浮层会盖住相邻行可点的卡片。
@@ -20,7 +20,8 @@
   transition: opacity 120ms var(--cp-motion-ease);
 }
 
-/* 悬停轮次末端，或键盘聚焦到任一按钮，操作行显现并接管指针。 */
+/* 最后一轮常显；更早的轮次悬停轮次末端，或键盘聚焦到任一按钮，才显现并接管指针。 */
+.timeline-turn-end[data-latest='true'] .timeline-reply-actions,
 .timeline-turn-end:hover .timeline-reply-actions,
 .timeline-turn-end:focus-within .timeline-reply-actions {
   opacity: 1;
@@ -82,7 +83,7 @@
   user-select: none;
 }
 
-/* 没有 hover 能力的设备不能依赖悬停发现操作。 */
+/* 没有 hover 能力的设备不能依赖悬停发现旧轮次的操作。 */
 @media (hover: none) and (pointer: coarse) {
   .timeline-reply-actions {
     opacity: 1;
@@ -91,7 +92,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .timeline-reply-actions {
+  .timeline-reply-actions,
+  .timeline-reply-actions__button {
     transition: none;
   }
 }

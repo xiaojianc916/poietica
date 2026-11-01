@@ -105,7 +105,7 @@
   gap: 0.25rem;
 }
 
-/* 时间线里：悬停、键盘聚焦进来、调整面板开着时才露面（同 .timeline-reply-actions） */
+/* 时间线里：悬停、键盘聚焦进来、调整面板开着时才露面 */
 .intelligent-ui__tools[data-placement='row'] {
   opacity: 0;
   pointer-events: none;

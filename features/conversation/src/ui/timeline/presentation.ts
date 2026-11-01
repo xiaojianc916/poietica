@@ -111,6 +111,8 @@ export interface Presentation {
   readonly count: number
   readonly latestOwnMessage: string | null
   readonly lastTurn: number | undefined
+  /** 最后一轮（末段）回复操作行所在的行号：只有它常显；末段没有答复时 undefined，更早各轮一律悬停才露面。 */
+  readonly latestReply: number | undefined
   readonly running: RunningPlan | undefined
   readonly rowAt: (index: number) => FeedRow | undefined
   readonly rowOf: (id: TimelineItemId) => number | undefined
@@ -566,6 +568,25 @@ function repliesIn(
   ])
 }
 
+/** 这一段的回复操作行落在哪一行（每段至多一行）；没有就是 undefined。 */
+function replyRowOf(segment: Segment): number | undefined {
+  for (const at of segment.replies.keys()) {
+    return at
+  }
+  return undefined
+}
+
+/**
+ * 最后一轮回复操作行在哪：只认末段，也就是最新那一轮。
+ *
+ * 末段没有答复（还在跑、正文为空、只剩过程）就谁都不钉 —— 更早的轮次一律悬停才露面，
+ * 不能让上一轮顶替「最后一轮」的位置，那会在新问题的输入框下方凭空常显一排按钮。
+ */
+function latestReplyIn(prefix: Prefix, tail: Segment): number | undefined {
+  const at = replyRowOf(tail)
+  return at === undefined ? undefined : prefix.count + at
+}
+
 function sealOf(
   page: TurnPage,
   span: TurnSpan | undefined,
@@ -837,6 +858,7 @@ export function selectPresentation(
   const result: Presentation = {
     count,
     latestOwnMessage: tail.ownMessage ?? prefix.latestOwnMessage,
+    latestReply: latestReplyIn(prefix, tail),
     running: runningPlan,
     lastTurn: tail.rows.at(-1)?.item.turn ?? prefix.lastTurn,
     groupAt: (index) => {
