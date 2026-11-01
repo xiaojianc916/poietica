@@ -20,13 +20,12 @@ describe('schedule（legacy crates/automation/src/schedule.rs 全部用例）', 
   test('夏令时固定时刻只跑一次，跳过的时刻用第一个真实瞬间', () => {
     const before = millis('2025-10-26T00:00:00Z')
     const first = nextAfter('30 2 * * *', 'Europe/Stockholm', before).next
-    /* 秋季回拨那一夜当地 02:30 出现两次：croner 10.0.1 取第一次（00:30Z），与 Rust croner 逐字一致；语义仍是「只跑一次」。 */
+    /* 秋季回拨那一夜当地 02:30 出现两次：固定时刻计划只取第一次（00:30Z），语义是「只跑一次」。 */
     expect(first).toBe(millis('2025-10-26T00:30:00.000Z'))
     expect(nextAfter('30 2 * * *', 'Europe/Stockholm', first!).next).toBe(millis('2025-10-27T01:30:00.000Z'))
-    /* 春季跳变那一夜当地 02:30 不存在：Rust croner 取 03:00 当地（01:00Z），JS croner v9.1.0 取 03:30 当地（01:30Z）——
-     * 两者都是「这一天仍然运行一次」，差异只在落点。 */
+    /* 春季跳变那一夜当地 02:30 不存在：croner 11 与 croner-rust 一致，取跳变后的第一个真实瞬间 03:00 当地（01:00Z）。 */
     expect(nextAfter('30 2 * * *', 'Europe/Stockholm', millis('2025-03-30T00:59:59Z')).next).toBe(
-      millis('2025-03-30T01:30:00.000Z'),
+      millis('2025-03-30T01:00:00.000Z'),
     )
   })
 
@@ -34,11 +33,11 @@ describe('schedule（legacy crates/automation/src/schedule.rs 全部用例）', 
     expect(preview('* * * * * *', 'UTC', 0, 5).problem).toBe('too_frequent')
   })
 
-  test('跨夏令时切换日：America/New_York 的 02:30 平移进存在的当地时刻', () => {
-    /* 2026-03-08 当地 02:30 不存在（跳到 03:00）：JS croner 把跳过的时刻平移到当天 03:30 EDT（07:30Z），次日回到当地 02:30；
-     * Rust croner 顺延到 03-09 的 02:30 —— 同一「不丢一次」语义的不同落点。 */
+  test('跨夏令时切换日：America/New_York 的 02:30 在跳变后第一个真实瞬间运行', () => {
+    /* 2026-03-08 当地 02:30 不存在（跳到 03:00）：croner 11 与 croner-rust 一致，当天 03:00 EDT（07:00Z）跑一次，
+     * 次日回到当地 02:30。 */
     const before = millis('2026-03-08T00:00:00-05:00')
-    expect(nextAfter('30 2 * * *', 'America/New_York', before).next).toBe(millis('2026-03-08T07:30:00.000Z'))
+    expect(nextAfter('30 2 * * *', 'America/New_York', before).next).toBe(millis('2026-03-08T07:00:00.000Z'))
   })
 
   test('cron 为 null 是只手动运行：没有下一次也没有问题', () => {

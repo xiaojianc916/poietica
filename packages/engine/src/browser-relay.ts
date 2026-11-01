@@ -51,7 +51,12 @@ export type RelayRpc =
   | { op: 'group'; tabIds: number[]; title: string; color: string }
   | { op: 'ungroup'; tabIds: number[] }
 
-export type RelayInbound = ({ t: 'rpc'; id: number } & RelayRpc) | { t: 'pong' }
+/**
+ * `reload` 是 omp 18.14 起让扩展 `chrome.runtime.reload()` 的消息（扩展自更新）；我们的 hello 不带
+ * `reloadProtocol`，omp 不会发它，relay-client 对非 `rpc` 消息本来就整体忽略。这里仍收进类型：
+ * 线上形状要与 omp 对齐（见 browser-relay-conformance.ts）。
+ */
+export type RelayInbound = ({ t: 'rpc'; id: number } & RelayRpc) | { t: 'pong' } | { t: 'reload' }
 
 export type RelayOutbound =
   | {

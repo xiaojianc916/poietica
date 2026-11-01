@@ -70,11 +70,11 @@ export const INTELLIGENT_UI_LIBRARIES: readonly IntelligentUiLibrary[] = [
   },
   {
     name: 'lucide',
-    version: '1.61.0',
+    version: '1.66.0',
     file: 'dist/umd/lucide.min.js',
     global: 'lucide',
     license: 'ISC',
-    asset: 'lucide-1.61.0.min.js',
+    asset: 'lucide-1.66.0.min.js',
   },
 ]
 

@@ -203,6 +203,14 @@ class OmpUiContext implements ExtensionUIContext {
 
   setWorkingMessage(_message?: string): void {}
 
+  /** 消息由宿主自己的 React 视图画，没有 assistant-text 渲染器可重跑 */
+  rerenderMessage(_timestamp: number): void {}
+
+  /** 同上：可点击的链接是 TUI 的 assistant-text 渲染器才有的面，这里没有 */
+  getLinkClicksAvailable(): boolean {
+    return false
+  }
+
   setWidget(_key: string, _content: ExtensionWidgetContent, _options?: ExtensionWidgetOptions): void {}
 
   setFooter(_factory: ExtensionUiComponentFactory | undefined): void {}

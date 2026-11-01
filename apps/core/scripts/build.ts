@@ -109,22 +109,40 @@ if (!result.success) {
 
 // 复制 natives：加载器按 <natives 目录>/<版本>/ → <natives 目录>/ → exe 所在目录 的顺序查找，前两个
 // 目录都在隔离根下而且为空，所以最终加载的一定是随包发布的这一份。natives 包由 @oh-my-pi/pi-natives
-// 以 optionalDependency 拉进来（isolation linker 不 hoist），所以从 node_modules/.bun 下按名字找它
+// 以 optionalDependency 拉进来（isolation linker 不 hoist），所以从 node_modules/.bun 下找它 ——
+// 但只能要**这次装进来的那个版本**：bun install 不清理旧版本的 .bun 目录，readdir 先撞上旧版时，
+// 随包的 .node 会和加载器版本不符，编译出来的 Core 启动即失败（加载器会报「reports 18.12.6, not 18.14.2」）。
 const nativesCandidate = path.join(ROOT, 'node_modules/.bun')
-const resolvedNatives = (() => {
-  const dirs = readdirSync(nativesCandidate).filter((d) => d.startsWith('@oh-my-pi+pi-natives-win32-x64@'))
-  for (const d of dirs) {
-    const candidate = path.join(nativesCandidate, d, 'node_modules/@oh-my-pi/pi-natives-win32-x64')
-    if (existsSync(candidate)) return candidate
-  }
-  return path.join(ROOT, 'node_modules/@oh-my-pi/pi-natives-win32-x64')
+const nativesVersion = (() => {
+  const installed = path.join(ompRoot, 'node_modules/@oh-my-pi/pi-natives/package.json')
+  if (!existsSync(installed)) return ompPkg.version
+  const installedPkg = JSON.parse(readFileSync(installed, 'utf8')) as { version: string }
+  return installedPkg.version
 })()
+const expectedNatives = path.join(
+  nativesCandidate,
+  `@oh-my-pi+pi-natives-win32-x64@${nativesVersion}`,
+  'node_modules/@oh-my-pi/pi-natives-win32-x64',
+)
+const resolvedNatives = existsSync(expectedNatives)
+  ? expectedNatives
+  : (() => {
+      const dirs = readdirSync(nativesCandidate).filter((d) => d.startsWith('@oh-my-pi+pi-natives-win32-x64@'))
+      for (const d of dirs) {
+        const candidate = path.join(nativesCandidate, d, 'node_modules/@oh-my-pi/pi-natives-win32-x64')
+        if (existsSync(candidate)) return candidate
+      }
+      return path.join(ROOT, 'node_modules/@oh-my-pi/pi-natives-win32-x64')
+    })()
 
 const nativeFiles = CORE_NATIVE_ARTIFACTS
 for (const name of nativeFiles) {
   const from = path.join(resolvedNatives, name)
   if (existsSync(from)) copyFileSync(from, path.join(outDir, name))
-  else throw new Error(`[build] 缺少必需 natives：${name}（找的是 ${resolvedNatives}），不能发布不完整的 Core`)
+  else
+    throw new Error(
+      `[build] 缺少必需 natives：${name}（${nativesVersion} 的目录 ${expectedNatives}，实际找的是 ${resolvedNatives}），不能发布不完整的 Core`,
+    )
 }
 // 上游当前只发布 baseline（package.json 的 main 也指向它）；modern 若存在就顺手带上。
 const optionalNativeFiles = CORE_OPTIONAL_NATIVE_ARTIFACTS.filter((name) =>
