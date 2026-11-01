@@ -144,10 +144,15 @@
 
 /* 面板落在 body 下，尺寸与配色只走 --gauge-*；位置由 JS 写进行内 style，这里只负责长相与栈序。 */
 .context-gauge__panel {
+  /* <dialog> 的 UA 样式带 margin/inset 的居中那一套；位置由 JS 写进行内 style，这里清掉，几何与原来的 div 一致。 */
   position: fixed;
+  inset: auto;
   z-index: var(--ui-z-popover);
   box-sizing: border-box;
   width: min(264px, 100vw - 24px);
+  max-width: none;
+  max-height: none;
+  margin: 0;
   padding: 12px;
   border: 0;
   border-radius: 16px;

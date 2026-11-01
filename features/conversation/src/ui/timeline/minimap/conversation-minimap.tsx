@@ -2,9 +2,7 @@ import './conversation-minimap.css'
 import {
   type CSSProperties,
   memo,
-  type FocusEvent as ReactFocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
-  type MouseEvent as ReactMouseEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -26,12 +24,6 @@ interface ConversationMinimapProps {
 const INDEX_ATTRIBUTE = 'data-minimap-index'
 const UNNAMED = '未命名轮次'
 const NO_REPLY = '暂无文本回复'
-/** 事件落在哪一格上；落在轨道空白处答 -1。 */
-function indexOf(target: EventTarget | null): number {
-  const tick = target instanceof Element ? target.closest<HTMLElement>(`[${INDEX_ATTRIBUTE}]`) : null
-  const value = tick?.getAttribute(INDEX_ATTRIBUTE)
-  return value === undefined || value === null ? -1 : Number.parseInt(value, 10)
-}
 /** 读屏名里的题面只要认得出是哪一轮：整段题面（可能上万字）进无障碍树是白占内存。 */
 const LABEL_PROMPT_CHARS = 80
 
@@ -47,12 +39,18 @@ const Tick = memo(function Tick({
   busy,
   index,
   label,
+  onNavigate,
+  onSelect,
+  onTabbable,
   tabbable,
 }: {
   readonly active: boolean
   readonly busy: boolean
   readonly index: number
   readonly label: string
+  readonly onNavigate: (event: ReactKeyboardEvent<HTMLButtonElement>, current: number) => void
+  readonly onSelect: (index: number) => void
+  readonly onTabbable: (index: number) => void
   readonly tabbable: boolean
 }) {
   return (
@@ -64,6 +62,15 @@ const Tick = memo(function Tick({
         className="conversation-minimap__turn"
         data-busy={busy ? '' : undefined}
         data-minimap-index={index}
+        onClick={() => {
+          onSelect(index)
+        }}
+        onFocus={() => {
+          onTabbable(index)
+        }}
+        onKeyDown={(event) => {
+          onNavigate(event, index)
+        }}
         tabIndex={tabbable ? 0 : -1}
         type="button"
       >
@@ -77,11 +84,17 @@ const TickList = memo(function TickList({
   activeIndex,
   busyId,
   marks,
+  onNavigate,
+  onSelect,
+  onTabbable,
   tabbable,
 }: {
   readonly activeIndex: number
   readonly busyId: string | null
   readonly marks: readonly TurnMark[]
+  readonly onNavigate: (event: ReactKeyboardEvent<HTMLButtonElement>, current: number) => void
+  readonly onSelect: (index: number) => void
+  readonly onTabbable: (index: number) => void
   readonly tabbable: number
 }) {
   /* 读屏名只随目录变：滚动换的是 activeIndex，不重拼几百条字符串。 */
@@ -95,6 +108,9 @@ const TickList = memo(function TickList({
           index={index}
           key={mark.admissionId}
           label={labels[index] ?? UNNAMED}
+          onNavigate={onNavigate}
+          onSelect={onSelect}
+          onTabbable={onTabbable}
           tabbable={index === tabbable}
         />
       ))}
@@ -141,27 +157,17 @@ function Rail({ activeId, busyId, marks, onSelect }: ConversationMinimapProps) {
       top: Math.max(0, railCentre(activeIndex) - scroller.clientHeight / 2),
     })
   }, [activeIndex])
-  const handleFocus = useCallback((event: ReactFocusEvent<HTMLOListElement>) => {
-    const index = indexOf(event.target)
-    if (index >= 0) {
-      setTabbable(index)
-    }
-  }, [])
-  const handleClick = useCallback(
-    (event: ReactMouseEvent<HTMLOListElement>) => {
-      const mark = marks[indexOf(event.target)]
+  const handleSelect = useCallback(
+    (index: number) => {
+      const mark = marks[index]
       if (mark !== undefined) {
         onSelect(mark)
       }
     },
     [marks, onSelect],
   )
-  const handleKeyDown = useCallback(
-    (event: ReactKeyboardEvent<HTMLOListElement>) => {
-      const current = indexOf(event.target)
-      if (current < 0) {
-        return
-      }
+  const handleNavigate = useCallback(
+    (event: ReactKeyboardEvent<HTMLButtonElement>, current: number) => {
       const last = marks.length - 1
       let next = current
       if (event.key === 'ArrowDown') {
@@ -194,14 +200,16 @@ function Rail({ activeId, busyId, marks, onSelect }: ConversationMinimapProps) {
       }
     >
       <div className="conversation-minimap__scroller" ref={scrollerRef}>
-        <ol
-          className="conversation-minimap__list"
-          onClick={handleClick}
-          onFocus={handleFocus}
-          onKeyDown={handleKeyDown}
-          ref={listRef}
-        >
-          <TickList activeIndex={activeIndex} busyId={busyId} marks={marks} tabbable={tabbable} />
+        <ol className="conversation-minimap__list" ref={listRef}>
+          <TickList
+            activeIndex={activeIndex}
+            busyId={busyId}
+            marks={marks}
+            onNavigate={handleNavigate}
+            onSelect={handleSelect}
+            onTabbable={setTabbable}
+            tabbable={tabbable}
+          />
         </ol>
       </div>
       <PreviewCard mark={mark} />

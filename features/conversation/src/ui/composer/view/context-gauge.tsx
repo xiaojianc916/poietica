@@ -179,7 +179,7 @@ export const ContextGauge = memo(function ContextGauge({ openRequest, usage }: C
     if (openRequest !== undefined && usage !== undefined && usage.size > 0) setOpen(true)
   }
   const rootRef = useRef<HTMLSpanElement>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDialogElement>(null)
   /* 面板自己建传送门，不经 design-system 的浮层控件，所以自己登记（浏览器面板的原生视图靠它让路） */
   const panelOverlayRef = useOverlayRef('anchored', panelRef)
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null)
@@ -287,12 +287,16 @@ export const ContextGauge = memo(function ContextGauge({ openRequest, usage }: C
 
       {open
         ? createPortal(
-            <div
+            /*
+             * 原生 <dialog> 只借语义，不调 show()：show() 会把焦点从触发器抢到面板上，而这里开合时
+             * 焦点应留在触发器；非模态、位置与栈序仍由 portal + 行内 style 负责。
+             */
+            <dialog
               aria-label="上下文已用"
               className="context-gauge__panel"
               data-context-gauge=""
+              open
               ref={panelOverlayRef}
-              role="dialog"
               style={position ?? { left: 0, top: 0, visibility: 'hidden' }}
             >
               <div className="context-gauge__header">
@@ -318,7 +322,7 @@ export const ContextGauge = memo(function ContextGauge({ openRequest, usage }: C
               </div>
 
               <GaugeRows breakdown={breakdown} session={session} />
-            </div>,
+            </dialog>,
             document.body,
           )
         : null}

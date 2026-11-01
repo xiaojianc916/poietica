@@ -73,4 +73,13 @@ describe('新建 MCP 服务器的表单', () => {
 
     cleanup()
   })
+
+  test('环境变量输入区以可见的折叠标题为标签', () => {
+    draw()
+
+    fireEvent.click(screen.getByRole('button', { name: '环境变量（可选）' }))
+    expect(screen.getByLabelText('环境变量（可选）').tagName).toBe('TEXTAREA')
+
+    cleanup()
+  })
 })

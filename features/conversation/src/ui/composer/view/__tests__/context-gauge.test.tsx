@@ -28,6 +28,8 @@ describe('上下文面板的外部打开', () => {
       view.rerender(<ContextGauge openRequest={1} usage={usage} />)
     })
     expect(screen.getByText('系统提示词')).toBeDefined()
+    /* 面板走原生 <dialog>：无障碍名与 dialog 语义由元素本身给，不再手写 role。 */
+    expect(screen.getByRole('dialog').tagName).toBe('DIALOG')
     /* 原「空闲 / 自动压缩缓冲」两行换成 omp 的会话用量：42K ÷ (6K + 42K + 2K) = 84% */
     expect(screen.getByText('缓存命中率')).toBeDefined()
     expect(screen.getByText('84%')).toBeDefined()

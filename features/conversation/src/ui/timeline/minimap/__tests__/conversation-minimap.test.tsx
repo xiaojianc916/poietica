@@ -45,10 +45,10 @@ function nextFrame() {
   })
 }
 
-function mount(initial: readonly TurnMark[] = marks) {
+function mount(initial: readonly TurnMark[] = marks, onSelect: (mark: TurnMark) => void = ignoreSelect) {
   const content = (rows: readonly TurnMark[]) => (
     <StrictMode>
-      <ConversationMinimap activeId="a1" busyId={null} marks={rows} onSelect={ignoreSelect} />
+      <ConversationMinimap activeId="a1" busyId={null} marks={rows} onSelect={onSelect} />
     </StrictMode>
   )
   const view = render(content(initial))
@@ -165,4 +165,24 @@ test('M9 键盘焦点退出同样保留内容', () => {
   } finally {
     focusVisible.mockRestore()
   }
+})
+
+test('M10 点击选中该轮，方向键在格间移动焦点', () => {
+  const picked: TurnMark[] = []
+  const view = mount(marks, (mark) => {
+    picked.push(mark)
+  })
+  const buttons = view.getAllByRole('button')
+
+  fireEvent.click(buttons[1]!)
+  expect(picked).toEqual([marks[1]!])
+
+  act(() => {
+    buttons[1]!.focus()
+  })
+  fireEvent.keyDown(buttons[1]!, { key: 'ArrowDown' })
+  expect(document.activeElement).toBe(buttons[2]!)
+
+  fireEvent.keyDown(buttons[2]!, { key: 'Home' })
+  expect(document.activeElement).toBe(buttons[0]!)
 })

@@ -11,7 +11,7 @@ import {
   Switch,
 } from '@poietica/design-system'
 import { Check, ChevronDown, Download, Monitor, Plus, RotateCw, Search } from 'lucide-react'
-import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { McpCatalogEntry, McpServerInfo, McpStatus } from '../contract'
 import type { ExtensionsApi } from './api'
 import { builtinServerRows, groupRows, matches, registryServerRows } from './catalog'
@@ -673,6 +673,7 @@ export function McpFields({ entry, error }: { readonly entry: McpEntry; readonly
   const { config, transport: declaredTransport } = entry
   const [transport, setTransport] = useState<McpTransport>(declaredTransport)
   const [envOpen, setEnvOpen] = useState(false)
+  const envLabelId = useId()
   const text = (key: string) =>
     typeof config[key] === 'string' || typeof config[key] === 'number' ? String(config[key]) : ''
   const json = (key: string, fallback: unknown) => JSON.stringify(config[key] ?? fallback, null, 2)
@@ -785,11 +786,12 @@ export function McpFields({ entry, error }: { readonly entry: McpEntry; readonly
           <span className={envOpen ? 'mcp-form__chevron mcp-form__chevron--open' : 'mcp-form__chevron'}>
             <ChevronDown aria-hidden="true" />
           </span>
-          环境变量（可选）
+          <span id={envLabelId}>环境变量（可选）</span>
         </button>
         {envOpen ? (
           <textarea
             aria-invalid={invalid('env')}
+            aria-labelledby={envLabelId}
             autoComplete="off"
             className="mcp__code"
             defaultValue={json('env', {})}
