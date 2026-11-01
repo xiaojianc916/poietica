@@ -12,6 +12,11 @@
  * startTransition 是非紧急调度，无法保证 update 回调返回前提交，不能替代。
  */
 
+/*
+ * 文件头的理由：flushSync 是 View Transition 快照的时序前提，拿掉才会补出旧画面。
+ * 规则把它读成「跳过过渡」，这里按误报压掉。
+ */
+// react-doctor-disable-next-line react-doctor/no-flush-sync
 import { flushSync } from 'react-dom'
 
 export interface ViewTransitionOptions {

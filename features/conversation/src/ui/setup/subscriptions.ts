@@ -115,6 +115,8 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
     for (const [name, run] of steps) {
       if (signal.aborted) return
       try {
+        /* 恢复步骤有先后依赖（见上），并行会拆掉「后一步看见前一步结果」的前提。 */
+        // react-doctor-disable-next-line react-doctor/async-await-in-loop
         await run()
       } catch (e) {
         if (signal.aborted) return

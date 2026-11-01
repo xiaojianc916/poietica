@@ -165,6 +165,8 @@ export function createStorageService(d: StorageDeps): StorageService {
      */
     let total = 0
     for (const dir of [...cacheDirsOf(d.appSession()), ...cacheDirsOf(d.browserSession())])
+      /* 共用 scan 的同步计数与硬链接去重（见上），不能并发。 */
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop
       total += await sizeOf(scan, dir)
     return total
   }

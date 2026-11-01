@@ -122,6 +122,8 @@ export function createUiKernel(opts: UiKernelOptions): UiKernel {
         for (const h of hooks) {
           if (signal.aborted || failures.has(h.featureId)) return
           try {
+            /* 同功能钩子串行是契约（见上）；功能之间已经并行，这里没有可再并行的独立工作。 */
+            // react-doctor-disable-next-line react-doctor/async-await-in-loop
             await h.fn({ signal })
           } catch (e) {
             if (signal.aborted) return

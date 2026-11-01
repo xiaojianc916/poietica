@@ -252,6 +252,8 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
           if (wanted === undefined) {
             break
           }
+          /* 串行排空：本地 git RPC 一次一份、reading 按顺序刷新；并发需要另做有界池与顺序测试，收益只有已打开的那几份文件。 */
+          // react-doctor-disable-next-line react-doctor/async-await-in-loop
           await enrichOne(owner, wanted)
         }
       } finally {

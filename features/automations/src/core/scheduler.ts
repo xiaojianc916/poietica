@@ -84,6 +84,8 @@ export function createScheduler(d: {
             finish(a)
             continue
           }
+          /* 逐个启动是表格一致性前提（见 tick 注释），不是可并行的独立工作。 */
+          // react-doctor-disable-next-line react-doctor/async-await-in-loop
           await runner.start(a, trigger, a.nextRunAt)
           finish(a)
         } catch (e) {
