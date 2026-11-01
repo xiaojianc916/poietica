@@ -59,7 +59,6 @@ function apiOf(overrides: Partial<WorkBuddyApi> = {}): WorkBuddyApi {
     snapshot: async () => SNAPSHOT,
     startBrowserLogin: async () => ({ loginId: 'l1', url: 'https://example.test', instructions: '登录' }),
     cancelLogin: async () => undefined,
-    addApiKey: async () => ({ accountId: 'a2' }),
     removeAccount: async () => undefined,
     setPreferred: async () => undefined,
     refreshUsage: async () => SNAPSHOT,
@@ -99,11 +98,12 @@ describe('WorkBuddy 设置页', () => {
     await waitFor(() => expect(checkin).toHaveBeenCalledWith('a1'))
   })
 
-  test('浏览器登录打开授权页并给出反馈', async () => {
+  test('添加账号直接发起浏览器登录并自动打开授权页', async () => {
     const openUrl = mock(async () => undefined)
-    render(<WorkBuddyPage api={apiOf()} openUrl={openUrl} />)
-    fireEvent.click(await screen.findByRole('button', { name: /添加另一个/ }))
-    fireEvent.click(await screen.findByRole('button', { name: '浏览器登录' }))
+    const startBrowserLogin = mock(async () => ({ loginId: 'l1', url: 'https://example.test', instructions: '登录' }))
+    render(<WorkBuddyPage api={apiOf({ startBrowserLogin })} openUrl={openUrl} />)
+    fireEvent.click(await screen.findByRole('button', { name: /添加 WorkBuddy 账号/ }))
+    await waitFor(() => expect(startBrowserLogin).toHaveBeenCalledWith(null))
     await waitFor(() => expect(openUrl).toHaveBeenCalledWith('https://example.test'))
     expect(await screen.findByText(/已请求系统浏览器打开/)).toBeDefined()
     expect(screen.getByRole('button', { name: '复制链接' })).toBeDefined()
@@ -115,10 +115,11 @@ describe('WorkBuddy 设置页', () => {
         api={apiOf({
           snapshot: async () => ({ ...SNAPSHOT, accounts: [] }),
         })}
+
         openUrl={async () => undefined}
       />,
     )
     expect(await screen.findByText(/还没有 WorkBuddy 账号/)).toBeDefined()
-    expect(screen.getByRole('button', { name: /添加另一个/ })).toBeDefined()
+    expect(screen.getByRole('button', { name: /添加 WorkBuddy 账号/ })).toBeDefined()
   })
 })

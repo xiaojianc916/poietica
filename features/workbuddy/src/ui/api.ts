@@ -9,7 +9,6 @@ export function createWorkBuddyApi(ctx: UiFeatureContext) {
     snapshot: (): Promise<WorkBuddySnapshot> => rpc.call('workbuddy.snapshot', {}),
     startBrowserLogin: (accountId: string | null) => rpc.call('workbuddy.startBrowserLogin', { accountId }),
     cancelLogin: (loginId: string) => rpc.call('workbuddy.cancelLogin', { loginId }).then(() => undefined),
-    addApiKey: (apiKey: string) => rpc.call('workbuddy.addApiKey', { apiKey }),
     removeAccount: (accountId: string) => rpc.call('workbuddy.removeAccount', { accountId }).then(() => undefined),
     setPreferred: (accountId: string) => rpc.call('workbuddy.setPreferred', { accountId }).then(() => undefined),
     refreshUsage: (accountId: string | null) => rpc.call('workbuddy.refreshUsage', { accountId }),

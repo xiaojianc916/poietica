@@ -50,7 +50,6 @@ export interface WorkBuddyService {
   snapshot(): WorkBuddySnapshot
   startBrowserLogin(accountId: string | null): Promise<{ loginId: string; url: string; instructions: string }>
   cancelLogin(loginId: string): void
-  addApiKey(apiKey: string): Promise<{ accountId: string }>
   removeAccount(accountId: string): Promise<void>
   setPreferred(accountId: string): void
   refreshUsage(accountId: string | null): Promise<WorkBuddySnapshot>
@@ -82,7 +81,6 @@ function appErrorOf(cause: unknown, fallback: { code: string; message: string })
   const codes: Record<string, string> = {
     not_signed_in: workbuddyErrors.not_signed_in,
     login_failed: workbuddyErrors.login_failed,
-    api_key_invalid: workbuddyErrors.api_key_invalid,
     usage_failed: workbuddyErrors.usage_failed,
     checkin_failed: workbuddyErrors.checkin_failed,
   }
@@ -565,34 +563,6 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
       attempt.cancelled = true
       emitLogin({ loginId, state: 'failed', accountId: null, message: '登录已取消' })
       logins.delete(loginId)
-    },
-    async addApiKey(apiKey) {
-      const key = apiKey.trim()
-      const credentials: WorkBuddyCredentials = {
-        type: 'api',
-        access: key,
-        refresh: '',
-        expires: 0,
-        refreshExpiresAt: 0,
-        uid: `anonymous_${key.slice(-8)}`,
-        accountId: '',
-        domain: '',
-        tokenType: '',
-        enterpriseId: '',
-        key,
-      }
-      const session = await createSession(credentials, { onUpdate: () => undefined }).catch((cause: unknown) => {
-        throw appErrorOf(cause, { code: workbuddyErrors.api_key_invalid, message: 'WorkBuddy 不接受这把 API Key' })
-      })
-      try {
-        await session.validate()
-      } catch (cause) {
-        throw appErrorOf(cause, { code: workbuddyErrors.api_key_invalid, message: 'WorkBuddy 不接受这把 API Key' })
-      }
-      const accountId = upsertAccount({ ...credentials, accountId: `API Key ·••••${key.slice(-4)}` }, null)
-      changed()
-      void syncProxy().catch((cause) => logger.warn('添加账号后启动反代失败', { error: messageOf(cause) }))
-      return { accountId }
     },
     async removeAccount(accountId) {
       if (repository.get(accountId) === null) {

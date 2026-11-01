@@ -5,12 +5,15 @@ import { type BrowserWindow, dialog, Menu, Notification, screen, session, shell,
 import { platformContract } from '../contract'
 import { createLogSink } from './log-sink'
 import { createNotifyService } from './notify-service'
+import { openInSystemBrowser } from './open-browser'
 import { createShellService } from './shell-service'
 import { createStorageService } from './storage-service'
 import { createTray } from './tray'
 import { createWindowStateStore } from './window-state'
 
-/** 启动后多久检查一次缓存预算 */
+/**
+ * 启动后多久检查一次缓存预算
+ */
 const BUDGET_DELAY_MS = 60_000
 
 function pathExists(p: string): boolean {
@@ -26,7 +29,31 @@ export default defineHostModule({
   id: 'platform',
   contract: platformContract,
   setup(ctx) {
-    const shellService = createShellService({ shell, exists: pathExists })
+    const shellService = createShellService({
+      shell: {
+        openExternal: async (url) => {
+          /*
+           * magpie 的 host.OpenURL 先走 app.Browser.OpenURL（系统 shell 自己在
+           * Electron 进程里调 ShellExecute），失败才退到 proc.OpenBrowser 的
+           * rundll32。我们之前只抄了 fallback，反而把前台权限丢给了子进程。
+           */
+          try {
+            await shell.openExternal(url)
+            ctx.logger.info('opened in default browser', { host: new URL(url).host })
+          } catch (error) {
+            ctx.logger.warn('native open failed; falling back to rundll32', {
+              host: new URL(url).host,
+              error: String(error),
+            })
+            await openInSystemBrowser(url, ctx.logger)
+          }
+        },
+        openPath: (path) => shell.openPath(path),
+        showItemInFolder: (path) => shell.showItemInFolder(path),
+        trashItem: (path) => shell.trashItem(path),
+      },
+      exists: pathExists,
+    })
     const logSink = createLogSink(ctx.logger)
     const windowState = createWindowStateStore({
       file: ctx.layout.windowStateFile,

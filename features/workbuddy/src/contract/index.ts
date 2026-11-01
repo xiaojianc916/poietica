@@ -34,14 +34,6 @@ export const workbuddyContract = defineContract({
       description: '放弃一次进行中的浏览器登录',
     }),
     defineMethod({
-      name: 'workbuddy.addApiKey',
-      owner: 'core',
-      params: z.object({ apiKey: z.string().trim().min(8).max(512) }),
-      result: z.object({ accountId: z.string() }),
-      timeoutMs: 30_000,
-      description: '用 WorkBuddy API Key 添加账号',
-    }),
-    defineMethod({
       name: 'workbuddy.removeAccount',
       owner: 'core',
       params: z.object({ accountId: z.string() }),

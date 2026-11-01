@@ -25,7 +25,6 @@ export default defineCoreModule({
       service.cancelLogin(params.loginId)
       return {}
     })
-    ctx.rpc.handle('workbuddy.addApiKey', (params) => service.addApiKey(params.apiKey))
     ctx.rpc.handle('workbuddy.removeAccount', async (params) => {
       await service.removeAccount(params.accountId)
       return {}

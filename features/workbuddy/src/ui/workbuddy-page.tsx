@@ -18,7 +18,6 @@ import { coreGeneration } from './store'
 import './workbuddy-settings.css'
 
 const READ_FAILED = '读不到 WorkBuddy 的状态；稍后重试。'
-const API_KEY_HINT = '在 workbuddy.cn/profile/keys 或 workbuddy.ai/profile/keys 创建'
 
 interface LoginView {
   readonly loginId: string
@@ -229,80 +228,6 @@ function AccountRow({
   )
 }
 
-function AddAccountDialog({
-  busy,
-  error,
-  onApiKey,
-  onBrowser,
-  onClose,
-  open,
-}: {
-  readonly busy: boolean
-  readonly error: string | null
-  readonly onApiKey: (apiKey: string) => void
-  readonly onBrowser: () => void
-  readonly onClose: () => void
-  readonly open: boolean
-}) {
-  const [apiKey, setApiKey] = useState('')
-
-  useEffect(() => {
-    if (!open) setApiKey('')
-  }, [open])
-
-  const submit = (event: { preventDefault: () => void }) => {
-    event.preventDefault()
-    const key = apiKey.trim()
-    if (key !== '') onApiKey(key)
-  }
-
-  return (
-    <Dialog
-      busy={busy}
-      footer={
-        <>
-          <Button disabled={busy} onClick={onClose} size="sm" type="button" variant="ghost">
-            取消
-          </Button>
-          <Button onClick={onBrowser} size="sm" type="button">
-            浏览器登录
-          </Button>
-        </>
-      }
-      onOpenChange={(next) => {
-        if (!next) onClose()
-      }}
-      open={open}
-      title="添加 WorkBuddy 账号"
-    >
-      <div className="workbuddy-login">
-        <p>浏览器登录会打开 WorkBuddy 的授权页；登录完成后自动回到这里。也可以直接用 API Key。</p>
-        <form className="workbuddy-login__form" onSubmit={submit}>
-          <label htmlFor="workbuddy-api-key">API Key</label>
-          <input
-            autoComplete="off"
-            className="settings-input"
-            id="workbuddy-api-key"
-            onChange={(event) => setApiKey(event.target.value)}
-            placeholder={API_KEY_HINT}
-            spellCheck={false}
-            type="password"
-            value={apiKey}
-          />
-          <Button disabled={busy || apiKey.trim() === ''} size="sm" type="submit" variant="secondary">
-            {busy ? '校验中…' : '用 API Key 添加'}
-          </Button>
-        </form>
-        {error === null ? null : (
-          <p className="settings-error" role="alert">
-            {error}
-          </p>
-        )}
-      </div>
-    </Dialog>
-  )
-}
-
 function LoginStatus({ login }: { readonly login: LoginView }) {
   if (login.state === 'waiting') {
     return (
@@ -457,7 +382,7 @@ function AccountsGroup({
       )}
       <button className="workbuddy-add" disabled={busy !== null} onClick={onAdd} type="button">
         <Plus aria-hidden="true" />
-        添加另一个 WorkBuddy (CodeBuddy) 账号
+        添加 WorkBuddy 账号
       </button>
     </SettingsGroup>
   )
@@ -523,8 +448,6 @@ export function WorkBuddyPage({
   const [snapshot, setSnapshot] = useState<WorkBuddySnapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
-  const [addOpen, setAddOpen] = useState(false)
-  const [addError, setAddError] = useState<string | null>(null)
   const [login, setLogin] = useState<LoginView | null>(null)
   const [removeTarget, setRemoveTarget] = useState<WorkBuddyAccount | null>(null)
   const generation = useFeatureStore(coreGeneration, (state) => state.value)
@@ -566,7 +489,6 @@ export function WorkBuddyPage({
       })
       if (event.state === 'done') {
         setLogin(null)
-        setAddOpen(false)
         void reload()
       }
     })
@@ -606,8 +528,6 @@ export function WorkBuddyPage({
 
   const startLogin = useCallback(
     async (accountId: string | null) => {
-      setAddOpen(false)
-      setAddError(null)
       setBusy('login')
       setError(null)
       try {
@@ -627,23 +547,6 @@ export function WorkBuddyPage({
       }
     },
     [api],
-  )
-
-  const addApiKey = useCallback(
-    async (apiKey: string) => {
-      setBusy('api-key')
-      setAddError(null)
-      try {
-        await api.addApiKey(apiKey)
-        setAddOpen(false)
-        await reload()
-      } catch (cause) {
-        setAddError(messageOf(cause))
-      } finally {
-        setBusy(null)
-      }
-    },
-    [api, reload],
   )
 
   const cancelLogin = useCallback(() => {
@@ -703,7 +606,7 @@ export function WorkBuddyPage({
       <AccountsGroup
         accounts={accounts}
         busy={busy}
-        onAdd={() => setAddOpen(true)}
+        onAdd={() => void startLogin(null)}
         onCheckin={(item) => void checkin(item)}
         onPreferred={(item) => void run(`preferred:${item.id}`, () => api.setPreferred(item.id))}
         onRefresh={() => void run('usage', () => api.refreshUsage(null))}
@@ -719,18 +622,6 @@ export function WorkBuddyPage({
         onEnabled={(next) => void run('enabled', () => api.setEnabled(next))}
         onRepair={() => void run('repair', () => api.repairProvider())}
         proxy={snapshot.proxy}
-      />
-
-      <AddAccountDialog
-        busy={busy === 'api-key'}
-        error={addError}
-        onApiKey={(key) => void addApiKey(key)}
-        onBrowser={() => void startLogin(null)}
-        onClose={() => {
-          setAddOpen(false)
-          setAddError(null)
-        }}
-        open={addOpen}
       />
 
       {login === null ? null : <LoginDialog login={login} onCancel={cancelLogin} onOpenUrl={(url) => openUrl(url)} />}
