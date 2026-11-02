@@ -1,5 +1,7 @@
 import { WorkBuddyClientError } from './errors'
 import { isRecord } from './guard'
+import type { Auth, AuthStore, Plugin, ProviderConfig } from './plugin/types'
+import { WorkBuddyAuthPlugin } from './plugin/workbuddy'
 import type {
   WorkBuddyCheckin,
   WorkBuddyCheckinOutcome,
@@ -11,17 +13,23 @@ import type {
   WorkBuddyUsage,
   WorkBuddyUsageWindow,
 } from './types'
-import {
-  type VendorAuth,
-  type VendorAuthStore,
-  type VendorConfig,
-  type VendorModelConfig,
-  type VendorPlugin,
-  type VendorProviderConfig,
-  WorkBuddyAuthPlugin,
-} from './vendor/workbuddy.mjs'
 
 const OAUTH_METHOD = /browser/i
+
+/** 插件 config() 填出来的那一份目录：provider.<id>.models 是静态表。 */
+interface PluginConfig {
+  provider?: Record<string, { models?: Record<string, ModelConfigShape> }>
+}
+
+/** 静态表里一个模型的声明（configModels 写出来的形状）。 */
+interface ModelConfigShape {
+  name?: string
+  limit?: { context?: number; output?: number }
+  modalities?: { input?: readonly string[]; output?: readonly string[] }
+  reasoning?: boolean
+  attachment?: boolean
+  provider?: { npm?: string }
+}
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value : ''
@@ -39,7 +47,7 @@ function stringOrNull(value: unknown): string | null {
   return typeof value === 'string' && value !== '' ? value : null
 }
 
-function credentialsOf(auth: VendorAuth, base?: WorkBuddyCredentials): WorkBuddyCredentials {
+function credentialsOf(auth: Auth, base?: WorkBuddyCredentials): WorkBuddyCredentials {
   const type = auth.type === 'api' ? 'api' : (base?.type ?? 'oauth')
   const access = text(auth.access) || base?.access || ''
   const key = text(auth.key) || (type === 'api' ? text(auth.access) || base?.key || '' : '')
@@ -58,7 +66,7 @@ function credentialsOf(auth: VendorAuth, base?: WorkBuddyCredentials): WorkBuddy
   }
 }
 
-function vendorAuthOf(credentials: WorkBuddyCredentials): VendorAuth {
+function vendorAuthOf(credentials: WorkBuddyCredentials): Auth {
   if (credentials.type === 'api') return { type: 'api', key: credentials.key }
   return {
     type: 'oauth',
@@ -131,7 +139,7 @@ function checkinOf(value: Record<string, unknown>): WorkBuddyCheckin {
   }
 }
 
-function modelOf(id: string, model: VendorModelConfig): WorkBuddyModel {
+function modelOf(id: string, model: ModelConfigShape): WorkBuddyModel {
   const context = model.limit?.context ?? 0
   const input = model.modalities?.input ?? []
   return {
@@ -144,18 +152,19 @@ function modelOf(id: string, model: VendorModelConfig): WorkBuddyModel {
   }
 }
 
-async function pluginFor(store: VendorAuthStore): Promise<VendorPlugin> {
-  return await WorkBuddyAuthPlugin({ client: store, magpie: undefined })
+async function pluginFor(store: AuthStore): Promise<Plugin> {
+  return await WorkBuddyAuthPlugin({ client: store })
 }
 
 /** 浏览器登录：插件自己轮询；调用方把 url 交给系统浏览器，再等 callback。 */
 export async function startBrowserSignIn(): Promise<WorkBuddySignIn> {
   const plugin = await pluginFor({})
   const method = plugin.auth.methods.find((item) => item.type === 'oauth' && OAUTH_METHOD.test(item.label))
-  if (method === undefined || method.type !== 'oauth') {
+  const authorize = method?.authorize
+  if (authorize === undefined) {
     throw new WorkBuddyClientError('login_failed', 'WorkBuddy 没有提供浏览器登录入口')
   }
-  const started = await method.authorize()
+  const started = await authorize()
   return {
     url: started.url,
     instructions: '在浏览器里完成 WorkBuddy 登录；完成后会自动回到这里。',
@@ -172,9 +181,9 @@ export async function startBrowserSignIn(): Promise<WorkBuddySignIn> {
 /** 目录来自插件自己的静态表；账户的实时表要请求上游，留给 usage 刷新。 */
 export async function listModels(): Promise<readonly WorkBuddyModel[]> {
   const plugin = await pluginFor({})
-  const config: VendorConfig = {}
+  const config: PluginConfig = {}
   await plugin.config(config)
-  const models = config.provider?.workbuddy?.models ?? {}
+  const models: Record<string, ModelConfigShape> = config.provider?.workbuddy?.models ?? {}
   return Object.entries(models).map(([id, model]) => modelOf(id, model))
 }
 
@@ -184,7 +193,7 @@ export async function createSession(
   hooks: WorkBuddySessionHooks,
 ): Promise<WorkBuddySession> {
   let current = credentials
-  const store: VendorAuthStore = {
+  const store: AuthStore = {
     auth: {
       async set(input) {
         current = credentialsOf(input.body, current)
@@ -193,7 +202,7 @@ export async function createSession(
     },
   }
   const plugin = await pluginFor(store)
-  const getAuth = async (): Promise<VendorAuth> => vendorAuthOf(current)
+  const getAuth = async (): Promise<Auth> => vendorAuthOf(current)
   const loader = await plugin.auth.loader(getAuth)
   if (loader.fetch === undefined) {
     throw new WorkBuddyClientError('not_signed_in', 'WorkBuddy 账号尚未登录')
@@ -224,12 +233,12 @@ export async function createSession(
       }
     },
     async validate() {
-      const config: VendorConfig = {}
+      const config: PluginConfig = {}
       await plugin.config(config)
       const provider = config.provider?.workbuddy
       if (provider === undefined) return
       try {
-        await plugin.provider.models(provider as VendorProviderConfig, { auth: vendorAuthOf(current) })
+        await plugin.provider.models(provider as ProviderConfig, { auth: vendorAuthOf(current) })
       } catch (cause) {
         throw new WorkBuddyClientError('api_key_invalid', 'WorkBuddy 不接受这把 API Key', { cause })
       }

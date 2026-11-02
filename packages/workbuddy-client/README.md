@@ -2,26 +2,33 @@
 
 WorkBuddy（腾讯 CodeBuddy 桌面端）的账号通道与本地反代适配层（L2，Bun）。
 
-## 来源与许可
+## 结构
 
-`src/vendor/workbuddy.mjs` 逐字来自[`magpie-community/plugins`](https://github.com/magpie-community/plugins) 的
-`packages/workbuddy/index.mjs`（版本 0.2.13），**MIT**。原许可全文在
-`src/vendor/LICENSE`；本包只把它包进 Poietica 的账号存储与本地 HTTP 端点，
-不改插件内部的鉴权、请求头和请求体改写。
-
-更新方式：整文件替换 `workbuddy.mjs`，按实际用到的字段核对
-`workbuddy.d.mts`，然后跑本包的测试与 `bun run check`。
+| 路径                      | 内容                                                                                                                                      |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/plugin/workbuddy.ts` | WorkBuddy 协议本身：鉴权、令牌续期、请求头与请求体改写、模型目录、积分、签到。纯函数 + 一个 `WorkBuddyAuthPlugin` 工厂，不认识 Poietica。 |
+| `src/plugin/types.ts`     | 协议用到的形状（`Auth`、`Chat`、`Usage`、`JsonSchema` 等）。                                                                              |
+| `src/session.ts`          | 把一个账号包成 `WorkBuddySession`：`fetch` / `usage` / `checkin` / `validate`。                                                           |
+| `src/proxy.ts`            | 本机反代：只监听 `127.0.0.1`，只转发带随机口令路径的 chat 请求。                                                                          |
 
 ## 对外能力
 
 - `startBrowserSignIn()`：返回上游授权页 URL 与等待回调；不碰 Poietica 的存储。
 - `createSession(credentials, hooks)`：一个账号的 `fetch` / `usage` / `checkin` / `validate`；
   token 刷新经 `hooks.onUpdate` 交回宿主。
-- `listModels()`：插件静态模型目录。
+- `listModels()`：静态模型目录。
 - `startWorkBuddyProxy()`：只监听 `127.0.0.1`，只把带随机口令路径的
   `/v1/chat/completions` 转发到 WorkBuddy；不接收任意上游 URL。账号失败经
-  `onAccountFailure` 交回宿主并带上失败种类（登录过期 / 受限 / 额度用尽 / 限流）
-  与插件写的 `X-Magpie-Sign-In` 语义，由宿主决定休息多久、要不要标成需要重新登录。
+  `onAccountFailure` 交回宿主并带上失败种类（登录过期 / 受限 / 额度用尽 / 限流），
+  由宿主决定休息多久、要不要标成需要重新登录。
+
+## 协议这一层是怎么来的
+
+WorkBuddy 没有公开的 API 文档，这一层的每个常量、请求头、请求体改写都是从客户端实际行为与
+大量实测里定下来的：`User-Agent` 不是 `WorkBuddy/<version>` 会被拒（错误码 10085）；
+系统提示词会被「未授权渠道」检查拦下（11128）；思考块签名绑会话（11159）；账号异常会回 11140；
+额度用尽回 14018。每条规则旁边的注释写的是**为什么**这样写、以及观察到它时的具体现象，
+改之前先读那一段。
 
 ## 边界
 
