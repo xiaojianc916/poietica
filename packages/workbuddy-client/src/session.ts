@@ -74,8 +74,14 @@ function vendorAuthOf(credentials: WorkBuddyCredentials): VendorAuth {
   }
 }
 
+function stringsOf(value: unknown): readonly string[] | null {
+  if (!Array.isArray(value)) return null
+  const out = value.filter((item): item is string => typeof item === 'string')
+  return out.length === 0 ? null : out
+}
+
 function usageWindowOf(value: Record<string, unknown>): WorkBuddyUsageWindow {
-  const models = Array.isArray(value.models) ? value.models.filter((item) => typeof item === 'string') : null
+  const models = stringsOf(value.models)
   return {
     name: text(value.name) || 'Credits',
     used: numberOrNull(value.used),
@@ -89,6 +95,9 @@ function usageWindowOf(value: Record<string, unknown>): WorkBuddyUsageWindow {
     span: numberOrNull(value.span),
     models,
     refused: value.refused === true,
+    aside: value.aside === true,
+    runsOut: numberOrNull(value.runsOut),
+    notModels: stringsOf(value.notModels),
   }
 }
 
@@ -192,7 +201,11 @@ export async function createSession(
   const send = loader.fetch
 
   return {
-    fetch: (request) => send(request),
+    /*
+     * 取消要一路传到上游：插件只认 init.signal（它把 Request 拆成 url / headers / body 三次用，
+     * Request 自己的 signal 没人接管）。请求体仍交给插件从 Request 里读，这里只补 signal。
+     */
+    fetch: (request) => send(request, { signal: request.signal }),
     async usage() {
       try {
         return usageOf(await plugin.auth.usage(getAuth))

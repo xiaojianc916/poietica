@@ -31,6 +31,9 @@ const SNAPSHOT: WorkBuddySnapshot = {
             span: null,
             models: null,
             refused: false,
+            aside: false,
+            runsOut: null,
+            notModels: null,
           },
         ],
         signIn: 'kept',
@@ -84,6 +87,59 @@ describe('WorkBuddy 设置页', () => {
     expect(screen.getByRole('progressbar', { name: 'Credits 剩余 92%' })).toBeDefined()
     expect(screen.getByText('首选')).toBeDefined()
     expect(screen.getByText('已注册为模型服务商')).toBeDefined()
+  })
+
+  test('摆着看的那一格画得弱、说明不拦账号，并标出即将到期的积分', async () => {
+    const aside = {
+      ...SNAPSHOT,
+      accounts: SNAPSHOT.accounts.map((account) => ({
+        ...account,
+        usage:
+          account.usage === null
+            ? null
+            : {
+                ...account.usage,
+                windows: [
+                  ...account.usage.windows.map((window) => ({
+                    ...window,
+                    runsOut: 88.5,
+                    notModels: ['a', 'b', 'c', 'd'],
+                  })),
+                  {
+                    name: 'Extra credits',
+                    used: 1,
+                    amount: 1,
+                    limit: 20,
+                    balance: null,
+                    unit: 'credits',
+                    display: '1 / 20',
+                    resetsAt: null,
+                    runsOutAt: null,
+                    span: null,
+                    models: null,
+                    refused: false,
+                    aside: true,
+                    runsOut: null,
+                    notModels: null,
+                  },
+                ],
+              },
+      })),
+    }
+    render(<WorkBuddyPage api={apiOf({ snapshot: async () => aside })} openUrl={async () => undefined} />)
+
+    expect(await screen.findByText('88.5 积分即将到期')).toBeDefined()
+    expect(screen.getAllByText('这些模型不扣这一格积分')).toHaveLength(1)
+    expect(screen.getByText('a、b、c 等 1 个')).toBeDefined()
+    // 只有 aside 的那一格才说「不拦账号」。
+    expect(screen.getAllByText(/这一格不拦账号/)).toHaveLength(1)
+    expect(
+      screen.getByText('Extra credits · 19 / 20').closest('.workbuddy-credit')?.getAttribute('data-aside'),
+    ).toEqual('true')
+    // 决定账号停不停的那一格不该被标成摆着看的。
+    expect(
+      screen.getByText('Credits · 147.78 / 160.13').closest('.workbuddy-credit')?.getAttribute('data-aside'),
+    ).toBeNull()
   })
 
   test('签到按钮把账号交给 Core', async () => {

@@ -1,5 +1,5 @@
 /*
- * 上游插件的类型收窄。插件本体是 MIT 的纯 JS（workbuddy.mjs，约 3800 行），
+ * 上游插件的类型收窄。插件本体是 MIT 的纯 JS（workbuddy.mjs，0.2.13），
  * 这里只声明适配层真正用到的面；插件升级时按实际用到的字段核对。
  */
 
@@ -76,8 +76,19 @@ export interface VendorApiKeyMethod {
   readonly placeholder?: string
 }
 
+/** 插件的 chat.headers 钩子：把宿主自己的会话 id 写进发往 WorkBuddy 的请求头。 */
+export interface VendorChatHeadersInput {
+  readonly model?: { readonly providerID?: string }
+  readonly provider?: { readonly info?: { readonly id?: string } }
+  readonly sessionID?: string
+}
+
 export interface VendorPlugin {
   config(config: VendorConfig): Promise<void> | void
+  readonly 'chat.headers'?: (
+    input: VendorChatHeadersInput | undefined,
+    output: { readonly headers: Record<string, string> },
+  ) => Promise<void> | void
   readonly provider: {
     readonly id: string
     models(provider: VendorProviderConfig, input: { readonly auth: VendorAuth }): Promise<Record<string, unknown>>
@@ -91,11 +102,6 @@ export interface VendorPlugin {
 }
 
 export declare function WorkBuddyAuthPlugin(input: {
-  readonly client: VendorAuthStore
-  readonly magpie?: unknown
-}): Promise<VendorPlugin>
-
-export declare function WorkBuddyAIAuthPlugin(input: {
   readonly client: VendorAuthStore
   readonly magpie?: unknown
 }): Promise<VendorPlugin>

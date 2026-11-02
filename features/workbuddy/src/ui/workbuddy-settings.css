@@ -138,11 +138,50 @@
   line-height: 1.4;
 }
 
+.workbuddy-credit__line > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbuddy-credit__marks {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.workbuddy-credit__note,
+.workbuddy-credit__free p {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: var(--ui-font-size-caption);
+  line-height: 1.45;
+}
+
+.workbuddy-credit__free summary {
+  color: var(--ui-muted-foreground);
+  font-size: var(--ui-font-size-caption);
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.workbuddy-credit__free p {
+  margin-block-start: 2px;
+  padding-inline-start: 10px;
+}
+
 .workbuddy-credit__track {
   overflow: hidden;
   block-size: 4px;
   border-radius: var(--ui-radius-full);
   background: var(--ui-divider);
+}
+
+/* 摆着看的那一格：淡下去，别让人以为它和决定账号停不停的那格一样要紧。 */
+.workbuddy-credit[data-aside='true'] .workbuddy-credit__line,
+.workbuddy-credit[data-aside='true'] .workbuddy-credit__track {
+  opacity: 0.6;
 }
 
 .workbuddy-credit__track > span {

@@ -7,6 +7,7 @@ export interface AccountCheckinRecord {
   readonly message: string | null
   readonly credit: number | null
   readonly streak: number | null
+  readonly nextTryAt: number
 }
 
 export interface AccountRecord {
@@ -27,6 +28,8 @@ export interface AccountRecord {
   readonly statusMessage: string | null
   readonly usageJson: string | null
   readonly usageAt: number | null
+  readonly restUntil: number
+  readonly restReason: string | null
   readonly checkin: AccountCheckinRecord | null
   readonly createdAt: number
   readonly updatedAt: number
@@ -50,12 +53,15 @@ interface AccountRow {
   readonly statusMessage: string | null
   readonly usageJson: string | null
   readonly usageAt: number | null
+  readonly restUntil: number
+  readonly restReason: string | null
   readonly lastCheckinDay: string | null
   readonly lastCheckinAt: number | null
   readonly lastCheckinOutcome: string | null
   readonly lastCheckinMessage: string | null
   readonly lastCheckinCredit: number | null
   readonly lastCheckinStreak: number | null
+  readonly lastCheckinNextTryAt: number
   readonly createdAt: number
   readonly updatedAt: number
 }
@@ -63,8 +69,10 @@ interface AccountRow {
 const COLUMNS = `id, label, auth_type AS authType, access, refresh, expires, refresh_expires_at AS refreshExpiresAt,
   uid, domain, token_type AS tokenType, enterprise_id AS enterpriseId, api_key AS apiKey, plan, status,
   status_message AS statusMessage, usage_json AS usageJson, usage_at AS usageAt,
+  rest_until AS restUntil, rest_reason AS restReason,
   last_checkin_day AS lastCheckinDay, last_checkin_at AS lastCheckinAt, last_checkin_outcome AS lastCheckinOutcome,
-  last_checkin_message AS lastCheckinMessage, last_checkin_credit AS lastCheckinCredit, last_checkin_streak AS lastCheckinStreak,
+  last_checkin_message AS lastCheckinMessage, last_checkin_credit AS lastCheckinCredit,
+  last_checkin_streak AS lastCheckinStreak, last_checkin_next_try_at AS lastCheckinNextTryAt,
   created_at AS createdAt, updated_at AS updatedAt`
 
 function toRecord(row: AccountRow): AccountRecord {
@@ -86,6 +94,8 @@ function toRecord(row: AccountRow): AccountRecord {
     statusMessage: row.statusMessage,
     usageJson: row.usageJson,
     usageAt: row.usageAt,
+    restUntil: row.restUntil,
+    restReason: row.restReason,
     checkin:
       row.lastCheckinDay === null || row.lastCheckinAt === null || row.lastCheckinOutcome === null
         ? null
@@ -96,6 +106,7 @@ function toRecord(row: AccountRow): AccountRecord {
             message: row.lastCheckinMessage,
             credit: row.lastCheckinCredit,
             streak: row.lastCheckinStreak,
+            nextTryAt: row.lastCheckinNextTryAt,
           },
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -125,6 +136,8 @@ export interface WorkBuddyRepository {
   updateUsage(id: string, plan: string, usageJson: string, usageAt: number, now: number): void
   updateCheckin(id: string, checkin: AccountCheckinRecord, now: number): void
   setStatus(id: string, status: AccountRecord['status'], message: string | null, now: number): void
+  setRest(id: string, until: number, reason: string, now: number): void
+  clearRest(id: string, now: number): void
   remove(id: string): void
   settings(): Record<string, string>
   setSetting(key: string, value: string): void
@@ -157,9 +170,10 @@ export function createWorkBuddyRepository(db: ModuleDatabase): WorkBuddyReposito
         `INSERT INTO workbuddy_accounts (
           id, label, auth_type, access, refresh, expires, refresh_expires_at, uid, domain, token_type,
           enterprise_id, api_key, plan, status, status_message, usage_json, usage_at,
+          rest_until, rest_reason,
           last_checkin_day, last_checkin_at, last_checkin_outcome, last_checkin_message,
-          last_checkin_credit, last_checkin_streak, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          last_checkin_credit, last_checkin_streak, last_checkin_next_try_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         record.id,
         record.label,
@@ -178,12 +192,15 @@ export function createWorkBuddyRepository(db: ModuleDatabase): WorkBuddyReposito
         record.statusMessage,
         record.usageJson,
         record.usageAt,
+        record.restUntil,
+        record.restReason,
         record.checkin?.day ?? null,
         record.checkin?.at ?? null,
         record.checkin?.outcome ?? null,
         record.checkin?.message ?? null,
         record.checkin?.credit ?? null,
         record.checkin?.streak ?? null,
+        record.checkin?.nextTryAt ?? 0,
         record.createdAt,
         record.updatedAt,
       )
@@ -224,13 +241,38 @@ export function createWorkBuddyRepository(db: ModuleDatabase): WorkBuddyReposito
     updateCheckin(id, checkin, now) {
       db.prepare(
         `UPDATE workbuddy_accounts SET last_checkin_day = ?, last_checkin_at = ?, last_checkin_outcome = ?,
-          last_checkin_message = ?, last_checkin_credit = ?, last_checkin_streak = ?, updated_at = ? WHERE id = ?`,
-      ).run(checkin.day, checkin.at, checkin.outcome, checkin.message, checkin.credit, checkin.streak, now, id)
+          last_checkin_message = ?, last_checkin_credit = ?, last_checkin_streak = ?,
+          last_checkin_next_try_at = ?, updated_at = ? WHERE id = ?`,
+      ).run(
+        checkin.day,
+        checkin.at,
+        checkin.outcome,
+        checkin.message,
+        checkin.credit,
+        checkin.streak,
+        checkin.nextTryAt,
+        now,
+        id,
+      )
     },
     setStatus(id, status, message, now) {
       db.prepare('UPDATE workbuddy_accounts SET status = ?, status_message = ?, updated_at = ? WHERE id = ?').run(
         status,
         message,
+        now,
+        id,
+      )
+    },
+    setRest(id, until, reason, now) {
+      db.prepare('UPDATE workbuddy_accounts SET rest_until = ?, rest_reason = ?, updated_at = ? WHERE id = ?').run(
+        Math.max(0, until),
+        reason,
+        now,
+        id,
+      )
+    },
+    clearRest(id, now) {
+      db.prepare('UPDATE workbuddy_accounts SET rest_until = 0, rest_reason = NULL, updated_at = ? WHERE id = ?').run(
         now,
         id,
       )

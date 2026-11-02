@@ -33,6 +33,12 @@ export interface WorkBuddyUsageWindow {
   readonly span: number | null
   readonly models: readonly string[] | null
   readonly refused: boolean
+  /** 这一格只是摆着看：另一格才决定账号停不停（0.2.13 把套餐积分与额外积分拆开）。 */
+  readonly aside: boolean
+  /** 这一格里最早到期的那批积分数；null = 上游没给。 */
+  readonly runsOut: number | null
+  /** 扣不动这一格积分的模型 id；null = 上游没给。 */
+  readonly notModels: readonly string[] | null
 }
 
 export interface WorkBuddyUsage {
@@ -64,6 +70,7 @@ export interface WorkBuddyModel {
 
 /** 一个账号的对话通道。`fetch` 收的是发往 WorkBuddy 的请求，返回上游流。 */
 export interface WorkBuddySession {
+  /** `request.signal` 会一路传到上游：调用方取消时，上游那条流也停。 */
   fetch(request: Request): Promise<Response>
   usage(): Promise<WorkBuddyUsage>
   checkin(): Promise<WorkBuddyCheckin>

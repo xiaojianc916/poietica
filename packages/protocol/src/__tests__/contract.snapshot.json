@@ -1,5 +1,5 @@
 {
-  "version": 52,
+  "version": 53,
   "methods": [
     {
       "name": "agentSettings.capabilities",
@@ -25703,39 +25703,6 @@
       }
     },
     {
-      "name": "workbuddy.addApiKey",
-      "owner": "core",
-      "timeoutMs": 30000,
-      "description": "用 WorkBuddy API Key 添加账号",
-      "params": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "apiKey": {
-            "type": "string",
-            "minLength": 8,
-            "maxLength": 512
-          }
-        },
-        "required": [
-          "apiKey"
-        ]
-      },
-      "result": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "accountId": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "accountId"
-        ],
-        "additionalProperties": false
-      }
-    },
-    {
       "name": "workbuddy.cancelLogin",
       "owner": "core",
       "timeoutMs": 30000,
@@ -25984,6 +25951,28 @@
                               },
                               "refused": {
                                 "type": "boolean"
+                              },
+                              "aside": {
+                                "type": "boolean"
+                              },
+                              "runsOut": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "notModels": {
+                                "anyOf": [
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
                               }
                             },
                             "required": [
@@ -25998,7 +25987,10 @@
                               "runsOutAt",
                               "span",
                               "models",
-                              "refused"
+                              "refused",
+                              "aside",
+                              "runsOut",
+                              "notModels"
                             ],
                             "additionalProperties": false
                           }
@@ -26365,6 +26357,28 @@
                               },
                               "refused": {
                                 "type": "boolean"
+                              },
+                              "aside": {
+                                "type": "boolean"
+                              },
+                              "runsOut": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "notModels": {
+                                "anyOf": [
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
                               }
                             },
                             "required": [
@@ -26379,7 +26393,10 @@
                               "runsOutAt",
                               "span",
                               "models",
-                              "refused"
+                              "refused",
+                              "aside",
+                              "runsOut",
+                              "notModels"
                             ],
                             "additionalProperties": false
                           }
@@ -26729,6 +26746,28 @@
                               },
                               "refused": {
                                 "type": "boolean"
+                              },
+                              "aside": {
+                                "type": "boolean"
+                              },
+                              "runsOut": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "notModels": {
+                                "anyOf": [
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
                               }
                             },
                             "required": [
@@ -26743,7 +26782,10 @@
                               "runsOutAt",
                               "span",
                               "models",
-                              "refused"
+                              "refused",
+                              "aside",
+                              "runsOut",
+                              "notModels"
                             ],
                             "additionalProperties": false
                           }
@@ -27093,6 +27135,28 @@
                               },
                               "refused": {
                                 "type": "boolean"
+                              },
+                              "aside": {
+                                "type": "boolean"
+                              },
+                              "runsOut": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "notModels": {
+                                "anyOf": [
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
                               }
                             },
                             "required": [
@@ -27107,7 +27171,10 @@
                               "runsOutAt",
                               "span",
                               "models",
-                              "refused"
+                              "refused",
+                              "aside",
+                              "runsOut",
+                              "notModels"
                             ],
                             "additionalProperties": false
                           }
@@ -27474,6 +27541,28 @@
                               },
                               "refused": {
                                 "type": "boolean"
+                              },
+                              "aside": {
+                                "type": "boolean"
+                              },
+                              "runsOut": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              },
+                              "notModels": {
+                                "anyOf": [
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
                               }
                             },
                             "required": [
@@ -27488,7 +27577,10 @@
                               "runsOutAt",
                               "span",
                               "models",
-                              "refused"
+                              "refused",
+                              "aside",
+                              "runsOut",
+                              "notModels"
                             ],
                             "additionalProperties": false
                           }
@@ -35451,10 +35543,6 @@
     {
       "code": "workbuddy.account_not_found",
       "message": "WorkBuddy 账号不存在"
-    },
-    {
-      "code": "workbuddy.api_key_invalid",
-      "message": "WorkBuddy 不接受这把 API Key"
     },
     {
       "code": "workbuddy.checkin_failed",

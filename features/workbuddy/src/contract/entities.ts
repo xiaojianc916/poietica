@@ -19,6 +19,12 @@ export const WorkBuddyUsageWindow = z.object({
   span: z.number().nullable(),
   models: z.array(z.string()).nullable(),
   refused: z.boolean(),
+  /** 这一格只是摆着看：另一格才决定账号停不停（套餐积分与额外积分是两格，同一时刻只有一格拦账号）。 */
+  aside: z.boolean(),
+  /** 这一格里最早到期的那批积分数；null = 上游没给。 */
+  runsOut: z.number().nullable(),
+  /** 扣不动这一格积分的模型 id（免费模型）；null = 上游没给。 */
+  notModels: z.array(z.string()).nullable(),
 })
 export type WorkBuddyUsageWindow = z.infer<typeof WorkBuddyUsageWindow>
 

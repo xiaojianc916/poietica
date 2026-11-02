@@ -61,6 +61,24 @@ function usageLine(window: WorkBuddyUsageWindow): string {
   return [window.name, value].filter((part) => part !== null).join(' · ')
 }
 
+const FREE_MODELS_SHOWN = 3
+
+/** 扣不动这格积分的免费模型：平时折叠，免得一行模型名把积分卡撑开。 */
+function FreeModelsNote({ models }: { readonly models: readonly string[] }) {
+  if (models.length === 0) return null
+  const shown = models.slice(0, FREE_MODELS_SHOWN)
+  const rest = models.length - shown.length
+  return (
+    <details className="workbuddy-credit__free">
+      <summary>这些模型不扣这一格积分</summary>
+      <p>
+        {shown.join('、')}
+        {rest > 0 ? ` 等 ${String(rest)} 个` : ''}
+      </p>
+    </details>
+  )
+}
+
 function todayKey(): string {
   const date = new Date()
   const pad = (value: number): string => String(value).padStart(2, '0')
@@ -102,10 +120,13 @@ function CreditsView({ account }: { readonly account: WorkBuddyAccount }) {
       {usage.windows.map((window) => {
         const percent = windowPercent(window)
         return (
-          <div className="workbuddy-credit" key={window.name}>
+          <div className="workbuddy-credit" data-aside={window.aside ? 'true' : undefined} key={window.name}>
             <div className="workbuddy-credit__line">
               <span>{usageLine(window)}</span>
-              {window.refused ? <span className="workbuddy-badge workbuddy-badge--warning">已用尽</span> : null}
+              <span className="workbuddy-credit__marks">
+                {window.runsOut === null ? null : <span>{`${CREDIT_FORMAT.format(window.runsOut)} 积分即将到期`}</span>}
+                {window.refused ? <span className="workbuddy-badge workbuddy-badge--warning">已用尽</span> : null}
+              </span>
             </div>
             {percent === null ? null : (
               <div
@@ -119,6 +140,8 @@ function CreditsView({ account }: { readonly account: WorkBuddyAccount }) {
                 <span style={{ inlineSize: `${String(percent)}%` }} />
               </div>
             )}
+            {window.aside ? <p className="workbuddy-credit__note">这一格不拦账号：用完了也不影响继续使用。</p> : null}
+            {window.notModels === null ? null : <FreeModelsNote models={window.notModels} />}
           </div>
         )
       })}
