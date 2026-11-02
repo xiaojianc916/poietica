@@ -56,6 +56,8 @@ export const CustomProviderDef = z.object({
   name: z.string().min(1).max(60),
   api: z.enum(['openai-completions', 'openai-responses', 'anthropic-messages']),
   baseUrl: z.url().refine((u) => /^https?:\/\//.test(u), '必须是 http 或 https 地址'),
+  /** 让引擎在请求上带「这次对话是谁」的头；写进 models.yml 的 compat.promptCacheSessionHeader */
+  sessionHeader: z.string().min(1).max(64).optional(),
   models: z
     .array(
       z.object({

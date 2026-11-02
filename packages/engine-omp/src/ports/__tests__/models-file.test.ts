@@ -73,6 +73,35 @@ describe('models.yml 的读改写', () => {
     expect(reloads).toBe(2)
   })
 
+  test('会话头写进 models.yml 的 compat.promptCacheSessionHeader', async () => {
+    const dir = tempDir()
+    const file = modelsFilePath(dir)
+    const port = new CustomProvidersFile({ file, logger: noopLogger, reload: () => undefined })
+    await port.upsert({
+      id: 'with-session',
+      name: 'With session',
+      api: 'openai-completions',
+      baseUrl: 'http://127.0.0.1:1/p/x/v1',
+      sessionHeader: 'x-conversation-id',
+      models: [{ id: 'm1', name: 'M1', contextWindow: null, reasoning: false, vision: false }],
+    })
+    const parsed = Bun.YAML.parse(readFileSync(file, 'utf8')) as Record<string, unknown>
+    const provider = (parsed.providers as Record<string, Record<string, unknown>>)['with-session']
+    expect(provider?.compat).toEqual({ promptCacheSessionHeader: 'x-conversation-id' })
+
+    /* 不给会话头就不写这一格，别把空对象塞进用户的 models.yml */
+    await port.upsert({
+      id: 'without-session',
+      name: 'Without session',
+      api: 'openai-completions',
+      baseUrl: 'http://127.0.0.1:1/p/y/v1',
+      models: [{ id: 'm1', name: 'M1', contextWindow: null, reasoning: false, vision: false }],
+    })
+    const again = Bun.YAML.parse(readFileSync(file, 'utf8')) as Record<string, unknown>
+    const plain = (again.providers as Record<string, Record<string, unknown>>)['without-session']
+    expect(plain?.compat).toBeUndefined()
+  })
+
   test('认不出的内容如实报错，不拿空配置覆盖', async () => {
     const dir = tempDir()
     const file = modelsFilePath(dir)

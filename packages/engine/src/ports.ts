@@ -174,6 +174,12 @@ export interface CustomProviderDef {
   readonly name: string
   readonly api: 'openai-completions' | 'openai-responses' | 'anthropic-messages'
   readonly baseUrl: string
+  /**
+   * 让引擎在每个请求上带一个「这次对话是谁」的头（写进 models.yml 的
+   * `compat.promptCacheSessionHeader`）。反代据此把同一会话钉在同一条通道上：
+   * 会话身份由客户端给，比从内容摘要现算的稳 —— 后者换一次进程就换一个。
+   */
+  readonly sessionHeader?: string | undefined
   readonly models: readonly {
     id: string
     name: string

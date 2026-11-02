@@ -1831,6 +1831,112 @@ function renamed(res: Response, names: Map<string, string>) {
   return new Response(body, { status: res.status, statusText: res.statusText, headers })
 }
 
+// tidyChunk mends one chat chunk of WorkBuddy's stream to the Chat contract
+// as magpie's chattidy does (internal/gateway/chattidy.go), for the four
+// shapes the China build streams that no contract names:
+//
+//   - "tool_calls": [] on every delta, text and thinking too. An empty list
+//     says nothing, but a client that tests the field for being there reads
+//     every piece of text after one as a new message (Qoder did: a reply
+//     read one word to a line).
+//   - "reasoning_content": "" on every delta once the thinking is over: a
+//     client that treats each one as the thinking starting again reopens the
+//     block, same symptom.
+//   - "finish_reason": "" on every chunk that hasn't finished, where the
+//     contract has null: a strict client (the AI SDK) rejects the chunk.
+//   - a legacy "function_call" whose name and arguments are both empty, on
+//     the last frame of a plain-text reply: a client that checks the shape
+//     of every frame reads it as a call and refuses the whole turn (#4659).
+//
+// Returns true when it changed something, so the caller can leave every
+// other line as it came.
+function tidyChunk(v: unknown): boolean {
+  let changed = false
+  const chunk = asRecord(v) as Chunk | null
+  for (const c of Array.isArray(chunk?.choices) ? chunk.choices : []) {
+    const at = (c?.delta ?? c?.message) as Record<string, unknown> | undefined
+    if (at) {
+      if (Array.isArray(at.tool_calls) && at.tool_calls.length === 0) {
+        delete at.tool_calls
+        changed = true
+      }
+      if (at.reasoning_content === '') {
+        delete at.reasoning_content
+        changed = true
+      }
+      const call = asRecord(at.function_call)
+      if (call) {
+        const name = typeof call.name === 'string' ? call.name : ''
+        const args = typeof call.arguments === 'string' ? call.arguments : ''
+        if (name === '' && args === '') {
+          delete at.function_call
+          changed = true
+        }
+      }
+    }
+    if (c?.finish_reason === '') {
+      c.finish_reason = null
+      changed = true
+    }
+  }
+  return changed
+}
+
+// tidyLine is one line of a chat stream, mended: an event's data line is
+// written back when tidyChunk changed it, and every other line goes as it came.
+function tidyLine(l: string) {
+  const m = /^data:\s?(.*)$/.exec(l)
+  const data = m?.[1]
+  if (data === undefined || data === '[DONE]') return l
+  try {
+    const v: unknown = JSON.parse(data)
+    return tidyChunk(v) ? `data: ${JSON.stringify(v)}` : l
+  } catch {
+    return l
+  }
+}
+
+// tidied is res mended line by line as it streams (tidyLine), and as a whole
+// when it is one JSON answer. Only the chat route: a Messages answer carries
+// none of those fields. A body that is neither JSON nor SSE goes as it came.
+function tidied(res: Response) {
+  if (!res.body) return res
+  const type = res.headers.get('content-type') ?? ''
+  const headers = new Headers(res.headers)
+  headers.delete('content-length')
+  headers.delete('content-encoding')
+  const json = /json/i.test(type)
+  if (!json && !/event-stream/i.test(type)) return res
+  if (json) {
+    return res.text().then((text) => {
+      let out = text
+      try {
+        const v: unknown = JSON.parse(text)
+        if (tidyChunk(v)) out = JSON.stringify(v)
+      } catch {}
+      return new Response(out, { status: res.status, statusText: res.statusText, headers })
+    })
+  }
+  const dec = new TextDecoder()
+  const enc = new TextEncoder()
+  let rest = ''
+  const body = res.body.pipeThrough(
+    new TransformStream({
+      transform(chunk, ctl) {
+        rest += dec.decode(chunk, { stream: true })
+        const lines = rest.split('\n')
+        rest = lines.pop() ?? ''
+        if (lines.length) ctl.enqueue(enc.encode(`${lines.map(tidyLine).join('\n')}\n`))
+      },
+      flush(ctl) {
+        rest += dec.decode()
+        if (rest) ctl.enqueue(enc.encode(tidyLine(rest)))
+      },
+    }),
+  )
+  return new Response(body, { status: res.status, statusText: res.statusText, headers })
+}
+
 // FILTER_SAYS is the text WorkBuddy's safety filter puts in a reply it ends
 // with finish_reason "content_filter": deepseek-v4.1-flash on
 // copilot.tencent.com reasoned, said this, and ended content_filter with
@@ -3930,13 +4036,15 @@ async function recoverFrom400(input: {
 
 /**
  * 一个答复的最后一道手续：错误写成带 hint 的规范 JSON；streamed 的聊天要过一遍
- * 「模型拒绝」的过滤（unsaid）与工具名还原（renamed）；然后盖上 X-Magpie-Sign-In，
- * 说明这次登录是被保住了还是刚换过（换过就要把之前的过期标记摘掉）。
+ * 「模型拒绝」的过滤（unsaid）、工具名还原（renamed）与 Chat 契约的形状修缮（tidied，
+ * 对应 magpie 的 chattidy）；然后盖上 X-Magpie-Sign-In，说明这次登录是被保住了还是刚换过
+ * （换过就要把之前的过期标记摘掉）。修形只走 chat：Messages 答复里没有那几格。
  */
 async function finish(res: Response, native: boolean, names: Map<string, string>, renewed: boolean): Promise<Response> {
   if (res.status >= 400) return await explained(res)
   const filtered = native ? res : unsaid(await renamed(res, names))
-  return kept(filtered, renewed ? 'renewed' : 'kept')
+  const shaped = native ? filtered : await tidied(filtered)
+  return kept(shaped, renewed ? 'renewed' : 'kept')
 }
 /**
  * 把账面上那几格按时限补齐：套餐什么时候回血、哪批积分先过期、以及「不扣这一格积分」的模型。
@@ -4682,6 +4790,9 @@ export const _internal = {
   fitTools,
   fitted,
   renamed,
+  tidyChunk,
+  tidied,
+  tidyLine,
   unsaid,
   FILTER_SAYS,
   unflagged,

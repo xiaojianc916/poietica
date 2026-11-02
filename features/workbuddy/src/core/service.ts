@@ -13,6 +13,7 @@ import {
   type WorkBuddyCredentials,
   type WorkBuddyModel,
   type WorkBuddyProxy,
+  type WorkBuddyProxyAccounts,
   type WorkBuddyProxyOptions,
   type WorkBuddySession,
 } from '@poietica/workbuddy-client'
@@ -24,6 +25,7 @@ import {
   type WorkBuddySnapshot,
   type WorkBuddyUsage,
   WorkBuddyUsage as WorkBuddyUsageSchema,
+  type WorkBuddyUsageWindow,
 } from '../contract'
 import { workbuddyErrors } from '../contract/errors'
 import type { AccountAuthPatch, AccountCheckinRecord, AccountRecord, WorkBuddyRepository } from './repository'
@@ -45,6 +47,19 @@ const REST_RESTRICTED_MS = 2 * 60 * MINUTE_MS
 const REST_EXHAUSTED_MS = 30 * MINUTE_MS
 const REST_RATE_LIMIT_MS = MINUTE_MS
 const REST_RATE_LIMIT_MAX_MS = 30 * MINUTE_MS
+/* 上游没归类的失败（5xx / 超时）：换号重试，这个号自己歇一小会儿，连着出问题才往上翻 */
+const REST_UNKNOWN_MS = MINUTE_MS
+const REST_UNKNOWN_MAX_MS = 10 * MINUTE_MS
+/*
+ * 连续失败的「遗忘窗」：上一次休息结束这么久之后才算断了一轮，下一次从 1 分钟重新起
+ * （magpie 的 rateForget）。没有它，一周里偶发几次限流会一路翻倍到 30 分钟并停在那儿。
+ */
+const REST_FORGET_MS = 30 * MINUTE_MS
+/* 全都在休息时，最快回来的那个号多久放行一次去探路（magpie 的 probeOne 每次请求一次，我们更省） */
+const REST_PROBE_MS = MINUTE_MS
+/* 用到 90% / 98% 的账号排到后面：先撞它只会先吃一次额度用尽（magpie 的 fine / low / spent 三档） */
+const USED_LOW_PERCENT = 90
+const USED_SPENT_PERCENT = 98
 
 export interface WorkBuddyServiceDeps {
   readonly repository: WorkBuddyRepository
@@ -245,31 +260,108 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
   }
 
   /*
-   * 限流是逐次加重的：同一个账号连着被限流就翻倍等待（1 → 2 → 4 …），上限 30 分钟。
-   * 一次成功或被换掉就清零 —— 只有「连续」命中才算，偶发的一次不该让它歇半小时。
+   * 连续失败计数：同一个账号连着失败就翻倍等待（1 → 2 → 4 …）。两种阶梯各自计数 ——
+   * 限流封顶 30 分钟（magpie 的 rateRest）、未归类失败封顶 10 分钟（magpie 的 failOther）——
+   * 并由 lastFailureAt 做遗忘：上一次休息结束 30 分钟后才再失败，算新的一轮，从 1 分钟重新起。
+   * 一次成功应答即清零（magpie 的 served）：偶发的一次不该让这个号一路翻倍到半小时。
    */
-  const rateLimitStrikes = new Map<string, number>()
+  interface Strikes {
+    n: number
+    until: number
+  }
+  const rateLimitStrikes = new Map<string, Strikes>()
+  const unknownStrikes = new Map<string, Strikes>()
+  /* 休息中的号上一次被当探针放行是什么时候：全都在歇时每分钟探一次就够，不必每个请求都去撞 */
+  const probeAt = new Map<string, number>()
 
-  const rateLimitRestMs = (accountId: string): number => {
-    const strikes = rateLimitStrikes.get(accountId) ?? 0
-    rateLimitStrikes.set(accountId, strikes + 1)
-    return Math.min(REST_RATE_LIMIT_MAX_MS, REST_RATE_LIMIT_MS * 2 ** strikes)
+  const strikeRestMs = (
+    strikes: Map<string, Strikes>,
+    accountId: string,
+    at: number,
+    base: number,
+    max: number,
+  ): number => {
+    const prev = strikes.get(accountId)
+    /* 上一轮已经过去够久（或休息早已结束并又安宁了一阵）：从最小档重新起 */
+    const fresh = prev === undefined || at - prev.until > REST_FORGET_MS
+    const n = fresh ? 0 : prev.n
+    const ms = Math.min(max, base * 2 ** n)
+    strikes.set(accountId, { n: n + 1, until: at + ms })
+    return ms
+  }
+
+  const rateLimitRestMs = (accountId: string, at: number): number =>
+    strikeRestMs(rateLimitStrikes, accountId, at, REST_RATE_LIMIT_MS, REST_RATE_LIMIT_MAX_MS)
+
+  const unknownRestMs = (accountId: string, at: number): number =>
+    strikeRestMs(unknownStrikes, accountId, at, REST_UNKNOWN_MS, REST_UNKNOWN_MAX_MS)
+
+  /** 答出来一次：这个号刚证明自己是好的，两条阶梯一起清零。 */
+  const noteAnswered = (accountId: string): void => {
+    rateLimitStrikes.delete(accountId)
+    unknownStrikes.delete(accountId)
   }
 
   /**
-   * 选号顺序：还在休息的排最后（不是删掉 —— 「全都歇着」和「一个号都没有」都得让 proxy 回 401，
-   * 但排序里留一份，界面与日志才说得清是哪个号在歇）；其余按 非失效 → 首选 → 创建时间。
+   * 一个账号这一轮该排第几，照 magpie 的 Smart（internal/routes/strategies.go）：
+   * 先看用量分档（快用完的排后面），再看谁的积分先到期 —— 到期那一批是先花掉还是作废的分界，
+   * 与界面那行「N 积分即将到期」是同一个数；都看不出来时保持原序（保住上游的提示缓存）。
+   *
+   * 没读过的账号（usage 为 null）当「还很有余量、积分不会先到期」。aside 那格只是摆着看，不计。
+   */
+  const tierOf = (used: number): number => {
+    if (used >= USED_SPENT_PERCENT) return 2
+    return used >= USED_LOW_PERCENT ? 1 : 0
+  }
+
+  /** 一格积分窗口的「已用比例」与「什么时候作废」；读不出比例按 0 算。 */
+  const shareOf = (window: WorkBuddyUsageWindow): { used: number; lapse: number } => {
+    const amount = window.used
+    const limit = window.limit
+    const sized = amount !== null && limit !== null && limit > 0
+    const at = window.runsOutAt === null ? Number.NaN : Date.parse(window.runsOutAt)
+    return { used: sized ? amount : 0, lapse: Number.isFinite(at) ? at : Number.POSITIVE_INFINITY }
+  }
+
+  const rankOf = (record: AccountRecord): { tier: number; lapse: number; used: number } => {
+    const windows = parseUsage(record)?.windows.filter((window) => !window.aside) ?? []
+    const ranks = windows.map(shareOf)
+    const used = Math.max(0, ...ranks.map((rank) => rank.used))
+    const lapse = Math.min(Number.POSITIVE_INFINITY, ...ranks.map((rank) => rank.lapse))
+    return { tier: tierOf(used), lapse, used }
+  }
+
+  /** 排序键：[用量分档, 积分到期时刻, 已用比例, 首选?, 创建时间]。 */
+  const compareRecords = (a: AccountRecord, b: AccountRecord): number => {
+    const ra = rankOf(a)
+    const rb = rankOf(b)
+    if (ra.tier !== rb.tier) return ra.tier - rb.tier
+    if (ra.lapse !== rb.lapse) return ra.lapse - rb.lapse
+    if (ra.used !== rb.used) return ra.used - rb.used
+    /* 首选只在同分时表态：它压不过「谁的额度先到期」 */
+    const pa = a.id === preferredId ? 0 : 1
+    const pb = b.id === preferredId ? 0 : 1
+    if (pa !== pb) return pa - pb
+    return a.createdAt - b.createdAt
+  }
+
+  /**
+   * 选号顺序，照 magpie 的 Smart 再叠一层「别把休息中的号丢掉」：
+   * 1. 可用的号按 [用量分档, 积分到期时刻, 已用比例, 首选?, 创建时间] 稳定排序；
+   * 2. 失效的、休息中的排在后面 —— 不是删掉。「全都歇着」与「一个号都没有」是两件事，
+   *    前者由反代回 429 + Retry-After，后者才回 401；
+   * 3. 休息中的号按「谁先回来」排，交给 proxyAccounts 决定放哪一个去探路
+   *    （magpie 的 probeOne）：一个号被误判成受限时仍能验证它回来了，
+   *    而不是让用户在半小时里看着「没登录」。
    */
   const orderedRecords = (at: number): readonly AccountRecord[] => {
     const records = repository.list()
-    const resting = (record: AccountRecord): boolean => record.restUntil > at
-    const usable = records.filter((record) => !resting(record))
-    const inactive = records.filter(resting)
+    const usable = records.filter((record) => record.restUntil <= at)
+    const inactive = records.filter((record) => record.restUntil > at).sort((a, b) => a.restUntil - b.restUntil)
     const active = usable.filter((record) => record.status !== 'expired')
     const expired = usable.filter((record) => record.status === 'expired')
-    const preferred = preferredId === null ? undefined : active.find((record) => record.id === preferredId)
-    if (preferred === undefined) return [...active, ...expired, ...inactive]
-    return [preferred, ...active.filter((record) => record.id !== preferred.id), ...expired, ...inactive]
+    const ranked = [...active].sort((a, b) => compareRecords(a, b))
+    return [...ranked, ...expired, ...inactive]
   }
 
   async function sessionFor(record: AccountRecord): Promise<WorkBuddySession> {
@@ -280,7 +372,7 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
         repository.updateAuth(record.id, authPatchOf(credentials), now())
         repository.setStatus(record.id, 'ok', null, now())
         /* 插件把令牌换新了，这个号刚证明自己是好的 */
-        rateLimitStrikes.delete(record.id)
+        noteAnswered(record.id)
       },
     })
     sessions.set(record.id, created)
@@ -291,22 +383,37 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
   }
 
   /**
-   * 交给反代的可用账号。在休息的号一个都不给：上游刚说它受限 / 没额度 / 被限流，
-   * 再拿它试只会把一次失败拖成一串失败，还会把上游的好说话耗成更长的冷却。
-   * 全部在休息时返回空数组，由反代回 401 —— 界面据此说「账号都在冷却」。
+   * 交给反代的名单。可用的号按排序给；一个可用的都没有时，最多放一个「最快回来的」当探针 ——
+   * 上游刚说它受限 / 没额度 / 被限流，但那个判断可能是错的，每分钟探一次能让它自己回来，
+   * 而不是让用户在半小时里看着「还没有登录」。探针之外的情形回 429 + Retry-After（反代负责），
+   * 只有一个号都没有时才是 401（magpie 的 restLast + probeOne + quotaHeld 是同一套分层）。
    */
-  async function proxyAccounts(): Promise<readonly { id: string; session: WorkBuddySession }[]> {
+  async function proxyAccounts(): Promise<WorkBuddyProxyAccounts> {
     const at = now()
-    const out: { id: string; session: WorkBuddySession }[] = []
-    for (const record of orderedRecords(at)) {
-      if (record.restUntil > at) continue
+    const records = orderedRecords(at)
+    const usable = records.filter((record) => record.restUntil <= at)
+    const resting = records.filter((record) => record.restUntil > at)
+    const handed: { id: string; session: WorkBuddySession }[] = []
+    for (const record of usable) {
       try {
-        out.push({ id: record.id, session: await sessionFor(record) })
+        handed.push({ id: record.id, session: await sessionFor(record) })
       } catch (cause) {
         logger.warn('WorkBuddy 账号通道建立失败', { account: record.id, error: messageOf(cause) })
       }
     }
-    return out
+    if (handed.length > 0) return { accounts: handed }
+    if (resting.length === 0) return { accounts: [] }
+    const soonest = resting[0] as AccountRecord
+    const lastProbe = probeAt.get(soonest.id) ?? 0
+    if (at - lastProbe < REST_PROBE_MS) return { accounts: [], restingUntil: soonest.restUntil }
+    try {
+      const session = await sessionFor(soonest)
+      probeAt.set(soonest.id, at)
+      return { accounts: [{ id: soonest.id, session }] }
+    } catch (cause) {
+      logger.warn('WorkBuddy 账号通道建立失败', { account: soonest.id, error: messageOf(cause) })
+      return { accounts: [], restingUntil: soonest.restUntil }
+    }
   }
 
   const chatModels = (): readonly WorkBuddyModel[] => (modelsCache ?? []).filter((model) => model.api === 'chat')
@@ -317,6 +424,12 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
       name: PROVIDER_NAME,
       api: 'openai-completions',
       baseUrl: proxy?.baseUrl ?? '',
+      /*
+       * 让 omp 在每个请求上带 x-conversation-id：反代把它转成插件的内部会话头，
+       * 插件据此算 X-Conversation-ID（会话身份不再靠「第一条用户消息的摘要 + 每进程随机盐」，
+       * Core 重启后同一会话仍是同一会话）。omp 只在有会话 id 时才发这个头。
+       */
+      sessionHeader: 'x-conversation-id',
       models: chatModels().map((model) => ({
         id: model.id,
         name: model.name,
@@ -385,7 +498,7 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
     if (failure.signIn === 'renewed') {
       repository.setStatus(accountId, 'ok', null, at)
       repository.clearRest(accountId, at)
-      rateLimitStrikes.delete(accountId)
+      noteAnswered(accountId)
       return
     }
     /* expired，或上游没说语义（保守当失效）*/
@@ -394,12 +507,22 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
     sessions.delete(accountId)
   }
 
-  /** 一次失败该让账号歇多久；null = 不歇（只有登录真的没了才不歇，那时换个号也没用）。 */
+  /**
+   * 一次失败该让账号歇多久；null = 不歇（只有登录真的没了才不歇，那时换个号也没用）。
+   * 上游自己写了恢复时刻（WorkBuddy 的限流窗口会写「将在 … 重置」）就以它为准：
+   * 按固定时长猜只会到期再撞一次，把一次窗口已满拖成反复冲撞。
+   */
   function restMsOf(accountId: string, failure: AccountFailure): number | null {
+    const at = now()
+    /* 上游写了恢复时刻就用它，至少给到该类的固定时长 */
+    const named = failure.resetAt === undefined ? null : Math.max(MINUTE_MS, failure.resetAt - at)
+    const atLeast = (base: number): number => (named === null ? base : Math.max(base, named))
     if (failure.kind === 'sign_in') return null
-    if (failure.kind === 'restricted') return REST_RESTRICTED_MS
-    if (failure.kind === 'exhausted') return REST_EXHAUSTED_MS
-    return rateLimitRestMs(accountId)
+    if (failure.kind === 'restricted') return atLeast(REST_RESTRICTED_MS)
+    if (failure.kind === 'exhausted') return atLeast(REST_EXHAUSTED_MS)
+    if (failure.kind === 'unknown') return unknownRestMs(accountId, at)
+    if (named !== null) return named
+    return rateLimitRestMs(accountId, at)
   }
 
   const restReasonOf: Record<AccountFailure['kind'], string> = {
@@ -407,6 +530,7 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
     restricted: 'WorkBuddy 说这个账号存在异常行为，先歇一会儿',
     exhausted: '这个账号的积分用完了，等回血',
     rate_limit: '请求太密，先缓一缓',
+    unknown: '上游这次没答上来，先跳过它',
   }
 
   function noteAccountFailure(accountId: string, failure: AccountFailure): void {
@@ -418,12 +542,19 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
       const restMs = restMsOf(accountId, failure)
       const at = now()
       if (restMs !== null) {
-        repository.setRest(accountId, at + restMs, restReasonOf[failure.kind] ?? '暂时不要用这个账号', at)
+        /*
+         * 只延长不缩短：一次一小时的受限休息不该被紧接着的一条 429 改成 1 分钟
+         * （magpie #3289 的同一个判断）。已经在歇、而且歇得更久，就保持原样。
+         */
+        const until = Math.max(at + restMs, record.restUntil)
+        repository.setRest(accountId, until, restReasonOf[failure.kind] ?? '暂时不要用这个账号', at)
+        /* 刚失败过就先别探：等一个探路间隔，免得一次误判变成每个请求都去撞一次上游 */
+        probeAt.set(accountId, at)
         logger.warn('WorkBuddy 账号进入休息', {
           account: accountId,
           kind: failure.kind,
           status: failure.status,
-          restMs,
+          restMs: until - at,
         })
       }
     }
@@ -437,10 +568,21 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
       accounts: proxyAccounts,
       models: chatModels,
       onAccountFailure: noteAccountFailure,
+      /* 任何一次成功应答都说明这个号是好的：连续失败计数清零、休息解除（magpie 的 served） */
+      onAccountAnswered: (accountId) => {
+        const at = now()
+        noteAnswered(accountId)
+        probeAt.delete(accountId)
+        const record = repository.get(accountId)
+        if (record !== null && record.restUntil > at) {
+          repository.clearRest(accountId, at)
+          changed()
+        }
+      },
       /* 插件刷新出了新令牌并顺手成功了：这个号刚证明自己是好的，之前的限流计数与休息就该清掉 */
       onAccountRenewed: (accountId) => {
         const at = now()
-        rateLimitStrikes.delete(accountId)
+        noteAnswered(accountId)
         repository.clearRest(accountId, at)
         repository.setStatus(accountId, 'ok', null, at)
         changed()
@@ -529,15 +671,21 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
       checkedInToday,
       checkin,
       createdAt: record.createdAt,
+      restUntil: record.restUntil,
+      restReason: record.restUntil > now() ? record.restReason : null,
     }
   }
 
   function snapshot(): WorkBuddySnapshot {
     const records = orderedRecords(now())
+    /*
+     * 首选只认用户设过的那一个：它失效了就显示「没有首选」，而不是让徽标悄悄飘到别的号上
+     * （飘过去之后用户以为自己选的还是原来那个）。
+     */
     const preferred =
       preferredId !== null && records.some((record) => record.id === preferredId && record.status !== 'expired')
         ? preferredId
-        : (records[0]?.id ?? null)
+        : null
     return {
       accounts: records.map((record) => accountView(record, preferred)),
       proxy: proxyView(),
@@ -567,7 +715,7 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
       repository.setStatus(existing.id, 'ok', null, at)
       /* 人刚重新登录过：凭据换了，之前那条休息与限流计数就不该再拦着它 */
       repository.clearRest(existing.id, at)
-      rateLimitStrikes.delete(existing.id)
+      noteAnswered(existing.id)
       sessions.delete(existing.id)
       rememberPreferred(existing.id)
       return existing.id
@@ -699,6 +847,31 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
     }
   }
 
+  /**
+   * 读一个号的积分，并按读数修正它的状态：登录没了标 expired；读数说已经回血
+   * （充值、换日、新套餐）就松开之前那条休息 —— 不必让用户干等到点。
+   */
+  async function refreshAccountUsage(record: AccountRecord): Promise<void> {
+    try {
+      const at = now()
+      const usage = await (await sessionFor(record)).usage()
+      repository.updateUsage(record.id, usage.plan ?? record.plan, JSON.stringify(usage), at, at)
+      if (usageIsExpired(usage)) {
+        repository.setStatus(record.id, 'expired', usage.error ?? 'WorkBuddy 登录已过期', at)
+        return
+      }
+      if (usage.error !== null) return
+      repository.setStatus(record.id, 'ok', null, at)
+      const blocked = usage.windows.some((window) => window.refused)
+      if (blocked || record.restUntil <= at) return
+      repository.clearRest(record.id, at)
+      probeAt.delete(record.id)
+    } catch (cause) {
+      logger.warn('读取 WorkBuddy 积分失败', { account: record.id, error: messageOf(cause) })
+      repository.setStatus(record.id, 'error', messageOf(cause), now())
+    }
+  }
+
   async function refreshUsage(accountId: string | null): Promise<WorkBuddySnapshot> {
     const records =
       accountId === null
@@ -707,23 +880,7 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
     if (accountId !== null && records.length === 0) {
       throw new AppError(workbuddyErrors.account_not_found, 'WorkBuddy 账号不存在')
     }
-    await Promise.all(
-      records.map(async (record) => {
-        try {
-          const session = await sessionFor(record)
-          const usage = await session.usage()
-          repository.updateUsage(record.id, usage.plan ?? record.plan, JSON.stringify(usage), now(), now())
-          if (usageIsExpired(usage)) {
-            repository.setStatus(record.id, 'expired', usage.error ?? 'WorkBuddy 登录已过期', now())
-          } else if (usage.error === null) {
-            repository.setStatus(record.id, 'ok', null, now())
-          }
-        } catch (cause) {
-          logger.warn('读取 WorkBuddy 积分失败', { account: record.id, error: messageOf(cause) })
-          repository.setStatus(record.id, 'error', messageOf(cause), now())
-        }
-      }),
-    )
+    await Promise.all(records.map(async (record) => await refreshAccountUsage(record)))
     changed()
     return snapshot()
   }
@@ -745,6 +902,7 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
       logins.clear()
       sessions.clear()
       rateLimitStrikes.clear()
+      unknownStrikes.clear()
       void stopServer(false).catch((cause) => logger.warn('关闭 WorkBuddy 反代失败', { error: messageOf(cause) }))
     },
     snapshot,

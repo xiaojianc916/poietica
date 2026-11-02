@@ -43,6 +43,8 @@ const SNAPSHOT: WorkBuddySnapshot = {
       checkedInToday: false,
       checkin: null,
       createdAt: 1,
+      restUntil: 0,
+      restReason: null,
     },
   ],
   proxy: {

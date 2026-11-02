@@ -1,5 +1,5 @@
 {
-  "version": 53,
+  "version": 54,
   "methods": [
     {
       "name": "agentSettings.capabilities",
@@ -12259,6 +12259,11 @@
           "baseUrl": {
             "type": "string",
             "format": "uri"
+          },
+          "sessionHeader": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
           },
           "models": {
             "minItems": 1,
@@ -26097,6 +26102,17 @@
                   "type": "integer",
                   "minimum": -9007199254740991,
                   "maximum": 9007199254740991
+                },
+                "restUntil": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "restReason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
               "required": [
@@ -26112,7 +26128,9 @@
                 "usageAt",
                 "checkedInToday",
                 "checkin",
-                "createdAt"
+                "createdAt",
+                "restUntil",
+                "restReason"
               ],
               "additionalProperties": false
             }
@@ -26503,6 +26521,17 @@
                   "type": "integer",
                   "minimum": -9007199254740991,
                   "maximum": 9007199254740991
+                },
+                "restUntil": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "restReason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
               "required": [
@@ -26518,7 +26547,9 @@
                 "usageAt",
                 "checkedInToday",
                 "checkin",
-                "createdAt"
+                "createdAt",
+                "restUntil",
+                "restReason"
               ],
               "additionalProperties": false
             }
@@ -26892,6 +26923,17 @@
                   "type": "integer",
                   "minimum": -9007199254740991,
                   "maximum": 9007199254740991
+                },
+                "restUntil": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "restReason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
               "required": [
@@ -26907,7 +26949,9 @@
                 "usageAt",
                 "checkedInToday",
                 "checkin",
-                "createdAt"
+                "createdAt",
+                "restUntil",
+                "restReason"
               ],
               "additionalProperties": false
             }
@@ -27281,6 +27325,17 @@
                   "type": "integer",
                   "minimum": -9007199254740991,
                   "maximum": 9007199254740991
+                },
+                "restUntil": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "restReason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
               "required": [
@@ -27296,7 +27351,9 @@
                 "usageAt",
                 "checkedInToday",
                 "checkin",
-                "createdAt"
+                "createdAt",
+                "restUntil",
+                "restReason"
               ],
               "additionalProperties": false
             }
@@ -27687,6 +27744,17 @@
                   "type": "integer",
                   "minimum": -9007199254740991,
                   "maximum": 9007199254740991
+                },
+                "restUntil": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "restReason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
               "required": [
@@ -27702,7 +27770,9 @@
                 "usageAt",
                 "checkedInToday",
                 "checkin",
-                "createdAt"
+                "createdAt",
+                "restUntil",
+                "restReason"
               ],
               "additionalProperties": false
             }

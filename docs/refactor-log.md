@@ -61,6 +61,8 @@
 | 2026-10-22 | 右坞「文件」（R-50）没做的：树的右键菜单（`ContextMenu*` 模块已按零引用删除，要用得先恢复）；查看器只着色 `highlighter.ts` 已登记的语言；Markdown 预览里的相对图片不显示（正文的图片净化只放行 `poietica-asset:`，未把相对地址改写成 `workspace-file` 地址）；子代理 / 辅助对话的正文没有 `fileScope`，文件链接按当前前台的对话与工作区解析；资源协议按 `files.locate` 交回的字面路径读字节（解开链接后已校验，但校验与读取之间换掉链接不防，本机威胁模型下接受）；`isInside` 在 Linux / macOS 上也按小写比较（大小写敏感的文件系统上会把 `/A` 当成 `/a`，桌面端只发 Windows 故未改）                                                                                                                                 | R-50                                 |
 | 2026-11-01 | `features/conversation/src/ui/threads/view/__tests__/thread-disclosure.test.tsx` 的「收起动画期间内容还在但 inert」在全量 `bun test` 下稳定超时（约 220s，三条用例单独跑 1.3s 通过）：它用真实计时器等 `EXIT_SECONDS`，被全仓并发拖住。改法二选一 —— 该用例换成 `waitFor` 的假时钟，或给 `ThreadDisclosure` 的收起时长注入可替身的时钟。与审查面板的改动无关（在改动前的基线上同样失败）                                                                                                                                                                                                                                                                                                                              | 审查面板统计修复                     |
 
+| 2026-11-03 | WorkBuddy 反代：三件「知道该做但这轮没做」的（对照 magpie 后判定有价值、但都要动结构）：①**模型级休息**——`workbuddy_accounts` 只有账号级 `rest_until`，一个付费模型吃 14018 会把整号 15 个模型一起歇；magpie 按 `restID`（账号+模型）休息，并在 429 正文说「可切换其他模型」时只歇那个模型。要做需加模型级休息表 + `proxyAccounts` 按模型过滤。②**per-account 并发闸门**——omp 子代理默认 32 路（`task.maxConcurrency`）、自动起名与侧边提问都会并发打到同一个号，反代目前没有并发上限；magpie 的 lane 对 WorkBuddy 默认关，但「有旋钮」与「没旋钮」不同，建议在反代里加一个按账号的极简信号量（2~3）。③**会话亲和**——顺序现在是确定性的（同一会话天然落在同一个号），缺的是 magpie 的 `Within`（一轮工具循环之内不因排序变化换号）与会话级钉号；换成真实会话头之后这条才有意义。 | 2026-11-03 magpie 对照 |
+
 ## 偏差与裁决
 
 ### 2026-11-01 WorkBuddy 内置反代
@@ -71,6 +73,24 @@
 - **账号令牌落盘**：与 omp 自己的凭据同级，明文存本功能的 SQLite 表；日志不打印令牌、请求体或上游正文。若后续引入 DPAPI / safeStorage，应只换存储层，不改账号服务。
 - **服务商注册**：复用 models.yml 的自定义 provider 机制，id 固定 `workbuddy`；`provider_registered` 只用于判断“是不是本功能写的”。若进程在写 models.yml 与写设置之间退出，下次启动按 `custom && name === 'WorkBuddy'` 收养，避免把用户锁在冲突里。
 - **有意收窄（2026-11-02 与上游对照后的裁决，不做）**：只做中国站（`copilot.tencent.com`），不接国际站 `workbuddy-ai`；不接 WorkBuddy 桌面端自身的登录文件（会读 `%LOCALAPPDATA%\CodeBuddyExtension`，破坏「数据只落 DataLayout」）；不做 API Key 录入（没有可信的校验接口，`/v3/config` 对任何 token 都回 200）；不接「仅免费模型」开关（它的拦截面依赖插件里的 `magpie` 宿主选项）；不复刻上游 magpie 的免费窗口账本（那是 magpie 自己的 `usage.jsonl`，Poietica 没有这份账本，读不到就不显示，不编造读数）。**反代侧的账号休息、失败分类、签到退避照做**——那些是缺陷，不是功能范围。
+
+### 2026-11-03 WorkBuddy 反代对齐 magpie 网关（第二轮）
+
+与 `.scratch/magpie-src`（HEAD `59fdab0`）逐条对照后的补齐。协议层本来就移植得扎实，这一轮动的是**网关与路由**这两层：上一版只学了「四类固定休息时长」，magpie 真正的中枢——失败即休息 + 分层放行 + 按额度/到期排序——没学到。五项审计的完整对照（含判定与证据）在 `.scratch/wb-audit/`（gitignore）。
+
+- **「全在冷却」不再是 401**：`proxyAccounts` 过去把休息中的号全滤掉，反代于是回 `401 not_signed_in`——omp 把 401 当凭据坏了（pi-ai 的 `Flag.AuthFailed`，且是它唯一 `retriable=false` 的分支），用户会去重登一个没坏的号。现在照 magpie 的 `restLast` / `probeOne` / `quotaHeld` 分三层：休息的排最后但**留在名单里**；全都歇着时每分钟放「最快回来的那一个」当探针；真的一个可用都没有才回 `429 all_accounts_resting` + `Retry-After`（真·没有账号仍是 401）。
+- **失败分类补上「未知」这一类**：`kindOf` 过去只认 401 / 403 受限 / 429 / 400 额度，其余（5xx、408、没归类的 4xx）当作「请求本身有问题」**当场交回**、不换号也不休息。现在按 magpie 的 `failOther` 换下一个账号，并给这个号自己的阶梯：1 分钟起翻倍，封顶 10 分钟（magpie 的 `longestRetry`）。
+- **休息阶梯会回落了**：新增 `REST_FORGET_MS`（30 分钟遗忘窗，magpie 的 `rateForget`）与 `onAccountAnswered`——**任何一次成功应答都清零**（magpie 的 `served`）。此前只在换令牌 / 重登时清，于是偶发一次限流会被单调放大到 30 分钟并长期停摆。
+- **上游写了「何时恢复」就用它**：WorkBuddy 的 429 正文带「将在 2026-11-02 19:17:02 UTC+8 重置」（插件的 `windowReset` 早就会解析，只是一直只喂积分卡片）。反代现在从错误体里读出 `resetAt`，Core 按它休息，上下限 [1 分钟, 7 天]。omp 自己读不出中文这条（它的正则要求「将在 ⟨时间⟩ 重置」紧邻，`UTC+8` 夹在中间），所以只能我们读。
+- **短休息不再覆盖长休息**：`setRest` 改成取 `max`——一次一小时的受限休息不该被紧接着的一条 429 改成 1 分钟（magpie #3289 的同一判断）。
+- **受限与「渠道拒绝」分开了**：`RESTRICTED` 正则去掉裸 `permission_error`（插件把 11128 渠道拒绝也写成这个 type，只要落在 403 上就让账号白歇 2 小时），改为先读结构化 `error.code === 11140`，正则只作兜底，并补上繁体「帳號存在異常行為」。
+- **客户端取消失不算上游故障**：abort 时直接回 499、不换号、不记失败（magpie 的 `failCanceled`）。此前会「先记一条上游失败、再打第二个号、最后回 502」。
+- **选号接上额度**：`orderedRecords` 过去只有「休息排尾 → 非过期 → 首选 → created_at」。现在照 magpie 的 `Smart`：用量分档（90% / 98% 之后的两档）→ 积分到期时刻（`runsOutAt`，数据早就有了，此前只喂界面那行「N 积分即将到期」）→ 已用比例 → 首选 → 创建时间。**首选从「无条件置顶」降为同分 tiebreak**，否则多账号等于单账号；`snapshot` 里「首选失效就取 `records[0]`」的静默回落也去掉了（徽标不再偷偷飘到别的号上）。
+- **流形状按 Chat 契约修缮**（对应 magpie 的 `chattidy.go`）：WorkBuddy 的 SSE 每个 delta 都带 `"tool_calls": []`、思考结束后带空 `reasoning_content`、未终结帧的 `finish_reason` 是空串、纯文本末帧还带空的 legacy `function_call`。omp 现在扛得住（空数组有 `length > 0` 判断），但空 `finish_reason` 正好落在 `else if` 的 falsy 分支上——客户端一升级收紧类型就会在同一处爆。插件 `finish()` 里加一层 `tidied`（只走 chat，Messages 不动）。
+- **会话身份接上了**：插件有完整的会话管线，但唯一写入点 `chat.headers` 钩子**全仓无调用者**，于是会话 id 一直退化成「首条用户消息摘要 + 每进程随机 SALT」，Core 一重启就换会话。现在 `CustomProviderDef` 多一格 `sessionHeader` → models.yml 的 `compat.promptCacheSessionHeader: x-conversation-id`（omp 只在有会话 id 时才发），反代把它转成插件的内部会话头。
+- **回复头收拾干净**：cookie / `www-authenticate` / 缓存与跳转一类不再漏给 omp（照 magpie 的 `replyheaders.go` 拒绝名单）；绘图端点回一句中文可读的 400，不再是裸 404。
+- **休息对用户可见**：`WorkBuddyAccount` 加 `restUntil` / `restReason`，设置页显示「冷却中 · N 分钟后重试」与原因。契约形状变了，`PROTOCOL_VERSION` 53 → 54；已装好的 Core 必须重新构建（`bun run core:build`）。
+- **不做的**（理由见 `.scratch/wb-audit/`）：MaxRPM（动机是 OpenRouter 的 20 RPM，WorkBuddy 是按天窗口）、MaxAccounts（动机是出口 IP 被封，本地反代不适用）、模型级休息（要新表、要按模型过滤，收益只在「免费模型窗口满、付费模型还能用」这一种情形，先记为待办）、per-account 并发闸门（omp 子代理默认 32 路，值得补，见待决问题）。
 
 ### 2026-11-01 架构审查第二轮（CI 准入与边界补洞）
 

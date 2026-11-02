@@ -79,6 +79,16 @@ function FreeModelsNote({ models }: { readonly models: readonly string[] }) {
   )
 }
 
+/** 还要等多久：冷却中的号在徽标里说人话，而不是只挂一个「不可用」。 */
+function restLabel(account: WorkBuddyAccount): string | null {
+  const left = account.restUntil - Date.now()
+  if (left <= 0) return null
+  const minutes = Math.max(1, Math.ceil(left / 60_000))
+  const tail =
+    minutes >= 60 ? `${String(Math.floor(minutes / 60))} 小时 ${String(minutes % 60)} 分` : `${String(minutes)} 分钟`
+  return `冷却中 · ${tail}后重试`
+}
+
 function todayKey(): string {
   const date = new Date()
   const pad = (value: number): string => String(value).padStart(2, '0')
@@ -233,6 +243,9 @@ function AccountRow({
           {account.status === 'error' ? (
             <span className="workbuddy-badge workbuddy-badge--danger">读取失败</span>
           ) : null}
+          {restLabel(account) === null ? null : (
+            <span className="workbuddy-badge workbuddy-badge--warning">{restLabel(account)}</span>
+          )}
         </div>
         <AccountActions
           account={account}
@@ -250,6 +263,7 @@ function AccountRow({
         {account.statusMessage !== null && account.status !== 'expired' ? (
           <p className="workbuddy-account__error">{account.statusMessage}</p>
         ) : null}
+        {account.restReason === null ? null : <p className="workbuddy-account__muted">{account.restReason}</p>}
       </div>
     </article>
   )

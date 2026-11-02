@@ -101,6 +101,8 @@ function providerEntryOf(def: CustomProviderDef): Record<string, unknown> {
     api: def.api,
     /* auth: none 是必须的：上游校验规定定义 models 时无 apiKey 必须 auth: none（或 oauth），否则整份配置无效。它说的是「这个文件不提供密钥」 */
     auth: 'none',
+    /* 会话头：客户端发、反代转给插件；omp 只在有会话 id 时才带（compat.promptCacheSessionHeader） */
+    ...(def.sessionHeader === undefined ? {} : { compat: { promptCacheSessionHeader: def.sessionHeader } }),
     models: def.models.map((model) => ({
       id: model.id,
       name: model.name,

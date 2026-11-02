@@ -162,8 +162,8 @@ async function started(h: Harness): Promise<WorkBuddyProxyOptions> {
 
 describe('WorkBuddy Core 服务', () => {
   test('快照把积分、套餐、首选与签到放在账号视图上', () => {
-    const { close, repository, service } = seed()
-    repository.setSetting('preferred_account_id', 'a1')
+    const { close, service } = seed()
+    service.setPreferred('a1')
     const snapshot = service.snapshot()
     expect(snapshot.accounts[0]).toMatchObject({
       label: '稻黄草',
@@ -274,22 +274,45 @@ describe('WorkBuddy 反代与模型目录', () => {
 })
 
 describe('WorkBuddy 账号休息状态机', () => {
-  test('受限的账号歇 2 小时，歇着的时候不再被选去接请求', async () => {
+  test('受限的账号歇 2 小时；都歇着时报「最早回来的时刻」而不是伪造的未登录', async () => {
     const h = seed()
     const options = await started(h)
     options.onAccountFailure?.('a1', { kind: 'restricted', status: 403, signIn: null })
     expect(h.repository.get('a1')?.restUntil).toBe(NOW + 2 * 60 * 60 * 1000)
 
-    /* 再要账号时它已经不在名单里，proxy 会回 401 */
-    expect(await options.accounts()).toEqual([])
+    /*
+     * 全都歇着：名单是空的，但带着「最早什么时候回来」。反代据此回 429 + Retry-After，
+     * 而不是 401「还没有登录」—— 后者会让用户去重新登录一个没坏的号。
+     */
+    const resting = await options.accounts()
+    expect(resting.accounts).toEqual([])
+    expect(resting.restingUntil).toBe(NOW + 2 * 60 * 60 * 1000)
 
     /* 歇够了就回来 */
     h.setNow(NOW + 2 * 60 * 60 * 1000 + 1)
-    expect((await options.accounts()).map((account) => account.id)).toEqual(['a1'])
+    expect((await options.accounts()).accounts.map((account) => account.id)).toEqual(['a1'])
     h.close()
   })
 
-  test('限流 1 分钟起、连续命中翻倍，封顶 30 分钟；成功后清零', async () => {
+  test('都歇着时每分钟放最快回来的那个去探一次路', async () => {
+    const h = seed()
+    const options = await started(h)
+    options.onAccountFailure?.('a1', { kind: 'restricted', status: 403, signIn: null })
+    expect((await options.accounts()).accounts).toEqual([])
+
+    /* 一分钟后再问：放它去上游试一次，成功就自然解除休息 */
+    h.setNow(NOW + 61_000)
+    const probed = await options.accounts()
+    expect(probed.accounts.map((account) => account.id)).toEqual(['a1'])
+    expect(probed.restingUntil).toBeUndefined()
+
+    /* 刚探过，下一个请求不再探，免得把「一次误判」变成每分钟一次撞墙 */
+    h.setNow(NOW + 90_000)
+    expect((await options.accounts()).accounts).toEqual([])
+    h.close()
+  })
+
+  test('限流 1 分钟起、连续命中翻倍，封顶 30 分钟；成功一次就清零', async () => {
     const h = seed()
     const options = await started(h)
     const failure = { kind: 'rate_limit', status: 429, signIn: null } as const
@@ -300,6 +323,12 @@ describe('WorkBuddy 账号休息状态机', () => {
     options.onAccountFailure?.('a1', failure)
     expect(h.repository.get('a1')?.restUntil).toBe(NOW + 4 * 60_000)
 
+    /* 成功一次（magpie 的 served）：这个号刚证明自己是好的，阶梯从头起 */
+    options.onAccountAnswered?.('a1')
+    expect(h.repository.get('a1')?.restUntil).toBe(0)
+    options.onAccountFailure?.('a1', failure)
+    expect(h.repository.get('a1')?.restUntil).toBe(NOW + 60_000)
+
     /* 一路翻倍到顶 */
     for (let i = 0; i < 8; i++) options.onAccountFailure?.('a1', failure)
     expect(h.repository.get('a1')?.restUntil).toBe(NOW + 30 * 60_000)
@@ -309,6 +338,53 @@ describe('WorkBuddy 账号休息状态机', () => {
     expect(h.repository.get('a1')?.restUntil).toBe(0)
     options.onAccountFailure?.('a1', failure)
     expect(h.repository.get('a1')?.restUntil).toBe(NOW + 60_000)
+    h.close()
+  })
+
+  test('隔了 30 分钟才再被限流，算新的一轮，从 1 分钟重新起', async () => {
+    const h = seed()
+    const options = await started(h)
+    const failure = { kind: 'rate_limit', status: 429, signIn: null } as const
+    options.onAccountFailure?.('a1', failure)
+    h.setNow(NOW + 60_000 + 31 * 60_000)
+    options.onAccountFailure?.('a1', failure)
+    expect(h.repository.get('a1')?.restUntil).toBe(NOW + 60_000 + 31 * 60_000 + 60_000)
+    h.close()
+  })
+
+  test('上游没归类的失败也换号歇一会儿，并按自己的阶梯翻倍', async () => {
+    const h = seed()
+    const options = await started(h)
+    const failure = { kind: 'unknown', status: 502, signIn: null } as const
+    options.onAccountFailure?.('a1', failure)
+    expect(h.repository.get('a1')?.restUntil).toBe(NOW + 60_000)
+    options.onAccountFailure?.('a1', failure)
+    expect(h.repository.get('a1')?.restUntil).toBe(NOW + 2 * 60_000)
+    for (let i = 0; i < 10; i++) options.onAccountFailure?.('a1', failure)
+    expect(h.repository.get('a1')?.restUntil).toBe(NOW + 10 * 60_000)
+    h.close()
+  })
+
+  test('上游给了恢复时刻就按它休息，不再按固定时长瞎猜', async () => {
+    const h = seed()
+    const options = await started(h)
+    options.onAccountFailure?.('a1', {
+      kind: 'rate_limit',
+      status: 429,
+      signIn: null,
+      resetAt: NOW + 42 * 60_000,
+    })
+    expect(h.repository.get('a1')?.restUntil).toBe(NOW + 42 * 60_000)
+    h.close()
+  })
+
+  test('短的失败不会把更长的休息缩短', async () => {
+    const h = seed()
+    const options = await started(h)
+    options.onAccountFailure?.('a1', { kind: 'restricted', status: 403, signIn: null })
+    const restricted = h.repository.get('a1')?.restUntil ?? 0
+    options.onAccountFailure?.('a1', { kind: 'rate_limit', status: 429, signIn: null })
+    expect(h.repository.get('a1')?.restUntil).toBe(restricted)
     h.close()
   })
 
@@ -343,7 +419,7 @@ describe('WorkBuddy 账号休息状态机', () => {
     silent.close()
   })
 
-  test('全部账号都在休息时交给反代的名单是空的', async () => {
+  test('全部账号都在休息时给最早回来的时刻，不是空手而归', async () => {
     const h = seed()
     h.repository.insert({
       ...(h.repository.get('a1') as AccountRecord),
@@ -355,7 +431,9 @@ describe('WorkBuddy 账号休息状态机', () => {
     const options = await started(h)
     options.onAccountFailure?.('a1', { kind: 'restricted', status: 403, signIn: null })
     options.onAccountFailure?.('a2', { kind: 'exhausted', status: 400, signIn: null })
-    expect(await options.accounts()).toEqual([])
+    const handed = await options.accounts()
+    expect(handed.accounts).toEqual([])
+    expect(handed.restingUntil).toBe(NOW + 30 * 60_000)
     h.close()
   })
 })

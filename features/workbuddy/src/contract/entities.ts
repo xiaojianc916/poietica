@@ -63,6 +63,10 @@ export const WorkBuddyAccount = z.object({
   checkedInToday: z.boolean(),
   checkin: WorkBuddyCheckin.nullable(),
   createdAt: z.number().int(),
+  /** 这个号还在冷却到什么时候（epoch ms）；0 = 没在休息。 */
+  restUntil: z.number().int(),
+  /** 为什么在冷却（上游原话的结论，不是原文）；不在休息时为 null。 */
+  restReason: z.string().nullable(),
 })
 export type WorkBuddyAccount = z.infer<typeof WorkBuddyAccount>
 
