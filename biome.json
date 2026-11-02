@@ -155,6 +155,19 @@
       }
     },
     {
+      "includes": ["packages/workbuddy-client/src/plugin/workbuddy.ts"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noExcessiveCognitiveComplexity": {
+              "level": "error",
+              "options": { "maxAllowedComplexity": 60 }
+            }
+          }
+        }
+      }
+    },
+    {
       "includes": ["features/automations/src/core/__tests__/agent-tools.test.ts"],
       "linter": {
         "rules": {

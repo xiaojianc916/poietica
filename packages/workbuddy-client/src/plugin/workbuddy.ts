@@ -1,13 +1,23 @@
-// OpenCode provider plugins for WorkBuddy's plans, Tencent's two builds of
-// WorkBuddy (CodeBuddy's desktop agent):
-//   - workbuddy:    the China build, copilot.tencent.com
-//   - workbuddy-ai: the international build, www.workbuddy.ai
-// A WorkBuddy account signs in in the browser (Tencent's page, polled for
-// the token as WorkBuddy's desktop app does) or is taken from WorkBuddy
-// desktop's own sign-in. Its chats are chat completions at <endpoint>/v2,
-// streamed only, with WorkBuddy's headers: a request whose User-Agent isn't
-// WorkBuddy/<version> is refused (error 10085). Each build's headers are
-// those of its current desktop app (see SITES' app, cli and appName).
+/*
+ * WorkBuddy（腾讯 CodeBuddy 桌面端）的协议层。
+ *
+ * WorkBuddy 没有公开 API，下面每一个常量、请求头、请求体改写都是从客户端实际行为与
+ * 大量实测里定下来的；每条规则旁边的注释写的是「为什么」以及观察到它的具体现象。
+ * 改之前先读那一段，那些看起来多余的步骤多半对应一次真实的拒绝。
+ *
+ * 两个站点（SITES）：
+ *   - workbuddy:    国内版，copilot.tencent.com
+ *   - workbuddy-ai: 国际版，www.workbuddy.ai —— 本产品只接国内版，这一份留着备用
+ *
+ * 账号在浏览器里登录（腾讯的授权页，像桌面端那样轮询拿 token）。对话是
+ * <endpoint>/v2 上的 chat completions，只走流式，并且带 WorkBuddy 自己那套请求头：
+ * User-Agent 不是 WorkBuddy/<version> 的直接被拒（错误码 10085）。
+ *
+ * 复杂度：本文件的认知复杂度阈值放宽到 60（见 biome.json 的 overrides）。原因不是
+ * 懒得拆 —— 协议判断本身是「一串并列的特例」，硬拆成十几个小函数会让「这里为什么
+ * 要这样」散落到各处。函数间共享的那几段（鉴权准备、请求改写、400 三级恢复、401 重发、
+ * 额度拼接）已经抽成模块级函数；剩下的是串在一起读才看得懂的协议流程。
+ */
 
 import { createHash, randomBytes } from 'node:crypto'
 import { closeSync, openSync, readFileSync, readSync, statSync } from 'node:fs'
@@ -20,6 +30,7 @@ import type {
   Chat,
   ChatHeadersInput,
   ChatMessage,
+  Checkin,
   Chunk,
   ContentPart,
   Envelope,
@@ -2489,33 +2500,44 @@ async function checkinOf(site: Site, a: Auth, { waits = [0, 0] } = {}) {
           ...(got?.message ? { message: String(got.message) } : {}),
         }
       } catch (e) {
+        const decided = await decideClaimError(site, a, e)
+        if (decided.outcome !== null) return decided.outcome
         const t = thrown(e)
-        if (t?.code === 1001) return { outcome: 'done' }
-        if (t?.code === 1002) return { outcome: 'ineligible', message: t.message }
-        if (t?.code === 1003) return { outcome: 'inactive', message: t.message }
-        if (t?.status === 401) {
-          try {
-            await meter(site, a, '/billing/meter/get-user-resource-summary')
-          } catch {
-            throw e
-          }
-          return { outcome: 'ineligible', message: "WorkBuddy's check-in takes WorkBuddy's own app" }
-        }
-        if (t?.unreadable) return { outcome: 'failed', message: `check-in: ${t.message}` }
         const transient = (t?.status ?? 0) >= 500 || t?.code === 10000
         if (transient && attempt < waits.length) {
           await new Promise((r) => setTimeout(r, waits[attempt]))
           break
         }
-        // a reply WorkBuddy sent is the day's failed answer; only a request
-        // that got no answer leaves as a throw, for magpie's offline backoff
-        if (t?.status !== undefined || t?.code !== undefined) return { outcome: 'failed', message: t.message }
         throw e
       }
     }
   }
 }
 
+/**
+ * 领取那一天失败时，WorkBuddy 的答复各自意味着什么。返回 outcome: null 表示「这次是网络/5xx
+ * 一类可重试的失败」，调用方决定要不要退避重来；其余都已经是这一天的结论。
+ * 401 那一支要再打一次摘要接口才判得准：摘要能读就说明登录没问题，只是签到这条路不收。
+ */
+async function decideClaimError(site: Site, a: Auth, e: unknown): Promise<{ outcome: Checkin | null }> {
+  const t = thrown(e)
+  if (t?.code === 1001) return { outcome: { outcome: 'done' } }
+  if (t?.code === 1002) return { outcome: { outcome: 'ineligible', message: t.message } }
+  if (t?.code === 1003) return { outcome: { outcome: 'inactive', message: t.message } }
+  if (t?.status === 401) {
+    try {
+      await meter(site, a, '/billing/meter/get-user-resource-summary')
+    } catch {
+      return { outcome: null }
+    }
+    return { outcome: { outcome: 'ineligible', message: "WorkBuddy's check-in takes WorkBuddy's own app" } }
+  }
+  if (t?.unreadable) return { outcome: { outcome: 'failed', message: `check-in: ${t.message}` } }
+  // a reply WorkBuddy sent is the day's failed answer; only a request
+  // that got no answer leaves as a throw, for magpie's offline backoff
+  if (t?.status !== undefined || t?.code !== undefined) return { outcome: { outcome: 'failed', message: t.message } }
+  return { outcome: null }
+}
 // capacity is a capacity the billing API sends, as a string ("438.88")
 // or now and then a number; empty is 0.
 function capacity(v: unknown) {
@@ -3433,8 +3455,7 @@ function runsOutOf(
     if (!at || end < at) {
       at = end
       amount = left
-    }
-    else if (end === at) amount += left
+    } else if (end === at) amount += left
   }
   return at ? { runsOutAt: new Date(at).toISOString(), runsOut: amount } : null
 }
@@ -3841,6 +3862,243 @@ interface MagpieHost {
   readonly option?: (siteId: string, key: string) => unknown
 }
 
+/**
+ * 一次 400 之后的三级恢复：先给被拒的开场多加一个逗号，再把 system 提示词挪进用户消息，
+ * 最后是「模型不接受工具结果紧跟用户消息」那种形状。每一级只在上一级仍被拒时才试，
+ * 且只试一次；试成功的那套形状记在各自的 Set 里，之后的对话直接用它，不再多付一次往返。
+ *
+ * 调用方给 send / shaped 两个闭包：前者带着当前 headers 与 body 真发一次，后者按模型补上
+ * 那次「先给空回复」的改写。返回恢复后的响应（可能是原响应的重建）。
+ */
+async function recoverFrom400(input: {
+  readonly res: Response
+  readonly body: string
+  readonly sysKey: string
+  readonly model: string | undefined
+  readonly commaSystems: Set<string>
+  readonly refusedSystems: Set<string>
+  readonly endsAfterTools: Set<string | undefined>
+  readonly send: (b: string) => Promise<Response>
+  readonly shaped: (b: string) => string
+}): Promise<{ res: Response; body: string }> {
+  let { res, body } = input
+  const { sysKey, model, send, shaped, commaSystems, refusedSystems, endsAfterTools } = input
+  let text = await res.text()
+  // the vendor may know a shape of the agent's opening that FLAGGED
+  // doesn't: the same words said with one more comma pass it, and
+  // that is tried before the system prompt is moved out of its slot.
+  // The roles the comma went into are kept: one set in the system
+  // prompt is what its next chats go with, one set in an assistant
+  // message alone says nothing about the next chat's.
+  // that is tried before the system prompt is moved out of its slot.
+  // The roles the comma went into are kept: one set in the system
+  // prompt is what its next chats go with, one set in an assistant
+  // message alone says nothing about the next chat's.
+  const roles = new Set<string>()
+  const paused = REFUSED.test(text) ? commaPaused(body, roles) : null
+  if (paused) {
+    body = paused
+    res = await send(shaped(body))
+    if (res.status === 400) text = await res.text()
+    // not refused this time: the comma is what passed the
+    // vendor's check, so this system prompt's next chats go
+    // with it set before the first send
+    else if (sysKey && roles.has('system')) {
+      commaSystems.add(sysKey)
+      if (commaSystems.size > 256) commaSystems.delete(commaSystems.values().next().value ?? sysKey)
+    }
+  }
+  const moved =
+    res.status === 400 && REFUSED.test(text) && sysKey && !refusedSystems.has(sysKey) ? systemAsUser(body) : null
+  if (moved) {
+    refusedSystems.add(sysKey)
+    if (refusedSystems.size > 256) refusedSystems.delete(refusedSystems.values().next().value ?? sysKey)
+    body = moved
+    res = await send(shaped(body))
+    if (res.status === 400) text = await res.text()
+  }
+  const again =
+    res.status === 400 && !endsAfterTools.has(model) && AFTER_TOOLS_REFUSED.test(text) ? replyAfterTools(body) : null
+  if (again) {
+    endsAfterTools.add(model)
+    res = await send(again)
+  } else if (res.status === 400) {
+    res = new Response(text, { status: res.status, statusText: res.statusText, headers: res.headers })
+  }
+  return { res, body }
+}
+
+/**
+ * 一个答复的最后一道手续：错误写成带 hint 的规范 JSON；streamed 的聊天要过一遍
+ * 「模型拒绝」的过滤（unsaid）与工具名还原（renamed）；然后盖上 X-Magpie-Sign-In，
+ * 说明这次登录是被保住了还是刚换过（换过就要把之前的过期标记摘掉）。
+ */
+async function finish(res: Response, native: boolean, names: Map<string, string>, renewed: boolean): Promise<Response> {
+  if (res.status >= 400) return await explained(res)
+  const filtered = native ? res : unsaid(await renamed(res, names))
+  return kept(filtered, renewed ? 'renewed' : 'kept')
+}
+/**
+ * 把账面上那几格按时限补齐：套餐什么时候回血、哪批积分先过期、以及「不扣这一格积分」的模型。
+ * 再补一格免费模型自己的窗口 —— WorkBuddy 的 429 在积分花完之前就来了，积分表上看不见它。
+ * 读不到就都不补（卡片保持原样），不编造读数。
+ */
+async function enrichUsage(
+  out: Usage,
+  site: Site,
+  a: Auth,
+  sum: Record<string, unknown>,
+  said: string,
+): Promise<Usage> {
+  const credits = out.windows.find((w) => w.name === 'Credits')
+  const extra = out.windows.find((w) => w.name === 'Extra credits')
+  if (credits) {
+    try {
+      const packages = await packagesOf(site, a)
+      Object.assign(credits, cycleOf(sum ?? {}, packages) ?? {})
+      const ofPlan = planCodes(sum ?? {}, site)
+      const stops = extra && !extra.aside ? extra : credits
+      Object.assign(stops, runsOutOf(sum ?? {}, packages) ?? {})
+      const aside = extra ? (stops === credits ? extra : credits) : null
+      if (aside) {
+        Object.assign(
+          aside,
+          runsOutOf(sum ?? {}, packages, Date.now(), (code) => ofPlan(code) === (aside === credits)) ?? {},
+        )
+      }
+    } catch {}
+  }
+  await spareFree(site, a, out.windows)
+  // the free model's own window, which the credit meter above does
+  // not show: what actually refuses a chat long before 160 credits
+  // are spent. Both builds: WorkBuddy AI at 1e8 (ten days of
+  // refusals), the China build's refusals measured at about 2e8 on
+  // 2026-11-02, its card stopping at the 1.9e8 soft cap (see the
+  // window definitions above)
+  {
+    const account = a.accountId || a.user || a.uid || ''
+    const win = site.ai ? FREE_WINDOW_AI : FREE_WINDOW_CN
+    const rows = freeWindowRows(account, Date.now(), process.cwd(), process.env, homedir(), win)
+    const w = rows && freeWindowOf(rows, account, Date.now(), win)
+    if (w) out.windows.push(w)
+  }
+  return { ...out, signIn: said }
+}
+
+/**
+ * 一个思考块的签名不是 WorkBuddy 自己签的（会话从别的供应商搬过来，或者被截断、被改过），
+ * 都会回 11159，而且发出去之前分辨不出来。这里把整段思考块去掉再发一次：没有签名可验，
+ * 模型也用不上它。只在历史里确实带着别人的签名时才重发，所以一直走这条路线的会话不会多发一次。
+ */
+async function retryWithoutThinking(
+  res: Response,
+  body: unknown,
+  send: (b: string) => Promise<Response>,
+): Promise<Response> {
+  const text = await res.text()
+  const again = BAD_SIGNATURE.test(text) ? withoutSignedThinking(body) : null
+  if (again) return await send(again)
+  return new Response(text, { status: res.status, statusText: res.statusText, headers: res.headers })
+}
+/**
+ * 一次请求出门前的鉴权准备：读这份凭据、该续期就续期、把客户端自己的鉴权头摘掉
+ * （Authorization / x-api-key / content-length 都换成 WorkBuddy 那一套），再按账号签名。
+ * 会话 id 也在这里从内部头里读出来，不往外带。
+ */
+async function prepareAuth(
+  site: Site,
+  client: AuthStore,
+  getAuth: () => Promise<Auth | undefined>,
+  input: Request | string,
+  init: RequestInit | undefined,
+): Promise<{
+  auth: Auth
+  req: Request | null
+  headers: Headers
+  session: string
+  body: RequestInit['body']
+  began: string | undefined
+}> {
+  const stored = await getAuth()
+  const keyed = stored?.type === 'api' ? keyAccount(stored) : null
+  if (stored?.type !== 'oauth' && !keyed) throw new Error(`${site.name} isn't signed in`)
+  if (!stored) throw new Error(`${site.name} isn't signed in`)
+  const a = keyed ?? (await current(site, client, stored))
+  const req = input instanceof Request ? input : null
+  const headers = new Headers(init?.headers ?? req?.headers)
+  headers.delete('authorization')
+  headers.delete('x-api-key')
+  headers.delete('content-length')
+  const session = sessionOf(headers)
+  sign(site, a, headers)
+  let body = init?.body
+  if (body === undefined && req) body = await req.clone().text()
+  return { auth: a, req, headers, session, body, began: stored.access }
+}
+/**
+ * 一个请求发出去之前的改写与登记：解析一次 body（之后不再重复解析）、把模型不认的工具形状
+ * 修好、按模型补上默认思考档、写 WorkBuddy 自己的请求头，最后给这轮对话记上三个 id。
+ * 开关「仅免费模型」时在这里就把非免费的挡掉，根本不出网（返回 blocked）。
+ */
+async function prepareChat(input: {
+  readonly site: Site
+  readonly auth: Auth
+  readonly headers: Headers
+  readonly session: string
+  readonly body: RequestInit['body']
+  readonly native: boolean
+  readonly target: string
+  readonly freeOnly: boolean
+  readonly listed: (a: Auth) => Promise<ModelList>
+  readonly effortList: (a: Auth) => Promise<ModelList | null>
+}): Promise<
+  | { readonly kind: 'blocked'; readonly response: Response }
+  | {
+      readonly kind: 'ready'
+      readonly body: RequestInit['body']
+      readonly chat: Chat
+      readonly changed: boolean
+      readonly names: Map<string, string>
+      readonly completion: boolean
+      readonly who: string
+      readonly ids: Ids
+    }
+> {
+  const { site, auth, headers, session, native, target, listed, effortList } = input
+  // read once (prepared): nothing below parses the body again on its way
+  // out, and nothing keeps the parsed chat once it is written (plugins#461)
+  const read = prepared(input.body, native)
+  const body = read.body as RequestInit['body']
+  const chat: Chat = read.chat ?? {}
+  let changed = read.changed
+  const names = native ? new Map<string, string>() : read.names
+  // the switch is checked before anything is sent: a model not free, or one
+  // whose price cannot be read, never reaches WorkBuddy. A body prepared
+  // leaves unread (bytes on Messages) is read for it here.
+  if (input.freeOnly) {
+    const model = chatOf(typeof body === 'string' ? body : bodyString(body))?.model
+    let list: ModelList
+    try {
+      list = await listed(auth)
+    } catch (e) {
+      const t = thrown(e)
+      return { kind: 'blocked', response: notFree(site, model, t?.message ?? String(e)) }
+    }
+    if (!list.some((m: ModelItem) => m.id === model && m.free)) {
+      return { kind: 'blocked', response: notFree(site, model) }
+    }
+  }
+  // a chat that names no effort is asked at the model default, as WorkBuddy
+  // own client asks it (withDefaultEffort); with no list to read the chat
+  // goes as it came.
+  const completion = !native && isCompletion(target, chat)
+  if (completion && !namesEffort(chat) && withDefaultEffort(chat, await effortList(auth))) changed = true
+  chatHeaders(site, headers)
+  const who = scopeOf(auth)
+  const ids = attendChat(headers, chat, session, who)
+  return { kind: 'ready', body, chat, changed, names, completion, who, ids }
+}
+
 function makePlugin(site: Site) {
   // the models of this site that refused tool results then the user's
   // message, for this run: their next chats go with replyAfterTools at once
@@ -4012,20 +4270,12 @@ function makePlugin(site: Site) {
             baseURL: '',
             apiKey: '',
             async fetch(input: Request | string, init?: RequestInit): Promise<Response> {
-              const stored = await getAuth()
-              const keyed = stored?.type === 'api' ? keyAccount(stored) : null
-              if (stored?.type !== 'oauth' && !keyed) throw new Error(`${site.name} isn't signed in`)
-              if (!stored) throw new Error(`${site.name} isn't signed in`)
-              let a = keyed ?? (await current(site, client, stored))
-              const req = input instanceof Request ? input : null
-              const headers = new Headers(init?.headers ?? req?.headers)
-              headers.delete('authorization')
-              headers.delete('x-api-key')
-              headers.delete('content-length')
-              const session = sessionOf(headers)
-              sign(site, a, headers)
-              let body = init?.body
-              if (body === undefined && req) body = await req.clone().text()
+              const trip = await prepareAuth(site, client, getAuth, input, init)
+              let a = trip.auth
+              const req = trip.req
+              const headers = trip.headers
+              const session = trip.session
+              let body = trip.body
               // An Anthropic request goes as the agent sent it: WorkBuddy
               // serves these models on Messages itself, and the rewrites
               // below (a default system message, the chat endpoint's
@@ -4036,42 +4286,26 @@ function makePlugin(site: Site) {
               // Codex's and DeepSeek Harness's openings all answer on
               // /v1/messages, where a chat is refused 11128.
               const native = isMessages(req ? req.url : String(input), body)
-              // read once (prepared): nothing below parses the body again on
-              // its way out, and nothing keeps the parsed chat once it is
-              // written (plugins#461)
-              let chat: Chat = {}
-              let changed = false
-              let names = new Map<string, string>()
-              const read = prepared(body, native)
-              body = read.body as RequestInit['body']
-              chat = read.chat ?? {}
-              changed = read.changed
-              names = read.names
-              if (native) names = new Map()
-              // the switch is checked before anything is sent: a model not
-              // free, or one whose price can't be read, never reaches
-              // WorkBuddy. The model is read off the chat parsed above; a body
-              // prepared leaves unread (bytes on Messages) is read for it.
-              if (freeOnly()) {
-                const model = (chat ?? chatOf(typeof body === 'string' ? body : bodyString(body)))?.model
-                let list: ModelList
-                try {
-                  list = await listed(a)
-                } catch (e) {
-                  const t = thrown(e)
-                  return notFree(site, model, t?.message ?? String(e))
-                }
-                if (!list.some((m: ModelItem) => m.id === model && m.free)) return notFree(site, model)
-              }
-              // a chat that names no effort is asked at the model's default,
-              // as WorkBuddy's client asks it (withDefaultEffort); with no
-              // list to read (effortList) the chat goes as it came
-              const completion = !native && isCompletion(req ? req.url : String(input), chat)
-              if (completion && chat && !namesEffort(chat) && withDefaultEffort(chat, await effortList(a)))
-                changed = true
-              chatHeaders(site, headers)
-              let who = scopeOf(a)
-              let ids = attendChat(headers, chat, session, who)
+              const prep = await prepareChat({
+                site,
+                auth: a,
+                headers,
+                session,
+                body,
+                native,
+                target: req?.url ?? String(input),
+                freeOnly: freeOnly(),
+                listed,
+                effortList,
+              })
+              if (prep.kind === 'blocked') return prep.response
+              body = prep.body
+              let chat = prep.chat
+              let changed = prep.changed
+              const names = prep.names
+              const completion = prep.completion
+              let who = prep.who
+              let ids: Ids = prep.ids
               const post = (b: string | ArrayBuffer | ArrayBufferView | null | undefined): Promise<Response> => {
                 // a chat goes gzipped, as WorkBuddy's client sends it
                 // (gzipped); its size on the wire is what unanswered weighs
@@ -4119,7 +4353,7 @@ function makePlugin(site: Site) {
                 }
                 if (!resendable(b)) return res
                 await res.body?.cancel().catch(() => {})
-                const r = await reissued(site, client, getAuth, a, stored.access)
+                const r = await reissued(site, client, getAuth, a, trip.began)
                 if (!r.a) return out(r.why ?? '', gone(a, r, invalidToken(res)), res)
                 renewed = true
                 a = r.a
@@ -4164,60 +4398,26 @@ function makePlugin(site: Site) {
               // signature that isn't this route's own, so a session on this
               // route never sends twice.
               if (native && res.status >= 400) {
-                const text = await res.text()
-                const again = BAD_SIGNATURE.test(text) ? withoutSignedThinking(body) : null
-                if (again) res = await send(again)
-                else res = new Response(text, { status: res.status, statusText: res.statusText, headers: res.headers })
+                res = await retryWithoutThinking(res, body, send)
               }
               if (res.status === 400 && !native) {
-                let text = await res.text()
-                // the vendor may know a shape of the agent's opening that FLAGGED
-                // doesn't: the same words said with one more comma pass it, and
-                // that is tried before the system prompt is moved out of its slot.
-                // The roles the comma went into are kept: one set in the system
-                // prompt is what its next chats go with, one set in an assistant
-                // message alone says nothing about the next chat's.
-                const roles = new Set<string>()
-                const paused = REFUSED.test(text) ? commaPaused(body, roles) : null
-                if (paused) {
-                  body = paused
-                  res = await send(shaped(body))
-                  if (res.status === 400) text = await res.text()
-                  // not refused this time: the comma is what passed the
-                  // vendor's check, so this system prompt's next chats go
-                  // with it set before the first send
-                  else if (sysKey && roles.has('system')) {
-                    commaSystems.add(sysKey)
-                    if (commaSystems.size > 256) commaSystems.delete(commaSystems.values().next().value ?? sysKey)
-                  }
-                }
-                const moved =
-                  res.status === 400 && REFUSED.test(text) && sysKey && !refusedSystems.has(sysKey)
-                    ? systemAsUser(body)
-                    : null
-                if (moved) {
-                  refusedSystems.add(sysKey)
-                  if (refusedSystems.size > 256) refusedSystems.delete(refusedSystems.values().next().value ?? sysKey)
-                  body = moved
-                  res = await send(shaped(body))
-                  if (res.status === 400) text = await res.text()
-                }
-                const again =
-                  res.status === 400 && !endsAfterTools.has(model) && AFTER_TOOLS_REFUSED.test(text)
-                    ? replyAfterTools(body)
-                    : null
-                if (again) {
-                  endsAfterTools.add(model)
-                  res = await send(again)
-                } else if (res.status === 400) {
-                  res = new Response(text, { status: res.status, statusText: res.statusText, headers: res.headers })
-                }
+                const recovered = await recoverFrom400({
+                  res,
+                  body: body as string,
+                  sysKey,
+                  model,
+                  commaSystems,
+                  refusedSystems,
+                  endsAfterTools,
+                  send: (b) => send(b),
+                  shaped,
+                })
+                res = recovered.res
+                body = recovered.body as RequestInit['body']
               }
               if (ours.has(res)) return res
               // renewed here: a mark the account had comes off
-              return res.status >= 400
-                ? explained(res)
-                : kept(native ? res : unsaid(await renamed(res, names)), renewed ? 'renewed' : 'kept')
+              return await finish(res, native, names, renewed)
             },
           }
         },
@@ -4294,39 +4494,7 @@ function makePlugin(site: Site) {
             // the soonest credits to lapse, of any package, stay on the window
             // that stops the account, as routing reads none set aside, and
             // the window set aside says its own.
-            const credits = out.windows.find((w) => w.name === 'Credits')
-            const extra = out.windows.find((w) => w.name === 'Extra credits')
-            if (credits) {
-              try {
-                const packages = await packagesOf(site, a)
-                Object.assign(credits, cycleOf(sum ?? {}, packages) ?? {})
-                const ofPlan = planCodes(sum ?? {}, site)
-                const stops = extra && !extra.aside ? extra : credits
-                Object.assign(stops, runsOutOf(sum ?? {}, packages) ?? {})
-                const aside = extra ? (stops === credits ? extra : credits) : null
-                if (aside) {
-                  Object.assign(
-                    aside,
-                    runsOutOf(sum ?? {}, packages, Date.now(), (code) => ofPlan(code) === (aside === credits)) ?? {},
-                  )
-                }
-              } catch {}
-            }
-            await spareFree(site, a, out.windows)
-            // the free model's own window, which the credit meter above does
-            // not show: what actually refuses a chat long before 160 credits
-            // are spent. Both builds: WorkBuddy AI at 1e8 (ten days of
-            // refusals), the China build's refusals measured at about 2e8 on
-            // 2026-11-02, its card stopping at the 1.9e8 soft cap (see the
-            // window definitions above)
-            {
-              const account = a.accountId || a.user || a.uid || ''
-              const win = site.ai ? FREE_WINDOW_AI : FREE_WINDOW_CN
-              const rows = freeWindowRows(account, Date.now(), process.cwd(), process.env, homedir(), win)
-              const w = rows && freeWindowOf(rows, account, Date.now(), win)
-              if (w) out.windows.push(w)
-            }
-            return { ...out, signIn: said }
+            return await enrichUsage(out, site, a, sum ?? {}, said)
           } catch (e) {
             const t = thrown(e)
             return { windows: [], error: t?.message ?? String(e), signIn: 'kept' }

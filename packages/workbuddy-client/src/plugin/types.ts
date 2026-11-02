@@ -385,7 +385,14 @@ export interface Thrown {
 
 /** 上游错误体的形状：几种写法都见过，读的时候挨个试。 */
 export interface ErrorEnvelope {
-  error?: string | { message?: string; code?: string | number; internal_code?: string | number; data?: { code?: string | number; msg?: string } }
+  error?:
+    | string
+    | {
+        message?: string
+        code?: string | number
+        internal_code?: string | number
+        data?: { code?: string | number; msg?: string }
+      }
   code?: string | number
   msg?: string
   message?: string
