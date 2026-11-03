@@ -1,4 +1,4 @@
-/* WorkBuddy 设置页：账号行、积分条、签到状态。颜色与分割线一律走设置页与 design-system 的令牌。 */
+/* 反向代理设置页：WorkBuddy 账号行、积分条、签到状态。颜色与分割线一律走设置页与 design-system 的令牌。 */
 
 .workbuddy-account {
   position: relative;
@@ -59,6 +59,8 @@
 }
 
 .workbuddy-account__actions {
+  /* 四个动作挤成一行图标：字形收到 14px，与 dangerSoft 那一档同大。 */
+  --ui-icon: 14px;
   display: flex;
   flex: none;
   flex-wrap: wrap;
@@ -67,10 +69,37 @@
   gap: 2px;
 }
 
-.workbuddy-preferred {
-  padding-inline: 6px;
+/* 图标动作静息时是次要字色，悬停 / 键盘聚焦才提亮；可用性只由字形与提示承担。 */
+.workbuddy-account__action {
   color: var(--ui-muted-foreground);
-  font-size: var(--ui-font-size-caption);
+  background: transparent;
+}
+
+.workbuddy-account__action:not([aria-disabled='true']):hover,
+.workbuddy-account__action:not([aria-disabled='true']):focus-visible {
+  color: var(--ui-foreground);
+}
+
+/* 不可用的动作不该再亮起悬停底：图标按钮保留提示，但排面不能像还能点。 */
+.workbuddy-account__action[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.workbuddy-account__action[aria-disabled='true']:hover,
+.workbuddy-account__action[aria-disabled='true']:focus-visible {
+  color: var(--ui-muted-foreground);
+  background: transparent;
+}
+
+/*
+ * 删除键静息时与其余动作同灰：dangerSoft 那层红底是常驻的，放进一排图标里会被读成
+ * 一直按着 hover。红色只在真的悬停或键盘聚焦时出现。
+ */
+.workbuddy-account__action--danger:not([aria-disabled='true']):hover,
+.workbuddy-account__action--danger:not([aria-disabled='true']):focus-visible {
+  background: var(--ui-destructive-soft);
+  color: var(--ui-destructive);
 }
 
 .workbuddy-badge {

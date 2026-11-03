@@ -87,7 +87,21 @@ describe('WorkBuddy 设置页', () => {
     expect(screen.getByText('Credits · 147.78 / 160.13')).toBeDefined()
     expect(screen.queryByText(/重置/)).toBeNull()
     expect(screen.getByRole('progressbar', { name: 'Credits 剩余 92%' })).toBeDefined()
-    expect(screen.getByText('首选')).toBeDefined()
+    /* 四个动作只画图标：可访问名与悬停提示仍是原来那四个词。 */
+    expect(screen.getByRole('button', { name: '首选' })).toBeDefined()
+    expect(screen.getByRole('button', { name: '重新登录' })).toBeDefined()
+    expect(screen.getByRole('button', { name: '签到' })).toBeDefined()
+    const removeButton = screen.getByRole('button', { name: '移除' })
+    expect(removeButton).toBeDefined()
+    /* 删除键静息时不是 dangerSoft 的常驻红底：红色只在悬停 / 聚焦时加。 */
+    expect(removeButton.classList.contains('ui-button--danger-soft')).toBe(false)
+    expect(removeButton.classList.contains('workbuddy-account__action--danger')).toBe(true)
+    /* 首选与签到都已处于完成态：不可再点，但悬停提示仍要能出现（所以是 aria-disabled，不设原生 disabled）。 */
+    expect(screen.getByRole('button', { name: '首选' }).getAttribute('aria-disabled')).toBe('true')
+    expect(screen.getByRole('button', { name: '首选' }).hasAttribute('disabled')).toBe(false)
+    expect(screen.queryByText('设为首选')).toBeNull()
+    expect(screen.queryByText('重新登录')).toBeNull()
+    expect(screen.queryByText('今日已签到')).toBeNull()
     expect(screen.getByText('已注册为模型服务商')).toBeDefined()
   })
 

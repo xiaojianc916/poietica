@@ -1,11 +1,11 @@
 import { platformContract } from '@poietica/feature-platform/contract'
 import { builtinPoints, defineUiFeature, SETTINGS_GROUPS } from '@poietica/ui-kernel'
-import { PlugZap } from 'lucide-react'
+import { Component } from 'lucide-react'
 import { createWorkBuddyApi } from './api'
 import { noteCoreReady } from './store'
 import { WorkBuddyPage } from './workbuddy-page'
 
-/* 设置里的「WorkBuddy」一页：账号、积分、签到、反代。页面只经本功能契约取数；
+/* 设置里的「反向代理」一页：WorkBuddy 账号、积分、签到与反代。页面只经本功能契约取数；
  * 打开授权页是系统能力，走 platform 的 shell.openExternal。 */
 export default defineUiFeature({
   id: 'workbuddy',
@@ -20,8 +20,8 @@ export default defineUiFeature({
       id: 'workbuddy.accounts',
       group: SETTINGS_GROUPS.agent,
       order: 310,
-      title: 'WorkBuddy',
-      icon: PlugZap,
+      title: '反向代理',
+      icon: Component,
       component: () => (
         <WorkBuddyPage
           api={api}

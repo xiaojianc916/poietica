@@ -7,11 +7,15 @@ import {
   SettingsGroup,
   SettingsPage,
   ToggleRow,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
   useCopy,
 } from '@poietica/design-system'
 import { useFeatureStore } from '@poietica/ui-kernel'
-import { CheckCircle2, Plus } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { CalendarCheck, CheckCircle2, LoaderCircle, LogIn, Plus, Star, Trash2 } from 'lucide-react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import type { WorkBuddyAccount, WorkBuddyCheckinOutcome, WorkBuddySnapshot, WorkBuddyUsageWindow } from '../contract'
 import type { WorkBuddyApi } from './api'
 import { coreGeneration } from './store'
@@ -196,6 +200,55 @@ function CreditsView({ account }: { readonly account: WorkBuddyAccount }) {
   )
 }
 
+/** 账号行只放图标：四个动作各自带 aria-label 与悬停提示，文字不再占宽度。 */
+function AccountActionButton({
+  children,
+  disabled = false,
+  label,
+  onClick,
+  pressed,
+  tone = 'default',
+}: {
+  readonly children: ReactNode
+  readonly disabled?: boolean
+  readonly label: string
+  readonly onClick: () => void
+  readonly pressed?: boolean
+  readonly tone?: 'default' | 'danger'
+}) {
+  const className =
+    tone === 'danger'
+      ? 'workbuddy-account__action workbuddy-account__action--danger w-[26px] px-0'
+      : 'workbuddy-account__action w-[26px] px-0'
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            aria-disabled={disabled || undefined}
+            aria-label={label}
+            aria-pressed={pressed}
+            /*
+             * 不用原生 disabled：禁用的按钮收不到悬停，图标按钮就没了唯一的解释。
+             * aria-disabled 让读屏照样知道它不可用，点击在这里拦住。
+             */
+            className={className}
+            onClick={() => {
+              if (!disabled) onClick()
+            }}
+            size="xs"
+            type="button"
+            variant="ghost"
+          >
+            {children}
+          </Button>
+        }
+      />
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
+  )
+}
+
 function AccountActions({
   account,
   busy,
@@ -212,32 +265,36 @@ function AccountActions({
   readonly onRemove: (account: WorkBuddyAccount) => void
 }) {
   const checkinBusy = busy === `checkin:${account.id}`
+  const checkinLabel = checkinBusy ? '签到中…' : account.checkedInToday ? '今日已签到' : '签到'
   return (
     <div className="workbuddy-account__actions">
-      {account.preferred ? (
-        <span className="workbuddy-preferred">首选</span>
-      ) : (
-        <Button onClick={() => onPreferred(account)} size="xs" type="button" variant="ghost">
-          设为首选
-        </Button>
-      )}
-      <Button disabled={busy !== null} onClick={() => onRelogin(account)} size="xs" type="button" variant="ghost">
-        重新登录
-      </Button>
+      <AccountActionButton
+        disabled={account.preferred || busy !== null}
+        label={account.preferred ? '首选' : '设为首选'}
+        onClick={() => onPreferred(account)}
+        pressed={account.preferred}
+      >
+        <Star aria-hidden="true" fill={account.preferred ? 'currentColor' : 'none'} />
+      </AccountActionButton>
+      <AccountActionButton disabled={busy !== null} label="重新登录" onClick={() => onRelogin(account)}>
+        <LogIn aria-hidden="true" />
+      </AccountActionButton>
       {account.kind === 'browser' ? (
-        <Button
+        <AccountActionButton
           disabled={checkinBusy || busy !== null || account.checkedInToday}
+          label={checkinLabel}
           onClick={() => onCheckin(account)}
-          size="xs"
-          type="button"
-          variant="ghost"
         >
-          {checkinBusy ? '签到中…' : account.checkedInToday ? '今日已签到' : '签到'}
-        </Button>
+          {checkinBusy ? (
+            <LoaderCircle aria-hidden="true" className="animate-spin" />
+          ) : (
+            <CalendarCheck aria-hidden="true" />
+          )}
+        </AccountActionButton>
       ) : null}
-      <Button disabled={busy !== null} onClick={() => onRemove(account)} size="xs" type="button" variant="dangerSoft">
-        移除
-      </Button>
+      <AccountActionButton disabled={busy !== null} label="移除" onClick={() => onRemove(account)} tone="danger">
+        <Trash2 aria-hidden="true" />
+      </AccountActionButton>
     </div>
   )
 }
@@ -446,17 +503,19 @@ function AccountsGroup({
       {accounts.length === 0 ? (
         <p className="workbuddy-empty">还没有 WorkBuddy 账号。登录后，这里会显示套餐、积分和每日签到。</p>
       ) : (
-        accounts.map((account) => (
-          <AccountRow
-            account={account}
-            busy={busy}
-            key={account.id}
-            onCheckin={onCheckin}
-            onPreferred={onPreferred}
-            onRelogin={onRelogin}
-            onRemove={onRemove}
-          />
-        ))
+        <TooltipProvider delay={150}>
+          {accounts.map((account) => (
+            <AccountRow
+              account={account}
+              busy={busy}
+              key={account.id}
+              onCheckin={onCheckin}
+              onPreferred={onPreferred}
+              onRelogin={onRelogin}
+              onRemove={onRemove}
+            />
+          ))}
+        </TooltipProvider>
       )}
       <button className="workbuddy-add" disabled={busy !== null} onClick={onAdd} type="button">
         <Plus aria-hidden="true" />
