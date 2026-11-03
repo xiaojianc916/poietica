@@ -700,6 +700,41 @@ function TerminalsSection({
 
 const NO_AGENTS: readonly AgentRow[] = []
 
+const SECTION_ORDER: readonly SectionKind[] = ['environment', 'goal', 'todo', 'terminals', 'agents']
+
+/*
+ * 每一格都是有事实才出现：空表连标题都不画（原来「待办事项 / 后台任务」常驻并各说一句「暂无」，那是两块永远空着的标题加两句废话）。
+ * 展开与否按同一条规则：**有内容的才默认展开**。Git 是唯一例外 —— 它是常驻工具区，出现即展开。
+ */
+function expandedSections(visible: Readonly<Record<SectionKind, boolean>>): string[] {
+  return SECTION_ORDER.filter((kind) => visible[kind])
+}
+
+/*
+ * 开合**受控**，不用 Accordion 的 defaultValue：每一格的数据都是异步到的（git 那一份要走一次 RPC），「该不该默认展开」在首帧常常还没有答案，
+ * 而 defaultValue 只在挂载那一刻算一次 —— 晚到的那一格挂上来就是收起的。
+ * 所以只记「人收起来的那些」，开着的名单每次从数据现推：新出现的一格自然开着，人收起来的那格就一直收着。
+ */
+function useSectionAccordion(expanded: readonly string[]) {
+  const [closed, setClosed] = useState<ReadonlySet<string>>(() => new Set())
+  const open = expanded.filter((value) => !closed.has(value))
+  const onValueChange = (next: string[]): void => {
+    setClosed((held) => {
+      const wanted = new Set(next)
+      const result = new Set(held)
+      for (const value of expanded) {
+        if (wanted.has(value)) {
+          result.delete(value)
+        } else {
+          result.add(value)
+        }
+      }
+      return result
+    })
+  }
+  return { open, onValueChange }
+}
+
 export function TaskPanelContent({
   backgroundTasks,
   endedAgents = NO_AGENTS,
@@ -739,49 +774,22 @@ export function TaskPanelContent({
   const showGit = git !== undefined && git.added + git.removed > 0
 
   /*
-   * 每一格都是有事实才出现：空表连标题都不画（原来「待办事项 / 后台任务」常驻并各说一句「暂无」，那是两块永远空着的标题加两句废话）。
-   * 展开与否按同一条规则：**有内容的才默认展开**。Git 是唯一例外 —— 它是常驻工具区，出现即展开。
+   * 每一格都是有事实才出现，有内容的才默认展开（见 expandedSections）。
+   * 数据都是异步到的，早到的那一格先开，晚到的一格挂上来也是开着：开着的名单每次从数据现推。
    */
-  const expanded = useMemo(
-    () => [
-      ...(showGit ? ['environment'] : []),
-      ...(showGoal ? ['goal'] : []),
-      ...(todos.length > 0 ? ['todo'] : []),
-      ...(backgroundTasks.length > 0 ? ['terminals'] : []),
-      ...(showAgents ? ['agents'] : []),
-    ],
-    [backgroundTasks.length, showAgents, showGit, showGoal, todos.length],
-  )
-
-  /*
-   * 开合**受控**，不用 Accordion 的 defaultValue：每一格的数据都是异步到的（git 那一份要走一次 RPC），「该不该默认展开」在首帧常常还没有答案，
-   * 而 defaultValue 只在挂载那一刻算一次 —— 晚到的那一格挂上来就是收起的。
-   * 所以只记「人收起来的那些」，开着的名单每次从数据现推：新出现的一格自然开着，人收起来的那格就一直收着。
-   */
-  const [closed, setClosed] = useState<ReadonlySet<string>>(() => new Set())
-  const open = expanded.filter((value) => !closed.has(value))
+  const expanded = expandedSections({
+    environment: showGit,
+    goal: showGoal,
+    todo: todos.length > 0,
+    terminals: backgroundTasks.length > 0,
+    agents: showAgents,
+  })
+  const { open, onValueChange } = useSectionAccordion(expanded)
+  /* 分隔线只画在「前面真有格子」的那一格：可见名单里除第一格外都算，不必每条边各算一遍。 */
+  const dividers = new Set(expanded.slice(1))
 
   return (
-    <Accordion
-      aria-label="任务与后台任务"
-      className="status-panel"
-      multiple
-      onValueChange={(next) => {
-        setClosed((held) => {
-          const wanted = new Set(next)
-          const result = new Set(held)
-          for (const value of expanded) {
-            if (wanted.has(value)) {
-              result.delete(value)
-            } else {
-              result.add(value)
-            }
-          }
-          return result
-        })
-      }}
-      value={open}
-    >
+    <Accordion aria-label="任务与后台任务" className="status-panel" multiple onValueChange={onValueChange} value={open}>
       {showGit && git !== undefined ? (
         <GitStatusSection git={git} onOpenReview={onOpenReview} picker={gitPicker} />
       ) : null}
@@ -790,21 +798,17 @@ export function TaskPanelContent({
           goal={goal}
           onPause={() => onPauseGoal?.()}
           onResume={() => onResumeGoal?.()}
-          separated={showGit}
+          separated={dividers.has('goal')}
         />
       ) : null}
-      <TodoSection separated={showGit || showGoal} todos={todos} />
-      <TerminalsSection
-        onStopTask={onStopTask}
-        separated={showGit || showGoal || todos.length > 0}
-        tasks={backgroundTasks}
-      />
+      <TodoSection separated={dividers.has('todo')} todos={todos} />
+      <TerminalsSection onStopTask={onStopTask} separated={dividers.has('terminals')} tasks={backgroundTasks} />
       {showAgents ? (
         <AgentsSection
           agents={agents}
           ended={endedAgents}
           onOpenAgent={onOpenAgent}
-          separated={showGit || showGoal || todos.length > 0 || backgroundTasks.length > 0}
+          separated={dividers.has('agents')}
         />
       ) : null}
     </Accordion>
