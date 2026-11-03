@@ -169,6 +169,24 @@ describe('WorkBuddy 设置页', () => {
     expect(screen.getByRole('button', { name: '复制链接' })).toBeDefined()
   })
 
+  test('冲突提示只出现一次：warning 有它，description 就不再复述', async () => {
+    const message = '模型服务商 workbuddy 已存在；请先在「模型」里移除它，再点重新注册'
+    render(
+      <WorkBuddyPage
+        api={apiOf({
+          snapshot: async () => ({
+            ...SNAPSHOT,
+            proxy: { ...SNAPSHOT.proxy, providerState: 'conflict', providerMessage: message },
+          }),
+        })}
+        openUrl={async () => undefined}
+      />,
+    )
+    expect(await screen.findAllByText(message)).toHaveLength(1)
+    /* 有账号、反代开着、又不在 registered：要能一键重新注册 */
+    expect(screen.getByRole('button', { name: '重新注册' })).toBeDefined()
+  })
+
   test('没有账号时给添加入口', async () => {
     render(
       <WorkBuddyPage

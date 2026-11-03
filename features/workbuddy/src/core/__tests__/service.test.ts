@@ -235,20 +235,23 @@ describe('WorkBuddy Core 服务', () => {
 })
 
 describe('WorkBuddy 反代与模型目录', () => {
-  test('冲突分支也把新地址写回模型目录，不让 omp 打到死端口', async () => {
-    /* 上一版留下的自己的条目，但名字被人改过：认领不了，只能算冲突 */
+  test('重启后按 provider_registered 认领自己写的那份（omp 把服务商名字报成 id）', async () => {
+    /*
+     * 生产里的 OmpModelsPort.providers() 没有单独的显示名：models.yml 里的自定义服务商一律 name = id。
+     * 旧判据只在 name === 'WorkBuddy' 时认领，于是每次重启都把自家条目当成别人的冲突。
+     */
     const h = seed(
       {},
       {},
       {
-        providers: [{ id: 'workbuddy', name: '改过名的 WorkBuddy', custom: true }],
+        providers: [{ id: 'workbuddy', name: 'workbuddy', custom: true }],
         settings: { provider_registered: '1' },
       },
     )
     const enabled = await h.service.setEnabled(true)
-    expect(enabled.proxy.providerState).toBe('conflict')
-    /* 反代在跑着（换了新端口），目录里那条必须跟着指向新地址 */
-    expect(enabled.proxy).toMatchObject({ running: true, port: 1234 })
+    expect(enabled.proxy.providerState).toBe('registered')
+    expect(enabled.proxy.providerMessage).toBeNull()
+    /* 反代换了新端口与口令，目录里那条必须跟着指向新地址 */
     expect(h.providers.at(-1)).toMatchObject({
       id: 'workbuddy',
       baseUrl: 'http://127.0.0.1:1234/p/secret/v1',
@@ -258,17 +261,27 @@ describe('WorkBuddy 反代与模型目录', () => {
 
   test('不是自己注册的条目在冲突时不改写', async () => {
     const h = seed({}, {}, { providers: [{ id: 'workbuddy', name: '别人的', custom: true }] })
-    await h.service.setEnabled(true)
+    const enabled = await h.service.setEnabled(true)
+    expect(enabled.proxy.providerState).toBe('conflict')
     expect(h.providers).toEqual([])
     h.close()
   })
 
-  test('自己那一份被别人占了名字时会收养并写回地址', async () => {
+  test('没有登记时仍收养旧版按显示名留下的条目', async () => {
     const h = seed({}, {}, { providers: [{ id: 'workbuddy', name: 'WorkBuddy', custom: true }] })
     const enabled = await h.service.setEnabled(true)
     expect(enabled.proxy.providerState).toBe('registered')
     expect(h.providers.at(-1)).toMatchObject({ baseUrl: 'http://127.0.0.1:1234/p/secret/v1' })
     expect(h.repository.settings().provider_registered).toBe('1')
+    h.close()
+  })
+
+  test('内置服务商占着同一个 id 时报冲突，不往 models.yml 写影子条目', async () => {
+    const h = seed({}, {}, { providers: [{ id: 'workbuddy', name: 'workbuddy', custom: false }] })
+    const enabled = await h.service.setEnabled(true)
+    expect(enabled.proxy.providerState).toBe('conflict')
+    expect(enabled.proxy.providerMessage).toBe('workbuddy 是内置服务商，不能覆盖')
+    expect(h.providers).toEqual([])
     h.close()
   })
 })

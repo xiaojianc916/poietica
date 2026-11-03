@@ -451,9 +451,9 @@ describe('ModelsPort', () => {
       baseUrl: 'https://mine.test/v1',
       models: [{ id: 'm1', name: 'M1', contextWindow: null, reasoning: false, vision: false }],
     })
-    /* 自定义判据就是「models.yml 里有没有这一格」 */
+    /* 自定义判据就是「models.yml 里有没有这一格」；omp 没有 provider 显示名，name 就是 id */
     const withMine = await harness.port.providers()
-    expect(withMine.find((provider) => provider.id === 'openai')).toMatchObject({ custom: true })
+    expect(withMine.find((provider) => provider.id === 'openai')).toMatchObject({ custom: true, name: 'openai' })
     expect(harness.reloads.length).toBeGreaterThan(0)
     await harness.port.removeCustomProvider('openai')
     const after = await harness.port.providers()

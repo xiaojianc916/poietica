@@ -547,9 +547,13 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
     providerMessage = null
   }
 
-  /** 目录里那条是不是我们自己注册的：id 对上了，还得是自定义且名字没被改过。 */
+  /**
+   * 目录里那条是不是我们自己写的那份。生产里的 ModelsPort.providers() 来自 omp 的模型注册表，
+   * 自定义服务商没有单独的显示名、name 一律等于 id，所以「name === WorkBuddy」在生产上永远不成立；
+   * 认领依据是落库的 provider_registered。旧版按显示名留下的条目仍给一次收养机会。
+   */
   function isOwnProvider(provider: { custom: boolean; name: string }): boolean {
-    return provider.custom && provider.name === PROVIDER_NAME
+    return provider.custom && (providerRegistered || provider.name === PROVIDER_NAME)
   }
 
   async function ensureProvider(): Promise<void> {
@@ -567,11 +571,11 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
       ? '模型服务商 workbuddy 已存在；请先在「模型」里移除它，再点重新注册'
       : 'workbuddy 是内置服务商，不能覆盖'
     /*
-     * 名字被改过、或上一版留下的旧条目会走到这里。反代已经换了端口与口令，而模型目录里那条
-     * 我们仍认作自己的（provider_registered=1）就只写地址不认领 —— 界面照旧报冲突等人决定，
-     * 但 omp 不会打到一个死端口上。
+     * 冲突只留给「确实不是我们的条目」：内置服务商不能覆盖，未登记的别人那份也别改。
+     * 反代已经换了端口与口令，而模型目录里那条我们仍认作自己的（provider_registered=1）
+     * 就只写地址不认领 —— 界面照旧报冲突等人决定，但 omp 不会打到一个死端口上。
      */
-    if (!providerRegistered) return
+    if (!providerRegistered || !existing.custom) return
     await writeProvider(false).catch((cause: unknown) => {
       logger.warn('WorkBuddy 反代地址没能写回模型目录', { error: messageOf(cause) })
     })

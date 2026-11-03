@@ -458,7 +458,12 @@ function ProxyGroup({
         <code className="workbuddy-endpoint">{proxy.endpoint ?? '未启动'}</code>
       </SettingRow>
       <SettingRow
-        description={proxy.providerMessage ?? '注册后会在「模型」里出现 WorkBuddy 服务商。'}
+        /* 冲突时这句话已经挂在 warning 上：同一句再当 description 就是上下各一遍 */
+        description={
+          proxy.providerState === 'conflict'
+            ? '注册后会在「模型」里出现 WorkBuddy 服务商。'
+            : (proxy.providerMessage ?? '注册后会在「模型」里出现 WorkBuddy 服务商。')
+        }
         label="模型服务商"
         warning={proxy.providerState === 'conflict' ? (proxy.providerMessage ?? undefined) : undefined}
       >
