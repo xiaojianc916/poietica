@@ -258,13 +258,17 @@ async function call(
     body: body === undefined ? undefined : JSON.stringify(body),
     signal: AbortSignal.timeout(30000),
   })
-  const text = await res.text()
-  let env: Envelope = {}
-  try {
-    env = JSON.parse(text) as Envelope
-  } catch {}
-  const code = Number.parseInt(String(env.code), 10) || 0
+  /*
+   * 失败响应也要读正文：上游把原因放在 {code,msg} 里，直接报「HTTP 500」用户看不到真正的问题。
+   * 但先看状态码再碰正文 —— 成功分支只解析成功响应，不会把错误页当成 data。
+   */
   if (!res.ok) {
+    const text = await res.text()
+    let env: Envelope = {}
+    try {
+      env = JSON.parse(text) as Envelope
+    } catch {}
+    const code = Number.parseInt(String(env.code), 10) || 0
     const why = env.msg || env.message || env.error?.message || text.slice(0, 200) || res.statusText
     const said = code ? env.msg || `error ${code}` : env.msg || statusText(res.status)
     throw new WBError(
@@ -274,13 +278,16 @@ async function call(
       said,
     )
   }
-  if (env.code)
+  const env = (await res.json().catch(() => ({}))) as Envelope
+  if (env.code) {
+    const code = Number.parseInt(String(env.code), 10) || 0
     throw new WBError(
       `${site.name}: ${env.msg || 'error'} (${env.code})`,
       env.code,
       res.status,
       env.msg || `error ${code}`,
     )
+  }
   return env.data as Record<string, unknown>
 }
 
@@ -2066,6 +2073,7 @@ async function poll(
   retry: readonly (string | number)[],
   deadline: number,
 ): Promise<Record<string, unknown>> {
+  const retries = new Set<string | number>(retry)
   for (;;) {
     if (Date.now() > deadline) throw new Error(`${site.name} sign-in timed out`)
     try {
@@ -2073,7 +2081,7 @@ async function poll(
       if (data && Object.keys(data).length) return data
     } catch (e) {
       const t = thrown(e)
-      if (!(t.code != null && retry.includes(t.code)) && t.status !== 408 && t.status !== 429) throw e
+      if (!(t.code != null && retries.has(t.code)) && t.status !== 408 && t.status !== 429) throw e
     }
     await sleep(POLL_MS)
   }
@@ -3857,8 +3865,8 @@ async function liveModels(site: Site, a: Auth) {
   headers.set('X-Requested-With', 'XMLHttpRequest')
   headers.set('Accept', 'application/json')
   const res = await fetch(`${site.endpoint}/v3/config`, { headers, signal: AbortSignal.timeout(15000) })
-  const env = (await res.json().catch(() => ({}))) as Envelope
   if (!res.ok) throw new Error(`${site.name}'s config: HTTP ${res.status}`)
+  const env = (await res.json().catch(() => ({}))) as Envelope
   if (env.code) throw new Error(`${site.name}'s config: ${env.msg} (${env.code})`)
   const cfg = (env.data ?? {}) as {
     agents?: { name?: string; models?: readonly string[] }[]

@@ -37,7 +37,7 @@ function messageOf(cause: unknown): string {
 }
 
 function dayLabel(at: number): string {
-  return new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit' }).format(new Date(at))
+  return DAY_FORMAT.format(new Date(at))
 }
 
 function remainingOf(window: WorkBuddyUsageWindow): number | null {
@@ -53,6 +53,8 @@ function windowPercent(window: WorkBuddyUsageWindow): number | null {
 }
 
 const CREDIT_FORMAT = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 })
+/* 这两个格式化器建一次就够：Intl 的构造比 format 贵得多，列表里每行都会用到。 */
+const DAY_FORMAT = new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit' })
 
 function usageLine(window: WorkBuddyUsageWindow): string {
   const remaining = remainingOf(window)

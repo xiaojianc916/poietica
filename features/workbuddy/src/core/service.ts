@@ -471,6 +471,11 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
     if (promoted) handed.push({ id: stuck.id, session: stuckSession })
     for (const record of rest) {
       try {
+        /*
+         * 逐个建通道：每个号都要走一次登录 / 换令牌，失败只让这个号这次不进名单。
+         * 名单最多几个号，串行换来的是不向上游同时发起一批登录；这份名单随后就交给反代使用。
+         */
+        // react-doctor-disable-next-line react-doctor/async-await-in-loop
         handed.push({ id: record.id, session: await sessionFor(record) })
       } catch (cause) {
         logger.warn('WorkBuddy 账号通道建立失败', { account: record.id, error: messageOf(cause) })
@@ -935,6 +940,8 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
     for (const record of repository.list()) {
       if (record.authType !== 'oauth' || !checkinDue(record, day, at)) continue
       try {
+        /* 逐个签到：签到是上游的写操作，同时打多个号没有收益，串行也就不必担心频率限制和结果写回顺序。 */
+        // react-doctor-disable-next-line react-doctor/async-await-in-loop
         await checkinRecord(record, false)
       } catch {
         /* checkinRecord 已记日志并写了退避；等下一次定时器或用户手动重试 */
