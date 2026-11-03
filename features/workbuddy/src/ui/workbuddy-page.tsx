@@ -61,22 +61,61 @@ function usageLine(window: WorkBuddyUsageWindow): string {
   return [window.name, value].filter((part) => part !== null).join(' · ')
 }
 
-const FREE_MODELS_SHOWN = 3
+const CREDITS_WINDOW = 'Credits'
+const EXTRA_CREDITS_WINDOW = 'Extra credits'
 
-/** 扣不动这格积分的免费模型：平时折叠，免得一行模型名把积分卡撑开。 */
-function FreeModelsNote({ models }: { readonly models: readonly string[] }) {
-  if (models.length === 0) return null
-  const shown = models.slice(0, FREE_MODELS_SHOWN)
-  const rest = models.length - shown.length
-  return (
-    <details className="workbuddy-credit__free">
-      <summary>这些模型不扣这一格积分</summary>
-      <p>
-        {shown.join('、')}
-        {rest > 0 ? ` 等 ${String(rest)} 个` : ''}
-      </p>
-    </details>
-  )
+/** 套餐积分与额外积分在界面上合成一格；Core 仍保留两格，选号要读各自的消耗与到期。 */
+function isCreditWindow(window: WorkBuddyUsageWindow): boolean {
+  return window.name === CREDITS_WINDOW || window.name === EXTRA_CREDITS_WINDOW
+}
+
+/** 只有每一格都给得出这个数才相加 —— 缺一格就说明总账算不出来，不拿 0 冒充。 */
+function sumIfKnown(values: readonly (number | null)[]): number | null {
+  let total = 0
+  for (const value of values) {
+    if (value === null) return null
+    total += value
+  }
+  return total
+}
+
+/** 决定账号停不停的那一格先说话：它上面的到期批次是整号最早作废的那批。 */
+function blockingCredit(windows: readonly WorkBuddyUsageWindow[]): WorkBuddyUsageWindow | undefined {
+  return windows.find((window) => !window.aside) ?? windows[0]
+}
+
+function mergeCreditWindows(windows: readonly WorkBuddyUsageWindow[]): readonly WorkBuddyUsageWindow[] {
+  const credits = windows.filter(isCreditWindow)
+  const primary = credits[0]
+  if (credits.length < 2 || primary === undefined) return windows
+  const remaining = sumIfKnown(credits.map(remainingOf))
+  const limit = sumIfKnown(credits.map((window) => window.limit))
+  const displays = credits.map((window) => window.display)
+  const display = displays.every((value) => value !== null) ? displays.join(' + ') : null
+  /* amount 是已用，界面的 remainingOf 从 limit - amount 倒推剩余；两格都算得出时才给。 */
+  const amount = remaining === null || limit === null ? null : Math.max(0, limit - remaining)
+  const blocking = blockingCredit(credits)
+  const merged: WorkBuddyUsageWindow = {
+    ...primary,
+    name: CREDITS_WINDOW,
+    used: null,
+    amount,
+    limit,
+    balance: remaining !== null && amount === null ? remaining : null,
+    display: amount === null ? display : null,
+    runsOutAt: blocking?.runsOutAt ?? primary.runsOutAt,
+    runsOut: blocking?.runsOut ?? null,
+    refused: blocking?.refused ?? false,
+    aside: false,
+    notModels: null,
+  }
+  let inserted = false
+  return windows.flatMap((window) => {
+    if (!isCreditWindow(window)) return [window]
+    if (inserted) return []
+    inserted = true
+    return [merged]
+  })
 }
 
 /** 还要等多久：冷却中的号在徽标里说人话，而不是只挂一个「不可用」。 */
@@ -127,10 +166,10 @@ function CreditsView({ account }: { readonly account: WorkBuddyAccount }) {
   }
   return (
     <>
-      {usage.windows.map((window) => {
+      {mergeCreditWindows(usage.windows).map((window) => {
         const percent = windowPercent(window)
         return (
-          <div className="workbuddy-credit" data-aside={window.aside ? 'true' : undefined} key={window.name}>
+          <div className="workbuddy-credit" key={window.name}>
             <div className="workbuddy-credit__line">
               <span>{usageLine(window)}</span>
               <span className="workbuddy-credit__marks">
@@ -150,8 +189,6 @@ function CreditsView({ account }: { readonly account: WorkBuddyAccount }) {
                 <span style={{ inlineSize: `${String(percent)}%` }} />
               </div>
             )}
-            {window.aside ? <p className="workbuddy-credit__note">这一格不拦账号：用完了也不影响继续使用。</p> : null}
-            {window.notModels === null ? null : <FreeModelsNote models={window.notModels} />}
           </div>
         )
       })}

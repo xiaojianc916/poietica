@@ -91,8 +91,8 @@ describe('WorkBuddy 设置页', () => {
     expect(screen.getByText('已注册为模型服务商')).toBeDefined()
   })
 
-  test('摆着看的那一格画得弱、说明不拦账号，并标出即将到期的积分', async () => {
-    const aside = {
+  test('Credits 与 Extra credits 合成一条，且不再列出不扣积分的模型', async () => {
+    const merged = {
       ...SNAPSHOT,
       accounts: SNAPSHOT.accounts.map((account) => ({
         ...account,
@@ -109,7 +109,7 @@ describe('WorkBuddy 设置页', () => {
                   })),
                   {
                     name: 'Extra credits',
-                    used: 1,
+                    used: 5,
                     amount: 1,
                     limit: 20,
                     balance: null,
@@ -121,27 +121,27 @@ describe('WorkBuddy 设置页', () => {
                     models: null,
                     refused: false,
                     aside: true,
-                    runsOut: null,
-                    notModels: null,
+                    runsOut: 12.25,
+                    notModels: ['e', 'f'],
                   },
                 ],
               },
       })),
     }
-    render(<WorkBuddyPage api={apiOf({ snapshot: async () => aside })} openUrl={async () => undefined} />)
+    render(<WorkBuddyPage api={apiOf({ snapshot: async () => merged })} openUrl={async () => undefined} />)
 
-    expect(await screen.findByText('88.5 积分即将到期')).toBeDefined()
-    expect(screen.getAllByText('这些模型不扣这一格积分')).toHaveLength(1)
-    expect(screen.getByText('a、b、c 等 1 个')).toBeDefined()
-    // 只有 aside 的那一格才说「不拦账号」。
-    expect(screen.getAllByText(/这一格不拦账号/)).toHaveLength(1)
-    expect(
-      screen.getByText('Extra credits · 19 / 20').closest('.workbuddy-credit')?.getAttribute('data-aside'),
-    ).toEqual('true')
-    // 决定账号停不停的那一格不该被标成摆着看的。
-    expect(
-      screen.getByText('Credits · 147.78 / 160.13').closest('.workbuddy-credit')?.getAttribute('data-aside'),
-    ).toBeNull()
+    expect(await screen.findByText('Credits · 166.78 / 180.13')).toBeDefined()
+    expect(screen.queryByText(/Extra credits/)).toBeNull()
+    expect(screen.getAllByRole('progressbar')).toHaveLength(1)
+    expect(screen.getByRole('progressbar', { name: 'Credits 剩余 93%' })).toBeDefined()
+    expect(screen.getByText('88.5 积分即将到期')).toBeDefined()
+    expect(screen.queryByText('12.25 积分即将到期')).toBeNull()
+    // 免费模型那一条整块删掉：标题与展开后的模型名都不再上屏。
+    expect(screen.queryByText('这些模型不扣这一格积分')).toBeNull()
+    expect(screen.queryByText('a、b、c 等 1 个')).toBeNull()
+    // 两格合成一条后不再挂任何「不拦账号 / 不影响继续使用」的说明。
+    expect(screen.queryByText(/不拦账号/)).toBeNull()
+    expect(screen.queryByText(/不影响继续使用/)).toBeNull()
   })
 
   test('签到按钮把账号交给 Core', async () => {
