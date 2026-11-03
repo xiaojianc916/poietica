@@ -92,6 +92,22 @@
 - **休息对用户可见**：`WorkBuddyAccount` 加 `restUntil` / `restReason`，设置页显示「冷却中 · N 分钟后重试」与原因。契约形状变了，`PROTOCOL_VERSION` 53 → 54；已装好的 Core 必须重新构建（`bun run core:build`）。
 - **不做的**（理由见 `.scratch/wb-audit/`）：MaxRPM（动机是 OpenRouter 的 20 RPM，WorkBuddy 是按天窗口）、MaxAccounts（动机是出口 IP 被封，本地反代不适用）、模型级休息（要新表、要按模型过滤，收益只在「免费模型窗口满、付费模型还能用」这一种情形，先记为待办）、per-account 并发闸门（omp 子代理默认 32 路，值得补，见待决问题）。
 
+### 2026-11-03 WorkBuddy 缓存命中率与会话亲和（第三轮）
+
+用户问「缓存命中率为什么这么低」。三份只读审计（数据通路 / 会话身份与黏号 / 请求体前缀稳定性）在 `.scratch/wb-cache-audit/`（gitignore），汇总见那里的 `00-summary.md`。
+
+**结论先纠正前提：命中率不低。** 旧路径（经外部 magpie 网关）加权 **99.14%**（release 3579 次请求），97.8% 的请求本身 ≥90%；266 轮的会话里 `cacheRead` 跌破上一轮 prompt 90% 只发生 1 次。用户看到的低值来自**面板口径**：`cacheHitRate = cacheRead/(input+cacheRead+cacheWrite)` 的分母与 omp 的 `calculatePromptTokens` 完全一致（不是 bug），但它取的是 `sessionManager.getUsageStatistics()` 的**会话累计**，含首条消息的冷启动。一条 8 请求里 3 条 0%（首条 + 隔 84 分钟 + 隔 21 小时）的会话显示 61.9%。按空闲间隔分桶：<1min 97.1%（n=4499）、1–5min 94.4%、5–15min 86.2%、>60min≈0 —— 上游是「内容前缀 + 短 TTL」，不是我们丢了缓存。`cache_write` 全库恒 0 也是上游只发 `prompt_tokens_details.cached_tokens` 的结构性结果（pi-ai 对 DeepSeek 形态显式置 0），不是丢数据。
+
+这一轮改的是审计里**真正值钱的那一层**：
+
+- **会话黏号（P0，magpie 的 affinity）**：选号原本**每个 HTTP 请求**重算一次（`proxy.ts` 的 `accounts()`），于是一轮工具循环里某个号失败一次就搬家，上游为这个会话攒的前缀缓存全作废。现在反代把 `x-conversation-id` 抽成 `sessionKeyOf()` 只读一次，同时喂给选号、上游头和成功回调；Core 侧加一张「会话 → 上次答出来的号」的内存表（`STICK_TTL_MS` 5 分钟 = magpie 的 `cacheCold`，`STICK_MAX` 512 = `sticksKept`），命中且该号**仍可交付**（未休息、非 expired、通道建得起来）时提到第一位，其余仍按 `orderedRecords` 补齐。**它只是排序提示不是锁**：钉住的号这次失败仍换下一个；不可交付时该号仍按原序参与名单（不凭空消失）。写入时按条数淘汰最旧，`dispose` 里清空 —— Core 是长期进程，TTL 只在读的时候清，只写不删就是泄漏。
+- **面板口径说明（P1）**：命中率那一行的 label 受基准截图约束不能动，改挂原生 `title` 说清是「本会话累计」、新会话或久置后偏低是正常的。算法与数字一字未改。
+- **逗号预置（P1，前缀稳定性）**：`systemOn` 里在 `developer → system` 之后调 `commaPausedOn(b)`，让 OPENERS 的逗号**第一轮就加好**，不再等被拒一次由 `commaSystems` 学会。学会那一轮 `messages[0]` 中途变形，实测共同前缀只剩 15.3%（另量法 10.8%），而且那个 Set 只在进程内存里，Core 每次重启都要重学。预置后第 1→2 轮共同前缀 57.3%，已与「完全不改写」的下界 57.2% 持平。**预置与 400 兜底必须走同一个函数**（`commaPausedOn` 的 `roles` 改成可选），否则两条路径各产一种形态、每轮翻一次比不预置更糟；`opened()` 的幂等由 `opener.test.ts` 钉住。
+- **选号读 aside 积分的真实消耗（P1）**：`rankOf` 过去把 `aside` 窗口全过滤（原注释「只是摆着看」），而 WorkBuddy 的真实消耗正记在 aside 那格：非 aside 的 `Credits` 是套餐额度（实测 `used` 恒 0），在烧的是 aside 的 `Extra credits`（实测 43.13/7105）。于是「剩余额度」这一维长期为 0，排序退化成只比到期日。现在 `used` 与 `lapse` 取所有窗口（含 aside），**tier 仍只按非 aside 分档** —— 90%/98% 说的是「套餐快用完了」，aside 不决定账号停不停，不该把它推进 low/spent。契约注释里 aside 的语义（「另一格才决定账号停不停」）说的是**停不停**，不是**排序**，两者互不冲突。
+- **不做的（P2，本轮未动）**：SALT 持久化（插件 `idFor` 每进程随机，导致发给上游的 `X-Conversation-ID` 每次重启都变；对命中率的影响未验证 —— 首条消息就有 62.8%/85.4% 命中说明上游不按 id 分区，确定代价在会话分组与可观测性）、黏号落盘（`affinity.json` 的等价物）、`/fresh` 挡掉、`prompt_cache_key` 试验。
+
+**未验证、不要当结论用**：① 直连路径只有 10 条样本且全是短会话，长会话稳态命中率无法判断；② 旧库 14 条超长 prompt（>300K）的缓存坍塌（折全局 0.35pp）是上游挤掉还是插件改写前缀分辨不出；③ 两个号之间前缀缓存是否按账号隔离；④ WorkBuddy 是否认 body 里的 `prompt_cache_key`。判定实验写在 `.scratch/wb-cache-audit/00-summary.md` §五。
+
 ### 2026-11-01 架构审查第二轮（CI 准入与边界补洞）
 
 - **CI 落点**：新增 `.github/workflows/gate.yml`（windows-latest、bun 1.4.4），按 `bun run all` 的四步**串行**跑；react-doctor 在 PR 上 `blocking: error`、push 到 main 仍只收趋势。此前完整闸门只在人的终端与发布链（`tooling/release/release.ts` 的 `gate()`，可跳过）里跑，合并前没有任何强制。

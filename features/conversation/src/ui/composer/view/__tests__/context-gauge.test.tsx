@@ -30,8 +30,10 @@ describe('上下文面板的外部打开', () => {
     expect(screen.getByText('系统提示词')).toBeDefined()
     /* 面板走原生 <dialog>：无障碍名与 dialog 语义由元素本身给，不再手写 role。 */
     expect(screen.getByRole('dialog').tagName).toBe('DIALOG')
-    /* 原「空闲 / 自动压缩缓冲」两行换成 omp 的会话用量：42K ÷ (6K + 42K + 2K) = 84% */
-    expect(screen.getByText('缓存命中率')).toBeDefined()
+    /* 原「空闲 / 自动压缩缓冲」两行换成 omp 的会话用量：42K ÷ (6K + 42K + 2K) = 84%
+       这一行是会话累计口径（含冷启动），低值不代表缓存坏了；标签字面锁死，口径走原生 title。 */
+    const hitRateLabel = screen.getByText('缓存命中率')
+    expect(hitRateLabel.closest('dt')?.getAttribute('title')).toContain('累计')
     expect(screen.getByText('84%')).toBeDefined()
     expect(screen.getByText('token 消耗')).toBeDefined()
     expect(screen.getByText('~52K')).toBeDefined()

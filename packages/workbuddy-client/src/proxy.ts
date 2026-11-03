@@ -32,7 +32,11 @@ export interface WorkBuddyProxyAccounts {
 export interface WorkBuddyProxyOptions {
   /** 只放行这一条路径；由宿主启动时生成，换一次进程换一次。 */
   readonly secret: string
-  readonly accounts: () => Promise<WorkBuddyProxyAccounts>
+  /**
+   * 账号名单。session 是这次请求的会话键（omp 的 x-conversation-id），宿主要把同一个会话
+   * 钉在同一个号上才能留住上游的前缀缓存；没有会话键时是 undefined。
+   */
+  readonly accounts: (session?: string) => Promise<WorkBuddyProxyAccounts>
   readonly models: () => readonly WorkBuddyModel[]
   /** 某个账号这次没答出来；宿主据此给它记休息时间，或按 signIn 决定标不标失效。 */
   readonly onAccountFailure?: (accountId: string, failure: WorkBuddyAccountFailure) => void
@@ -44,8 +48,9 @@ export interface WorkBuddyProxyOptions {
   /**
    * 这次答出来了（任何一次成功）。magpie 在每次成功应答上清掉该账号的连续失败计数与休息：
    * 偶发一次限流不该让这个号一路翻倍到半小时。
+   * session 是这一跳的会话键：宿主据此记住「这个会话上次是谁答的」，下一次先问它。
    */
-  readonly onAccountAnswered?: (accountId: string) => void
+  readonly onAccountAnswered?: (accountId: string, session?: string) => void
   /** 测试用；生产固定 WorkBuddy。 */
   readonly upstream?: string
   readonly log?: (message: string, data?: Record<string, unknown>) => void
@@ -261,13 +266,21 @@ async function readChatBody(request: Request): Promise<ChatBody> {
 }
 
 /**
+ * 这次请求属于哪个会话。omp 只在拿到会话 id 时才发这个头，所以缺头是常态而不是异常；
+ * 空串与只有空白都当没有 —— 这样的值做键会把所有没会话的请求黏成同一个会话。
+ */
+function sessionKeyOf(request: Request): string | undefined {
+  const session = request.headers.get(CONVERSATION_HEADER)?.trim()
+  return session === undefined || session === '' ? undefined : session
+}
+
+/**
  * 交给上游的头：内容类型与流式声明由反代自己定（插件会按 WorkBuddy 的要求覆盖它们）；
  * 会话身份透传下去 —— 插件靠它算 X-Conversation-ID，同一会话跨 Core 重启才是同一个会话。
  */
-function upstreamHeaders(request: Request): Record<string, string> {
+function upstreamHeaders(session: string | undefined): Record<string, string> {
   const headers: Record<string, string> = { 'content-type': 'application/json', accept: 'text/event-stream' }
-  const session = request.headers.get(CONVERSATION_HEADER)?.trim()
-  if (session !== undefined && session !== '') headers[SESSION_HEADER] = session
+  if (session !== undefined) headers[SESSION_HEADER] = session
   return headers
 }
 
@@ -287,6 +300,7 @@ async function askAccount(
   model: string | undefined,
   signal: AbortSignal,
   at: number,
+  session: string | undefined,
 ): Promise<Attempt> {
   let response: Response
   try {
@@ -305,7 +319,7 @@ async function askAccount(
     }
   }
   if (response.status < 400) {
-    options.onAccountAnswered?.(account.id)
+    options.onAccountAnswered?.(account.id, session)
     if (signInOf(response) === 'renewed') options.onAccountRenewed?.(account.id)
     return { done: passThrough(response) }
   }
@@ -324,12 +338,13 @@ async function sendToAccounts(
   model: string | undefined,
   signal: AbortSignal,
   now: () => number,
+  session: string | undefined,
 ): Promise<Response> {
   const last = accounts.length - 1
   let reason = 'WorkBuddy 没有可用账号'
   for (const [index, account] of accounts.entries()) {
     if (signal.aborted) return failure(499, '客户端已取消这次请求', 'request_cancelled')
-    const attempt = await askAccount(options, account, upstream, headers, body, model, signal, now())
+    const attempt = await askAccount(options, account, upstream, headers, body, model, signal, now(), session)
     if (attempt.done !== null) return attempt.done
     reason = attempt.reason
     /* 最后一个也换过了：把它手上那份应答如实交回去，不再空转 */
@@ -360,9 +375,11 @@ async function handleChat(
   if (request.method !== 'POST') return failure(405, 'method not allowed', 'method_not_allowed')
   const parsed = await readChatBody(request)
   if (!parsed.ok) return parsed.response
+  /* 三处都要用同一个会话键，且必须在同一个请求里只读一次——选中号与记住「谁答的」得是同一个会话 */
+  const session = sessionKeyOf(request)
   let handed: WorkBuddyProxyAccounts
   try {
-    handed = await options.accounts()
+    handed = await options.accounts(session)
   } catch (cause) {
     options.log?.('读取 WorkBuddy 账号失败', { error: String(cause) })
     return failure(500, 'WorkBuddy 账号状态不可用', 'accounts_unavailable')
@@ -376,11 +393,12 @@ async function handleChat(
     options,
     handed.accounts,
     upstream,
-    upstreamHeaders(request),
+    upstreamHeaders(session),
     parsed.body,
     modelOf(parsed.body),
     request.signal,
     now,
+    session,
   )
 }
 

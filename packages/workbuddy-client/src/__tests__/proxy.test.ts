@@ -346,6 +346,27 @@ describe('WorkBuddy 本地反代', () => {
     expect(plain.seen[0]?.headers.get('x-magpie-workbuddy-session')).toBeNull()
   })
 
+  test('选号时带上会话键，好让宿主把同一个会话钉在同一个账号上', async () => {
+    const asked: (string | undefined)[] = []
+    const handler = createWorkBuddyProxyHandler(
+      {
+        secret: SECRET,
+        accounts: async (session) => {
+          asked.push(session)
+          return { accounts: [{ id: 'a', session: sessionOf(async () => new Response('ok')) }] }
+        },
+        models: () => MODELS,
+        upstream: 'https://upstream.test/v2/chat/completions',
+      },
+      () => NOW,
+    )
+
+    await handler(chatRequest({ headers: { 'x-conversation-id': 'conv-1' } }))
+    /* 没有会话头（omp 没拿到会话 id 时不发）：按没有会话处理，别拿空串当键 */
+    await handler(chatRequest())
+    expect(asked).toEqual(['conv-1', undefined])
+  })
+
   test('绘图端点回一句人话，不是裸 404', async () => {
     const h = harnessOf(() => new Response('ok'))
     const response = await h.handler(new Request(`${BASE}/images/generations`, { method: 'POST', body: '{}' }))

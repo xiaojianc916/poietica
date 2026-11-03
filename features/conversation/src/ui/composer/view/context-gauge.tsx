@@ -127,6 +127,10 @@ function Ring({ fraction }: { readonly fraction: number }) {
   )
 }
 
+/* 命中率取自 omp 的会话累计用量，含首条消息的冷启动，所以刚开或久置后偏低是正常的：
+   标签字面受基准截图约束（AGENTS.md §9）不能改，这层口径只能挂原生 title 上说。 */
+const CACHE_HIT_HINT = '本会话累计：cacheRead ÷ 全部输入 token。会话越长越准，新会话或长时间闲置后偏低是正常的'
+
 /* 面板的明细：五行构成（有构成才画）+ 两行会话用量（有用量才画），两块都缺就整块不画。 */
 function GaugeRows({ breakdown, session }: Pick<GaugeLayout, 'breakdown' | 'session'>) {
   if (breakdown === undefined && session === undefined) {
@@ -143,7 +147,7 @@ function GaugeRows({ breakdown, session }: Pick<GaugeLayout, 'breakdown' | 'sess
       {/* 原「空闲 / 自动压缩缓冲」两行的位置与色块：数换成 omp 的会话用量累计 */}
       {session === undefined ? null : (
         <>
-          <GaugeRow label="缓存命中率" tint="cache" value={session.cacheHitRate} />
+          <GaugeRow hint={CACHE_HIT_HINT} label="缓存命中率" tint="cache" value={session.cacheHitRate} />
           <GaugeRow label="token 消耗" tint="spend" value={session.tokensSpent} />
         </>
       )}
@@ -151,10 +155,21 @@ function GaugeRows({ breakdown, session }: Pick<GaugeLayout, 'breakdown' | 'sess
   )
 }
 
-function GaugeRow({ label, tint, value }: { readonly label: string; readonly tint: string; readonly value: string }) {
+/** hint 是那一行的口径说明，只走原生 title：标签字面属于基准截图，不许动。 */
+function GaugeRow({
+  hint,
+  label,
+  tint,
+  value,
+}: {
+  readonly hint?: string
+  readonly label: string
+  readonly tint: string
+  readonly value: string
+}) {
   return (
     <div className="context-gauge__row">
-      <dt>
+      <dt title={hint}>
         <span aria-hidden="true" className={`context-gauge__swatch context-gauge__swatch--${tint}`} />
         {label}
       </dt>

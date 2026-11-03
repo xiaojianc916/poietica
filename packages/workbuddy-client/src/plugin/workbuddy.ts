@@ -1119,6 +1119,12 @@ function systemOn(b: Chat | null) {
     m.role = 'system'
     changed = true
   }
+  // OPENERS 的逗号在这里预置（developer 已并成 system 之后），而不是等被拒一次
+  // 再由 commaSystems 学会：学会那一轮 system 中途变形，messages[0] 变了意味着整段
+  // 历史的前缀全部作废（实测共同前缀只剩 15.3%），而那个 Set 只在进程内存里，Core
+  // 每次重启都要重学一遍。这里和 commaPaused 走同一个 commaPausedOn，两段路径因此
+  // 产出同一串字节 —— 同一条路径上不该有两种形态，否则每轮变一次比不预置更糟。
+  if (commaPausedOn(b)) changed = true
   if (asReasoning(b.messages)) changed = true
   if (b.messages[0]?.role !== 'system') {
     b.messages.unshift({ role: 'system', content: 'You are a helpful assistant.' })
@@ -1244,7 +1250,11 @@ function commaPaused(body: unknown, roles: Set<string>) {
 // when there was nothing to set a comma in. commaPaused is this on a body, and
 // the first send of a system prompt whose comma passed is this too
 // (commaSystems), so the two can never drift apart.
-function commaPausedOn(b: Chat | null, roles: Set<string>) {
+//
+// systemOn 预置逗号走的也是这一支（roles 省略）：预置与 400 兜底必须是同一个
+// 函数，否则同一条路径上会出现两种形态 —— 预置成一种、兜底再改成另一种，
+// 每轮翻一次比不预置更糟。
+function commaPausedOn(b: Chat | null, roles?: Set<string>) {
   const msgs = b?.messages
   if (!Array.isArray(msgs)) return false
   let changed = false
@@ -4483,7 +4493,7 @@ function makePlugin(site: Site) {
               // a system prompt whose comma passed once goes with the comma
               // set before the first send (see commaSystems), the way one
               // refused before goes moved above
-              if (sysKey && commaSystems.has(sysKey) && commaPausedOn(chat, new Set())) changed = true
+              if (sysKey && commaSystems.has(sysKey) && commaPausedOn(chat)) changed = true
               // shaped is a body as such a model takes it. The first try's
               // is made on the chat already parsed, after the move above,
               // as shaped would make it of the body written; a resend with

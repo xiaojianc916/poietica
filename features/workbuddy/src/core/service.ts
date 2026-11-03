@@ -60,6 +60,13 @@ const REST_PROBE_MS = MINUTE_MS
 /* 用到 90% / 98% 的账号排到后面：先撞它只会先吃一次额度用尽（magpie 的 fine / low / spent 三档） */
 const USED_LOW_PERCENT = 90
 const USED_SPENT_PERCENT = 98
+/*
+ * 「这个会话上次是谁答的」保鲜期 = magpie 的 cacheCold（affinity.go:54）：上游的前缀缓存过了这个
+ * 时长就不值得为它牺牲排序，黏着只会把下一个请求送给一个排序上更差的号。
+ */
+const STICK_TTL_MS = 5 * MINUTE_MS
+/* 黏号表的条数上限（magpie 的 sticksKept，affinity.go:79-81）：只靠 TTL 不够，过期条目没人清 */
+const STICK_MAX = 512
 
 export interface WorkBuddyServiceDeps {
   readonly repository: WorkBuddyRepository
@@ -273,6 +280,12 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
   const unknownStrikes = new Map<string, Strikes>()
   /* 休息中的号上一次被当探针放行是什么时候：全都在歇时每分钟探一次就够，不必每个请求都去撞 */
   const probeAt = new Map<string, number>()
+  /*
+   * 会话 → 上次答出来的号（magpie 的 affinity）。选号原本每个 HTTP 请求重算一次，于是一轮工具
+   * 循环里某个号失败一次就会搬家，上游为这个会话攒的前缀缓存全作废。这张表只是排序提示，
+   * 不是锁：钉住的号这次失败仍然换下一个。
+   */
+  const sticks = new Map<string, { accountId: string; at: number }>()
 
   const strikeRestMs = (
     strikes: Map<string, Strikes>,
@@ -307,7 +320,11 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
    * 先看用量分档（快用完的排后面），再看谁的积分先到期 —— 到期那一批是先花掉还是作废的分界，
    * 与界面那行「N 积分即将到期」是同一个数；都看不出来时保持原序（保住上游的提示缓存）。
    *
-   * 没读过的账号（usage 为 null）当「还很有余量、积分不会先到期」。aside 那格只是摆着看，不计。
+   * 没读过的账号（usage 为 null）当「还很有余量、积分不会先到期」。
+   *
+   * aside 窗口也要读 —— 它决定的是「账号停不停」以外的另一件事（见 contract/entities.ts），
+   * 而 WorkBuddy 的真实消耗正记在 aside 那格里：非 aside 的 Credits 是套餐额度（used 恒 0），
+   * 在烧的是 aside 的 Extra credits（实测 43.13 / 7105）。只读非 aside，这条判据就会长期是 0。
    */
   const tierOf = (used: number): number => {
     if (used >= USED_SPENT_PERCENT) return 2
@@ -323,12 +340,19 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
     return { used: sized ? amount : 0, lapse: Number.isFinite(at) ? at : Number.POSITIVE_INFINITY }
   }
 
+  /**
+   * 排序键里的三格。used 与 lapse 都取**所有**窗口（含 aside）：aside 记的是真实消耗与真实到期，
+   * 漏掉它这条判据等于长期为空。tier 例外，仍只按非 aside 的额度分档 —— 90% / 98% 那两档说的是
+   * 「这个号的套餐快用完了」，aside 那一格不决定账号停不停，不该把它推进 low / spent。
+   */
   const rankOf = (record: AccountRecord): { tier: number; lapse: number; used: number } => {
-    const windows = parseUsage(record)?.windows.filter((window) => !window.aside) ?? []
+    const windows = parseUsage(record)?.windows ?? []
     const ranks = windows.map(shareOf)
     const used = Math.max(0, ...ranks.map((rank) => rank.used))
     const lapse = Math.min(Number.POSITIVE_INFINITY, ...ranks.map((rank) => rank.lapse))
-    return { tier: tierOf(used), lapse, used }
+    const planned = windows.filter((window) => !window.aside).map(shareOf)
+    const plannedUsed = Math.max(0, ...planned.map((rank) => rank.used))
+    return { tier: tierOf(plannedUsed), lapse, used }
   }
 
   /** 排序键：[用量分档, 积分到期时刻, 已用比例, 首选?, 创建时间]。 */
@@ -383,33 +407,99 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
   }
 
   /**
-   * 交给反代的名单。可用的号按排序给；一个可用的都没有时，最多放一个「最快回来的」当探针 ——
-   * 上游刚说它受限 / 没额度 / 被限流，但那个判断可能是错的，每分钟探一次能让它自己回来，
-   * 而不是让用户在半小时里看着「还没有登录」。探针之外的情形回 429 + Retry-After（反代负责），
-   * 只有一个号都没有时才是 401（magpie 的 restLast + probeOne + quotaHeld 是同一套分层）。
+   * 这个号现在还能不能交付：没在休息、没标失效、通道建得起来。
+   * 黏住的号也要过这一关——黏的是一个「上次答出来的」号，它此刻可能已经被上游拒过。
    */
-  async function proxyAccounts(): Promise<WorkBuddyProxyAccounts> {
-    const at = now()
-    const records = orderedRecords(at)
-    const usable = records.filter((record) => record.restUntil <= at)
-    const resting = records.filter((record) => record.restUntil > at)
+  async function deliverable(record: AccountRecord, at: number): Promise<WorkBuddySession | null> {
+    if (record.restUntil > at || record.status === 'expired') return null
+    try {
+      return await sessionFor(record)
+    } catch (cause) {
+      logger.warn('WorkBuddy 账号通道建立失败', { account: record.id, error: messageOf(cause) })
+      return null
+    }
+  }
+
+  /**
+   * 记住这个会话这一跳是谁答的。写入时按条数淘汰最旧的一条：
+   * Core 是长期运行的进程，只写不删的表就是内存泄漏（AGENTS.md §8.4），TTL 只在读的时候才清。
+   */
+  function noteStick(session: string | undefined, accountId: string, at: number): void {
+    if (session === undefined) return
+    sticks.set(session, { accountId, at })
+    if (sticks.size <= STICK_MAX) return
+    let oldestKey: string | null = null
+    let oldestAt = Number.POSITIVE_INFINITY
+    for (const [key, stick] of sticks) {
+      if (stick.at >= oldestAt) continue
+      oldestKey = key
+      oldestAt = stick.at
+    }
+    if (oldestKey !== null) sticks.delete(oldestKey)
+  }
+
+  /**
+   * 这个会话上次答出来的号。超过保鲜期就当没记过——过期条目顺手删掉，
+   * 免得表只为「最近的请求」无限增长。
+   */
+  function stuckRecord(session: string | undefined, at: number): AccountRecord | null {
+    if (session === undefined) return null
+    const stick = sticks.get(session)
+    if (stick === undefined) return null
+    if (at - stick.at > STICK_TTL_MS) {
+      sticks.delete(session)
+      return null
+    }
+    return repository.get(stick.accountId)
+  }
+
+  /**
+   * 可用的号按顺序建通道，黏住的号提前到第一位，其余仍按 orderedRecords 补齐 ——
+   * 黏号只改「先问谁」：这个号这次要是失败，反代的换号循环照样往下走。
+   * 建不起通道的号只是这次没进名单，不影响别的号。
+   */
+  async function handedAccounts(
+    usable: readonly AccountRecord[],
+    stuck: AccountRecord | null,
+    at: number,
+  ): Promise<{ id: string; session: WorkBuddySession }[]> {
+    const stuckSession = stuck === null ? null : await deliverable(stuck, at)
+    /* 没提前就仍按排序参与后面：休息 / 失效的号照旧留在名单里（排序靠后），不凭空消失 */
+    const promoted = stuck !== null && stuckSession !== null
+    const rest = promoted ? usable.filter((record) => record.id !== stuck.id) : usable
     const handed: { id: string; session: WorkBuddySession }[] = []
-    for (const record of usable) {
+    if (promoted) handed.push({ id: stuck.id, session: stuckSession })
+    for (const record of rest) {
       try {
         handed.push({ id: record.id, session: await sessionFor(record) })
       } catch (cause) {
         logger.warn('WorkBuddy 账号通道建立失败', { account: record.id, error: messageOf(cause) })
       }
     }
+    return handed
+  }
+
+  /**
+   * 交给反代的名单。可用的号按排序给；一个可用的都没有时，最多放一个「最快回来的」当探针 ——
+   * 上游刚说它受限 / 没额度 / 被限流，但那个判断可能是错的，每分钟探一次能让它自己回来，
+   * 而不是让用户在半小时里看着「还没有登录」。探针之外的情形回 429 + Retry-After（反代负责），
+   * 只有一个号都没有时才是 401（magpie 的 restLast + probeOne + quotaHeld 是同一套分层）。
+   */
+  async function proxyAccounts(session: string | undefined): Promise<WorkBuddyProxyAccounts> {
+    const at = now()
+    const records = orderedRecords(at)
+    const usable = records.filter((record) => record.restUntil <= at)
+    const resting = records.filter((record) => record.restUntil > at)
+    const handed = await handedAccounts(usable, stuckRecord(session, at), at)
     if (handed.length > 0) return { accounts: handed }
     if (resting.length === 0) return { accounts: [] }
     const soonest = resting[0] as AccountRecord
     const lastProbe = probeAt.get(soonest.id) ?? 0
     if (at - lastProbe < REST_PROBE_MS) return { accounts: [], restingUntil: soonest.restUntil }
     try {
-      const session = await sessionFor(soonest)
+      const probe = await sessionFor(soonest)
       probeAt.set(soonest.id, at)
-      return { accounts: [{ id: soonest.id, session }] }
+      return { accounts: [{ id: soonest.id, session: probe }] }
     } catch (cause) {
       logger.warn('WorkBuddy 账号通道建立失败', { account: soonest.id, error: messageOf(cause) })
       return { accounts: [], restingUntil: soonest.restUntil }
@@ -569,10 +659,11 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
       models: chatModels,
       onAccountFailure: noteAccountFailure,
       /* 任何一次成功应答都说明这个号是好的：连续失败计数清零、休息解除（magpie 的 served） */
-      onAccountAnswered: (accountId) => {
+      onAccountAnswered: (accountId, session) => {
         const at = now()
         noteAnswered(accountId)
         probeAt.delete(accountId)
+        noteStick(session, accountId, at)
         const record = repository.get(accountId)
         if (record !== null && record.restUntil > at) {
           repository.clearRest(accountId, at)
@@ -903,6 +994,8 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
       sessions.clear()
       rateLimitStrikes.clear()
       unknownStrikes.clear()
+      /* 黏号表按会话累积：进程在就一直在，Core 重启就该忘干净（magpie 落盘那是 P2） */
+      sticks.clear()
       void stopServer(false).catch((cause) => logger.warn('关闭 WorkBuddy 反代失败', { error: messageOf(cause) }))
     },
     snapshot,

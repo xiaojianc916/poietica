@@ -438,6 +438,163 @@ describe('WorkBuddy 账号休息状态机', () => {
   })
 })
 
+/*
+ * 真实账号的积分记在 aside 那一格里：非 aside 的 Credits 是套餐额度（used 恒 0），
+ * 真正在烧的是 aside 的 Extra credits（实测 43.13 / 7105）。所以排序必须读 aside，
+ * 否则「剩余额度」这一维在绝大多数时间都是 0，排序退化成只比到期日。
+ */
+function usageJsonOfSpend(creditsUsed: number, extraUsed: number, runsOutAt: string): string {
+  const window = (name: string, used: number, limit: number, aside: boolean) => ({
+    name,
+    used,
+    amount: used,
+    limit,
+    balance: null,
+    unit: 'credits',
+    display: `${used} / ${limit}`,
+    resetsAt: null,
+    runsOutAt,
+    span: null,
+    models: null,
+    refused: false,
+    aside,
+    runsOut: null,
+    notModels: null,
+  })
+  return JSON.stringify({
+    plan: 'Free plan',
+    windows: [window('Credits', creditsUsed, 500, false), window('Extra credits', extraUsed, 5000, true)],
+    signIn: 'kept',
+    error: null,
+  })
+}
+
+/* 每格积分的 runsOutAt 决定排序里的 lapse：越早到期的越先被问（先花掉，免得作废） */
+function usageJsonOf(runsOutAt: string): string {
+  return JSON.stringify({
+    plan: 'Free plan',
+    windows: [
+      {
+        name: 'Credits',
+        used: 7.5,
+        amount: 12,
+        limit: 160,
+        balance: null,
+        unit: 'credits',
+        display: '12 / 160',
+        resetsAt: '2026-11-03T00:00:00.000Z',
+        runsOutAt,
+        span: null,
+        models: null,
+        refused: false,
+        aside: false,
+        runsOut: null,
+        notModels: null,
+      },
+    ],
+    signIn: 'kept',
+    error: null,
+  })
+}
+
+/** 两个号的库：a1 的积分先到期，所以不黏号时它恒排第一。 */
+function seedTwo(runsOutAtA1: string, runsOutAtA2: string): Harness {
+  const h = seed({ usageJson: usageJsonOf(runsOutAtA1) })
+  h.repository.insert({
+    ...(h.repository.get('a1') as AccountRecord),
+    id: 'a2',
+    uid: 'u2',
+    label: '第二个',
+    usageJson: usageJsonOf(runsOutAtA2),
+    createdAt: NOW + 1,
+  })
+  return h
+}
+
+describe('WorkBuddy 会话黏号', () => {
+  test('同一会话的第二个请求仍先问上次答出来的号', async () => {
+    const h = seedTwo('2026-11-05T00:00:00.000Z', '2026-11-10T00:00:00.000Z')
+    const options = await started(h)
+    expect((await options.accounts('conv-1')).accounts.map((account) => account.id)).toEqual(['a1', 'a2'])
+
+    options.onAccountAnswered?.('a1', 'conv-1')
+    /* 把 a1 的到期日推到 a2 后面：没有黏号的话，下一个请求就该搬家了 */
+    h.repository.updateUsage('a1', 'Free plan', usageJsonOf('2026-11-20T00:00:00.000Z'), NOW, NOW)
+    expect((await options.accounts('conv-1')).accounts.map((account) => account.id)).toEqual(['a1', 'a2'])
+    /* 黏的是会话，不是号：别的会话照排序来 */
+    expect((await options.accounts('conv-2')).accounts.map((account) => account.id)).toEqual(['a2', 'a1'])
+    h.close()
+  })
+
+  test('超过黏号保鲜期就不再黏，回到按排序选', async () => {
+    const h = seedTwo('2026-11-05T00:00:00.000Z', '2026-11-10T00:00:00.000Z')
+    const options = await started(h)
+    options.onAccountAnswered?.('a1', 'conv-1')
+    h.repository.updateUsage('a1', 'Free plan', usageJsonOf('2026-11-20T00:00:00.000Z'), NOW, NOW)
+
+    /* 5 分钟是 magpie 的 cacheCold：上游的前缀缓存冷了，黏着也换不来命中 */
+    h.setNow(NOW + 5 * 60_000)
+    expect((await options.accounts('conv-1')).accounts.map((account) => account.id)).toEqual(['a1', 'a2'])
+    h.setNow(NOW + 5 * 60_000 + 1)
+    expect((await options.accounts('conv-1')).accounts.map((account) => account.id)).toEqual(['a2', 'a1'])
+    h.close()
+  })
+
+  test('黏住的号在休息或失效时不再黏', async () => {
+    const resting = seedTwo('2026-11-05T00:00:00.000Z', '2026-11-10T00:00:00.000Z')
+    const restOptions = await started(resting)
+    restOptions.onAccountAnswered?.('a1', 'conv-1')
+    resting.repository.updateUsage('a1', 'Free plan', usageJsonOf('2026-11-20T00:00:00.000Z'), NOW, NOW)
+    /* 刚被限流：黏它等于把下一个请求送去撞一个已知还在休息的号 */
+    restOptions.onAccountFailure?.('a1', { kind: 'rate_limit', status: 429, signIn: null })
+    expect((await restOptions.accounts('conv-1')).accounts.map((account) => account.id)).toEqual(['a2'])
+    resting.close()
+
+    const expired = seedTwo('2026-11-05T00:00:00.000Z', '2026-11-10T00:00:00.000Z')
+    const expiredOptions = await started(expired)
+    expiredOptions.onAccountAnswered?.('a1', 'conv-1')
+    expired.repository.updateUsage('a1', 'Free plan', usageJsonOf('2026-11-20T00:00:00.000Z'), NOW, NOW)
+    expired.repository.setStatus('a1', 'expired', 'WorkBuddy 拒绝了这次登录，请重新登录', NOW)
+    /* 失效的号排序里已经排到后面了，黏号不该把它拉回第一位 */
+    expect((await expiredOptions.accounts('conv-1')).accounts.map((account) => account.id)).toEqual(['a2', 'a1'])
+    expired.close()
+  })
+})
+
+describe('WorkBuddy 选号读 aside 积分的真实消耗', () => {
+  /* 两个号的到期日相同，唯一的差别在用掉多少积分：真正在烧的是 aside 的 Extra credits */
+  function seedSpend(a1Extra: number, a2Extra: number): Harness {
+    const at = '2026-11-05T00:00:00.000Z'
+    const h = seed({ usageJson: usageJsonOfSpend(0, a1Extra, at) })
+    h.repository.insert({
+      ...(h.repository.get('a1') as AccountRecord),
+      id: 'a2',
+      uid: 'u2',
+      label: '第二个',
+      usageJson: usageJsonOfSpend(0, a2Extra, at),
+      createdAt: NOW + 1,
+    })
+    return h
+  }
+
+  test('aside 窗口用得更满的号排到后面', async () => {
+    const h = seedSpend(4500, 100)
+    const options = await started(h)
+    /* 不给会话键：这条只看排序，不掺黏号 */
+    expect((await options.accounts(undefined)).accounts.map((account) => account.id)).toEqual(['a2', 'a1'])
+    h.close()
+  })
+
+  test('aside 窗口不参与 90% / 98% 的分档', async () => {
+    /* a1 的 aside 用掉 99%：按已用比例它该排后面，但不该被推进 low / spent 档 */
+    const h = seedSpend(4950, 5000)
+    const options = await started(h)
+    /* 两格的档位都还是 fine（0），所以只按已用比例排：5000/5000 比 4950/5000 更满 */
+    expect((await options.accounts(undefined)).accounts.map((account) => account.id)).toEqual(['a1', 'a2'])
+    h.close()
+  })
+})
+
 describe('WorkBuddy 签到退避', () => {
   test('签到失败会写下一次重试时刻，30 分钟内不再自动去问', async () => {
     const timeline: number[] = []
