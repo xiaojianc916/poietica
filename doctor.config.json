@@ -1,6 +1,6 @@
 {
   "$schema": "https://react.doctor/schema/config.json",
   "ignore": {
-    "files": ["**/out/**", "out/**"]
+    "files": ["**/out/**", "out/**", ".scratch/**", "**/.scratch/**"]
   }
 }

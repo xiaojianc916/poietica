@@ -126,7 +126,7 @@
 - **压缩载荷词表**：`packages/transcript` 新增 `compactionMarkerPayloadSchema` / `compactionMarkerPayload()`；引擎写、UI 读同一份。删掉没有生产者的 `blocked` 状态与 `trigger` / `instruction` 字段——它们只存在于消费侧的猜测里。
 - **删除未接线的会话控件栈**：`SessionControlsStore`（452 行）、`SessionControlsContext`、`ArrivalOrder`、`ThreadPort` / `AgentThread` / `AgentHistory` 全部没有生产数据源；生产实际使用的是 `stores.controls`。`TranscriptSink.ownerOf` 的唯一读者也随之删除。`TurnMark` 移到 `shared/model/turn-mark.ts`。
 - **草稿迁移（已完成）**：`Draft` 现在只存 Lexical 的 `SerializedEditorState` + `assets` + `configuration` + 入口页 `selection`；`prompt-input` 直接读 `ComposerStoreContext`，每次编辑器更新与附件/配置变化都写回文档，盘上文档晚到时只要人还没动手就装回。离屏 `ComposerDrafts` 映射已删除；旧扁平形状由 `isDraft` 判掉、按「盘上没有」处置（项目未发布，不写数据搬运器）。
-- **计时测试收口**：`ThreadDisclosure` 新增可注入的收起调度口（默认仍是 `EXIT_SECONDS`），测试改用手动调度，不再在全量并发下等真实 timer。旧记录里「收起动画用例稳定超时」的那一条不再作为待决。
+- **计时测试收口**：`ThreadDisclosure` 新增可注入的收起调度口（默认仍是 `EXIT_SECONDS`），测试改用手动调度，不再在全量并发下等真实 timer。旧记录里「收起动画用例稳定超时」的那一条不再作为待决。（2026-11-04 该注入缝已去掉，改为 transitionend 收口，见下节。）
 
 ### 审查面板的统计只有一份来源（2026-11-01）
 
@@ -276,6 +276,15 @@
 - **cli 自派发 / browser relay**：`cli.ts` 与 18.10.3 逐字相同（自派发判据不变）；relay 只给 `hello` 加了可选 `browserSession?`，`browser-relay-conformance.ts` 仍通过。
 - **测试环境的日志目录**：18.12.6 起 `getLogsDir()` 在 `PI_TEST_RUNTIME=1` 时返回 `<tmpdir>/omp-test-logs-<uid>`（隔离根之外）。T-ISO-5 夹具改为模拟生产启动（`PI_TEST_RUNTIME=0`）；生产 Core 本就被 `buildCoreLaunch` 剔掉全部 `PI_*`，`core:probe` 的目录泄漏检查照旧通过。
 - **产物**：`core:build` / `core:probe` / `core:verify-dist` 全绿。缺 `modern` natives 是 18.10.3 就有的现象（发布版 omp 不带 `packages/`、`docs/`，natives 包只含 baseline），不是本次升级引入。当时 manifest 里的 `legacyPiPlugin: "stub"` 已随构建脚本改动删除（见下方「legacy-pi 空注册表」）。
+
+### react-doctor 满分整改（2026-11-04）
+
+- **范围**：根 `doctor.config.json` 只忽略 `.scratch/**`（侦察用的第三方副本，gitignore 内、不是产品代码），其余扫描到的问题逐条改在代码里，最终全仓 100 分、无诊断。
+- **HTTP 状态先于正文**：`workbuddy-client` 的 `call()` 与 `liveModels()` 现在先看 `res.ok` 再碰正文；失败分支仍读正文取上游的 `{code,msg}`，只是不再把错误页当成功数据解析。
+- **热点小项**：`dayLabel` 的 `Intl.DateTimeFormat` 提到模块级；`poll()` 的重试码名单建成 `Set`。
+- **状态面板的可控开合**：`TaskPanelContent` 的可见格顺序与分隔线由 `expandedSections()` / `dividers` 现推（分隔线 = 可见名单里除第一格之外），开合状态收进 `useSectionAccordion()`；渲染出的格子与分隔线跟原来逐条一致，函数不再超复杂度阈值。
+- **展开壳的收起收口**：`ThreadDisclosure` 去掉了 props 注入的收成调度口 —— 那条缝在 effect 里调父组件的函数，正是 doctor 两条规则盯的形态。现在收起结束由壳自己的 `transitionend`（只认 `grid-template-rows`、只认自己这一层）报告，另配 `2 × EXIT_SECONDS` 兜底计时器管「补间根本没跑」的情形（窗口不可见 / 未绘制时事件不会来）；测试直接派发该事件，仍在同一同步步内断言，不押真实 timer。
+- **保留的两处抑制**：`features/workbuddy/src/core/service.ts` 的建通道与签到循环是故意串行的（逐个向同一上游登录 / 签到），按仓库惯例在循环体内 `react-doctor-disable-next-line react-doctor/async-await-in-loop` 并写明原因。
 
 ## 历史条目索引
 
