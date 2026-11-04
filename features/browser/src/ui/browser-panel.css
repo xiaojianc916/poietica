@@ -1,15 +1,5 @@
-/* 浏览器面板的取色。只留浏览器自己那三条规则（标签页图标↔叉叉、标签条右缘的让位时间轴、深色下的悬浮）：工具栏下缘线、启动器底色、
- * 标签条让位已在 workbench 的 auxiliary.css 里，这里不写第二遍 —— 两份同特异性的声明谁赢取决于打包顺序，那是不可预测的。 */
-
-/* 标签页图标↔叉叉：只听图标那 14px 的悬浮，整行悬浮不触发。关叉平时不收指针事件不行：点按目标得是它，onClick 才认得出要关标签。 */
-.auxiliary-tab-icon:hover .auxiliary-tab-icon__glyph {
-  opacity: 0;
-}
-
-.auxiliary-tab-icon:hover .auxiliary-tab-icon__close {
-  opacity: 1;
-  pointer-events: auto;
-}
+/* 浏览器面板的取色。标签条图标↔叉叉由 workbench 的 auxiliary.css 负责（那是坞自己渲染的节点）：工具栏下缘线、启动器底色、
+ * 标签条让位也在那里，这里不写第二遍 —— 两份同特异性的声明谁赢取决于打包顺序，那是不可预测的。 */
 
 /*
  * agent 正在驾驶：**网页内容**四周一圈彩线，线上几道波光沿周长走。取代原来卡内那条顶部信息带 ——
@@ -123,10 +113,5 @@
   /* 减弱动效：不出流光，只留那圈常亮的线（状态仍然看得见，只是不闪）。 */
   [data-browser-viewport][data-browser-agent-ring]::after {
     background: var(--browser-agent-ring-line);
-  }
-
-  .auxiliary-tab-icon__glyph,
-  .auxiliary-tab-icon__close {
-    transition: none;
   }
 }

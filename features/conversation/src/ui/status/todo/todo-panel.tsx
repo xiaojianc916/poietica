@@ -274,7 +274,7 @@ function GitStatusSection({
               <span className="status-panel__git-label">{git.branch ?? '分离 HEAD'}</span>
             </>
           ) : (
-            <GitBranchPicker {...picker} />
+            <GitBranchPicker {...picker} variant="row" />
           )}
         </div>
         <button

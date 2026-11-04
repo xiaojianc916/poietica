@@ -43,6 +43,18 @@
   --segmented-thumb: #3a3a3a;
 }
 
+/*
+ * raised：给底色比卡面更亮一档的页面（设置页）。深色下轨道与滑块各再抬一档，浅色沿用默认。
+ * 取值与控制轨道的角色绑定，消费方不再改写 `.segmented-control__thumb` 的内部属性。
+ */
+:root[data-theme='dark'] .segmented-control[data-tone='raised'] {
+  --segmented-track: #2e2e2e;
+}
+
+:root[data-theme='dark'] .segmented-control[data-tone='raised'] .segmented-control__thumb {
+  --segmented-thumb: #424242;
+}
+
 .segmented-control__option {
   position: relative;
   display: flex;

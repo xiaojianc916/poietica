@@ -13,6 +13,11 @@ export interface SegmentedControlProps<TValue extends string> {
   readonly name: string
   readonly onValueChange: (value: TValue) => void
   readonly options: readonly SegmentedOption<TValue>[]
+  /**
+   * 深色下的一组抬升取值。默认档落在卡面 #232323 上；`raised` 把轨道与滑块各抬一档，
+   * 给页面底色比卡面更亮、需要一层分档的表单用。浅色不变。
+   */
+  readonly tone?: 'default' | 'raised'
   readonly value: TValue
 }
 
@@ -23,6 +28,7 @@ export function SegmentedControl<TValue extends string>({
   name,
   onValueChange,
   options,
+  tone,
   value,
 }: SegmentedControlProps<TValue>) {
   const index = Math.max(
@@ -36,7 +42,12 @@ export function SegmentedControl<TValue extends string>({
   }
 
   return (
-    <div aria-label={label} className={cn('segmented-control', className)} role="radiogroup">
+    <div
+      aria-label={label}
+      className={cn('segmented-control', className)}
+      data-tone={tone === 'raised' ? 'raised' : undefined}
+      role="radiogroup"
+    >
       <span className="segmented-control__thumb" style={thumbStyle} />
 
       {options.map((option) => (

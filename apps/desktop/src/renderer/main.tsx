@@ -25,13 +25,10 @@ document.documentElement.style.setProperty(
 )
 scrollbarProbe.remove()
 
-const HOME_ROUTE = { surface: 'conversation.home', params: {} } as const
-
 const kernel = createUiKernel({
   features: [workbenchFeature, ...uiFeatures],
   errorMessages: { ...engineErrorMessages, ...appContract.errorMessages },
   validateResults: import.meta.env.DEV,
-  defaultRoute: HOME_ROUTE,
   /*
    * 换路由的补间：浏览器先拍旧画面，再在 update 里把路由落地（helper 内部 flushSync，
    * 否则新快照拍在旧 DOM 上，补出来是同一张脸）。内核只认这个签名，实现在 design-system，

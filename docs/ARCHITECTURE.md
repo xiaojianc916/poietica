@@ -2,7 +2,7 @@
 
 ## 1. 一句话
 
-Poietica 是「三个进程 × 三个微内核 × 20 个平台包 + 17 个功能包」的 Windows 桌面 agent 应用：
+Poietica 是「三个进程 × 三个微内核 × 20 个平台包 + 18 个功能包」的 Windows 桌面 agent 应用：
 omp（Oh My Pi）经引擎端口接入，随包发布，与用户机器上的全局 omp 完全隔离。
 
 ```
@@ -33,7 +33,7 @@ omp（Oh My Pi）经引擎端口接入，随包发布，与用户机器上的全
 
 ```
 L5  汇总与外壳   protocol · workbench · apps/core · apps/desktop
-L4  功能         features/*（17 个垂直功能包）
+L4  功能         features/*（18 个垂直功能包）
 L3  内核与适配   core-kernel · host-kernel · ui-kernel · design-system · engine-omp · engine-testkit
 L2  运行时工具   runtime-layout · process-kit · fs-kit · logging · storage-sqlite · git · test-kit
 L1  契约与模型   contract-kit · rpc · transcript · engine
@@ -65,6 +65,9 @@ L0  基础         foundation
 | `ui`       | dom           | 本功能 `contract` / `ui-api`、`ui-kernel`、`design-system`、react、zustand、**依赖功能的 `contract` / `ui-api`** |
 
 任何子入口都不得 import 其它功能的 `core` / `host` / `ui`。
+
+`ui` / `ui-api` 表里的「可以 import」只列业务协作入口；L0–L1 的 neutral 包（`foundation`、`contract-kit`、`rpc`、
+`transcript`、`engine`）按层级同样可用，不重复展开。系统能力仍按原表走 `platform` 契约或内核服务。
 
 功能之间还有**方向**：`tooling/depcruise/feature-tiers.json` 把 L4 分成五级——0 平台（platform）、1 基础状态
 （preferences、workspaces）、2 能力（attachments、models）、3 主干（conversation）、4 插件（其余）。产品代码只能依赖

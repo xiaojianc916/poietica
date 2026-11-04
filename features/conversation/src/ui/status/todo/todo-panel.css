@@ -438,9 +438,8 @@
   background: var(--cp-hover);
 }
 
-/* 三行的图标都用正文墨，含 picker 的 trigger 首枚 svg（picker 自己那支是 muted，在这里让位）。 */
-.status-panel__git-row .status-panel__item-icon,
-.status-panel__git-row--branch .git-branch-picker__trigger svg:first-child {
+/* 三行的图标都用正文墨；branch picker 的 row 变体自己处理首枚图标。 */
+.status-panel__git-row .status-panel__item-icon {
   color: var(--cp-ink);
 }
 
@@ -477,16 +476,6 @@
 
 .status-panel__git-row--branch > * {
   inline-size: 100%;
-}
-
-.status-panel__git-row--branch .git-branch-picker__trigger {
-  block-size: 32px;
-  inline-size: 100%;
-  justify-content: flex-start;
-  gap: 8px;
-  padding: 0 8px;
-  border-radius: 8px;
-  font-size: var(--status-panel-font-size);
 }
 
 .status-panel__git-stats {

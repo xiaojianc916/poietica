@@ -84,11 +84,11 @@ function ProviderAuth({
     <div className="models-auth">
       {accountCapable ? (
         <SegmentedControl
-          className="models-auth__methods"
           label="认证方式"
           name={`models-auth-${providerId}`}
           onValueChange={setPicked}
           options={METHODS}
+          tone="raised"
           value={method}
         />
       ) : null}

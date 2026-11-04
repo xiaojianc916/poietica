@@ -484,11 +484,11 @@ function AddProviderItem({
       <AccordionPanel className="models-accordion-panel">
         <div className="models-accordion-panel__inner">
           <SegmentedControl
-            className="models-add-modes"
             label="添加方式"
             name="models-add-mode"
             onValueChange={setMode}
             options={ADD_MODES}
+            tone="raised"
             value={mode}
           />
           <div className="models-tab-panel">

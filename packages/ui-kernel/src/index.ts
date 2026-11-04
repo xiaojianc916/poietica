@@ -73,4 +73,10 @@ export {
   type UiLogging,
   UiLoggingToken,
 } from './services'
-export { createFeatureStore, type FeatureStore, useFeatureStore, useFeatureStoreShallow } from './store'
+export {
+  createFeatureStore,
+  type FeatureStore,
+  type ReadonlyFeatureStore,
+  useFeatureStore,
+  useFeatureStoreShallow,
+} from './store'

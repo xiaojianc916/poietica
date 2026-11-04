@@ -7,6 +7,14 @@
   flex: none;
 }
 
+/* 这三处图标的盒子由组件自己定：消费方不再按类名补 block-size / inline-size。 */
+.workspace-picker__repositories-action svg,
+.workspace-picker__field svg,
+.workspace-picker__context-trigger svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+}
+
 .workspace-picker__context-trigger svg {
   color: var(--cp-ink-muted);
 }
@@ -105,14 +113,14 @@
   transform: scale(0.94);
 }
 
-/* 列表原本用 --cp-mast-gap 作顶部内边距，第一行工作区离工具栏过远；这里只保留一道最小的视觉间隔，不影响列表底部留白。 */
-.workspace-picker[data-placement='sidebar'] + .assistant-threads {
+/* 列表原本用 --cp-mast-gap 作顶部内边距，第一行工作区离工具栏过远；这里只保留一道最小的视觉间隔，不影响列表底部留白。
+ * 只认「紧邻的下一个兄弟」，不点名具体功能的列表类名。 */
+.workspace-picker[data-placement='sidebar'] + * {
   padding-block-start: calc(var(--ui-hairline) * 2);
 }
 
 /* 收起时只隐藏下面整张会话导航，Repositories 工具栏本身继续保留。 */
-.workspace-picker[data-placement='sidebar']:has(.workspace-picker__repositories-title[aria-expanded='false'])
-  + .assistant-threads {
+.workspace-picker[data-placement='sidebar']:has(.workspace-picker__repositories-title[aria-expanded='false']) + * {
   display: none;
 }
 

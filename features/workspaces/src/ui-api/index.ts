@@ -1,5 +1,5 @@
 import { defineServiceToken } from '@poietica/foundation'
-import { type FeatureStore, useFeatureStoreShallow } from '@poietica/ui-kernel'
+import { type ReadonlyFeatureStore, useFeatureStoreShallow } from '@poietica/ui-kernel'
 import type { Workspace } from '../contract'
 
 export interface WorkspacesState {
@@ -12,7 +12,8 @@ export interface WorkspacesState {
  * `setActive` 也收 null —— 列表被清空（项目被移除、目录失效）时它要能回到「还没选」。
  */
 export interface WorkspacesUi {
-  readonly store: FeatureStore<WorkspacesState>
+  /** 跨功能只读：订阅/取快照即可；切换项目走 `setActive`，不要直接 `setState`。 */
+  readonly store: ReadonlyFeatureStore<WorkspacesState>
   active(): Workspace | null
   setActive(id: string | null): void
   subscribeActive(listener: (workspace: Workspace | null) => void): () => void

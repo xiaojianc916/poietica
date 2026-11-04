@@ -15,7 +15,8 @@
   width: 1px;
   pointer-events: none;
   background: var(--file-tree-guide);
-  opacity: 0;
+  /* 宿主可以让整块区域悬停时亮出引导线：在自己的祖先上写这个变量，不按内部类名改。 */
+  opacity: var(--file-tree-guide-opacity, 0);
 }
 
 .file-tree:hover .file-tree__guide {

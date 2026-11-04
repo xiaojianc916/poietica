@@ -30,6 +30,19 @@
 }
 
 /*
+ * 标签页图标↔叉叉：只听图标那 14px 的悬浮，整行悬浮不触发。关叉平时不收指针事件不行：点按目标得是它，
+ * onClick 才认得出要关标签。节点由 auxiliary-dock.tsx 渲染，规则归坞；功能侧不再改写这里。
+ */
+.auxiliary-tab-icon:hover .auxiliary-tab-icon__glyph {
+  opacity: 0;
+}
+
+.auxiliary-tab-icon:hover .auxiliary-tab-icon__close {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/*
  * 标签条右缘让位在全屏进出时的收回与归还。令牌缺席时整条声明失效、退化成瞬时切换，不是错误。
  */
 .auxiliary-tab-strip__row {
@@ -57,6 +70,11 @@
 
 @media (prefers-reduced-motion: reduce) {
   .auxiliary-tab-strip__row {
+    transition: none;
+  }
+
+  .auxiliary-tab-icon__glyph,
+  .auxiliary-tab-icon__close {
     transition: none;
   }
 }

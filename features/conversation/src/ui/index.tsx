@@ -11,6 +11,7 @@ import { createConversationSubscriptions } from './setup/subscriptions'
 export default defineUiFeature({
   id: 'conversation',
   dependsOn: ['workspaces', 'preferences', 'platform', 'attachments'],
+  defaultRoute: { surface: 'conversation.home', params: {} },
   setup(ctx) {
     const setup = createConversationSetup(ctx)
     const actions = createConversationActions(setup)

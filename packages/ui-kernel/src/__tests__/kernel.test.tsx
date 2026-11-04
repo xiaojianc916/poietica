@@ -28,6 +28,53 @@ async function startKernel(o: {
 }
 
 describe('ui-kernel', () => {
+  test('defaultRoute 缺省时取功能声明；显式 option 可覆盖', async () => {
+    const feature = defineUiFeature({
+      id: 'alpha',
+      defaultRoute: { surface: 'alpha.home', params: {} },
+      setup: () => undefined,
+    })
+    const bridge = createTestBridge(() => ({}))
+    const kernel = createUiKernel({
+      features: [feature],
+      errorMessages: {},
+      validateResults: false,
+      bridge,
+    })
+    await kernel.start()
+    expect(kernel.kernelServices.navigation.current().route).toEqual({ surface: 'alpha.home', params: {} })
+
+    const override = createUiKernel({
+      features: [feature],
+      errorMessages: {},
+      validateResults: false,
+      defaultRoute: { surface: 'other.home', params: {} },
+      bridge: createTestBridge(() => ({})),
+    })
+    await override.start()
+    expect(override.kernelServices.navigation.current().route).toEqual({ surface: 'other.home', params: {} })
+  })
+
+  test('没有 defaultRoute 或一个以上功能声明时，启动前报错', () => {
+    const bridge = createTestBridge(() => ({}))
+    expect(() => createUiKernel({ features: [], errorMessages: {}, validateResults: false, bridge })).toThrow(
+      '没有默认路由',
+    )
+    const first = defineUiFeature({
+      id: 'alpha',
+      defaultRoute: { surface: 'a', params: {} },
+      setup: () => undefined,
+    })
+    const second = defineUiFeature({
+      id: 'beta',
+      defaultRoute: { surface: 'b', params: {} },
+      setup: () => undefined,
+    })
+    expect(() =>
+      createUiKernel({ features: [first, second], errorMessages: {}, validateResults: false, bridge }),
+    ).toThrow('多个功能声明了 defaultRoute')
+  })
+
   test('UK-1 两个功能 b 依赖 a，清单顺序 [b, a] → activate 顺序 a、b', async () => {
     const order: string[] = []
     const a = defineUiFeature({

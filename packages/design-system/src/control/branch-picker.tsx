@@ -33,6 +33,8 @@ export interface GitBranchPickerProps {
   readonly onCreate: (branch: string) => Promise<boolean>
   /** 弹层每次打开时刷新快照：分支可能刚在终端里被人动过。 */
   readonly onRefresh: () => void
+  /** `row` 是占满一行的触发器（状态面板）；默认是输入框旁那枚 chip。 */
+  readonly variant?: 'default' | 'row'
 }
 
 function matchingBranches(branches: readonly string[], query: string): readonly string[] {
@@ -53,6 +55,7 @@ export function GitBranchPicker({
   onCreate,
   onRefresh,
   onSwitch,
+  variant = 'default',
 }: GitBranchPickerProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -72,7 +75,7 @@ export function GitBranchPicker({
   }
 
   return (
-    <div className="git-branch-picker">
+    <div className="git-branch-picker" data-variant={variant === 'row' ? 'row' : undefined}>
       <DropdownMenu
         modal={false}
         onOpenChange={(nextOpen) => {

@@ -90,7 +90,7 @@ function closeFocusedTab(tab: HTMLButtonElement, onClose: () => void): void {
   onClose()
 }
 
-/* 图标↔叉的取色规则在 features/browser 的 browser-panel.css，这里不写第二遍。 */
+/* 图标↔叉的悬浮切换规则在 auxiliary.css：节点由本文件渲染，规则也归坞。 */
 function AuxiliaryTab({
   active,
   hint,

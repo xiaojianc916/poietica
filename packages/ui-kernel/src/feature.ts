@@ -2,10 +2,13 @@ import type { Contract } from '@poietica/contract-kit'
 import type { Disposable, Logger, ModuleServices } from '@poietica/foundation'
 import type { TypedRpcClient } from '@poietica/rpc'
 import type { ContributionPoint } from './contribution'
+import type { Route } from './services/navigation'
 
 export interface UiFeature {
   readonly id: string
   readonly dependsOn?: readonly string[]
+  /** 首次打开时的落地页；至多一个功能声明，内核在未显式给 defaultRoute 时采用。 */
+  readonly defaultRoute?: Route
   setup(ctx: UiFeatureContext): void
 }
 

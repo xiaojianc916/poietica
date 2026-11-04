@@ -46,6 +46,24 @@
   color: var(--cp-ink-muted);
 }
 
+/*
+ * row：状态面板那一行。触发器占满容器、32px 高，首枚图标用正文墨（默认 chip 是 muted）。
+ * 这是组件的公开变体，消费方不再按 `.git-branch-picker__trigger` 改尺寸。
+ */
+.git-branch-picker[data-variant='row'] .git-branch-picker__trigger {
+  block-size: 32px;
+  inline-size: 100%;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.git-branch-picker[data-variant='row'] .git-branch-picker__trigger svg:first-child {
+  color: var(--cp-ink);
+}
+
 /* 分支名可以很长（feature/…），省略号在 chip 里断，不许把上下文栏挤开。 */
 .git-branch-picker__name {
   min-inline-size: 0;

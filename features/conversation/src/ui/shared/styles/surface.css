@@ -93,10 +93,7 @@
 
 [data-slot='prompt-input-submit'] svg,
 .assistant-threads__create svg,
-.assistant-thread__action svg,
-.workspace-picker__repositories-action svg,
-.workspace-picker__field svg,
-.workspace-picker__context-trigger svg {
+.assistant-thread__action svg {
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
 }

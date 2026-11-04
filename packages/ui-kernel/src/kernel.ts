@@ -20,7 +20,8 @@ export interface UiKernelOptions {
   readonly features: readonly UiFeature[]
   readonly errorMessages: Readonly<Record<string, string>>
   readonly validateResults: boolean
-  readonly defaultRoute: Route
+  /** 显式覆盖；不给时取声明了 defaultRoute 的功能（至多一个）。都没有则启动前报错。 */
+  readonly defaultRoute?: Route
   /** 换路由的外层过渡（组合根给 design-system 的实现）；不给就直落，测试与其它宿主不需要它。 */
   readonly routeTransition?: RouteTransition
   /** 测试注入用。 */
@@ -41,13 +42,21 @@ export function createUiKernel(opts: UiKernelOptions): UiKernel {
   if (opts.bridge === undefined && preload === undefined) {
     throw new Error('preload 没有暴露 bridge：请检查 BrowserWindow 的 preload 配置')
   }
+  const declaredRoutes = opts.features.filter((feature) => feature.defaultRoute !== undefined)
+  if (declaredRoutes.length > 1) {
+    throw new Error(`多个功能声明了 defaultRoute：${declaredRoutes.map((feature) => feature.id).join(', ')}`)
+  }
+  const defaultRoute = opts.defaultRoute ?? declaredRoutes[0]?.defaultRoute
+  if (defaultRoute === undefined) {
+    throw new Error('没有默认路由：createUiKernel 需要 defaultRoute，或至少一个功能声明 defaultRoute')
+  }
   const registry = new ContributionRegistry()
   const services = createServiceRegistry()
   const kernelServices = registerKernelServices({
     registry,
     services,
     errorMessages: opts.errorMessages,
-    defaultRoute: opts.defaultRoute,
+    defaultRoute,
     ...(opts.routeTransition === undefined ? {} : { routeTransition: opts.routeTransition }),
   })
   const logger = kernelServices.logging.logger

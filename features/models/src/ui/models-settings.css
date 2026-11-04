@@ -1,6 +1,6 @@
 /* **逐字迁移**自 legacy `packages/settings/src/ui/models/models-settings.css`：类名与数值一个字未改，页面结构与 legacy 逐格对应。
- * 深色那几档灰原来散在七条规则里，收敛成本页变量（数值未动）：悬停抬一档 #2e2e2e（四条触发条/轨道）、
- * 滑块抬一档 #424242（两处）、目录行悬停 #303030 —— 与 #2e2e2e 是同一意图的不同档，见 refactor-log Q。 */
+ * 深色那几档灰原来散在规则里，收敛成本页变量（数值未动）：悬停抬一档 #2e2e2e（两条触发条）、
+ * 目录行悬停 #303030 —— 与 #2e2e2e 是同一意图的不同档，见 refactor-log Q。 */
 .models-page {
   --models-surface: var(--settings-surface);
   --models-divider: var(--settings-divider);
@@ -12,7 +12,6 @@
 
 :root[data-theme='dark'] .models-page {
   --models-hover-lift: #2e2e2e;
-  --models-thumb-lift: #424242;
   --models-catalog-hover: #303030;
 }
 .models-block {
@@ -262,15 +261,6 @@
   gap: 10px;
 }
 
-/* 这一处比组件默认亮一格；带 .segmented-control 才压得过组件自己的 dark 规则。 */
-:root[data-theme='dark'] .segmented-control.models-add-modes {
-  background: var(--models-hover-lift);
-}
-
-:root[data-theme='dark'] .models-add-modes .segmented-control__thumb {
-  background: var(--models-thumb-lift);
-}
-
 .models-tab-panel {
   padding-block-start: 12px;
 }
@@ -505,12 +495,6 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-:root[data-theme='dark'] .segmented-control.models-auth__methods {
-  background: var(--models-hover-lift);
-}
-:root[data-theme='dark'] .models-auth__methods .segmented-control__thumb {
-  background: var(--models-thumb-lift);
 }
 .models-auth__row {
   display: flex;

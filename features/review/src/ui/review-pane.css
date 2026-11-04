@@ -37,9 +37,9 @@
 }
 
 /* 树行与引导线的样式随 FileTree 下沉到 design-system（tree/file-tree.css）；这里只留审查自己的那一条：
- * 悬停整个树栏（连同筛选框）就亮出引导线，不只是悬停树本身。 */
-.review-tree:hover .file-tree__guide {
-  opacity: 1;
+ * 悬停整个树栏（连同筛选框）就亮出引导线，不只是悬停树本身。经公开变量表达，不点名内部类。 */
+.review-tree:hover {
+  --file-tree-guide-opacity: 1;
 }
 
 /* 变更徽章：新增 U、删除 D 都是裸字母（不要框），改写是方框里一个点。外框用 box-shadow 画不用 border：Chromium 对 border-width
