@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { INTELLIGENT_UI_LIBRARIES, intelligentUiVendorUrl } from '../../contract'
 import { SHELL_JS } from '../shell'
 
 /*
@@ -111,8 +112,10 @@ describe('预览清理行为', () => {
   })
 
   test('P3 随包库替换与导出判定同语义：只认 <script src>，注释/正文不换；引号与空白容忍', () => {
-    const url = 'https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js'
-    const local = 'poietica-asset://intelligent-ui/vendor/d3-7.9.0.min.js'
+    const d3 = INTELLIGENT_UI_LIBRARIES.find((library) => library.name === 'd3')
+    if (d3 === undefined) throw new Error('清单里没有 d3')
+    const url = `https://cdn.jsdelivr.net/npm/d3@${d3.version}/dist/d3.min.js`
+    const local = intelligentUiVendorUrl(d3)
     const message = { libraries: {}, standalone: false, html: '' }
     const vendor = vendorOf()
     expect(

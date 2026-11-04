@@ -59,7 +59,7 @@ export interface IntelligentUiLibrary {
  * 别的版本、别的文件照旧走 CDN，不猜。只收 UMD：classic <script> 不受跨源模块加载的 CORS 约束。
  */
 export const INTELLIGENT_UI_LIBRARIES: readonly IntelligentUiLibrary[] = [
-  { name: 'd3', version: '7.9.0', file: 'dist/d3.min.js', global: 'd3', license: 'ISC', asset: 'd3-7.9.0.min.js' },
+  { name: 'd3', version: '7.9.2', file: 'dist/d3.min.js', global: 'd3', license: 'ISC', asset: 'd3-7.9.2.min.js' },
   {
     name: 'chart.js',
     version: '4.6.1',
@@ -70,11 +70,11 @@ export const INTELLIGENT_UI_LIBRARIES: readonly IntelligentUiLibrary[] = [
   },
   {
     name: 'lucide',
-    version: '1.66.0',
+    version: '1.68.0',
     file: 'dist/umd/lucide.min.js',
     global: 'lucide',
     license: 'ISC',
-    asset: 'lucide-1.66.0.min.js',
+    asset: 'lucide-1.68.0.min.js',
   },
 ]
 

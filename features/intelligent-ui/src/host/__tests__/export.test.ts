@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { exportFileNameOf } from '../../contract'
+import { exportFileNameOf, INTELLIGENT_UI_LIBRARIES, intelligentUiLibraryUrls } from '../../contract'
 import { captureRectOf } from '../capture'
 import { STANDALONE_CSP, type StandaloneInput, standaloneHtml } from '../export'
 import { INTELLIGENT_UI_CSP, SHELL_JS } from '../shell'
@@ -10,9 +10,13 @@ import { vendorText } from '../vendor'
  * <meta> 里的 CSP 在 document.open 之后仍然拦得住 fetch、状态与调整值都还原 —— 见方案页的实测记录。
  */
 
+const d3 = INTELLIGENT_UI_LIBRARIES.find((library) => library.name === 'd3')
+if (d3 === undefined) throw new Error('清单里没有 d3')
+const d3Url = intelligentUiLibraryUrls(d3)[0] ?? ''
+
 const input: StandaloneInput = {
   title: '方案 <对比> & "定稿"',
-  html: '<p>x</p><script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script><script>"</script>"</script>',
+  html: `<p>x</p><script src="${d3Url}"></script><script>"</script>"</script>`,
   bare: false,
   wide: true,
   css: ':root{--color-text:#111}',
@@ -43,8 +47,8 @@ describe('导出 HTML', () => {
     const data = dataOf(html)
     expect(data).toMatchObject({ title: input.title, html: input.html, bare: false, wide: true, theme: 'dark' })
     expect(data.state).toEqual(input.state)
-    expect(Object.keys(data.libraries as object)).toEqual(['d3-7.9.0.min.js'])
-    expect((data.libraries as Record<string, string>)['d3-7.9.0.min.js']).toBe(vendorText('d3-7.9.0.min.js') ?? '')
+    expect(Object.keys(data.libraries as object)).toEqual([d3.asset])
+    expect((data.libraries as Record<string, string>)[d3.asset]).toBe(vendorText(d3.asset) ?? '')
     const plain = dataOf(standaloneHtml({ ...input, html: '<p>没有库</p>' }))
     expect(plain.libraries).toEqual({})
   })

@@ -79,7 +79,13 @@ CI 跑在 `windows-latest`。
 
 ```bash
 bun install
-bun run dev          # 构建 Core 后启动 electron-vite 开发模式
+bun run dev          # 构建 Core、补齐 Electron 二进制后启动 electron-vite 开发模式
+```
+
+Electron 从 42 起不在 npm `postinstall` 里下载二进制，首次 `bun run dev` 会补下一次（约 150 MB）；网络慢时可指定镜像后再启动：
+
+```bash
+ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_CUSTOM_DIR="{{ version }}" bun run electron:install
 ```
 
 | 命令                                                     | 作用                                                                                           |

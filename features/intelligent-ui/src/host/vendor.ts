@@ -14,9 +14,9 @@ import { INTELLIGENT_UI_LIBRARIES, type IntelligentUiLibrary } from '../contract
  * 末尾的 sourceMappingURL 去掉：.map 没有随包，开着开发者工具时每次都会多一条 404。
  */
 const TEXTS: Readonly<Record<string, string>> = {
-  'd3-7.9.0.min.js': d3,
+  'd3-7.9.2.min.js': d3,
   'chart.js-4.6.1.umd.min.js': chartJs,
-  'lucide-1.66.0.min.js': lucide,
+  'lucide-1.68.0.min.js': lucide,
 }
 
 function withoutSourceMap(text: string): string {

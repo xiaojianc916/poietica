@@ -24,7 +24,8 @@
 | 命令                                                     | 作用                                                                                                                                                         |
 | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `bun install`                                            | 安装依赖（isolated linker，不 hoist）                                                                                                                        |
-| `bun run dev`                                            | 构建 Core 后启动桌面端                                                                                                                                       |
+| `bun run dev`                                            | 构建 Core、补齐 Electron 二进制（42 起 npm 不再 postinstall）后启动桌面端                                                                                    |
+| `bun run electron:install`                               | 只补 Electron 二进制（幂等；国内可配 `ELECTRON_MIRROR` + `ELECTRON_CUSTOM_DIR="{{ version }}"` 加速）                                                        |
 | `bun run  all`                                           | **唯一的准入闸门**：typecheck + format:check + lint（biome 规则、自定义闸门、depcruise）+ test                                                               |
 | `bun test <路径>`                                        | 只跑某一部分测试（在仓库根运行：测试 preload 只登记在根 `bunfig.toml`）                                                                                      |
 | `bun run format`                                         | bun fmt 自动格式化（检查用 `bun run format:check`）                                                                                                          |

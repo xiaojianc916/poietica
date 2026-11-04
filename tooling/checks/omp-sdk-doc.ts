@@ -26,24 +26,50 @@ const HEADER_PACKAGES: Readonly<Record<string, string>> = {
   COREROOT: 'pi-agent-core',
 }
 
+/** catalog 是版本号唯一的产地（AGENTS.md §11）：.bun 里会留着升级前的旧版本，不能按目录名先到先得 */
+function catalogVersions(): Record<string, string> {
+  const raw = readFileSync(path.join(ROOT, 'package.json'), 'utf8')
+  const parsed = JSON.parse(raw) as { workspaces?: { catalog?: Record<string, string> } }
+  return parsed.workspaces?.catalog ?? {}
+}
+
+/**
+ * 包版本：四个直接依赖看 catalog；`pi-agent-core` 是随 pi-coding-agent 进来的传递依赖，
+ * 按已解析包（先 PKGROOT）的 dependencies 里那个精确版本走。
+ */
+function versionOf(name: string, catalog: Record<string, string>, roots: Record<string, string>): string | undefined {
+  const direct = catalog[`@oh-my-pi/${name}`]
+  if (direct !== undefined) return direct
+  for (const root of Object.values(roots)) {
+    if (root === '') continue
+    const raw = readFileSync(path.join(root, 'package.json'), 'utf8')
+    const parsed = JSON.parse(raw) as { dependencies?: Record<string, string> }
+    const pinned = parsed.dependencies?.[`@oh-my-pi/${name}`]
+    if (pinned !== undefined) return pinned
+  }
+  return undefined
+}
+
 /** 包根：bunfig 用 isolated linker，omp 装在自己的 node_modules 下，只有 .bun 目录能按名字找到 */
 function ompRoots(): Record<string, string> {
   const bunRoot = path.join(ROOT, 'node_modules/.bun')
-  const find = (name: string): string => {
+  const catalog = catalogVersions()
+  const find = (name: string, version: string | undefined): string => {
+    if (version === undefined) return ''
+    /* 带 scripts 的包目录名会多一段 `+<hash>`，版本段之后要么结束、要么紧跟 `+` */
+    const prefix = `@oh-my-pi+${name}@${version}`
     for (const dir of readdirSync(bunRoot)) {
-      if (!dir.startsWith(`@oh-my-pi+${name}@`)) continue
+      if (dir !== prefix && !dir.startsWith(`${prefix}+`)) continue
       const candidate = path.join(bunRoot, dir, 'node_modules/@oh-my-pi', name)
       if (existsSync(path.join(candidate, 'package.json'))) return candidate
     }
     return ''
   }
-  return {
-    PKGROOT: find('pi-coding-agent'),
-    AIROOT: find('pi-ai'),
-    UTILSROOT: find('pi-utils'),
-    TUIROOT: find('pi-tui'),
-    COREROOT: find('pi-agent-core'),
+  const roots: Record<string, string> = {}
+  for (const [token, pkg] of Object.entries(HEADER_PACKAGES)) {
+    roots[token] = find(pkg, versionOf(pkg, catalog, roots))
   }
+  return roots
 }
 
 interface Block {

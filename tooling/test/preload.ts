@@ -16,6 +16,21 @@ isolateOmpForTests()
 GlobalRegistrator.register({ url: 'http://localhost/', width: 1440, height: 900 })
 
 /*
+ * happy-dom 21 的 Response 还没实现 bytes()（Chrome 125+ 与 Bun 的 Response 都有）。shiki 4.6 的
+ * 内联 wasm 用 `new Response(stream).bytes()` 取解压后的字节，缺了它语法着色在测试里直接抛
+ * TypeError（真机是 Chromium，不受影响）。只补这一个标准方法，语义照规范：读完整个 body。
+ */
+if (!('bytes' in Response.prototype)) {
+  Object.defineProperty(Response.prototype, 'bytes', {
+    configurable: true,
+    writable: true,
+    value: async function bytes(this: Response): Promise<Uint8Array> {
+      return new Uint8Array(await this.arrayBuffer())
+    },
+  })
+}
+
+/*
  * happy-dom 的 Animation.cancel() 照规范 reject 了 finished，却漏了规范同一步里的另一半：
  * reject 之前先把 promise 标成「已处理」（[[PromiseIsHandled]] 置 true）。漏了它，任何一段 motion
  * 动画在播完前被打断（换页、卸载）都会让 bun 判「Unhandled error between tests」，挂掉的是恰好

@@ -286,6 +286,22 @@
 - **测试环境的日志目录**：18.12.6 起 `getLogsDir()` 在 `PI_TEST_RUNTIME=1` 时返回 `<tmpdir>/omp-test-logs-<uid>`（隔离根之外）。T-ISO-5 夹具改为模拟生产启动（`PI_TEST_RUNTIME=0`）；生产 Core 本就被 `buildCoreLaunch` 剔掉全部 `PI_*`，`core:probe` 的目录泄漏检查照旧通过。
 - **产物**：`core:build` / `core:probe` / `core:verify-dist` 全绿。缺 `modern` natives 是 18.10.3 就有的现象（发布版 omp 不带 `packages/`、`docs/`，natives 包只含 baseline），不是本次升级引入。当时 manifest 里的 `legacyPiPlugin: "stub"` 已随构建脚本改动删除（见下方「legacy-pi 空注册表」）。
 
+### omp 18.16.0 升级核对（2026-11-04）
+
+四个 `@oh-my-pi/*` 从 18.14.2 升到 18.16.0；其余 catalog 变化都是同一大版本内的 patch/minor（d3 7.9.2、lucide 1.68.0、shiki 4.6.0、tailwindcss 4.3.4），**没有大版本跳变**。按 AGENTS §11 对照真包源码逐项核对，结论：
+
+- **pi-tui 在 minor 里带 Breaking Changes**：`buildExecutionFrame` / `buildStatusFooter` / `executionStatusLabel`、`SessionSelector` 的 `loadAllSessions` / `allSessions`、`Editor.prediction` → `predictions`。本仓只用到 `TUI` / `EditorTheme` / `CustomEditor` / `theme` 等外观面，均未触及这些成员；typecheck 与全量测试通过。
+- **设置条件新增 `composerPredictionsEnabled`**：只管 `composer.predictionAlternatives`，而 `composer.*` 在设置目录的无关前缀里，归入 IGNORED；条件名护栏测试同步。
+- **session picker 两段式**：`listForPicker` / `listAllForPicker` 改回 `PickerListing`（`sessions` 先到、`complete` 补全）；本仓直接读会话文件，不走 picker，仅文档更新。
+- **Settings**：`overlay()` 新增 `derived`（普通 overlay 现在是授权边界，我们的会话 overlay 正属于这一类）、`reloadFromDisk()` 新增 `includeParents`、新增 `grantAuthority()`。`SteerOptions` 新增 `onPromptQueued`；`ToolApproval` 回调新增 `context?`；`ResolvedApproval.source` 新增 `restriction`；`SessionData` 新增 `trace?`。都只增不改。
+- **btw 侧问**：`BtwHistoryTurn` 新增 `images?`（侧问可带图），RPC 线改用 `RpcBtwHistoryRecord`（去掉 TUI 的 `title`），`RpcBtwRecordFrame.record` 随之改名。本仓侧问只发文本，读取端按可选字段处理，无需改映射。
+- **pi-tui 主题模块删除 `NativeTheme*` 四个导出**，新增 `onTerminalBackgroundFallbackChange` / `detectTerminalBackground`，`tui-adapters` 新增 `isHighlightLanguage`；`export/html` 删除 `resolveBundledHtmlAssetPath`。文档已按 18.16.0 刷新。
+- **文档检查器本身修了一个静默失效**：`omp-sdk-doc.ts` 原先按 `.bun` 目录名先到先得，升级后旧版本 18.12.6 仍留在 store 里，于是它一直拿旧包核对并「通过」。现在按 catalog 版本取目录，`pi-agent-core` 走 pi-coding-agent 的精确依赖；文档头/行号锚点已据此刷新到 18.16.0。
+- **shiki 4.6.0 的运行时要求提高**：内联 wasm 改用 `Response#bytes()`，happy-dom 21.0.4 的 `Response` 没有这个方法，语法着色测试直接抛 TypeError（真机 Chromium 不受影响）。在 `tooling/test/preload.ts` 按规范补了 `Response.prototype.bytes`，与既有的 `Animation.cancel` 补丁同一处置。
+- **随包库版本**：intelligent-ui 的 `INTELLIGENT_UI_LIBRARIES` / vendor 表同步 d3 7.9.2、lucide 1.68.0；相关测试改为从契约派生 CDN 地址与 asset 名，下次升级不用再手改五处字面量。
+- **Electron 二进制**：Electron 42 起 npm 包不再带 `postinstall`，`bun install` 只装 JS 包，45.2.2 的 `dist/` 于是为空，`bun dev` 报 `Electron uninstall`。`dev` / `desktop:dev` 现在先跑幂等的 `electron:install`（即 `bunx install-electron`），README 与 AGENTS 命令表补了镜像用法；本机已用 npmmirror 下完 45.2.2 并实测启动到 `core ready`（`engineVersion=18.16.0`）。
+- **验证**：`typecheck`、`lint`（含 omp 文档闸门）、`format:check`、`bun test`（3289 通过 / 1 跳过 / 0 失败）、`core:build`、`core:probe`（`engineVersion=18.16.0`）、`desktop:build` 均通过。`omp 知识 #1–#22` 的读取点（cli 自派发、initializeExtensions 子路径、disableProvider/initializeWithSettings、registry.refreshIfStale、credentials.set、MCP 工作区、btw 控制器）逐个复核，无漂移。
+
 ### react-doctor 满分整改（2026-11-04）
 
 - **范围**：根 `doctor.config.json` 只忽略 `.scratch/**`（侦察用的第三方副本，gitignore 内、不是产品代码），其余扫描到的问题逐条改在代码里，最终全仓 100 分、无诊断。

@@ -32,12 +32,14 @@ const HANDLED: Readonly<Record<string, true>> = {
  * 刻意不求值的条件：
  * - hasImageProtocol：问的是终端能否显示图片，这个宿主不是终端，没有答案；
  * - vimModeEnabled：只管 `tui.*`，本仓不展示这些设置；
+ * - composerPredictionsEnabled：只管 `composer.predictionAlternatives`，`composer.*` 在设置目录的无关前缀里；
  * - nativeRendering / contextFilesExtraNotProject / restrictedFoldersNotProject / perCallModelAllowNotProject：
  *   对应设置不在本仓的设置目录里（渲染能力或项目级写入限制由 omp 自己处理）。
  */
 const IGNORED: Readonly<Record<string, true>> = {
   hasImageProtocol: true,
   vimModeEnabled: true,
+  composerPredictionsEnabled: true,
   nativeRendering: true,
   contextFilesExtraNotProject: true,
   restrictedFoldersNotProject: true,

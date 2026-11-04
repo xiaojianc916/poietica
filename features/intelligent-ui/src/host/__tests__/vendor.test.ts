@@ -68,15 +68,17 @@ describe('随包库', () => {
     const d3 = INTELLIGENT_UI_LIBRARIES.find((library) => library.name === 'd3')
     if (d3 === undefined) throw new Error('清单里没有 d3')
     expect(intelligentUiLibraryUrls(d3)).toEqual([
-      'https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js',
-      'https://unpkg.com/d3@7.9.0/dist/d3.min.js',
+      `https://cdn.jsdelivr.net/npm/d3@${d3.version}/dist/d3.min.js`,
+      `https://unpkg.com/d3@${d3.version}/dist/d3.min.js`,
     ])
     const html = `<script src="https://unpkg.com/chart.js@4.6.1/dist/chart.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>`
     expect(librariesUsedBy(html, intelligentUiLibraryUrls).map((library) => library.name)).toEqual(['chart.js'])
   })
 
   test('V5 只认 <script src>：注释/正文里的地址不内嵌；大小写、空白、引号容忍；带 integrity 也算', () => {
-    const d3Url = 'https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js'
+    const d3 = INTELLIGENT_UI_LIBRARIES.find((library) => library.name === 'd3')
+    if (d3 === undefined) throw new Error('清单里没有 d3')
+    const d3Url = `https://cdn.jsdelivr.net/npm/d3@${d3.version}/dist/d3.min.js`
     const commentOnly = `<!-- <script src="${d3Url}"></script> --><p>示例：${d3Url}</p><pre>&lt;script src="${d3Url}"&gt;</pre>`
     expect(librariesUsedBy(commentOnly, intelligentUiLibraryUrls)).toEqual([])
 

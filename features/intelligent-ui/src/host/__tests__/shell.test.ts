@@ -1,9 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import {
   INTELLIGENT_UI_CLASS_NAMES,
+  INTELLIGENT_UI_LIBRARIES,
   INTELLIGENT_UI_LIBRARY_ORIGINS,
   INTELLIGENT_UI_SHELL_FILE,
   INTELLIGENT_UI_SHELL_URL,
+  intelligentUiLibraryUrls,
+  intelligentUiVendorUrl,
 } from '../../contract'
 import { BASE_CSS, createShellHandler, INTELLIGENT_UI_CSP, INTELLIGENT_UI_SHELL_HTML } from '../shell'
 
@@ -133,8 +136,10 @@ describe('智能界面外壳', () => {
 
   test('S8 随包库：只换精确地址，被换的那个 <script> 去掉 integrity / crossorigin / type', () => {
     const html = INTELLIGENT_UI_SHELL_HTML
-    expect(html).toContain('https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js')
-    expect(html).toContain('poietica-asset://intelligent-ui/vendor/d3-7.9.0.min.js')
+    const d3 = INTELLIGENT_UI_LIBRARIES.find((library) => library.name === 'd3')
+    if (d3 === undefined) throw new Error('清单里没有 d3')
+    expect(html).toContain(intelligentUiLibraryUrls(d3)[0] ?? '')
+    expect(html).toContain(intelligentUiVendorUrl(d3))
     expect(html).toContain('if(!own(map,url))return all')
     expect(html).toContain('(integrity|crossorigin|type)')
     /* 注释里的伪 <script>、script 正文里的字符串都不替换；<script src> 的引号/空白与属性名大小写都认 */
