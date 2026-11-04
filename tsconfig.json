@@ -284,6 +284,9 @@
       "path": "packages/workbuddy-client"
     },
     {
+      "path": "scripts"
+    },
+    {
       "path": "tooling"
     }
   ]
