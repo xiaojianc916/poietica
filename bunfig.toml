@@ -2,7 +2,7 @@
 # 依赖隔离的前提：没声明的包 import 不到。关闭 hoist，否则 node_modules/.bun/node_modules 兜底目录会让未声明依赖照样可解析。
 linker = "isolated"
 hoist = false
-exact = false
+exact = true
 
 [test]
 preload = ["./tooling/test/preload.ts", "./tooling/test/react-setup.ts"]
