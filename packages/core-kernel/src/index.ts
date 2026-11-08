@@ -1,6 +1,13 @@
 export { type AgentToolRegistry, createAgentToolRegistry } from './agent-tools'
 export { type CoreEvent, type CoreEventBus, createEventHub, defineCoreEvent, type EventHub } from './events'
 export { type CoreKernel, type CoreKernelOptions, createCoreKernel } from './kernel'
-export { type CoreModule, type CoreModuleContext, type CoreRuntimeInfo, defineCoreModule } from './module'
+export {
+  type CoreDataMode,
+  type CoreModule,
+  type CoreModuleContext,
+  type CoreRuntimeInfo,
+  defineCoreModule,
+  type RetiredCoreModule,
+} from './module'
 export { type CoreRpcBinding, createCoreRpcBinding, createHostCaller, type HostCaller } from './rpc-binding'
 export { coreStartFailureExitCode } from './start-failure'

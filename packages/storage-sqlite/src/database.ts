@@ -16,13 +16,24 @@ export interface ModuleDatabase {
 }
 
 export interface Database {
+  /** 只读打开的库（见 OpenDatabaseOptions.readonly） */
+  readonly readonly: boolean
   /** 内核专用：不做前缀检查 */
   readonly raw: BunDatabase
   forModule(moduleId: string): ModuleDatabase
   close(): void
 }
 
-export function openDatabase(file: string): Database {
+export interface OpenDatabaseOptions {
+  /**
+   * 只读打开（ADR-004 的降级模式：库来自更新的版本，或者迁移失败）。
+   * 不建库、不改 journal 模式，并打开 query_only：任何写入都在 SQLite 这一层被拒绝。
+   */
+  readonly readonly?: boolean
+}
+
+export function openDatabase(file: string, opts: OpenDatabaseOptions = {}): Database {
+  if (opts.readonly === true) return openReadonly(file)
   const raw = new BunDatabase(file, { create: true, strict: true })
   raw.exec('PRAGMA journal_mode = WAL')
   raw.exec('PRAGMA synchronous = NORMAL')
@@ -37,8 +48,20 @@ export function openDatabase(file: string): Database {
   raw.exec('PRAGMA journal_size_limit = 67108864')
   raw.exec('PRAGMA analysis_limit = 400')
   raw.exec('PRAGMA optimize = 0x10002')
+  return wrap(raw, true)
+}
+
+function openReadonly(file: string): Database {
+  const raw = new BunDatabase(file, { readonly: true, strict: true })
+  raw.exec('PRAGMA query_only = ON')
+  raw.exec('PRAGMA busy_timeout = 5000')
+  return wrap(raw, false)
+}
+
+function wrap(raw: BunDatabase, writable: boolean): Database {
   const modules = new Map<string, ModuleDatabase>()
   return {
+    readonly: !writable,
     raw,
     forModule(moduleId) {
       let m = modules.get(moduleId)
@@ -50,7 +73,7 @@ export function openDatabase(file: string): Database {
     },
     close() {
       try {
-        raw.exec('PRAGMA optimize')
+        if (writable) raw.exec('PRAGMA optimize')
       } catch {
         /* 只读库、磁盘满：统计没刷上不影响关库 */
       }

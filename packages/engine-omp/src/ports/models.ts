@@ -1,5 +1,6 @@
 import { extractExplicitThinkingSelector, resolveModelRoleValue } from '@oh-my-pi/pi-coding-agent/config/model-resolver'
 import type {
+  ApiKeyEntry,
   CustomProviderDef,
   DefaultSelection,
   LoginIdentity,
@@ -37,13 +38,24 @@ const DEFAULT_THINKING_PATH = 'defaultThinkingLevel'
 
 export interface ModelsPortDeps {
   readonly registry: RegistryPort
-  /** omp 的 AuthStorage.credentials 子 API */
+  /** omp 的 AuthStorage.credentials 子 API：**只读与删除** —— 端口不再往 agent.db 写 API Key（ADR-008） */
   readonly credentials: {
     has(provider: string): boolean
-    set(provider: string, value: { type: 'api_key'; key: string; source: string }): Promise<void>
-    /** 这家名下存着的每一行凭据（API Key 与 OAuth 各占一行，按行删才能只删其中一种） */
-    list(provider: string): readonly { readonly id: number; readonly credential: { readonly type: string } }[]
+    /** 存着的每一行凭据（API Key 与 OAuth 各占一行，按行删才能只删其中一种）；不给 provider 就是全部 */
+    list(provider?: string): readonly {
+      readonly id: number
+      readonly provider: string
+      readonly credential: { readonly type: string; readonly key?: string }
+    }[]
     removeById(provider: string, credentialId: number): Promise<boolean>
+  }
+  /**
+   * omp 的运行时钥匙（AuthStorage.keys.setRuntime / removeRuntime）：只在内存里、不落盘，鉴权顺位最高
+   * （与 CLI 的 --api-key 同一格）。凭据库里的 API Key 每次启动经这里交给 omp。
+   */
+  readonly runtimeKeys: {
+    set(provider: string, key: string): void
+    remove(provider: string): void
   }
   /** omp 的账号登录（AuthStorage.oauth.login + getOAuthProviders + credentials 的 OAuth 那几行）；凭据由 omp 自己落库 */
   readonly oauth: OmpOAuth
@@ -161,16 +173,27 @@ export class OmpModelsPort implements ModelsPort {
     }
   }
 
-  /** omp 知识 #12：API key 的写法固定是 credentials.set(provider, { type: 'api_key', key, source: 'login' }) */
+  /**
+   * ADR-008：钥匙只进 omp 的运行时层（内存），持久化归宿主的凭据库。omp 知识 #12 的旧写法
+   * （credentials.set(provider, { type: 'api_key', key, source: 'login' })）把明文落进 agent.db，已废弃；
+   * 这家在 agent.db 里留下的旧钥匙顺手删掉，免得磁盘上还有一份、而且鉴权时与新钥匙互相遮挡。
+   */
   async setApiKey(provider: string, key: string): Promise<void> {
+    await this.loadApiKeys([{ provider, key }])
+    /* 这一行与上面都不许出现 key：端口不记日志、不回传、不放进任何事件 */
+    this.d.logger.info('api key set', { provider })
+  }
+
+  async loadApiKeys(entries: readonly ApiKeyEntry[]): Promise<void> {
+    if (entries.length === 0) return
     try {
-      /*
-       * 这一行下面到函数结束都不许出现 key：端口不记日志、不回传、不放进任何事件。source: 'login' 是上游给
-       * 「人自己填进来的钥匙」打的标记，不写它凭据来源分类会认错来路。
-       */
-      await this.d.credentials.set(provider, { type: 'api_key', key, source: 'login' })
+      for (const entry of entries) this.d.runtimeKeys.set(entry.provider, entry.key)
+      /* 删旧钥匙必须串行（见 #removeStoredApiKeys），一家一家来 */
+      for (const entry of entries) {
+        // react-doctor-disable-next-line react-doctor/async-await-in-loop
+        await this.#removeStoredApiKeys(entry.provider)
+      }
       await this.#refreshCredentials()
-      this.d.logger.info('api key stored', { provider })
       this.#change.fire()
     } catch (error) {
       throw toEngineError(error)
@@ -179,21 +202,40 @@ export class OmpModelsPort implements ModelsPort {
 
   async clearApiKey(provider: string): Promise<void> {
     try {
-      /* 只删 API Key 那几行：同一家名下的账号登录是另一件事，走 logout */
-      const rows = this.d.credentials.list(provider).filter((row) => row.credential.type === 'api_key')
-      /*
-       * 按行删同一个 provider 的凭据：removeById 每次会重算整份快照，并发删会让后一条基于旧快照覆盖前一条。
-       * 顺序执行是这里的一致性前提，不是性能缺陷。
-       */
-      /* removeById 每次重算整份快照，并发删会互相覆盖。 */
-      // react-doctor-disable-next-line react-doctor/async-await-in-loop
-      for (const row of rows) await this.d.credentials.removeById(provider, row.id)
+      this.d.runtimeKeys.remove(provider)
+      await this.#removeStoredApiKeys(provider)
       await this.#refreshCredentials()
       this.d.logger.info('api key cleared', { provider })
       this.#change.fire()
     } catch (error) {
       throw toEngineError(error)
     }
+  }
+
+  async storedApiKeys(): Promise<readonly ApiKeyEntry[]> {
+    try {
+      const entries: ApiKeyEntry[] = []
+      for (const row of this.d.credentials.list()) {
+        const key = row.credential.key
+        if (row.credential.type === 'api_key' && typeof key === 'string' && key !== '') {
+          entries.push({ provider: row.provider, key })
+        }
+      }
+      return entries
+    } catch (error) {
+      throw toEngineError(error)
+    }
+  }
+
+  /** 只删 API Key 那几行：同一家名下的账号登录是另一件事，走 logout */
+  async #removeStoredApiKeys(provider: string): Promise<void> {
+    const rows = this.d.credentials.list(provider).filter((row) => row.credential.type === 'api_key')
+    /*
+     * 按行删同一个 provider 的凭据：removeById 每次会重算整份快照，并发删会让后一条基于旧快照覆盖前一条。
+     * 顺序执行是这里的一致性前提，不是性能缺陷。
+     */
+    // react-doctor-disable-next-line react-doctor/async-await-in-loop
+    for (const row of rows) await this.d.credentials.removeById(provider, row.id)
   }
 
   async loginProviders(): Promise<z.infer<typeof LoginProvider>[]> {

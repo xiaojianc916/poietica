@@ -14,6 +14,7 @@
     "@poietica/design-system": "workspace:*",
     "@poietica/engine": "workspace:*",
     "@poietica/feature-preferences": "workspace:*",
+    "@poietica/feature-secrets": "workspace:*",
     "@poietica/foundation": "workspace:*",
     "@poietica/rpc": "workspace:*",
     "@poietica/ui-kernel": "workspace:*",

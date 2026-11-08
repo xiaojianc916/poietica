@@ -23,6 +23,7 @@ export default defineCoreModule({
         chromiumSessionDir: ctx.layout.chromiumSessionDir,
       },
       scrubbedEnvKeys: [...ctx.runtime.scrubbedEnvKeys],
+      dataMode: ctx.runtime.dataMode,
     }))
     ctx.rpc.handle('diagnostics.setLogLevel', ({ level }) => {
       ctx.runtime.setLogLevel(level)

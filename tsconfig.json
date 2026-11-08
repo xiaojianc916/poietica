@@ -167,6 +167,12 @@
       "path": "features/review/src/ui"
     },
     {
+      "path": "features/secrets/src/contract"
+    },
+    {
+      "path": "features/secrets/src/host"
+    },
+    {
       "path": "features/terminal/src/contract"
     },
     {

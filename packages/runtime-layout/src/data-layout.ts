@@ -10,6 +10,13 @@ export interface DataLayout {
   readonly storageUsageFile: string
   readonly coreDir: string
   readonly dbFile: string
+  /** 迁移前的数据库在线备份（ADR-004；只保留最近几份） */
+  readonly dbBackupsDir: string
+  /**
+   * 凭据库（ADR-008 / §13.4）：Host 用 Electron safeStorage（Windows 上即 DPAPI）加密后的密文。
+   * 只有 Host 读写；Core 经 secrets 契约按需取用，磁盘上任何地方都不落明文。
+   */
+  readonly secretsFile: string
   readonly coreCwd: string
   /** browser relay `/ext` 口令（Core 生成并持久化，见 engine-omp 的 bootstrap/relay-token.ts；Host 的 browser 功能只读） */
   readonly relayTokenFile: string
@@ -47,6 +54,8 @@ export function dataLayout(root: string): DataLayout {
     storageUsageFile: path.join(r, 'storage-usage.json'),
     coreDir,
     dbFile: path.join(coreDir, 'poietica.db'),
+    dbBackupsDir: path.join(coreDir, 'backups'),
+    secretsFile: path.join(r, 'secrets', 'vault.json'),
     coreCwd: path.join(coreDir, 'cwd'),
     relayTokenFile: path.join(coreDir, 'relay.token'),
     attachmentsDir: path.join(r, 'attachments'),

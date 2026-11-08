@@ -61,7 +61,9 @@ async function portsOf(): Promise<{
     root: Settings.isolated(),
     registry,
     authStorage: {
+      keys: { setRuntime: () => undefined, removeRuntime: () => undefined },
       credentials: {
+        list: () => [],
         has: () => false,
         set: async () => undefined,
         remove: async () => undefined,

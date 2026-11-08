@@ -93,7 +93,7 @@ L0  foundation
 
 1. `setup` 里只做装配：注册 handler、`provide` 服务、订阅事件、贡献界面。耗时的初始化放 `onReady`（Core / Host），或者 `onCoreReady`（UI）。
 2. 每个订阅、定时器、子进程都要有归宿：挂到 `ctx.disposables`，或者在 `onShutdown` / `onDispose` 里释放。
-3. Core 的 `migrations` 只能建本功能前缀的表和索引。每个模块只保留**一条** `init`（当前 schema 的完整 DDL）；项目尚未发布、没有真实用户，所以改表就直接改那一条，不写历史迁移、不做旧数据搬运（2026-10-25 裁决，见 `docs/refactor-log.md` 偏差 #82）。数据库版本高于本程序时按 `DataTooNewError` 退出（退出码 4），这是发现装坏了的信号，不是兼容路径。
+3. Core 的 `migrations` 只操作本功能前缀的对象；已发版迁移不可改写，schema 变更追加版本化前向迁移。迁移前备份，整批事务失败回滚并只读打开；库版本过新也只读打开。更新已发版 schema 快照并运行相应测试。模块启动路径检查 `ctx.runtime.dataMode`，只读时不得写库或启动写入任务（见 `docs/adr/004-data-migrations.md`）。
 4. UI 的 `onCoreReady` 在**每次** Core 进入 ready 时都会调用（首次启动、崩溃重启、手动重启）。从 Core 来的数据都要在这里重新拉取、重新订阅，不要只加载一次。
 
 ### 5.3 功能之间怎么协作
@@ -190,3 +190,9 @@ L0  foundation
 
 - 改动只覆盖任务点名的范围，不顺手重构。遇到文档没覆盖、拿不准的情况，在 `docs/refactor-log.md` 的「待决问题」记一条，**停下这一项，不要猜**。与架构不一致又必须这样做的，记进「偏差」并写明原因。
 - 提交信息用 `<type>(<scope>): <中文说明>`（type 取 feat / fix / refactor / test / docs / chore）。`bun run  all` 不绿不提交。
+
+### P0 安全和演进规则
+
+- 唯一引擎为 omp；目标拓扑与事实归属见 `docs/adr/`。现有端口和 Host 中转是过渡实现，不代表多引擎承诺。
+- 凭据由 Host 的 safeStorage 凭据库持有；Core 通过仅允许 Core 调用的 `secrets.lease` 按需取用，手动设置的 API Key 不写入引擎配置。账号/OAuth 路径尚未完成迁移，不得声称磁盘无明文。
+- `bun run check:ratchet` 检查四类存量债务只减不增，减少后运行 `bun run check:ratchet --write` 收紧基线。

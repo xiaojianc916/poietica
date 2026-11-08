@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import {
   composeContracts,
   defineContract,
@@ -11,7 +12,7 @@ import { createTypedClient, RpcPeer, type TypedRpcClient } from '@poietica/rpc'
 import { transportPair } from '@poietica/rpc/testing'
 import { createTestLogger, fakeClock, type TestLogger, tempDir } from '@poietica/test-kit'
 import { z } from 'zod'
-import { type CoreKernel, createCoreKernel } from '../kernel'
+import { type CoreKernel, type CoreKernelOptions, createCoreKernel } from '../kernel'
 import type { CoreModule } from '../module'
 import { memoryLayout } from '../testing/memory-layout'
 
@@ -160,6 +161,8 @@ export interface KernelHarness {
   readonly clock: ReturnType<typeof fakeClock>
   readonly received: Array<{ method: string; params: unknown }>
   readonly failed: boolean
+  /** 这次用的数据目录（传 databaseFile 时数据库就在这里） */
+  readonly dataDir: string
   /** 绕过类型化客户端（不做结果校验）直接发请求 */
   request(method: string, params: unknown): Promise<unknown>
   notifications(name: string): unknown[]
@@ -172,10 +175,17 @@ export interface MakeKernelOptions {
   readonly strict?: boolean
   readonly hostHandlers?: Readonly<Record<string, (params: unknown) => unknown>>
   readonly start?: boolean
+  /** 默认 ':memory:'；传一个目录内的相对文件名就落到这次的临时目录里（测迁移前备份 / 只读打开） */
+  readonly databaseFile?: string
+  /** 复用上一次的临时目录（模拟「同一份数据再启动一次」）；不传就新建 */
+  readonly dataDir?: string
+  readonly retiredModules?: CoreKernelOptions['retiredModules']
+  readonly coreVersion?: string
 }
 
 export async function makeKernel(modules: readonly CoreModule[], opts: MakeKernelOptions = {}): Promise<KernelHarness> {
-  const dir = await tempDir('core-kernel-')
+  const dir =
+    opts.dataDir === undefined ? await tempDir('core-kernel-') : { path: opts.dataDir, dispose: async () => undefined }
   const clock = fakeClock()
   const log = createTestLogger()
   const [coreSide, hostSide] = transportPair()
@@ -200,14 +210,15 @@ export async function makeKernel(modules: readonly CoreModule[], opts: MakeKerne
   const kernel = createCoreKernel({
     modules,
     engine: createFakeEngine(),
-    databaseFile: ':memory:',
+    databaseFile: opts.databaseFile === undefined ? ':memory:' : join(dir.path, opts.databaseFile),
     layout: memoryLayout(dir.path),
+    ...(opts.retiredModules === undefined ? {} : { retiredModules: opts.retiredModules }),
     logger: log,
     clock,
     transport: coreSide,
     appContract,
     protocolVersion: 7,
-    coreVersion: '1.2.3',
+    coreVersion: opts.coreVersion ?? '1.2.3',
     engineVersion: '0.0.0-test',
     strict: opts.strict ?? true,
     runtime: { scrubbedEnvKeys: ['OPENAI_API_KEY'], setLogLevel: () => undefined },
@@ -242,6 +253,7 @@ export async function makeKernel(modules: readonly CoreModule[], opts: MakeKerne
     clock,
     received,
     failed,
+    dataDir: dir.path,
     request: (method, params) => hostPeer.request(method, params, { timeoutMs: 5_000 }),
     client: createTypedClient(alphaContract, channel, { validateResults: true }),
     notifications: (name) => received.filter((n) => n.method === name).map((n) => n.params),

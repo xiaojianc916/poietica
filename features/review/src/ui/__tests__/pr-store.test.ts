@@ -115,7 +115,9 @@ describe('状态呈现', () => {
   })
 
   test('列表 meta 行是「作者 · 时间 · 仓库 #号」', () => {
-    expect(pullMetaLine(pull(), 'poietica')).toBe('xiaojianc916 · 1mo ago · poietica #3')
+    /* 时间用此刻推 40 天算，别写死日期：写死的那天迟早从「1mo」走到「2mo」 */
+    const recent = pull({ createdAt: new Date(Date.now() - 40 * 86_400_000).toISOString() })
+    expect(pullMetaLine(recent, 'poietica')).toBe('xiaojianc916 · 1mo ago · poietica #3')
   })
 })
 

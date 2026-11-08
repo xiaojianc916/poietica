@@ -130,6 +130,26 @@ describe('SettingsPort', () => {
     expect(entry?.defaultValue).toBeNull()
   })
 
+  /* ADR-008：凭据类设置只进运行时覆盖层，config.yml 里不留明文；旧版写进去的那份能读出来搬走 */
+  test('凭据类设置：set 拒绝；injectSecret 只进覆盖层；null 连旧值一起删；storedSecrets 交出旧明文', async () => {
+    const { port, settings } = makePort()
+    await expect(port.set('hindsight.apiToken', 'plain')).rejects.toMatchObject({ code: 'kernel.invalid_params' })
+    expect(globalAt(settings, 'hindsight.apiToken')).toBeUndefined()
+
+    await port.injectSecret('hindsight.apiToken', 'tok-runtime')
+    expect(globalAt(settings, 'hindsight.apiToken')).toBeUndefined()
+    expect((await port.catalog()).find((row) => row.path === 'hindsight.apiToken')?.hasValue).toBe(true)
+
+    await port.injectSecret('hindsight.apiToken', null)
+    const handle = (await import('@oh-my-pi/pi-coding-agent/config/registry')).lookup('hindsight.apiToken')
+    handle?.set(settings, 'tok-legacy' as never)
+    expect(await port.storedSecrets()).toEqual([{ path: 'hindsight.apiToken', value: 'tok-legacy' }])
+    await port.injectSecret('hindsight.apiToken', null)
+    expect(globalAt(settings, 'hindsight.apiToken')).toBeUndefined()
+    expect(await port.storedSecrets()).toEqual([])
+    await expect(port.injectSecret('compaction.enabled', 'x')).rejects.toMatchObject({ code: 'kernel.invalid_params' })
+  })
+
   /*
    * 现算的选项表：`sharpshooter.model` 的取值是「模型目录里的某一条」，而上游 schema 只给了
    * string —— 选项必须由端口用**模型目录**现填。

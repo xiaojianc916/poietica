@@ -49,6 +49,11 @@ export const CoreDiagnostics = z.object({
   ompRoot: z.string(),
   dirs: z.record(z.string(), z.string()),
   scrubbedEnvKeys: z.array(z.string()),
+  /** 数据库的打开方式（ADR-004）：readOnly 时所有写入都会失败，界面要明确告诉用户 */
+  dataMode: z.discriminatedUnion('mode', [
+    z.object({ mode: z.literal('readWrite') }),
+    z.object({ mode: z.literal('readOnly'), reason: z.enum(['data_too_new', 'migration_failed']) }),
+  ]),
 })
 
 export type AppInfo = z.infer<typeof AppInfo>

@@ -1,5 +1,6 @@
 import {
   type AgentEngine,
+  type ApiKeyEntry,
   type Capabilities,
   type ContextUsage,
   type Controls,
@@ -87,6 +88,10 @@ export interface FakeEngineOptions {
    * 一致性用例与 UI 测试都从这里注入。
    */
   readonly mcpCatalog?: readonly z.infer<typeof McpCatalogEntry>[]
+  /** 引擎自己落过盘的旧 API Key（ModelsPort.storedApiKeys 交出这些）：测「搬进凭据库」用 */
+  readonly storedApiKeys?: readonly ApiKeyEntry[]
+  /** 持久层里还留着明文的凭据类设置（SettingsPort.storedSecrets 交出这些） */
+  readonly storedSecrets?: readonly { readonly path: string; readonly value: string }[]
 }
 
 export interface FakeToolCall {
@@ -113,6 +118,10 @@ export interface FakeEngine extends AgentEngine {
   readonly sessionNames: ReadonlyMap<string, string>
   /** 草稿表里 current 的写法（provider/id）；一致性套件比两个引擎的草稿表时用它。 */
   readonly draftAliasOf: (model: ModelRef | null) => string | null
+  /** 交到引擎内存里的 API Key（provider → key）：断言「钥匙到了引擎、没落盘」用 */
+  readonly apiKeys: ReadonlyMap<string, string>
+  /** 注入到运行时覆盖层的凭据类设置（path → value） */
+  readonly injectedSecrets: ReadonlyMap<string, string>
 }
 
 const APPROVAL_TIER: Record<EngineToolSpec['approval'], number> = { read: 0, write: 1, exec: 2 }
@@ -942,6 +951,13 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
   /** 当前设置的 Python 解释器（PY-1 断言写入的那一格）。 */
   let pythonInterpreter: string | null = null
   const pythonInterpreterCalls: (string | null)[] = []
+  const apiKeys = new Map<string, string>()
+  let storedApiKeys: ApiKeyEntry[] = [...(opts.storedApiKeys ?? [])]
+  const injectedSecrets = new Map<string, string>()
+  let storedSecrets = [...(opts.storedSecrets ?? [])]
+  const setConfigured = (id: string, configured: boolean): void => {
+    providers = providers.map((p) => (p.id === id ? { ...p, configured } : p))
+  }
 
   const engine: FakeEngine = {
     info: { name: 'omp', version: 'fake' } satisfies EngineInfo,
@@ -950,6 +966,8 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
     opened,
     pythonInterpreterCalls,
     sessionNames,
+    apiKeys,
+    injectedSecrets,
     /*
      * 草稿控件表（方案 §04 的 draftControls）：只读，不开会话、不写设置。与会话里那份同一条规则：
      * 可选模型来自目录（只取 enabled），思考档位按当前模型的 thinkingLevels 给，姿态是 init.posture ?? 'auto-edit'。
@@ -1098,13 +1116,26 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
       async models() {
         return models
       },
-      async setApiKey(id) {
-        providers = providers.map((p) => (p.id === id ? { ...p, configured: true } : p))
+      async setApiKey(id, key) {
+        await engine.models.loadApiKeys([{ provider: id, key }])
+      },
+      async loadApiKeys(entries) {
+        if (entries.length === 0) return
+        for (const entry of entries) {
+          apiKeys.set(entry.provider, entry.key)
+          storedApiKeys = storedApiKeys.filter((stored) => stored.provider !== entry.provider)
+          setConfigured(entry.provider, true)
+        }
         change.fire()
       },
       async clearApiKey(id) {
-        providers = providers.map((p) => (p.id === id ? { ...p, configured: false } : p))
+        apiKeys.delete(id)
+        storedApiKeys = storedApiKeys.filter((stored) => stored.provider !== id)
+        setConfigured(id, false)
         change.fire()
+      },
+      async storedApiKeys() {
+        return [...storedApiKeys]
       },
       /* 账号登录：每一家内置服务商都假装能登；流程与 omp 的回环登录同形 —— 先给网址，再要一格授权码，填了才算登上 */
       async loginProviders() {
@@ -1216,10 +1247,25 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
         return settings
       },
       async set(path, value) {
+        if (settings.find((s) => s.path === path)?.secret === true) {
+          throw new AppError(SystemErrorCode.invalidParams, `凭据类设置不能写进配置文件：${path}`)
+        }
         settings = settings.map((s) => (s.path === path ? { ...s, value } : s))
         change.fire()
       },
+      async injectSecret(path, value) {
+        if (value === null) injectedSecrets.delete(path)
+        else injectedSecrets.set(path, value)
+        if (value === null) storedSecrets = storedSecrets.filter((stored) => stored.path !== path)
+        settings = settings.map((s) => (s.path === path ? { ...s, hasValue: value !== null } : s))
+        change.fire()
+      },
+      async storedSecrets() {
+        return [...storedSecrets]
+      },
       async reset(path) {
+        /* 与真引擎同：reset 删的是持久层（config.yml）那一份 */
+        storedSecrets = storedSecrets.filter((stored) => stored.path !== path)
         settings = settings.map((s) => (s.path === path ? { ...s, value: s.defaultValue } : s))
         change.fire()
       },

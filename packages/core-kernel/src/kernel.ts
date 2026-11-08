@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import type { AppContract } from '@poietica/contract-kit'
 import type { AgentEngine } from '@poietica/engine'
 import {
@@ -13,10 +14,17 @@ import {
 } from '@poietica/foundation'
 import { type InboundContext, Router, RpcPeer, type Transport } from '@poietica/rpc'
 import { CORE_SHUTDOWN_BUDGET_MS, type DataLayout } from '@poietica/runtime-layout'
-import { type Database, openDatabase, runMigrations } from '@poietica/storage-sqlite'
+import {
+  backupDatabase,
+  type Database,
+  type MigrationPlan,
+  openDatabase,
+  planMigrations,
+  runMigrations,
+} from '@poietica/storage-sqlite'
 import { createAgentToolRegistry } from './agent-tools'
 import { createEventHub } from './events'
-import type { CoreModule, CoreModuleContext } from './module'
+import type { CoreDataMode, CoreModule, CoreModuleContext, RetiredCoreModule } from './module'
 import { createCoreRpcBinding, createHostCaller } from './rpc-binding'
 
 export interface CoreKernelOptions {
@@ -33,6 +41,13 @@ export interface CoreKernelOptions {
   readonly coreVersion: string
   readonly engineVersion: string
   readonly strict: boolean
+  /**
+   * 已经从产品里移除的模块：启动时删掉它们留在库里的表（迁移前备份之前），
+   * 真的删掉了东西的那些再在 onReady 之后跑一次各自的 cleanup（例如撤掉它写进引擎配置的服务商）。
+   */
+  readonly retiredModules?: readonly RetiredCoreModule[]
+  /** 迁移前备份保留几份；默认 3 */
+  readonly backupKeep?: number
   readonly runtime: {
     readonly scrubbedEnvKeys: readonly string[]
     setLogLevel(level: 'debug' | 'info' | 'warn' | 'error'): void
@@ -59,6 +74,10 @@ const STARTUP_ABORT_WAIT_MS = 3_000
 const INFLIGHT_DRAIN_MS = 1_500
 /** engine.dispose 的时间下限：即使前面把预算花光了也要给它。 */
 const ENGINE_DISPOSE_FLOOR_MS = 1_000
+const DEFAULT_BACKUP_KEEP = 3
+
+/** SQLite 拒绝写入只读库时的报错（query_only / SQLITE_READONLY） */
+const READONLY_WRITE = /readonly database|read-only|query_only|attempt to write/i
 
 export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
   const log = opts.logger.child({ scope: 'kernel' })
@@ -76,6 +95,7 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
   let peer: RpcPeer | undefined
   let db: Database | undefined
   let toolsFrozen = false
+  let dataMode: CoreDataMode = { mode: 'readWrite' }
   let inflight = 0
   let drained: Deferred<void> | undefined
 
@@ -95,6 +115,11 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
     inflight++
     try {
       return await router.handle(method, params, ctx)
+    } catch (e) {
+      if (dataMode.mode === 'readOnly' && READONLY_WRITE.test(String(e))) {
+        throw new AppError(SystemErrorCode.dataReadOnly, '数据当前以只读方式打开，这次修改没有保存')
+      }
+      throw e
     } finally {
       inflight--
       if (inflight === 0) drained?.resolve()
@@ -184,11 +209,7 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
     })
     const sorted = sortModules(opts.modules)
     validateModules(sorted)
-    db = openDatabase(opts.databaseFile)
-    runMigrations(
-      db,
-      sorted.map((m) => ({ moduleId: m.id, migrations: m.migrations ?? [] })),
-    )
+    db = openStorage(sorted)
     /*
      * setup 必须按拓扑序逐个完成：依赖方的 setup 会在此时取服务、注册 handler、订阅事件，
      * 上游没装配完就开始下游会把「暂时没有」当成「永远没有」。这不是可以并发的 I/O 批量。
@@ -209,7 +230,7 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
         services: registry.scoped(m.id, m.dependsOn ?? []),
         events: eventHub.scoped(m.id, m.dependsOn ?? [], logger),
         agentTools: createAgentToolRegistry(opts.engine, m.id, () => toolsFrozen),
-        runtime: { coreVersion: opts.coreVersion, engineVersion: opts.engineVersion, ...opts.runtime },
+        runtime: { coreVersion: opts.coreVersion, engineVersion: opts.engineVersion, dataMode, ...opts.runtime },
         lifecycle: {
           onReady: (fn) => {
             readyHooks.push({ moduleId: m.id, fn })
@@ -238,7 +259,71 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
       protocolVersion: opts.protocolVersion,
       engineVersion: opts.engineVersion,
     })
-    log.info('core ready', { modules: sorted.length })
+    log.info('core ready', { modules: sorted.length, dataMode: dataMode.mode })
+    notifyReadOnly()
+  }
+
+  function notifyReadOnly(): void {
+    if (dataMode.mode === 'readOnly') {
+      getPeer().notify('core.notice', {
+        level: 'warn',
+        message:
+          dataMode.reason === 'data_too_new'
+            ? '数据由更新版本的 Poietica 创建，当前以只读方式打开；请升级到新版本后再修改'
+            : '数据库升级失败，已回滚到升级前的状态并以只读方式打开；请查看日志',
+        data: { dataMode: dataMode.mode, reason: dataMode.reason },
+      })
+    }
+  }
+
+  /**
+   * 打开数据库并把它带到当前版本（ADR-004）：
+   * 1. 算迁移计划：库比程序新 → 不迁移、以只读打开；
+   * 2. 有待执行的迁移 → 先做在线备份，再整批一个事务执行；失败回滚后只读打开。
+   * 退役模块的数据保留，不能在备份前删除。
+   */
+  function openStorage(sorted: readonly CoreModule[]): Database {
+    const modules = sorted.map((m) => ({ moduleId: m.id, migrations: m.migrations ?? [] }))
+    const file = opts.databaseFile
+    /* 第一次启动（库文件还不存在）没有可备份的东西 */
+    const fresh = file === ':memory:' || !existsSync(file)
+    let opened = openDatabase(file)
+    // Retired module data is retained: removing it before backup would risk user data.
+    const plan: MigrationPlan = planMigrations(opened, modules)
+    if (plan.tooNew.length > 0) {
+      log.warn('database is newer than this build, opening read-only', { modules: plan.tooNew })
+      return reopenReadonly(opened, 'data_too_new')
+    }
+    if (plan.pending.length === 0) {
+      runMigrations(opened, modules)
+      return opened
+    }
+    if (!fresh) backupBeforeMigration(opened, plan)
+
+    try {
+      runMigrations(opened, modules, () => opts.clock.now())
+    } catch (e) {
+      log.error('migration failed, rolled back; opening read-only', { error: String(e) })
+      if (file === ':memory:') throw e
+      opened = reopenReadonly(opened, 'migration_failed')
+    }
+    return opened
+  }
+
+  function backupBeforeMigration(opened: Database, plan: MigrationPlan): void {
+    const backup = backupDatabase(opened, {
+      dir: opts.layout.dbBackupsDir,
+      label: `v${opts.coreVersion}`,
+      keep: opts.backupKeep ?? DEFAULT_BACKUP_KEEP,
+      now: () => opts.clock.now(),
+    })
+    log.info('database backed up before migration', { backup, pending: plan.pending })
+  }
+
+  function reopenReadonly(current: Database, reason: 'data_too_new' | 'migration_failed'): Database {
+    current.close()
+    dataMode = { mode: 'readOnly', reason }
+    return openDatabase(opts.databaseFile, { readonly: true })
   }
 
   async function shutdown(reason: string): Promise<void> {

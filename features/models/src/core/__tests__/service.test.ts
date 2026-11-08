@@ -3,9 +3,26 @@ import { createFakeEngine } from '@poietica/engine-testkit'
 import { AppError } from '@poietica/foundation'
 import { createTestLogger, type TestLogRecord } from '@poietica/test-kit'
 import type { ModelInfo, ProviderInfo } from '../../contract'
+import { type ApiKeyVault, restoreApiKeys } from '../api-keys'
 import { createModelsService } from '../service'
 
-function make(providers: ProviderInfo[] = [], models: ModelInfo[] = []) {
+/** 凭据库的替身：一张内存表；`failPut` 模拟系统加密不可用 */
+function memoryVault(o: { failPut?: boolean } = {}): ApiKeyVault & { readonly data: Map<string, string> } {
+  const data = new Map<string, string>()
+  return {
+    data,
+    all: async () => Object.fromEntries(data),
+    put: async (provider, key) => {
+      if (o.failPut === true) throw new AppError('secrets.unavailable', '系统的凭据加密不可用，密钥没有保存')
+      data.set(provider, key)
+    },
+    delete: async (provider) => {
+      data.delete(provider)
+    },
+  }
+}
+
+function make(providers: ProviderInfo[] = [], models: ModelInfo[] = [], vault = memoryVault()) {
   const engine = createFakeEngine()
   const logger = createTestLogger()
   const records: TestLogRecord[] = logger.records
@@ -21,12 +38,13 @@ function make(providers: ProviderInfo[] = [], models: ModelInfo[] = []) {
         return models
       },
     },
+    vault,
     logger,
     emitChanged: () => {
       changed += 1
     },
   })
-  return { service, records, changed: () => changed, engine }
+  return { service, records, changed: () => changed, engine, vault }
 }
 
 const PROVIDERS: ProviderInfo[] = [
@@ -57,6 +75,24 @@ describe('models 服务（14 页 §6.5）', () => {
     const dump = JSON.stringify(records)
     expect(dump).not.toContain('sk-ant')
     expect(dump).toContain('anthropic')
+  })
+
+  test('setApiKey 先落凭据库再交给引擎内存；clearApiKey 两边都撤（ADR-008）', async () => {
+    const { service, engine, vault } = make(PROVIDERS)
+    await service.setApiKey('anthropic', 'sk-ant-xxxxxxxx')
+    expect(vault.data.get('anthropic')).toBe('sk-ant-xxxxxxxx')
+    expect(engine.apiKeys.get('anthropic')).toBe('sk-ant-xxxxxxxx')
+    await service.clearApiKey('anthropic')
+    expect(vault.data.has('anthropic')).toBe(false)
+    expect(engine.apiKeys.has('anthropic')).toBe(false)
+  })
+
+  test('凭据库写不进去（系统加密不可用）：setApiKey 失败，引擎里也没有这把钥匙', async () => {
+    const { service, engine } = make(PROVIDERS, [], memoryVault({ failPut: true }))
+    await expect(service.setApiKey('anthropic', 'sk-ant-xxxxxxxx')).rejects.toMatchObject({
+      code: 'secrets.unavailable',
+    })
+    expect(engine.apiKeys.has('anthropic')).toBe(false)
   })
 
   test('setApiKey 一个不存在的服务商 → models.provider_not_found', async () => {
@@ -111,6 +147,23 @@ describe('models 服务（14 页 §6.5）', () => {
     expect(JSON.stringify(records)).toContain('api key cleared')
   })
 
+  test('启动：引擎磁盘上的旧钥匙搬进凭据库，再把凭据库全部交给引擎内存；搬不进的留在原处', async () => {
+    const engine = createFakeEngine({ storedApiKeys: [{ provider: 'openai', key: 'sk-legacy' }] })
+    const vault = memoryVault()
+    vault.data.set('anthropic', 'sk-ant-vault')
+    const logger = createTestLogger()
+    expect(await restoreApiKeys({ vault, models: engine.models, logger })).toEqual(['openai'])
+    expect(vault.data.get('openai')).toBe('sk-legacy')
+    expect(engine.apiKeys.get('openai')).toBe('sk-legacy')
+    expect(engine.apiKeys.get('anthropic')).toBe('sk-ant-vault')
+    expect(await engine.models.storedApiKeys()).toEqual([])
+    expect(JSON.stringify(logger.records)).not.toContain('sk-')
+
+    const stuck = createFakeEngine({ storedApiKeys: [{ provider: 'openai', key: 'sk-legacy' }] })
+    expect(await restoreApiKeys({ vault: memoryVault({ failPut: true }), models: stuck.models, logger })).toEqual([])
+    expect(await stuck.models.storedApiKeys()).toEqual([{ provider: 'openai', key: 'sk-legacy' }])
+  })
+
   test('logout 只认登录名单里的那一家（按凭据记在的 provider），退出后通知目录变了', async () => {
     const out: string[] = []
     let changed = 0
@@ -132,6 +185,7 @@ describe('models 服务（14 页 §6.5）', () => {
           out.push(provider)
         },
       },
+      vault: memoryVault(),
       logger: createTestLogger(),
       emitChanged: () => {
         changed += 1

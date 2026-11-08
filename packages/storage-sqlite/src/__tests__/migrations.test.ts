@@ -87,11 +87,10 @@ describe('runMigrations', () => {
     sql: 'CREATE TABLE a_two (id TEXT PRIMARY KEY); INSERT INTO a_missing (id) VALUES (1)',
   }
 
-  // DB-7：迁移 1 与迁移 2 在同一次执行里 → 整块回滚，模块回到“未迁移”（没有版本行、表不存在）
-  test('DB-7 同一次执行内失败：该模块回到未迁移状态', () => {
+  // DB-7（ADR-004 修订）：整批迁移是一个事务 —— 任何一个模块失败，同一批里排在前面的模块也一起回滚
+  test('DB-7 同一次执行内失败：整批回到未迁移状态', () => {
     const db = openDatabase(':memory:')
     try {
-      // b 排在 a 前面：b 已提交，a 抛错后整个 runMigrations 中止
       expect(() =>
         runMigrations(db, [
           { moduleId: 'b', migrations: [B1] },
@@ -101,9 +100,9 @@ describe('runMigrations', () => {
       expect(versionOf(db, 'a')).toBeNull()
       expect(tableNames(db)).not.toContain('a_one')
       expect(tableNames(db)).not.toContain('a_two')
-      // 其它模块不受影响（已提交的保持）
-      expect(versionOf(db, 'b')).toBe(1)
-      expect(tableNames(db)).toContain('b_one')
+      // 同一批的 b 也没有落地：不存在「前几个模块升了、后几个没升」的半截库
+      expect(versionOf(db, 'b')).toBeNull()
+      expect(tableNames(db)).not.toContain('b_one')
     } finally {
       db.close()
     }

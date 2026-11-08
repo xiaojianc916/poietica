@@ -2,6 +2,7 @@ import type { SettingsPort } from '@poietica/engine'
 import { AppError } from '@poietica/foundation'
 import type { Capabilities, SettingDescriptor, SettingGroup } from '../contract'
 import { agentSettingsErrors } from '../contract/errors'
+import type { SecretSettingsVault } from './secret-settings'
 
 export interface AgentSettingsServiceDeps {
   readonly settings: SettingsPort
@@ -11,6 +12,8 @@ export interface AgentSettingsServiceDeps {
    */
   readonly groupOrder: readonly string[]
   readonly emitChanged: (paths: readonly string[]) => void
+  /** 凭据类设置（descriptor.secret）的持久化归 Host 的凭据库（ADR-008），不写 config.yml */
+  readonly vault: SecretSettingsVault
 }
 
 export interface AgentSettingsService {
@@ -73,6 +76,17 @@ export function createAgentSettingsService(d: AgentSettingsServiceDeps): AgentSe
 
   const latest = async (path: string): Promise<SettingDescriptor> => find(path)
 
+  /** 凭据类：先落凭据库（落不下就整个失败），再注入引擎内存；空串 = 清掉 */
+  const setSecret = async (path: string, value: string): Promise<void> => {
+    if (value === '') {
+      await d.vault.delete(path)
+      await d.settings.injectSecret(path, null)
+      return
+    }
+    await d.vault.put(path, value)
+    await d.settings.injectSecret(path, value)
+  }
+
   return {
     async catalog() {
       return { groups: groupOf(await d.settings.catalog(), d.groupOrder) }
@@ -83,11 +97,19 @@ export function createAgentSettingsService(d: AgentSettingsServiceDeps): AgentSe
       if (!validateValue(descriptor, value)) {
         throw new AppError(agentSettingsErrors.invalid_value, '值不符合这一项的类型约束')
       }
+      if (descriptor.secret) {
+        await setSecret(path, value as string)
+        return latest(path)
+      }
       await d.settings.set(path, value)
       return latest(path)
     },
     async reset(path) {
-      await find(path)
+      const descriptor = await find(path)
+      if (descriptor.secret) {
+        await setSecret(path, '')
+        return latest(path)
+      }
       await d.settings.reset(path)
       return latest(path)
     },

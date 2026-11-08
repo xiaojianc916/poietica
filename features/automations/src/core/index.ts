@@ -79,6 +79,11 @@ export default defineCoreModule({
     )
 
     ctx.lifecycle.onReady(() => {
+      /* 库只读（ADR-004）：不修账、不排程 —— 两样都要写库；列表照常能看 */
+      if (ctx.runtime.dataMode.mode === 'readOnly') {
+        ctx.logger.warn('automations paused: database is read-only', { reason: ctx.runtime.dataMode.reason })
+        return
+      }
       scheduler.repairOnStartup()
       ctx.disposables.add(scheduler.start())
       ctx.rpc.emit('automations.changed', {})

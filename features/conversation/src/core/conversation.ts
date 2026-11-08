@@ -31,6 +31,11 @@ export interface ConversationCoreDeps {
   readonly attachments: AttachmentsService
   readonly clock: Clock
   readonly logger: Logger
+  /**
+   * 库是只读打开的（ADR-004：库比程序新 / 迁移失败）：启动时不做提交恢复 —— 那一步要改库。
+   * 不传等于可写。
+   */
+  readonly readOnly?: boolean
   /** 线程状态变化 → threads.updated / turns.state */
   readonly emitThreadUpdated: (thread: Thread) => void
   readonly emitThreadRemoved: (threadId: string) => void
@@ -253,7 +258,7 @@ export class ConversationCore {
      * 进程没来得及交出去的，后者排在 omp 的内存队列里、跟着进程一起消失了（R-08-5）；
      * `started` 里太旧的清掉（真实轮次在会话文件里，这里清的只是账）。
      */
-    this.submissions.recoverOnStart()
+    if (d.readOnly !== true) this.submissions.recoverOnStart()
   }
 
   /** 关停：会话池释放（门面自己留的编排之一） */

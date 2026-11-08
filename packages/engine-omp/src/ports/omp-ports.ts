@@ -16,7 +16,7 @@ import type { MediaRef } from '../projector/media'
 import { readSetting, type SettingsScope } from '../settings-access'
 import { OmpMcpPort } from './mcp'
 import { registryPortOf } from './model-helpers'
-import { OmpModelsPort, type OmpOAuth, type OmpRoles } from './models'
+import { type ModelsPortDeps, OmpModelsPort, type OmpOAuth, type OmpRoles } from './models'
 import { CustomProvidersFile, modelsFilePath } from './models-file'
 import { ompMediaGc } from './omp-gc'
 import { OmpPluginsPort } from './plugins'
@@ -97,6 +97,7 @@ export async function ompPorts(o: OmpPortsOptions): Promise<{
     models: new OmpModelsPort({
       registry: registryPortOf(o.registry),
       credentials: (o.authStorage as { credentials: never }).credentials,
+      runtimeKeys: runtimeKeysOf(o.authStorage as OmpAuthStorageWithKeys),
       oauth: ompOAuthOf(o.authStorage as OmpAuthStorageWithOAuth, getOAuthProviders, getProviderDefinition),
       roles: ompRolesOf(o.root, o.registry),
       root: o.root,
@@ -140,6 +141,18 @@ export function ompRolesOf(root: SettingsScope, registry: Pick<OmpModelRegistry,
         ? null
         : (resolveModelRoleValue(formatModelRoleAlias(role), pool, { settings: s }).model ?? null)
     },
+  }
+}
+
+/** omp AuthStorage 的运行时钥匙层（pi-ai auth/types.ts 的 KeysApi.setRuntime / removeRuntime） */
+interface OmpAuthStorageWithKeys {
+  readonly keys: { setRuntime(provider: string, apiKey: string): void; removeRuntime(provider: string): void }
+}
+
+function runtimeKeysOf(auth: OmpAuthStorageWithKeys): ModelsPortDeps['runtimeKeys'] {
+  return {
+    set: (provider, key) => auth.keys.setRuntime(provider, key),
+    remove: (provider) => auth.keys.removeRuntime(provider),
   }
 }
 

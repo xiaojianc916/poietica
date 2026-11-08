@@ -3,6 +3,7 @@ import {
   BannersToken,
   builtinPoints,
   type CommandItem,
+  createValue,
   defineUiFeature,
   type KeybindingItem,
   NavigationToken,
@@ -10,6 +11,7 @@ import {
   type SettingsPageItem,
   UiLoggingToken,
   useCoreStatus,
+  useObservable,
 } from '@poietica/ui-kernel'
 import { HardDrive, Info } from 'lucide-react'
 import { WindowCloseToken } from '../ui-api'
@@ -17,6 +19,7 @@ import { AboutPage } from './about-page'
 import { createPlatformApi } from './api'
 import './core-failure-notice.css'
 import { CoreFailureNotice, coreFailureVisible } from './core-failure-notice'
+import { DataReadOnlyNotice, type ReadOnlyReason, readOnlyReason } from './data-read-only-notice'
 import { StoragePage } from './storage-page'
 import { WindowButtons } from './window-buttons'
 import { createWindowCloseGuard } from './window-close'
@@ -66,6 +69,24 @@ export default defineUiFeature({
         <CoreFailureNotice onOpenLogs={openLogsFolder} onRestart={() => void system.call('core.restart', {})} />
       ),
       useVisible: useCoreFailureVisible,
+    })
+
+    /* ADR-004：库比程序新 / 迁移失败时 Core 以只读打开，入口处明说「现在改不了」，不让用户以为是 bug */
+    const dataMode = createValue<ReadOnlyReason | null>(null)
+    ctx.lifecycle.onCoreReady(async () => {
+      // 问不到就当作可写：这条提示只是告知，写入本身由 Core 拒绝（kernel.data_read_only）
+      dataMode.set(
+        await api
+          .diagnostics()
+          .then((d) => readOnlyReason(d.dataMode))
+          .catch(() => null),
+      )
+    })
+    ctx.contribute(builtinPoints.entryNotices, {
+      id: 'platform.dataReadOnly',
+      order: 20,
+      component: () => <DataReadOnlyNotice mode={dataMode} onOpenLogs={openLogsFolder} />,
+      useVisible: () => useObservable(dataMode) !== null,
     })
 
     ctx.contribute(builtinPoints.settingsPages, {

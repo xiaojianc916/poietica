@@ -1,5 +1,6 @@
 export { type AppContract, composeContracts, contractSnapshot } from './compose'
 export {
+  type Caller,
   type Contract,
   defineContract,
   defineErrors,

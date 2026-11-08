@@ -71,6 +71,7 @@ export function contractSnapshot(app: AppContract, version: number): string {
     owner: m.owner,
     timeoutMs: m.timeoutMs,
     description: m.description,
+    ...(m.callers === undefined ? {} : { callers: [...m.callers].sort() }),
     params: toSchema(m.params, 'input'),
     result: toSchema(m.result, 'output'),
   }))

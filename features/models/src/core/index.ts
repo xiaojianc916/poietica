@@ -1,14 +1,23 @@
 import { defineCoreModule } from '@poietica/core-kernel'
 import { modelsContract } from '../contract'
+import { hostApiKeyVault, restoreApiKeys } from './api-keys'
 import { LoginFlows } from './login-flows'
 import { createModelsService } from './service'
 
 export default defineCoreModule({
   id: 'models',
   contract: modelsContract,
-  setup(ctx) {
+  async setup(ctx) {
+    const vault = hostApiKeyVault(ctx.host)
+    /* 在任何会话打开之前把钥匙交给引擎（ADR-008：Core 不持久化凭据，每次启动从凭据库取回） */
+    const adoptKeys = (): Promise<unknown> =>
+      restoreApiKeys({ vault, models: ctx.engine.models, logger: ctx.logger }).catch((e: unknown) => {
+        ctx.logger.error('api key restore failed', { error: String(e) })
+      })
+    await adoptKeys()
     const service = createModelsService({
       models: ctx.engine.models,
+      vault,
       logger: ctx.logger,
       emitChanged: () => ctx.rpc.emit('models.changed', {}),
     })
@@ -19,7 +28,10 @@ export default defineCoreModule({
       models: ctx.engine.models,
       logger: ctx.logger,
       emit: (loginId, event) => ctx.rpc.emit('models.loginEvent', { loginId, event }),
-      emitChanged: () => ctx.rpc.emit('models.changed', {}),
+      /* 「浏览器授权换钥匙」那类登录由 omp 把 key 写进 agent.db：登录一结束就搬进凭据库 */
+      emitChanged: () => {
+        void adoptKeys().then(() => ctx.rpc.emit('models.changed', {}))
+      },
     })
     ctx.disposables.add({ dispose: () => logins.dispose() })
     ctx.rpc.handle('models.loginProviders', async () => ({ providers: await ctx.engine.models.loginProviders() }))

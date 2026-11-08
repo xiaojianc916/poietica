@@ -92,6 +92,9 @@ export function createHostCaller(deps: Pick<RpcBindingDeps, 'peer'>): HostCaller
       if (def === undefined || def.owner !== 'host') {
         throw new AppError(SystemErrorCode.methodNotFound, `Core 只能调用 owner='host' 的方法，${String(name)} 不是`)
       }
+      if (def.callers !== undefined && !def.callers.includes('core')) {
+        throw new AppError(SystemErrorCode.methodNotFound, `${String(name)} 不允许 Core 调用`)
+      }
       const raw = await deps.peer().request(def.name, def.params.parse(params), {
         timeoutMs: opts?.timeoutMs ?? def.timeoutMs,
         ...(opts?.signal === undefined ? {} : { signal: opts.signal }),

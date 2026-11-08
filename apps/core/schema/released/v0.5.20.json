@@ -1,0 +1,189 @@
+{
+  "coreVersion": "0.5.20",
+  "modules": {
+    "workspaces": {
+      "version": 1,
+      "checksum": "61b80a85a4a5937d06c0e2dfbc46180db084595ef850283da429114c02985ff1"
+    },
+    "attachments": {
+      "version": 1,
+      "checksum": "df394cc51bb185ff151b39d11d790ea7354ae1cdb2e2cdd34d7d4699f742a69a"
+    },
+    "conversation": {
+      "version": 1,
+      "checksum": "b39fb41a690e01c1aaf35b5d1f92cacf486895f5f1ad313b41260d55a3bb1d0e"
+    },
+    "usage": {
+      "version": 1,
+      "checksum": "d73694011ef5ed1c283a61064b573e518bf2c5e68a19340c01bf9dbcab751a5a"
+    },
+    "review": {
+      "version": 1,
+      "checksum": "7bb5879ecda4a903d1daaef53e15a8793cdf09f456fde97eaaf63c95b63d6076"
+    },
+    "automations": {
+      "version": 1,
+      "checksum": "1def350f85e857ed9ef75e73fb5cc217f0abe6622b7c10b3c2e23cea3fc95b8c"
+    },
+    "intelligent-ui": {
+      "version": 1,
+      "checksum": "95d6441ae2d0fa6086045e833b4b4484103e3815a47ddb69a44e1f76bb17b7be"
+    },
+    "workbuddy": {
+      "version": 2,
+      "checksum": "63a94b721ca300155153e8a080470bbc938ecf1b7638d6ae774a95c3a82de405"
+    }
+  },
+  "objects": [
+    {
+      "type": "table",
+      "name": "workspaces_workspaces",
+      "sql": "CREATE TABLE workspaces_workspaces (\n  id             TEXT PRIMARY KEY,\n  path           TEXT NOT NULL,\n  path_key       TEXT NOT NULL UNIQUE,\n  name           TEXT NOT NULL,\n  created_at     INTEGER NOT NULL,\n  last_opened_at INTEGER NOT NULL\n)"
+    },
+    {
+      "type": "index",
+      "name": "workspaces_workspaces_by_opened",
+      "sql": "CREATE INDEX workspaces_workspaces_by_opened ON workspaces_workspaces (last_opened_at DESC)"
+    },
+    {
+      "type": "table",
+      "name": "attachments_files",
+      "sql": "CREATE TABLE attachments_files (\n  sha256     TEXT PRIMARY KEY CHECK (length(sha256) = 64),\n  size       INTEGER NOT NULL,\n  created_at INTEGER NOT NULL\n)"
+    },
+    {
+      "type": "table",
+      "name": "attachments_items",
+      "sql": "CREATE TABLE attachments_items (\n  id         TEXT PRIMARY KEY,\n  sha256     TEXT NOT NULL REFERENCES attachments_files (sha256),\n  name       TEXT NOT NULL,\n  mime       TEXT NOT NULL,\n  kind       TEXT NOT NULL CHECK (kind IN ('image', 'file')),\n  created_at INTEGER NOT NULL\n)"
+    },
+    {
+      "type": "index",
+      "name": "attachments_items_by_sha",
+      "sql": "CREATE INDEX attachments_items_by_sha ON attachments_items (sha256)"
+    },
+    {
+      "type": "table",
+      "name": "attachments_refs",
+      "sql": "CREATE TABLE attachments_refs (\n  owner_key  TEXT NOT NULL,\n  item_id    TEXT NOT NULL REFERENCES attachments_items (id) ON DELETE CASCADE,\n  created_at INTEGER NOT NULL,\n  PRIMARY KEY (owner_key, item_id)\n) WITHOUT ROWID"
+    },
+    {
+      "type": "index",
+      "name": "attachments_refs_by_item",
+      "sql": "CREATE INDEX attachments_refs_by_item ON attachments_refs (item_id)"
+    },
+    {
+      "type": "table",
+      "name": "conversation_threads",
+      "sql": "CREATE TABLE conversation_threads (\n  id                     TEXT PRIMARY KEY,\n  workspace_id           TEXT NOT NULL,\n  title                  TEXT NOT NULL,\n  title_source           TEXT NOT NULL CHECK (title_source IN ('pending', 'auto', 'user')),\n  posture                TEXT NOT NULL,\n  origin                 TEXT NOT NULL CHECK (origin IN ('user', 'automation')),\n  session_id             TEXT,\n  session_file           TEXT,\n  initial_model_provider TEXT,\n  initial_model_id       TEXT,\n  initial_thinking       TEXT,\n  forked_from            TEXT,\n  pinned                 INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),\n  archived               INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1)),\n  created_at             INTEGER NOT NULL,\n  updated_at             INTEGER NOT NULL,\n  controls_snapshot      TEXT,\n  CHECK ((initial_model_provider IS NULL) = (initial_model_id IS NULL)),\n  CHECK ((session_id IS NULL) = (session_file IS NULL))\n)"
+    },
+    {
+      "type": "index",
+      "name": "conversation_threads_by_workspace",
+      "sql": "CREATE INDEX conversation_threads_by_workspace ON conversation_threads (workspace_id, archived, pinned DESC, updated_at DESC)"
+    },
+    {
+      "type": "index",
+      "name": "conversation_threads_by_session_file",
+      "sql": "CREATE UNIQUE INDEX conversation_threads_by_session_file ON conversation_threads (session_file) WHERE session_file IS NOT NULL"
+    },
+    {
+      "type": "table",
+      "name": "conversation_submissions",
+      "sql": "CREATE TABLE conversation_submissions (\n  client_turn_id   TEXT PRIMARY KEY,\n  thread_id        TEXT NOT NULL REFERENCES conversation_threads (id) ON DELETE CASCADE,\n  text             TEXT NOT NULL,\n  attachments      TEXT NOT NULL,\n  skills           TEXT NOT NULL,\n  requested_as     TEXT NOT NULL CHECK (requested_as IN ('turn', 'steer', 'followUp')),\n  status           TEXT NOT NULL CHECK (status IN ('pending', 'started', 'queued', 'failed')),\n  turn_id          TEXT,\n  error_code       TEXT,\n  error_message    TEXT,\n  rev              INTEGER NOT NULL DEFAULT 1,\n  created_at       INTEGER NOT NULL,\n  updated_at       INTEGER NOT NULL\n)"
+    },
+    {
+      "type": "index",
+      "name": "conversation_submissions_by_thread",
+      "sql": "CREATE INDEX conversation_submissions_by_thread ON conversation_submissions (thread_id, created_at)"
+    },
+    {
+      "type": "index",
+      "name": "conversation_submissions_by_turn",
+      "sql": "CREATE INDEX conversation_submissions_by_turn ON conversation_submissions (thread_id, turn_id, client_turn_id) WHERE turn_id IS NOT NULL"
+    },
+    {
+      "type": "table",
+      "name": "conversation_reclaim",
+      "sql": "CREATE TABLE conversation_reclaim (\n  session_file TEXT PRIMARY KEY,\n  thread_id    TEXT NOT NULL,\n  attempts     INTEGER NOT NULL DEFAULT 0,\n  last_error   TEXT,\n  created_at   INTEGER NOT NULL,\n  updated_at   INTEGER NOT NULL\n)"
+    },
+    {
+      "type": "table",
+      "name": "usage_events",
+      "sql": "CREATE TABLE usage_events (\n  id          INTEGER PRIMARY KEY,\n  thread_id   TEXT NOT NULL,                                    -- 无外键；线程删除后保留\n  day         TEXT NOT NULL,                                    -- Core 本地时区日期 YYYY-MM-DD\n  at          INTEGER NOT NULL,\n  provider    TEXT NOT NULL,\n  model       TEXT NOT NULL,\n  input       INTEGER NOT NULL,\n  output      INTEGER NOT NULL,\n  cache_read  INTEGER NOT NULL,\n  cache_write INTEGER NOT NULL,\n  cost        REAL NOT NULL\n)"
+    },
+    {
+      "type": "table",
+      "name": "usage_messages",
+      "sql": "CREATE TABLE usage_messages (\n  id INTEGER PRIMARY KEY,\n  thread_id TEXT NOT NULL,\n  day TEXT NOT NULL,\n  at INTEGER NOT NULL\n)"
+    },
+    {
+      "type": "index",
+      "name": "usage_messages_by_day",
+      "sql": "CREATE INDEX usage_messages_by_day ON usage_messages (day)"
+    },
+    {
+      "type": "table",
+      "name": "usage_daily",
+      "sql": "CREATE TABLE usage_daily (\n  day         TEXT NOT NULL,\n  provider    TEXT NOT NULL,\n  model       TEXT NOT NULL,\n  input       INTEGER NOT NULL,\n  output      INTEGER NOT NULL,\n  cache_read  INTEGER NOT NULL,\n  cache_write INTEGER NOT NULL,\n  cost        REAL NOT NULL,\n  PRIMARY KEY (day, provider, model)\n) WITHOUT ROWID"
+    },
+    {
+      "type": "table",
+      "name": "review_turn_files",
+      "sql": "CREATE TABLE review_turn_files (\n  thread_id  TEXT NOT NULL,\n  turn       INTEGER NOT NULL,\n  path       TEXT NOT NULL,\n  before     TEXT,\n  after      TEXT,\n  state      TEXT NOT NULL CHECK (state IN ('applied', 'reverted')),\n  created_at INTEGER NOT NULL,\n  PRIMARY KEY (thread_id, turn, path)\n)"
+    },
+    {
+      "type": "index",
+      "name": "review_turn_files_by_turn",
+      "sql": "CREATE INDEX review_turn_files_by_turn ON review_turn_files (thread_id, turn)"
+    },
+    {
+      "type": "table",
+      "name": "automations_automations",
+      "sql": "CREATE TABLE automations_automations (\n  id             TEXT PRIMARY KEY,\n  title          TEXT NOT NULL,\n  prompt         TEXT NOT NULL,\n  cron           TEXT,\n  time_zone      TEXT NOT NULL,\n  workspace_id   TEXT NOT NULL,\n  posture        TEXT NOT NULL,\n  model_provider TEXT,\n  model_id       TEXT,\n  thinking       TEXT,\n  enabled        INTEGER NOT NULL CHECK (enabled IN (0, 1)),\n  next_run_at    INTEGER,\n  issue          TEXT,\n  created_at     INTEGER NOT NULL,\n  updated_at     INTEGER NOT NULL,\n  run_at         INTEGER,\n  thread_mode    TEXT NOT NULL DEFAULT 'new' CHECK (thread_mode IN ('new', 'continue')),\n  thread_id      TEXT,\n  notify         TEXT NOT NULL DEFAULT 'attention' CHECK (notify IN ('always', 'attention', 'never')),\n  catch_up       INTEGER NOT NULL DEFAULT 1 CHECK (catch_up IN (0, 1)),\n  CHECK ((model_provider IS NULL) = (model_id IS NULL))\n)"
+    },
+    {
+      "type": "index",
+      "name": "automations_automations_due",
+      "sql": "CREATE INDEX automations_automations_due ON automations_automations (enabled, next_run_at) WHERE issue IS NULL"
+    },
+    {
+      "type": "table",
+      "name": "automations_runs",
+      "sql": "CREATE TABLE automations_runs (\n  id            TEXT PRIMARY KEY,\n  automation_id TEXT NOT NULL REFERENCES automations_automations (id) ON DELETE CASCADE,\n  thread_id     TEXT,\n  triggered_by  TEXT NOT NULL CHECK (triggered_by IN ('schedule', 'manual', 'catch_up')),\n  scheduled_for INTEGER,\n  started_at    INTEGER NOT NULL,\n  settled_at    INTEGER,\n  outcome       TEXT NOT NULL CHECK (outcome IN ('running', 'awaiting', 'succeeded', 'failed', 'cancelled', 'skipped')),\n  message       TEXT,\n  summary       TEXT,\n  attention     INTEGER NOT NULL DEFAULT 0 CHECK (attention IN (0, 1))\n)"
+    },
+    {
+      "type": "index",
+      "name": "automations_runs_by_automation",
+      "sql": "CREATE INDEX automations_runs_by_automation ON automations_runs (automation_id, started_at DESC)"
+    },
+    {
+      "type": "index",
+      "name": "automations_runs_open",
+      "sql": "CREATE INDEX automations_runs_open ON automations_runs (outcome) WHERE outcome IN ('running', 'awaiting')"
+    },
+    {
+      "type": "index",
+      "name": "automations_runs_by_thread",
+      "sql": "CREATE INDEX automations_runs_by_thread ON automations_runs (thread_id) WHERE thread_id IS NOT NULL"
+    },
+    {
+      "type": "table",
+      "name": "intelligent_ui_states",
+      "sql": "CREATE TABLE intelligent_ui_states (\n  thread_id          TEXT NOT NULL,\n  call_id            TEXT NOT NULL,\n  title              TEXT NOT NULL,\n  model_json         TEXT,\n  view_json          TEXT,\n  model_revision     INTEGER NOT NULL,\n  delivered_revision INTEGER NOT NULL DEFAULT 0,\n  updated_at         INTEGER NOT NULL,\n  tweaks_json        TEXT,\n  PRIMARY KEY (thread_id, call_id)\n)"
+    },
+    {
+      "type": "table",
+      "name": "workbuddy_accounts",
+      "sql": "CREATE TABLE workbuddy_accounts (\n  id                   TEXT PRIMARY KEY,\n  label                TEXT NOT NULL,\n  auth_type            TEXT NOT NULL CHECK (auth_type IN ('oauth', 'api')),\n  access               TEXT NOT NULL,\n  refresh              TEXT NOT NULL DEFAULT '',\n  expires              INTEGER NOT NULL DEFAULT 0,\n  refresh_expires_at   INTEGER NOT NULL DEFAULT 0,\n  uid                  TEXT NOT NULL DEFAULT '',\n  domain               TEXT NOT NULL DEFAULT '',\n  token_type           TEXT NOT NULL DEFAULT '',\n  enterprise_id        TEXT NOT NULL DEFAULT '',\n  api_key              TEXT NOT NULL DEFAULT '',\n  plan                 TEXT NOT NULL DEFAULT '',\n  status               TEXT NOT NULL DEFAULT 'ok' CHECK (status IN ('ok', 'expired', 'error')),\n  status_message       TEXT,\n  usage_json           TEXT,\n  usage_at             INTEGER,\n  last_checkin_day     TEXT,\n  last_checkin_at      INTEGER,\n  last_checkin_outcome TEXT,\n  last_checkin_message TEXT,\n  last_checkin_credit  REAL,\n  last_checkin_streak  INTEGER,\n  created_at           INTEGER NOT NULL,\n  updated_at           INTEGER NOT NULL\n, rest_until INTEGER NOT NULL DEFAULT 0, rest_reason TEXT, last_checkin_next_try_at INTEGER NOT NULL DEFAULT 0)"
+    },
+    {
+      "type": "index",
+      "name": "workbuddy_accounts_uid",
+      "sql": "CREATE INDEX workbuddy_accounts_uid ON workbuddy_accounts (uid)"
+    },
+    {
+      "type": "table",
+      "name": "workbuddy_settings",
+      "sql": "CREATE TABLE workbuddy_settings (\n  key   TEXT PRIMARY KEY,\n  value TEXT NOT NULL\n)"
+    }
+  ]
+}

@@ -82,7 +82,7 @@ L0  基础         foundation
 `serve` 的顺序是：隔离自检 → 环境清洗 → 打开数据库 → 创建引擎 → `createCoreKernel(modules)` → `start()`。
 
 `core-kernel` 提供：模块定义（`defineCoreModule`）、按 `dependsOn` 拓扑装配、服务令牌注册表、
-进程内事件总线（`ctx.events`）、agent 工具注册（`ctx.agentTools`）、迁移（每模块一条 `init`，见 `docs/refactor-log.md` 偏差 #82）、RPC 绑定、生命周期。
+进程内事件总线（`ctx.events`）、agent 工具注册（`ctx.agentTools`）、迁移（已发版 schema 固定为基线，追加前向版本；迁移前备份、事务失败回滚，只读降级；见 `docs/adr/004-data-migrations.md`）、RPC 绑定、生命周期。
 启动时逐项验收：所有 `owner='core'` 的方法都有实现、模块依赖无环、每个功能只建自己前缀的表。
 
 ### 4.2 Host（Electron 主进程）
@@ -233,3 +233,7 @@ omp 的版本锁在根 `package.json` 的 catalog（四个 `@oh-my-pi/*` 同一�
 **发布**：`bun run release`（本机链：门禁 → 写版本号 → 构建 + 冒烟 → 推 tag → `gh` 建 release →
 验通道）。它自己调 `bun run version:set`，所以不要再手工跑一遍；`docs/release-notes/` 已不存在，
 发布说明走 `gh release create --generate-notes`。
+
+## P0 架构决策与过渡
+
+唯一引擎为 omp；目标是 UI/Host/Core/Runtime 分工及 UI–Core 直连，当前进程拓扑仍是过渡实现。事实归属与后续计划见 `docs/adr/`。Host 的 safeStorage 凭据库通过受调用方限制的 `secrets.lease` 提供内存凭据，Core/Runtime 不应把新凭据写入引擎配置。四类债务以 `bun run check:ratchet` 在 CI 检查只减不增。

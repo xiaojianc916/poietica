@@ -1,5 +1,6 @@
 import type {
   AppContract,
+  Caller,
   Contract,
   MethodName,
   NotificationName,
@@ -97,7 +98,7 @@ export class RpcHub {
   /** Core 发来的请求：只允许 owner='host' 的方法 */
   async handleFromCore(method: string, params: unknown, ctx: InboundContext): Promise<unknown> {
     const def = this.o.appContract.methods.get(method)
-    if (def === undefined || def.owner !== 'host') {
+    if (def === undefined || def.owner !== 'host' || !callerAllowed(def, 'core')) {
       throw new AppError(SystemErrorCode.methodNotFound, `Core 不能调用 ${method}`)
     }
     return this.o.hostRouter.handle(method, jsonValue(params), ctx)
@@ -114,6 +115,9 @@ export class RpcHub {
         const def = contract.methods.find((m) => m.name === name)
         if (def === undefined || def.owner !== 'core') {
           throw new AppError(SystemErrorCode.methodNotFound, `${String(name)} 不是 owner='core' 的方法`)
+        }
+        if (!callerAllowed(def, 'host')) {
+          throw new AppError(SystemErrorCode.methodNotFound, `Host 不能调用 ${String(name)}`)
         }
         const ac = new AbortController()
         const timeoutMs = opts?.timeoutMs ?? def.timeoutMs
@@ -162,9 +166,16 @@ export class RpcHub {
   private async route(method: string, params: unknown, ctx: InboundContext): Promise<unknown> {
     const def = this.o.appContract.methods.get(method)
     if (def === undefined) throw new AppError(SystemErrorCode.methodNotFound, `未知方法 ${method}`)
+    /* 声明了调用方而不含 ui 的方法（例如 secrets.*）对窗口等同不存在：不告诉它有这个方法 */
+    if (!callerAllowed(def, 'ui')) throw new AppError(SystemErrorCode.methodNotFound, `未知方法 ${method}`)
     if (def.owner === 'host') return this.o.hostRouter.handle(method, params, ctx)
     // owner='core'：Hub 不设超时（timeoutMs=0），UI 侧超时后发 $/cancelRequest，ctx.signal 随之中止并转发取消。
     // 结果是 RawJson，原样交回给窗口的对端：Host 不解析、不重编码（ipc-transport 发成「信封 + 载荷文本」）。
     return this.o.supervisor.forward(method, params, { signal: ctx.signal, meta: ctx.meta })
   }
+}
+
+/** 契约里没写 callers 就不限调用方 */
+function callerAllowed(def: { readonly callers?: readonly Caller[] }, caller: Caller): boolean {
+  return def.callers === undefined || def.callers.includes(caller)
 }

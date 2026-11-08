@@ -60,7 +60,7 @@ export async function createOmpEngineForTest(o: CreateOmpEngineForTestOptions): 
     },
   )
   // mock provider 也要一份凭据：omp 的凭据解析在读模型之前跑，缺 key 会直接拒掉这一轮。
-  // 走端口自己的写入面（credentials.set），不旁路内部的 authStorage。
+  // 走端口自己的写入面（运行时钥匙层，ADR-008），不旁路内部的 authStorage。
   await engine.models.setApiKey('mock', 'mock')
   return {
     engine,

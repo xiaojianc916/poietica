@@ -1,4 +1,4 @@
-import type { CoreModule } from '@poietica/core-kernel'
+import type { CoreModule, RetiredCoreModule } from '@poietica/core-kernel'
 import agentSettings from '@poietica/feature-agent-settings/core'
 import attachments from '@poietica/feature-attachments/core'
 import automations from '@poietica/feature-automations/core'
@@ -35,3 +35,9 @@ export const coreModules: readonly CoreModule[] = [
   intelligentUi,
   workbuddy,
 ]
+
+/**
+ * 已从产品移除、启动时要清掉数据的模块（只增不减：一条记录至少保留到所有用户都升级过一次）。
+ * 目前没有退役模块。
+ */
+export const retiredCoreModules: readonly RetiredCoreModule[] = []

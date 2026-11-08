@@ -1,6 +1,8 @@
 import type { z } from 'zod'
 
 export type Owner = 'core' | 'host'
+/** 谁能发起这个请求。UI 指渲染进程（经 Host 转发），core / host 指另一个进程本身 */
+export type Caller = 'ui' | 'core' | 'host'
 
 export interface MethodDef<
   N extends string = string,
@@ -14,6 +16,11 @@ export interface MethodDef<
   readonly result: R
   readonly timeoutMs: number // 默认 30_000；长任务显式声明（例如插件安装 300_000）；0 表示不超时
   readonly description: string // 一句中文说明，会出现在契约快照里
+  /**
+   * 只允许这些调用方（不写 = 不限，即 owner 之外的两方都能调）。Host 的 RPC Hub 按它拒绝越权请求：
+   * 例如凭据库的 `secrets.*` 只给 Core，渲染进程拿不到明文（ADR-008）。
+   */
+  readonly callers?: readonly Caller[]
 }
 export interface NotificationDef<N extends string = string, P extends z.ZodType = z.ZodType> {
   readonly kind: 'notification'
@@ -30,6 +37,7 @@ export function defineMethod<const N extends string, P extends z.ZodType, R exte
   result: R
   timeoutMs?: number
   description: string
+  callers?: readonly Caller[]
 }): MethodDef<N, P, R> {
   return Object.freeze({ kind: 'method', timeoutMs: 30_000, ...d })
 }

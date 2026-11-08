@@ -5,6 +5,7 @@ import files from '@poietica/feature-files/host'
 import intelligentUi from '@poietica/feature-intelligent-ui/host'
 import platform from '@poietica/feature-platform/host'
 import preferences from '@poietica/feature-preferences/host'
+import secrets from '@poietica/feature-secrets/host'
 import terminal from '@poietica/feature-terminal/host'
 import update from '@poietica/feature-update/host'
 import type { HostModule } from '@poietica/host-kernel'
@@ -15,6 +16,7 @@ import type { HostModule } from '@poietica/host-kernel'
  */
 export const hostModules: readonly HostModule[] = [
   platform,
+  secrets,
   preferences,
   attachments,
   conversation,

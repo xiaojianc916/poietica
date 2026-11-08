@@ -16,6 +16,7 @@ describe('platform core（diagnostics）', () => {
     expect(diag.scrubbedEnvKeys).toEqual([])
     expect(diag.coreVersion).toBe('test')
     expect(diag.engineVersion).toBe('test')
+    expect(diag.dataMode).toEqual({ mode: 'readWrite' })
     await h.dispose()
   })
 

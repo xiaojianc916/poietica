@@ -48,6 +48,7 @@ export const systemErrors = defineErrors('kernel', {
   protocol_mismatch: '版本不匹配',
   contract_invalid: '契约无效',
   io_error: '读写文件失败',
+  data_read_only: '数据当前为只读',
   internal: '内部错误',
 })
 

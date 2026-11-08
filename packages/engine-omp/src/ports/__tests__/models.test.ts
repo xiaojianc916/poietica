@@ -46,14 +46,16 @@ interface Harness {
   readonly reloads: number[]
   /** 登录之后只刷那一家（refreshProvider） */
   readonly refreshed: string[]
+  /** omp 运行时钥匙层（内存）：provider → key */
+  readonly runtime: Map<string, string>
 }
 
 /** agent.db 凭据表的替身：按行记，每行一种（api_key / oauth） */
 class Ledger {
-  #rows: { id: number; provider: string; type: 'api_key' | 'oauth'; email: string | null }[] = []
+  #rows: { id: number; provider: string; type: 'api_key' | 'oauth'; email: string | null; key: string | null }[] = []
   #next = 1
-  add(provider: string, type: 'api_key' | 'oauth', email: string | null = null): void {
-    this.#rows.push({ id: this.#next++, provider, type, email })
+  add(provider: string, type: 'api_key' | 'oauth', email: string | null = null, key: string | null = null): void {
+    this.#rows.push({ id: this.#next++, provider, type, email, key })
   }
   has(provider: string, type?: 'api_key' | 'oauth'): boolean {
     return this.#rows.some((row) => row.provider === provider && (type === undefined || row.type === type))
@@ -61,10 +63,14 @@ class Ledger {
   email(provider: string): string | null {
     return this.#rows.find((row) => row.provider === provider && row.type === 'oauth')?.email ?? null
   }
-  list(provider: string): { id: number; credential: { type: string } }[] {
+  list(provider?: string): { id: number; provider: string; credential: { type: string; key?: string } }[] {
     return this.#rows
-      .filter((row) => row.provider === provider)
-      .map((row) => ({ id: row.id, credential: { type: row.type } }))
+      .filter((row) => provider === undefined || row.provider === provider)
+      .map((row) => ({
+        id: row.id,
+        provider: row.provider,
+        credential: row.key === null ? { type: row.type } : { type: row.type, key: row.key },
+      }))
   }
   remove(provider: string, id: number): boolean {
     const before = this.#rows.length
@@ -81,8 +87,9 @@ function makePort(): Harness {
   const settings = Settings.isolated()
   /* anthropic 两样都有：一把 API Key，外加一份账号登录 —— 删一样不能连带另一样 */
   const credentials = new Ledger()
-  credentials.add('anthropic', 'api_key')
+  credentials.add('anthropic', 'api_key', null, 'sk-legacy-anthropic')
   credentials.add('anthropic', 'oauth', 'pro@example.com')
+  const runtime = new Map<string, string>()
   const authorized = new Set<string>(['anthropic'])
   const logged: string[] = []
   const logger: Logger = {
@@ -152,13 +159,17 @@ function makePort(): Harness {
     roles: ompRolesOf(settings, { getAvailable: () => MODELS }),
     credentials: {
       has: (provider) => credentials.has(provider),
-      set: (provider) => {
-        credentials.add(provider, 'api_key')
-        authorized.add(provider)
-        return Promise.resolve()
-      },
       list: (provider) => credentials.list(provider),
       removeById: (provider, id) => Promise.resolve(credentials.remove(provider, id)),
+    },
+    runtimeKeys: {
+      set: (provider, key) => {
+        runtime.set(provider, key)
+        authorized.add(provider)
+      },
+      remove: (provider) => {
+        runtime.delete(provider)
+      },
     },
     root: settings,
     customProviders: new CustomProvidersFile({
@@ -173,7 +184,7 @@ function makePort(): Harness {
       return Promise.resolve()
     },
   })
-  return { port, settings, credentials, authorized, logged, reloads, refreshed }
+  return { port, settings, credentials, authorized, logged, reloads, refreshed, runtime }
 }
 
 describe('ModelsPort 账号登录', () => {
@@ -307,22 +318,44 @@ describe('ModelsPort', () => {
     expect(scoped.map((m) => m.enabled)).toEqual([false, true])
   })
 
-  /* omp 知识 #12：key 只进 credentials.set(provider, { type: 'api_key', key, source: 'login' })。 */
-  test('setApiKey 之后日志里没有 key，也没有回传', async () => {
+  /* ADR-008：key 只进 omp 的运行时钥匙层（内存），不再 credentials.set 落进 agent.db */
+  test('setApiKey 只进内存：不写 agent.db，日志里没有 key，也没有回传', async () => {
     const harness = makePort()
     await harness.port.setApiKey('openai', 'sk-secret-value')
-    expect(harness.credentials.has('openai')).toBe(true)
+    expect(harness.runtime.get('openai')).toBe('sk-secret-value')
+    expect(harness.credentials.has('openai')).toBe(false)
     expect(harness.logged.join('\n')).not.toContain('sk-secret-value')
-    expect(harness.logged.join('\n')).toContain('api key stored')
+    expect(harness.logged.join('\n')).toContain('api key set')
   })
 
-  test('clearApiKey 只删 API Key 那一行（账号登录留着）并 fire', async () => {
+  test('storedApiKeys 交出 agent.db 里的旧钥匙；loadApiKeys 之后那一行被删、账号登录留着，只 fire 一次', async () => {
+    const harness = makePort()
+    expect(await harness.port.storedApiKeys()).toEqual([{ provider: 'anthropic', key: 'sk-legacy-anthropic' }])
+    let fired = 0
+    const sub = harness.port.onDidChange(() => {
+      fired += 1
+    })
+    await harness.port.loadApiKeys([
+      { provider: 'anthropic', key: 'sk-legacy-anthropic' },
+      { provider: 'openai', key: 'sk-openai' },
+    ])
+    expect(harness.runtime.get('anthropic')).toBe('sk-legacy-anthropic')
+    expect(harness.credentials.has('anthropic', 'api_key')).toBe(false)
+    expect(harness.credentials.has('anthropic', 'oauth')).toBe(true)
+    expect(await harness.port.storedApiKeys()).toEqual([])
+    expect(fired).toBe(1)
+    sub.dispose()
+  })
+
+  test('clearApiKey 撤掉内存里的钥匙，只删 API Key 那一行（账号登录留着）并 fire', async () => {
     const harness = makePort()
     let fired = 0
     const sub = harness.port.onDidChange(() => {
       fired += 1
     })
+    harness.runtime.set('anthropic', 'sk-runtime')
     await harness.port.clearApiKey('anthropic')
+    expect(harness.runtime.has('anthropic')).toBe(false)
     expect(harness.credentials.has('anthropic', 'api_key')).toBe(false)
     expect(harness.credentials.has('anthropic', 'oauth')).toBe(true)
     expect(fired).toBe(1)

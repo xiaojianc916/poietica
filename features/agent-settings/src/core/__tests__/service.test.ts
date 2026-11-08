@@ -1,7 +1,25 @@
 import { describe, expect, test } from 'bun:test'
+import { createFakeEngine } from '@poietica/engine-testkit'
 import { AppError } from '@poietica/foundation'
+import { createTestLogger } from '@poietica/test-kit'
 import type { SettingDescriptor } from '../../contract'
+import { restoreSecretSettings, type SecretSettingsVault } from '../secret-settings'
 import { createAgentSettingsService, groupOf, validateValue } from '../service'
+
+function memoryVault(o: { failPut?: boolean } = {}): SecretSettingsVault & { readonly data: Map<string, string> } {
+  const data = new Map<string, string>()
+  return {
+    data,
+    all: async () => Object.fromEntries(data),
+    put: async (path, value) => {
+      if (o.failPut === true) throw new AppError('secrets.unavailable', '系统的凭据加密不可用，密钥没有保存')
+      data.set(path, value)
+    },
+    delete: async (path) => {
+      data.delete(path)
+    },
+  }
+}
 
 const option = (value: string, label = value) => ({ value, label, description: null })
 
@@ -24,10 +42,11 @@ const descriptor = (over: Partial<SettingDescriptor>): SettingDescriptor => ({
   ...over,
 })
 
-function make(catalog: SettingDescriptor[]) {
+function make(catalog: SettingDescriptor[], vault = memoryVault()) {
   let current = catalog
   const calls: { op: string; path: string; value?: unknown }[] = []
   const service = createAgentSettingsService({
+    vault,
     settings: {
       groupOrder: [],
       async catalog() {
@@ -51,13 +70,60 @@ function make(catalog: SettingDescriptor[]) {
         return null
       },
       async setPythonInterpreter() {},
+      async injectSecret(path, value) {
+        calls.push({ op: 'inject', path, value })
+        current = current.map((s) => (s.path === path ? { ...s, hasValue: value !== null } : s))
+      },
+      async storedSecrets() {
+        return []
+      },
       onDidChange: () => ({ dispose: () => undefined }),
     },
     groupOrder: [],
     emitChanged: () => undefined,
   })
-  return { service, calls }
+  return { service, calls, vault }
 }
+
+describe('agent-settings 凭据类设置（ADR-008）', () => {
+  const token = descriptor({ path: 'hindsight.apiToken', type: 'string', secret: true })
+
+  test('set：值进凭据库、注入引擎覆盖层，不走持久层 set；reset / 空串：两边都撤', async () => {
+    const { service, calls, vault } = make([token])
+    expect((await service.set('hindsight.apiToken', 'tok-1')).hasValue).toBe(true)
+    expect(vault.data.get('hindsight.apiToken')).toBe('tok-1')
+    expect(calls).toEqual([{ op: 'inject', path: 'hindsight.apiToken', value: 'tok-1' }])
+    expect((await service.reset('hindsight.apiToken')).hasValue).toBe(false)
+    expect(vault.data.has('hindsight.apiToken')).toBe(false)
+    await service.set('hindsight.apiToken', 'tok-2')
+    await service.set('hindsight.apiToken', '')
+    expect(vault.data.has('hindsight.apiToken')).toBe(false)
+    expect(calls.some((c) => c.op === 'set')).toBe(false)
+  })
+
+  test('凭据库写不进去：set 失败，引擎没被注入', async () => {
+    const { service, calls } = make([token], memoryVault({ failPut: true }))
+    await expect(service.set('hindsight.apiToken', 'tok-1')).rejects.toMatchObject({ code: 'secrets.unavailable' })
+    expect(calls).toEqual([])
+  })
+
+  test('启动：config.yml 里的旧明文搬进凭据库并删掉，凭据库的每一格注入引擎；搬不进的留在原处', async () => {
+    const engine = createFakeEngine({ storedSecrets: [{ path: 'hindsight.apiToken', value: 'tok-legacy' }] })
+    const vault = memoryVault()
+    vault.data.set('searxng.token', 'tok-vault')
+    const logger = createTestLogger()
+    await restoreSecretSettings({ vault, settings: engine.settings, logger })
+    expect(vault.data.get('hindsight.apiToken')).toBe('tok-legacy')
+    expect(engine.injectedSecrets.get('hindsight.apiToken')).toBe('tok-legacy')
+    expect(engine.injectedSecrets.get('searxng.token')).toBe('tok-vault')
+    expect(JSON.stringify(logger.records)).not.toContain('tok-')
+
+    const stuck = createFakeEngine({ storedSecrets: [{ path: 'hindsight.apiToken', value: 'tok-legacy' }] })
+    await restoreSecretSettings({ vault: memoryVault({ failPut: true }), settings: stuck.settings, logger })
+    expect(await stuck.settings.storedSecrets()).toEqual([{ path: 'hindsight.apiToken', value: 'tok-legacy' }])
+    expect(stuck.injectedSecrets.size).toBe(0)
+  })
+})
 
 describe('agent-settings 类型校验（14 页 §7.3）', () => {
   test('boolean 只收布尔', () => {

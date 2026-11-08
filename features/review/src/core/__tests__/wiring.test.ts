@@ -109,7 +109,13 @@ async function wire(
       },
     },
     agentTools: { register: () => ({ dispose: () => undefined }) },
-    runtime: { coreVersion: 'test', engineVersion: 'test', scrubbedEnvKeys: [], setLogLevel: () => undefined },
+    runtime: {
+      coreVersion: 'test',
+      engineVersion: 'test',
+      dataMode: { mode: 'readWrite' },
+      scrubbedEnvKeys: [],
+      setLogLevel: () => undefined,
+    },
     lifecycle: { onReady: () => undefined, onShutdown: () => undefined },
     disposables,
   } as unknown as CoreModuleContext

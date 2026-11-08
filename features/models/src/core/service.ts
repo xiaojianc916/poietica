@@ -2,9 +2,12 @@ import type { ModelsPort } from '@poietica/engine'
 import { AppError, type Logger } from '@poietica/foundation'
 import type { CustomProviderDef, ModelInfo, ModelRef, ModelRoleInfo, ProviderInfo } from '../contract'
 import { modelsErrors } from '../contract/errors'
+import type { ApiKeyVault } from './api-keys'
 
 export interface ModelsServiceDeps {
   readonly models: ModelsPort
+  /** API Key 的持久化归 Host 的凭据库（ADR-008）；引擎那边只进内存 */
+  readonly vault: ApiKeyVault
   readonly logger: Logger
   readonly emitChanged: () => void
 }
@@ -43,6 +46,8 @@ export function createModelsService(d: ModelsServiceDeps): ModelsService {
       if (!providers.some((p) => p.id === provider)) {
         throw new AppError(modelsErrors.provider_not_found, '模型服务商不存在')
       }
+      /* 先落凭据库：落不下（系统加密不可用）就整个失败，不让一把只在内存里的钥匙看起来像是存好了 */
+      await d.vault.put(provider, apiKey)
       await d.models.setApiKey(provider, apiKey)
       // 日志里只记服务商名：绝不把 params 整体写进日志。
       d.logger.info('api key set', { provider })
@@ -54,6 +59,7 @@ export function createModelsService(d: ModelsServiceDeps): ModelsService {
       if (!providers.some((p) => p.id === provider)) {
         throw new AppError(modelsErrors.provider_not_found, '模型服务商不存在')
       }
+      await d.vault.delete(provider)
       await d.models.clearApiKey(provider)
       d.logger.info('api key cleared', { provider })
       d.emitChanged()

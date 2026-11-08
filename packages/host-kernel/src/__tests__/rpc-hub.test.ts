@@ -26,6 +26,14 @@ const hostContract = defineContract({
       result: z.object({ pong: z.boolean() }),
       description: '本地处理',
     }),
+    defineMethod({
+      name: 'platform.coreOnly',
+      owner: 'host',
+      params: z.object({}),
+      result: z.object({ ok: z.boolean() }),
+      description: '只给 Core 调（像 secrets.*）',
+      callers: ['core'],
+    }),
   ],
   notifications: [
     defineNotification({
@@ -147,6 +155,7 @@ function makeHub(): HubHarness {
   const sup = fakeSupervisor()
   const hostRouter = new Router()
   hostRouter.register(hostContract.methods[0]!, () => ({ pong: true }))
+  hostRouter.register(hostContract.methods[1]!, () => ({ ok: true }))
   const hub = new RpcHub({
     appContract,
     hostRouter,
@@ -220,6 +229,21 @@ describe('RpcHub', () => {
     expect(
       await hub.handleFromCore('platform.ping', {}, { id: 1, signal: new AbortController().signal, meta: undefined }),
     ).toEqual({ pong: true })
+  })
+
+  test('5b. callers 只含 core 的方法：窗口调用等同不存在，Core 照常调用（ADR-008）', async () => {
+    const { hub, attach } = makeHub()
+    const { peer } = attach(fakeWindow(1))
+    const err = await peer.request('platform.coreOnly', {}).catch((e: unknown) => e)
+    expect((err as AppError).code).toBe(SystemErrorCode.methodNotFound)
+    expect(
+      await hub.handleFromCore(
+        'platform.coreOnly',
+        {},
+        { id: 1, signal: new AbortController().signal, meta: undefined },
+      ),
+    ).toEqual({ ok: true })
+    peer.dispose()
   })
 
   test('6. Core 的通知先给 Host 模块旁听，再广播给窗口', async () => {

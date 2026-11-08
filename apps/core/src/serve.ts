@@ -11,7 +11,7 @@ import { createLogger, jsonlFileSink } from '@poietica/logging'
 import { appContract, PROTOCOL_VERSION } from '@poietica/protocol'
 import { createStdioTransport } from '@poietica/rpc/stdio'
 import { CORE_EXIT_CODES, dataLayout, parseCoreArgs } from '@poietica/runtime-layout'
-import { coreModules } from './modules'
+import { coreModules, retiredCoreModules } from './modules'
 import { CORE_VERSION } from './version'
 
 export async function serve(launchEnv: LaunchEnv): Promise<void> {
@@ -43,6 +43,7 @@ export async function serve(launchEnv: LaunchEnv): Promise<void> {
   const engine = args.probeMockModel ? await createProbeEngine(layout, logger) : await createRealEngine(layout, logger)
   const kernel = createCoreKernel({
     modules: coreModules,
+    retiredModules: retiredCoreModules,
     engine,
     layout,
     logger,

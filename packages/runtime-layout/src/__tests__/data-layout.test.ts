@@ -4,7 +4,7 @@ import { dataLayout, resolveDataRoot } from '../data-layout'
 const ROOT = 'C:\\Users\\a\\AppData\\Roaming\\Poietica'
 
 describe('dataLayout', () => {
-  // RL-1：21 个字段与 08 页 §1 的布局逐一相等（快照）；返回对象被冻结
+  // RL-1：23 个字段与 08 页 §1 的布局逐一相等（快照）；返回对象被冻结
   test('RL-1 与数据根布局逐一相等', () => {
     expect(dataLayout(ROOT)).toMatchInlineSnapshot(`
       {
@@ -13,6 +13,7 @@ describe('dataLayout', () => {
         "coreCwd": "C:\\Users\\a\\AppData\\Roaming\\Poietica\\core\\cwd",
         "coreDir": "C:\\Users\\a\\AppData\\Roaming\\Poietica\\core",
         "coreLog": "C:\\Users\\a\\AppData\\Roaming\\Poietica\\logs\\core.log",
+        "dbBackupsDir": "C:\\Users\\a\\AppData\\Roaming\\Poietica\\core\\backups",
         "dbFile": "C:\\Users\\a\\AppData\\Roaming\\Poietica\\core\\poietica.db",
         "keymapFile": "C:\\Users\\a\\AppData\\Roaming\\Poietica\\keymap.json",
         "logsDir": "C:\\Users\\a\\AppData\\Roaming\\Poietica\\logs",
@@ -25,6 +26,7 @@ describe('dataLayout', () => {
         "pythonDir": "C:\\Users\\a\\AppData\\Roaming\\Poietica\\tools\\python",
         "relayTokenFile": "C:\\Users\\a\\AppData\\Roaming\\Poietica\\core\\relay.token",
         "root": "C:\\Users\\a\\AppData\\Roaming\\Poietica",
+        "secretsFile": "C:\\Users\\a\\AppData\\Roaming\\Poietica\\secrets\\vault.json",
         "storageUsageFile": "C:\\Users\\a\\AppData\\Roaming\\Poietica\\storage-usage.json",
         "toolsDir": "C:\\Users\\a\\AppData\\Roaming\\Poietica\\tools",
         "uiStateFile": "C:\\Users\\a\\AppData\\Roaming\\Poietica\\ui-state.json",

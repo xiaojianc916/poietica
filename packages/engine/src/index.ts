@@ -11,6 +11,7 @@ export type { AgentEngine, CommandCatalogOptions, DraftControlInit, EngineInfo }
 export { EngineErrorCode, engineErrorMessages } from './errors'
 export { interactionCardOf, interactionStateOf } from './interaction-card'
 export type {
+  ApiKeyEntry,
   CustomProviderDef,
   DefaultSelection,
   LoginIO,

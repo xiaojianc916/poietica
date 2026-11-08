@@ -1,5 +1,5 @@
 {
-  "version": 54,
+  "version": 56,
   "methods": [
     {
       "name": "agentSettings.capabilities",
@@ -7880,6 +7880,44 @@
             "items": {
               "type": "string"
             }
+          },
+          "dataMode": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "const": "readWrite"
+                  }
+                },
+                "required": [
+                  "mode"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "const": "readOnly"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "data_too_new",
+                      "migration_failed"
+                    ]
+                  }
+                },
+                "required": [
+                  "mode",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            ]
           }
         },
         "required": [
@@ -7888,7 +7926,8 @@
           "dataRoot",
           "ompRoot",
           "dirs",
-          "scrubbedEnvKeys"
+          "scrubbedEnvKeys",
+          "dataMode"
         ],
         "additionalProperties": false
       }
@@ -13973,6 +14012,121 @@
           "before",
           "after"
         ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "secrets.delete",
+      "owner": "host",
+      "timeoutMs": 30000,
+      "description": "删掉一条密钥（不存在时什么也不做）",
+      "callers": [
+        "core"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "namespace",
+          "key"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "secrets.lease",
+      "owner": "host",
+      "timeoutMs": 30000,
+      "description": "取回一个命名空间里的全部密钥（只进调用方内存；解不开的条目跳过并记日志）",
+      "callers": [
+        "core"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          }
+        },
+        "required": [
+          "namespace"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "secrets.put",
+      "owner": "host",
+      "timeoutMs": 30000,
+      "description": "加密保存一条密钥；系统加密不可用时报 secrets.unavailable，绝不退回明文",
+      "callers": [
+        "core"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16384
+          }
+        },
+        "required": [
+          "namespace",
+          "key",
+          "value"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
         "additionalProperties": false
       }
     },
@@ -35435,6 +35589,10 @@
       "message": "后台服务不可用"
     },
     {
+      "code": "kernel.data_read_only",
+      "message": "数据当前为只读"
+    },
+    {
       "code": "kernel.data_root_invalid",
       "message": "数据目录无效"
     },
@@ -35585,6 +35743,10 @@
     {
       "code": "review.turn_file_missing",
       "message": "这一轮没有改过这个文件"
+    },
+    {
+      "code": "secrets.unavailable",
+      "message": "系统的凭据加密不可用，密钥没有保存"
     },
     {
       "code": "terminal.cwd_not_found",

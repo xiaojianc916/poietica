@@ -51,6 +51,8 @@ export const SystemErrorCode = {
   protocolMismatch: 'kernel.protocol_mismatch',
   contractInvalid: 'kernel.contract_invalid',
   io: 'kernel.io_error',
+  /** 数据以只读模式打开（ADR-004：库来自更新版本，或迁移失败后的降级），这次写入被拒绝 */
+  dataReadOnly: 'kernel.data_read_only',
   internal: 'kernel.internal',
 } as const
 export type SystemErrorCode = (typeof SystemErrorCode)[keyof typeof SystemErrorCode]

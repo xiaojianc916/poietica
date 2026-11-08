@@ -44,6 +44,7 @@ export default defineCoreModule({
       attachments,
       clock: ctx.clock,
       logger: ctx.logger,
+      readOnly: ctx.runtime.dataMode.mode === 'readOnly',
       emitThreadUpdated: (thread) => ctx.rpc.emit('threads.updated', thread),
       emitThreadRemoved: (threadId) => ctx.rpc.emit('threads.removed', { threadId }),
       emitTurnState: (state) => ctx.rpc.emit('turns.state', state),

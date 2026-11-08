@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { Database } from './database'
+import { tablePrefix } from './sql-guard'
 
 export interface Migration {
   /** 从 1 开始连续递增 */
@@ -67,44 +68,161 @@ export function migrationChecksum(migrations: readonly Migration[]): string {
   return hash.digest('hex')
 }
 
-/** 按传入顺序（内核已做拓扑排序）为每个模块执行未应用的迁移；每个模块一个事务 */
-export function runMigrations(db: Database, modules: readonly ModuleMigrations[], now: () => number = Date.now): void {
+export interface PendingMigration {
+  readonly moduleId: string
+  /** 库里已到的版本（0 = 还没建过） */
+  readonly from: number
+  /** 代码里的最新版本 */
+  readonly to: number
+}
+
+export interface TooNewModule {
+  readonly moduleId: string
+  readonly dbVersion: number
+  readonly codeVersion: number
+}
+
+/**
+ * 启动前的迁移计划（ADR-004）：先算清楚「要做什么」，内核再决定备份、执行，或者以只读模式打开。
+ * - `tooNew` 非空：库来自更新的 Poietica（降级安装）。不执行任何迁移，内核以只读模式打开；
+ * - `pending` 非空：有待执行的前向迁移。内核先做在线备份，再在**一个事务**里全部执行。
+ * 迁移链不连续、已落地的那一段被改过（SchemaDriftError）仍然直接抛：那是代码错误，不是数据状态。
+ */
+export interface MigrationPlan {
+  readonly pending: readonly PendingMigration[]
+  readonly tooNew: readonly TooNewModule[]
+}
+
+function ensureKernelTable(db: Database): void {
   db.raw.exec(KERNEL_DDL)
   ensureChecksumColumn(db)
-  const getVersion = db.raw.query('SELECT version, checksum FROM kernel_migrations WHERE module = ?')
+}
+
+function assertConsecutive(moduleId: string, migrations: readonly Migration[]): void {
+  migrations.forEach((m, i) => {
+    if (m.version !== i + 1)
+      throw new MigrationError(`模块 ${moduleId} 的迁移版本必须从 1 连续递增，第 ${i + 1} 个是 ${m.version}`)
+  })
+}
+
+interface AppliedRow {
+  readonly version: number
+  readonly checksum: string | null
+}
+
+function appliedRowOf(db: Database, moduleId: string): AppliedRow | null {
+  return (db.raw.query('SELECT version, checksum FROM kernel_migrations WHERE module = ?').get(moduleId) ??
+    null) as AppliedRow | null
+}
+
+function readAppliedRow(db: Database, moduleId: string, hasTable: boolean, hasChecksum: boolean): AppliedRow | null {
+  if (!hasTable) return null
+  return (db.raw
+    .query(`SELECT version, ${hasChecksum ? 'checksum' : 'NULL AS checksum'} FROM kernel_migrations WHERE module = ?`)
+    .get(moduleId) ?? null) as AppliedRow | null
+}
+
+/** 只读：不建表、不补指纹。库是只读打开的也能算 */
+export function planMigrations(db: Database, modules: readonly ModuleMigrations[]): MigrationPlan {
+  const hasKernelTable =
+    db.raw.query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'kernel_migrations'").get() !== null
+  const hasChecksum =
+    hasKernelTable &&
+    (db.raw.query('PRAGMA table_info(kernel_migrations)').all() as { name: string }[]).some(
+      (c) => c.name === 'checksum',
+    )
+  const pending: PendingMigration[] = []
+  const tooNew: TooNewModule[] = []
+  for (const { moduleId, migrations } of modules) {
+    assertConsecutive(moduleId, migrations)
+    const row = readAppliedRow(db, moduleId, hasKernelTable, hasChecksum)
+    const current = row?.version ?? 0
+    if (current > migrations.length) {
+      tooNew.push({ moduleId, dbVersion: current, codeVersion: migrations.length })
+      continue
+    }
+    /* 已落地的那一段必须与代码里同版本号的那一段逐条一致，否则库里的表不是代码以为的表 */
+    if (row?.checksum && row.checksum !== migrationChecksum(migrations.slice(0, current))) {
+      throw new SchemaDriftError(
+        `模块 ${moduleId} 的前 ${current} 条迁移与数据库里已执行的不一致（多半是直接改了已发布的迁移）：` +
+          '已有的库不会再执行它，表结构与代码对不上。已发布的迁移只能追加，不能修改（ADR-004）',
+      )
+    }
+    if (current < migrations.length) pending.push({ moduleId, from: current, to: migrations.length })
+  }
+  return { pending, tooNew }
+}
+
+/**
+ * 按传入顺序（内核已做拓扑排序）执行全部未应用的迁移，**整批一个事务**（ADR-004）：
+ * SQLite 的 DDL 也在事务里，任何一条失败都整批回滚，库回到迁移前的样子，不会停在「前几个模块升了、后几个没升」的半截状态。
+ */
+export function runMigrations(db: Database, modules: readonly ModuleMigrations[], now: () => number = Date.now): void {
+  ensureKernelTable(db)
+  const plan = planMigrations(db, modules)
+  const firstTooNew = plan.tooNew[0]
+  if (firstTooNew !== undefined) {
+    throw new DataTooNewError(
+      `数据库中模块 ${firstTooNew.moduleId} 的版本 ${firstTooNew.dbVersion} 高于程序已知的 ${firstTooNew.codeVersion}：数据库来自更新的 Poietica 版本`,
+    )
+  }
   const setVersion = db.raw.query(
     'INSERT INTO kernel_migrations (module, version, applied_at, checksum) VALUES (?, ?, ?, ?) ON CONFLICT(module) DO UPDATE SET version = excluded.version, applied_at = excluded.applied_at, checksum = excluded.checksum',
   )
   const setChecksum = db.raw.query('UPDATE kernel_migrations SET checksum = ? WHERE module = ?')
-  for (const { moduleId, migrations } of modules) {
-    migrations.forEach((m, i) => {
-      if (m.version !== i + 1)
-        throw new MigrationError(`模块 ${moduleId} 的迁移版本必须从 1 连续递增，第 ${i + 1} 个是 ${m.version}`)
-    })
-    const row = getVersion.get(moduleId) as { version: number; checksum: string | null } | null
-    const current = row?.version ?? 0
-    if (current > migrations.length) {
-      throw new DataTooNewError(
-        `数据库中模块 ${moduleId} 的版本 ${current} 高于程序已知的 ${migrations.length}：数据库来自更新的 Poietica 版本`,
-      )
-    }
-    /* 已落地的那一段必须与代码里同版本号的那一段逐条一致，否则库里的表不是代码以为的表 */
-    const appliedChecksum = migrationChecksum(migrations.slice(0, current))
-    if (row !== null && row.checksum !== null && row.checksum !== appliedChecksum) {
-      throw new SchemaDriftError(
-        `模块 ${moduleId} 的前 ${current} 条迁移与数据库里已执行的不一致（多半是直接改了已发布的 init）：` +
-          '已有的库不会再执行它，表结构与代码对不上。要么追加一条新迁移，要么删掉这份数据库重建',
-      )
-    }
-    if (current === migrations.length) {
-      /* 早于指纹列的库：信任当前代码，补记一次 */
-      if (row !== null && row.checksum === null) setChecksum.run(appliedChecksum, moduleId)
-      continue
-    }
-    const mdb = db.forModule(moduleId)
-    db.raw.transaction(() => {
-      for (const m of migrations.slice(current)) mdb.exec(m.sql)
+  const pendingOf = new Map(plan.pending.map((p) => [p.moduleId, p]))
+  db.raw.transaction(() => {
+    for (const { moduleId, migrations } of modules) {
+      const pending = pendingOf.get(moduleId)
+      if (pending === undefined) {
+        /* 早于指纹列的库：信任当前代码，补记一次 */
+        const row = appliedRowOf(db, moduleId)
+        if (row !== null && row.checksum === null) setChecksum.run(migrationChecksum(migrations), moduleId)
+        continue
+      }
+      const mdb = db.forModule(moduleId)
+      for (const m of migrations.slice(pending.from)) mdb.exec(m.sql)
       setVersion.run(moduleId, migrations.length, now(), migrationChecksum(migrations))
+    }
+  })()
+}
+
+/**
+ * 已退役模块留在库里的表：整组删掉，并抹掉它在 kernel_migrations 里的那一行。
+ * 先开 secure_delete 再删，被释放的页用零覆盖 —— 退役的数据里可能有明文凭据，不能只是「标记为空闲」。
+ * 必须在备份之前跑：否则迁移前备份会把这些数据再复制一份。返回真的清掉了东西的模块 id。
+ */
+export function purgeRetiredModules(db: Database, moduleIds: readonly string[]): readonly string[] {
+  if (moduleIds.length === 0) return []
+  const purged: string[] = []
+  const hasKernelTable =
+    db.raw.query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'kernel_migrations'").get() !== null
+  db.raw.exec('PRAGMA secure_delete = ON')
+  try {
+    db.raw.transaction(() => {
+      for (const moduleId of moduleIds) {
+        if (purgeOneRetiredModule(db, moduleId, hasKernelTable)) purged.push(moduleId)
+      }
     })()
+    /* WAL 里还留着删除前的页：截断检查点，让它们也从磁盘上消失 */
+    if (purged.length > 0) db.raw.exec('PRAGMA wal_checkpoint(TRUNCATE)')
+  } finally {
+    db.raw.exec('PRAGMA secure_delete = OFF')
   }
+  return purged
+}
+
+function purgeOneRetiredModule(db: Database, moduleId: string, hasKernelTable: boolean): boolean {
+  const prefix = `${tablePrefix(moduleId)}_`
+  const objects = db.raw
+    .query(
+      "SELECT type, name FROM sqlite_master WHERE type IN ('table', 'view') AND substr(name, 1, length(?)) = ? ORDER BY type",
+    )
+    .all(prefix, prefix) as { type: 'table' | 'view'; name: string }[]
+  const hadRow =
+    hasKernelTable && db.raw.query('SELECT 1 FROM kernel_migrations WHERE module = ?').get(moduleId) !== null
+  if (objects.length === 0 && !hadRow) return false
+  for (const o of objects) db.raw.exec(`DROP ${o.type === 'view' ? 'VIEW' : 'TABLE'} IF EXISTS "${o.name}"`)
+  if (hadRow) db.raw.query('DELETE FROM kernel_migrations WHERE module = ?').run(moduleId)
+  return true
 }

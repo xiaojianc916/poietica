@@ -12,6 +12,9 @@
       "path": "../../../../packages/foundation"
     },
     {
+      "path": "../../../secrets/src/contract"
+    },
+    {
       "path": "../contract"
     }
   ]

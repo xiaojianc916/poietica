@@ -42,6 +42,9 @@
       "path": "../../features/review/src/contract"
     },
     {
+      "path": "../../features/secrets/src/contract"
+    },
+    {
       "path": "../../features/terminal/src/contract"
     },
     {

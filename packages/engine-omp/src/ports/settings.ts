@@ -6,6 +6,7 @@ import { toEngineError } from '../errors'
 import {
   isConfiguredSetting,
   isCredentialSetting,
+  overrideSetting,
   readSetting,
   type SettingOptionRaw,
   type SettingsScope,
@@ -129,6 +130,10 @@ export class OmpSettingsPort implements SettingsPort {
   async set(path: string, value: unknown): Promise<void> {
     try {
       this.#requireProductSetting(path)
+      /* ADR-008：凭据不落 config.yml。走这里写进去就是一份明文 —— 拒绝，调用方改用 injectSecret */
+      if (isCredentialSetting(path)) {
+        throw new AppError(SystemErrorCode.invalidParams, `凭据类设置不能写进配置文件：${path}`)
+      }
       writeGlobalSetting(this.d.root, path, value)
       await flushOf(this.d.root)
       this.#change.fire({ paths: [path] })
@@ -143,6 +148,38 @@ export class OmpSettingsPort implements SettingsPort {
       unsetGlobalSetting(this.d.root, path)
       await flushOf(this.d.root)
       this.#change.fire({ paths: [path] })
+    } catch (error) {
+      throw toEngineError(error)
+    }
+  }
+
+  async injectSecret(path: string, value: string | null): Promise<void> {
+    try {
+      this.#requireProductSetting(path)
+      if (!isCredentialSetting(path)) {
+        throw new AppError(SystemErrorCode.invalidParams, `不是凭据类设置：${path}`)
+      }
+      /* 只写运行时覆盖层（内存）；撤掉时连持久层的旧值一起删，免得撤了覆盖又露出 config.yml 里那份 */
+      overrideSetting(this.d.root, path, value ?? undefined)
+      if (value === null) {
+        unsetGlobalSetting(this.d.root, path)
+        await flushOf(this.d.root)
+      }
+      this.#change.fire({ paths: [path] })
+    } catch (error) {
+      throw toEngineError(error)
+    }
+  }
+
+  async storedSecrets(): Promise<readonly { readonly path: string; readonly value: string }[]> {
+    try {
+      const out: { path: string; value: string }[] = []
+      for (const row of catalogRows()) {
+        if (!isCredentialSetting(row.id) || !isConfiguredSetting(this.d.root, row.id)) continue
+        const value = readSetting(this.d.root, row.id)
+        if (typeof value === 'string' && value !== '') out.push({ path: row.id, value })
+      }
+      return out
     } catch (error) {
       throw toEngineError(error)
     }

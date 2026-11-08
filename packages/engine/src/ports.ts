@@ -88,12 +88,28 @@ export interface MediaGcResult {
   /** 没删掉的那几个（权限、占用）：记日志，下次再试 */
   readonly errors: readonly string[]
 }
+/** 一把 API Key（只在 Core 进程内存里流转：不进日志、不进事件、不回传 UI） */
+export interface ApiKeyEntry {
+  readonly provider: string
+  readonly key: string
+}
 export interface ModelsPort {
   providers(): Promise<z.infer<typeof ProviderInfo>[]>
   models(): Promise<z.infer<typeof ModelInfo>[]>
-  setApiKey(provider: string, key: string): Promise<void> // key 永不回传
-  /** 清掉这家名下存着的 API Key（账号登录的凭据不动；环境变量与 models.yml 里写死的钥匙不归这里删） */
+  /**
+   * 把这家的 API Key 交给引擎。**只进引擎进程的内存**（ADR-008）：持久化归宿主的凭据库，引擎不落盘；
+   * 引擎自己早先落过盘的同一家 API Key（见 storedApiKeys）一并删掉。key 永不回传。
+   */
+  setApiKey(provider: string, key: string): Promise<void>
+  /** 启动时一次交回凭据库里的全部 API Key（同 setApiKey，但只刷新一次目录、只发一次 onDidChange） */
+  loadApiKeys(entries: readonly ApiKeyEntry[]): Promise<void>
+  /** 撤掉这家的 API Key：内存里的那把与引擎落过盘的旧钥匙（账号登录的凭据不动；环境变量与 models.yml 里写死的钥匙不归这里删） */
   clearApiKey(provider: string): Promise<void>
+  /**
+   * 引擎自己落在磁盘上的 API Key（明文）：v0.5.20 及以前的 setApiKey 写进 omp 的 agent.db，omp 的「浏览器授权换钥匙」
+   * 登录也写在那里。只给宿主用来把它们搬进凭据库 —— 搬完调 setApiKey，磁盘上那一行随之删除。
+   */
+  storedApiKeys(): Promise<readonly ApiKeyEntry[]>
   /**
    * 能用账号登录的服务商（omp 的 getOAuthProviders，含插件注册的）。只报真正走浏览器 / 设备码授权的那些：
    * omp 的登录名单里还有几十家「登录」其实只是收一把 API Key，它们走 setApiKey 那条路。
@@ -195,8 +211,16 @@ export interface SettingsPort {
    * 换成译名会让两条不同的键撞上同一个名字）。放在端口而不是让功能直接读 engine-omp：depcruise 禁止功能依赖 engine-omp。
    */
   readonly groupOrder: readonly string[]
+  /** 写一格到持久层。凭据类设置（descriptor.secret）不走这里 —— 一律拒绝，改用 injectSecret（ADR-008） */
   set(path: string, value: unknown): Promise<void>
   reset(path: string): Promise<void>
+  /**
+   * 凭据类设置的值只进引擎的**运行时覆盖层**（不落 config.yml）；null = 撤掉覆盖，同时删掉持久层里的旧值。
+   * 持久化归宿主的凭据库，启动时由功能逐格注入。
+   */
+  injectSecret(path: string, value: string | null): Promise<void>
+  /** 持久层里还留着明文的凭据类设置（v0.5.20 及以前写进 config.yml 的）：只用于搬进凭据库，须在注入之前调用 */
+  storedSecrets(): Promise<readonly { readonly path: string; readonly value: string }[]>
   capabilities(): Promise<z.infer<typeof Capabilities>>
   setCapability(name: keyof z.infer<typeof Capabilities>, enabled: boolean): Promise<void>
   /** 当前设置的 Python 解释器路径；没设置（自动探测）时为 null。 */

@@ -1,12 +1,19 @@
 import { defineCoreModule } from '@poietica/core-kernel'
 import { agentSettingsContract } from '../contract'
+import { hostSecretSettingsVault, restoreSecretSettings } from './secret-settings'
 import { createAgentSettingsService } from './service'
 
 export default defineCoreModule({
   id: 'agent-settings',
   contract: agentSettingsContract,
-  setup(ctx) {
+  async setup(ctx) {
+    const vault = hostSecretSettingsVault(ctx.host)
+    /* 在任何会话打开之前把凭据类设置注入引擎（ADR-008：Core 不持久化凭据） */
+    await restoreSecretSettings({ vault, settings: ctx.engine.settings, logger: ctx.logger }).catch((e: unknown) => {
+      ctx.logger.error('secret settings restore failed', { error: String(e) })
+    })
     const service = createAgentSettingsService({
+      vault,
       settings: ctx.engine.settings,
       groupOrder: ctx.engine.settings.groupOrder,
       emitChanged: (paths) => ctx.rpc.emit('agentSettings.changed', { paths: [...paths] }),
