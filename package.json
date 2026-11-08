@@ -126,5 +126,11 @@
     "typescript": "catalog:",
     "@poietica/fs-kit": "workspace:*",
     "@poietica/runtime-layout": "workspace:*"
+  },
+  "overrides": {
+    "@oh-my-pi/pi-ai": "18.16.0",
+    "@oh-my-pi/pi-coding-agent": "18.16.0",
+    "@oh-my-pi/pi-tui": "18.16.0",
+    "@oh-my-pi/pi-utils": "18.16.0"
   }
 }

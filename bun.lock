@@ -862,6 +862,12 @@
       },
     },
   },
+  "overrides": {
+    "@oh-my-pi/pi-ai": "18.16.0",
+    "@oh-my-pi/pi-coding-agent": "18.16.0",
+    "@oh-my-pi/pi-tui": "18.16.0",
+    "@oh-my-pi/pi-utils": "18.16.0",
+  },
   "catalog": {
     "@base-ui/react": "^1.9.0",
     "@biomejs/biome": "^2.6.5",
