@@ -1,9 +1,9 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { stringifyYamlConfig } from '@oh-my-pi/pi-utils'
-import type { CustomProviderDef } from '@poietica/engine'
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
 import { writeFileAtomic } from '@poietica/fs-kit'
+import type { CustomProviderDef } from '@poietica/runtime-protocol'
 
 /*
  * models.yml 的读写：用户自建的 provider 定义住在那里（<ompAgentDir>/models.yml）。omp 的 SDK 只给了读者，

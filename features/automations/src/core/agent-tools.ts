@@ -1,8 +1,8 @@
 import type { AgentToolRegistry } from '@poietica/core-kernel'
-import type { AgentEngine, Controls, ModelRef, Posture } from '@poietica/engine'
 import type { ConversationService } from '@poietica/feature-conversation/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, type Clock, SystemErrorCode } from '@poietica/foundation'
+import type { Controls, ModelRef, Posture, RuntimeServices } from '@poietica/runtime-protocol'
 import { z } from 'zod'
 import type { Automation, AutomationDraft, AutomationRun, Schedule } from '../contract/entities'
 import { automationsErrors } from '../contract/errors'
@@ -155,11 +155,11 @@ export function registerAgentTools(d: {
   readonly service: AutomationsService
   readonly conversation: ConversationService
   readonly workspaces: WorkspacesService
-  readonly engine: Pick<AgentEngine, 'draftControls'>
+  readonly agentRuntime: Pick<RuntimeServices['sessions'], 'draftControls'>
   readonly clock: Clock
   readonly localTimeZone: () => string
 }): void {
-  const { conversation, engine, service, tools, workspaces } = d
+  const { conversation, agentRuntime, service, tools, workspaces } = d
 
   const iso = (at: number | null, timeZone: string): string | null => (at === null ? null : isoIn(at, timeZone))
 
@@ -183,7 +183,7 @@ export function registerAgentTools(d: {
   })
 
   const modelLabels = async (): Promise<Map<string, string>> => {
-    const controls = await engine.draftControls({})
+    const controls = await agentRuntime.draftControls({})
     return new Map(controls.model.choices.map((c) => [refText(c.ref), c.label]))
   }
 
@@ -227,14 +227,14 @@ export function registerAgentTools(d: {
   const assertModel = async (model: ModelRef | null, thinking: string | null): Promise<void> => {
     let controls: Controls | null = null
     if (model !== null) {
-      controls = await engine.draftControls({ model })
+      controls = await agentRuntime.draftControls({ model })
       const choices = controls.model.choices.map((c) => refText(c.ref))
       if (!choices.includes(refText(model))) {
         invalid(`模型「${refText(model)}」不可用。可选：${choices.join('、') || '（没有可用模型）'}`)
       }
     }
     if (thinking !== null) {
-      controls ??= await engine.draftControls({ model })
+      controls ??= await agentRuntime.draftControls({ model })
       const levels = controls.thinking.choices.map((c) => c.id)
       if (levels.length > 0 && !levels.includes(thinking)) {
         invalid(`思考强度「${thinking}」不在这个模型的档位里。可选：${levels.join('、')}`)
@@ -316,7 +316,7 @@ export function registerAgentTools(d: {
     approval: 'read',
     async execute(params: z.output<typeof optionsParams>, ctx) {
       const timeZone = d.localTimeZone()
-      const controls = await engine.draftControls(params.model === undefined ? {} : { model: params.model })
+      const controls = await agentRuntime.draftControls(params.model === undefined ? {} : { model: params.model })
       const current = currentWorkspaceOf(ctx.sessionKey)
       return json({
         now: isoIn(d.clock.now(), timeZone),

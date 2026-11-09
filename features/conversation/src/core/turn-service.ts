@@ -1,5 +1,15 @@
 import {
-  type AgentEngine,
+  EMPTY_THREAD_STATE,
+  prependOlder,
+  reduceAll,
+  snapshotOf,
+  type TranscriptPage,
+  turnOrdinal,
+} from '@poietica/agent-model'
+import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
+import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
+import { AppError, type Clock, type Logger, SystemErrorCode } from '@poietica/foundation'
+import {
   type Controls,
   EngineErrorCode,
   type EngineSession,
@@ -10,17 +20,15 @@ import {
   type QueueSnapshot,
   type SideTopic,
   type SlashCommand,
-} from '@poietica/engine'
-import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
-import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
-import { AppError, type Clock, type Logger, SystemErrorCode } from '@poietica/foundation'
-import { prependOlder, type TranscriptPage } from '@poietica/transcript'
+} from '@poietica/runtime-protocol'
 import type { QueueView } from '../contract'
 import { DEFAULT_POSTURE, type Thread, type TurnState } from '../contract/entities'
 import { conversationErrors } from '../contract/errors'
 import { controlsFromSnapshot } from './controls-snapshot'
 import type { EventRouter } from './event-router'
+import { eventsFromPage, pagesToPage } from './journal-rebuild'
 import type { ThreadsRepository } from './repository'
+import type { ConversationRuntime } from './runtime'
 import type { SessionPool } from './session-pool'
 import type { TimelineHub } from './timeline-hub'
 
@@ -29,7 +37,8 @@ import type { TimelineHub } from './timeline-hub'
  * 以及时间线的三段读（page / subscribe / catchUp 的数据面）。
  */
 export interface TurnServiceDeps {
-  readonly engine: AgentEngine
+  readonly runtime: ConversationRuntime
+  readonly journal: import('@poietica/feature-journal/core-api').JournalService
   readonly repo: ThreadsRepository
   readonly pool: SessionPool
   readonly hub: TimelineHub
@@ -115,6 +124,43 @@ export class TurnService {
   }
 
   // ── 时间线（timeline 三段）───────────────────────────────────────────────
+  private readonly backfilling = new Set<string>()
+
+  /**
+   * 渐进回填：只回填一页装得下的短会话；分页会话留给后台任务，避免拼错顺序。
+   * 会话文件读不出来、或已经有别的读者先回填了，都安静退回到文件冷读。
+   */
+  private async backfillJournal(threadId: string, agentId: string, sessionFile: string): Promise<void> {
+    const key = `${threadId}\u0000${agentId}`
+    if (this.backfilling.has(key)) return
+    this.backfilling.add(key)
+    try {
+      const first = await this.d.runtime.sessionFiles.readPage(sessionFile, agentId, null)
+      const pages = [first]
+      let page = first
+      /* 往回翻到没有更旧的页；上限 500 页（约 1 万轮），再长就留给后续任务。 */
+      while (page.hasMoreOlder === true && pages.length < 500) {
+        const oldest = page.items.find((item) => item.kind === 'turn')
+        if (oldest === undefined || oldest.kind !== 'turn') break
+        page = await this.d.runtime.sessionFiles.readPage(sessionFile, agentId, oldest.turnId)
+        pages.push(page)
+      }
+      if (page.hasMoreOlder === true) return
+      const full = pagesToPage(pages)
+      if (full === null) return
+      if (this.d.journal.latestSeq(threadId, agentId) !== 0) return
+      this.d.journal.appendAndStamp(
+        threadId,
+        agentId,
+        eventsFromPage(full, threadId, agentId, new Date(this.d.clock.now()).toISOString()),
+      )
+    } catch {
+      /* 会话文件不可读：保持原有冷读回退，不把一次读变成错误。 */
+    } finally {
+      this.backfilling.delete(key)
+    }
+  }
+
   /** 空页：线程还没落过盘（行上没有会话文件）时 page 交它 —— 没有正文可读，也不为一次读去签发会话文件 */
   private emptyPage(): TranscriptPage {
     return {
@@ -175,7 +221,25 @@ export class TurnService {
     if (live !== undefined) return await live.page(agentId, beforeTurnId, options)
     const { sessionFile } = this.d.requireRow(threadId)
     if (sessionFile === null) return this.emptyPage()
-    return await this.d.engine.sessionFiles.readPage(sessionFile, agentId, beforeTurnId, options)
+    /* 冷读优先用 Journal：它已经按 seq 落好 committed 事件，不必再读/重放会话文件。
+       头页与旧页都由 Journal 折叠；记录不完整或截断时回退会话文件。 */
+    if (agentId === 'main') {
+      /* 旧线程第一次冷读：Journal 还没有记录，先把短会话从会话文件回填一次（长会话留给后台任务）。 */
+      if (this.d.journal.latestSeq(threadId, agentId) === 0) {
+        /* 后台回填：这一次冷读先走会话文件，不让首屏等整个重建。 */
+        void this.backfillJournal(threadId, agentId, sessionFile)
+      }
+      const latest = this.d.journal.latestSeq(threadId, agentId)
+      if (latest > 0) {
+        const events = this.d.journal.read(threadId, agentId, 0, 100_000)
+        /* 只取了前 10 万条时最后一条追不上水位：最近的一轮可能没读到，交给会话文件。 */
+        if (events.at(-1)?.seq === latest) {
+          const fromJournal = pageFromJournal(events, beforeTurnId)
+          if (fromJournal !== null) return fromJournal
+        }
+      }
+    }
+    return await this.d.runtime.sessionFiles.readPage(sessionFile, agentId, beforeTurnId, options)
   }
 
   // ── 队列（queue 三方法）──────────────────────────────────────────────────
@@ -256,7 +320,7 @@ export class TurnService {
     if (live !== undefined) return live.controls()
     const row = this.d.requireRow(threadId)
     if (row.sessionFile === null) {
-      return await this.d.engine.draftControls({
+      return await this.d.runtime.draftControls({
         model: row.initialModel,
         thinking: row.initialThinking,
         posture: row.posture,
@@ -264,7 +328,7 @@ export class TurnService {
     }
     const snapshot = this.d.repo.controlsSnapshot(threadId)
     if (snapshot === null) return (await this.d.pool.acquire(threadId)).controls()
-    const draft = await this.d.engine.draftControls({
+    const draft = await this.d.runtime.draftControls({
       model: snapshot.model,
       thinking: snapshot.thinking.current,
       posture: row.posture,
@@ -285,7 +349,7 @@ export class TurnService {
     posture: Posture | null
     hidden?: readonly string[] | undefined
   }): Promise<Controls> {
-    return this.d.engine.draftControls({
+    return this.d.runtime.draftControls({
       model: init.model,
       thinking: init.thinking,
       posture: init.posture ?? DEFAULT_POSTURE,
@@ -306,13 +370,13 @@ export class TurnService {
     const model =
       input.model ??
       (
-        await this.d.engine.draftControls({
+        await this.d.runtime.draftControls({
           model: null,
           ...(input.hidden === undefined ? {} : { hidden: input.hidden }),
         })
       ).model.current
     if (model === null) throw new AppError(SystemErrorCode.invalidParams, '没有可用的模型，无法写入默认选择')
-    await this.d.engine.models.setDefaultModel(model, input.thinking)
+    await this.d.runtime.models.setDefaultModel(model, input.thinking)
   }
 
   async setModel(threadId: string, model: ModelRef): Promise<Controls> {
@@ -370,13 +434,13 @@ export class TurnService {
     if (live !== undefined) return await live.commands()
     const row = this.d.requireRow(threadId)
     const cwd = this.d.workspaces.requireUsable(row.workspaceId).path
-    return await this.d.engine.commandCatalog(cwd, { history: row.sessionFile !== null })
+    return await this.d.runtime.commandCatalog(cwd, { history: row.sessionFile !== null })
   }
 
   /** 入口页的命令表：不开会话，文件命令按工作区目录读（没给工作区就只有内置命令） */
   async commandCatalog(workspaceId: string | undefined): Promise<readonly SlashCommand[]> {
     const cwd = workspaceId === undefined ? null : this.d.workspaces.requireUsable(workspaceId).path
-    return await this.d.engine.commandCatalog(cwd)
+    return await this.d.runtime.commandCatalog(cwd)
   }
 
   async runCommand(threadId: string, text: string): Promise<void> {
@@ -408,7 +472,7 @@ export class TurnService {
     if (live !== undefined) return await live.sideTopics()
     const { sessionFile } = this.d.requireRow(threadId)
     if (sessionFile === null) return []
-    return await this.d.engine.sessionFiles.sideTopics(sessionFile)
+    return await this.d.runtime.sessionFiles.sideTopics(sessionFile)
   }
 
   // ── 交互（07 页 §5C 的 interactions 两方法）───────────────────────────────
@@ -439,4 +503,79 @@ function firstTurnOf(page: TranscriptPage): PageTurn | undefined {
 
 function hasTurn(page: TranscriptPage, turnId: string): boolean {
   return page.items.some((item) => item.kind === 'turn' && item.turnId === turnId)
+}
+
+/**
+ * Journal 事件 → 时间线的一页。头页取最近一页并生成轮次目录；往前翻页只接受从第 1 轮起完整记录的线程，
+ * 否则缺前文，回退会话文件。分页按轮，页大小与引擎历史投影一致。
+ */
+type JournalTurn = Extract<TranscriptPage['items'][number], { kind: 'turn' }>
+
+export function pageFromJournal(
+  events: readonly import('@poietica/agent-model').AgentEvent[],
+  beforeTurnId: string | null,
+  pageSize = 20,
+): TranscriptPage | null {
+  if (events.length === 0) return null
+  const snapshot = snapshotOf(reduceAll(EMPTY_THREAD_STATE, events))
+  const turns = snapshot.items.filter((item): item is JournalTurn => item.kind === 'turn')
+  const window = journalWindow(turns, beforeTurnId, pageSize)
+  if (window === null) return null
+  if (window.turns.length === 0) return { ...snapshot, items: [], hasMoreOlder: false }
+  const head = window.turns[0]!
+  const tail = window.turns.at(-1)!
+  const start = snapshot.items.findIndex((item) => item.kind === 'turn' && item.turnId === head.turnId)
+  const end = snapshot.items.findIndex((item) => item.kind === 'turn' && item.turnId === tail.turnId)
+  if (start < 0 || end < start) return null
+  return {
+    ...snapshot,
+    items: snapshot.items.slice(start, beforeTurnId === null ? undefined : end + 1),
+    hasMoreOlder: window.hasMoreOlder,
+    ...(beforeTurnId === null ? { outline: outlineOfTurns(turns) } : {}),
+  }
+}
+
+function journalWindow(
+  turns: readonly JournalTurn[],
+  beforeTurnId: string | null,
+  pageSize: number,
+): { turns: readonly JournalTurn[]; hasMoreOlder: boolean } | null {
+  const first = turns[0]
+  const last = turns.at(-1)
+  if (first === undefined || last === undefined) return null
+  /* 往前翻的页必须从第 1 轮起完整记录；头页可以只覆盖最近的记录（前文交给文件）。 */
+  if (beforeTurnId !== null && first.ordinal !== 1) return null
+  /* Journal 还没覆盖到这一页（截断或这一轮比最后一条事件新）：交给会话文件。 */
+  if (beforeTurnId !== null && turnOrdinal(beforeTurnId) > last.ordinal + 1) return null
+  const older = beforeTurnId === null ? turns : turns.filter((turn) => turn.ordinal < turnOrdinal(beforeTurnId))
+  const window = older.slice(Math.max(0, older.length - pageSize))
+  const hasMoreOlder =
+    beforeTurnId === null ? turns.length > window.length || first.ordinal > 1 : older.length > window.length
+  return { turns: window, hasMoreOlder }
+}
+
+const OUTLINE_PROMPT_CHARS = 200
+const OUTLINE_REPLY_CHARS = 280
+
+function outlineOfTurns(turns: readonly JournalTurn[]): NonNullable<TranscriptPage['outline']> {
+  return turns
+    .filter((turn) => turn.origin.kind === 'user')
+    .map((turn) => {
+      const reply = turn.steps
+        .flatMap((step) => step.frames)
+        .map((frame) => (frame.kind === 'text' && frame.role === 'assistant' ? frame.text : ''))
+        .filter((text) => text !== '')
+        .at(-1)
+      return {
+        turnId: turn.turnId,
+        ordinal: turn.ordinal,
+        prompt: clip(turn.prompt ?? '', OUTLINE_PROMPT_CHARS),
+        ...(reply === undefined ? {} : { reply: clip(reply, OUTLINE_REPLY_CHARS) }),
+      }
+    })
+}
+
+function clip(text: string, limit: number): string {
+  const trimmed = text.trim()
+  return trimmed.length > limit ? `${trimmed.slice(0, limit)}…` : trimmed
 }

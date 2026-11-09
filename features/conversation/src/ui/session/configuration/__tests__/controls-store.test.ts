@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { Controls } from '@poietica/engine'
+import type { Controls } from '@poietica/runtime-protocol'
 import type { ConversationApi } from '../../../api'
 import { createControlsStore } from '../controls-store'
 

@@ -3,13 +3,13 @@
   "include": ["."],
   "references": [
     {
+      "path": "../../../../packages/agent-model"
+    },
+    {
       "path": "../../../../packages/contract-kit"
     },
     {
-      "path": "../../../../packages/engine"
-    },
-    {
-      "path": "../../../../packages/transcript"
+      "path": "../../../../packages/runtime-protocol"
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { applyOps, emptyTimeline, pageFromState } from '@poietica/transcript'
+import { EMPTY_THREAD_STATE, reduceAll, snapshotOf } from '@poietica/agent-model'
 import { LiveProjector } from '../live'
 
 /*
@@ -11,21 +11,21 @@ import { LiveProjector } from '../live'
 const projector = (): LiveProjector => new LiveProjector({ now: () => 1_700_000_000_000 })
 
 describe('LiveProjector 的附件条目', () => {
-  test('attachmentOp 产出一条 attachment.upsert，只带内容寻址的地址', () => {
+  test('attachmentOp 产出一条 attachment.added，只带内容寻址的地址', () => {
     const p = projector()
-    const ops = p.attachmentOp({
+    const events = p.attachmentOp({
       attachmentId: 'a1',
       mediaType: 'image/png',
       sha256: 'a'.repeat(64),
     })
-    expect(ops.length).toBe(1)
-    const page = pageFromState(applyOps(emptyTimeline(), ops))
+    expect(events.length).toBe(1)
+    const page = snapshotOf(reduceAll(EMPTY_THREAD_STATE, events))
     expect(page.attachments.length).toBe(1)
     expect(page.attachments[0]?.mediaType).toBe('image/png')
     expect(page.attachments[0]?.source).toEqual({ kind: 'blob', sha256: 'a'.repeat(64) })
   })
 
-  test('附件先落、用户轮引用它：两批 ops 合起来能查到那张图', () => {
+  test('附件先落、用户轮引用它：两批事件合起来能查到那张图', () => {
     const p = projector()
     const attachments = p.attachmentOp({
       attachmentId: 'a1',
@@ -33,7 +33,7 @@ describe('LiveProjector 的附件条目', () => {
       sha256: 'a'.repeat(64),
     })
     const turn = p.userTurn({ text: '看图', attachmentIds: ['a1'] })
-    const page = pageFromState(applyOps(emptyTimeline(), [...attachments, ...turn]))
+    const page = snapshotOf(reduceAll(EMPTY_THREAD_STATE, [...attachments, ...turn]))
     const first = page.items[0]
     expect(first?.kind === 'turn' && first.attachmentIds).toEqual(['a1'])
     expect(page.attachments.some((a) => a.attachmentId === 'a1')).toBe(true)
@@ -41,12 +41,12 @@ describe('LiveProjector 的附件条目', () => {
 })
 
 describe('LiveProjector 的压缩标记', () => {
-  test('marker 产出 marker.upsert，开门 running、关门 completed 是同一格', () => {
+  test('marker 产出标记事件，开门 running、关门 completed 是同一格', () => {
     const p = projector()
     p.userTurn({ text: 'q' })
     const open = p.marker({ markerId: 'compaction-1', marker: 'compaction', payload: { state: 'running' } })
     const close = p.marker({ markerId: 'compaction-1', marker: 'compaction', payload: { state: 'completed' } })
-    const page = pageFromState(applyOps(emptyTimeline(), [...open, ...close]))
+    const page = snapshotOf(reduceAll(EMPTY_THREAD_STATE, [...open, ...close]))
     const markers = page.items.filter((i) => i.kind === 'marker')
     expect(markers.length).toBe(1)
     expect(markers[0]?.kind === 'marker' && markers[0].markerId).toBe('compaction-1')
@@ -58,10 +58,16 @@ describe('LiveProjector 的插话帧', () => {
     const p = projector()
     p.userTurn({ text: 'q' })
     p.textDelta('前半')
-    const ops = p.steeredFrame('插一句')
+    const events = p.steeredFrame('插一句')
     // 收掉正文那一段、开插话这一段，再放这一帧
-    expect(ops.map((op) => op.op)).toEqual(['step.upsert', 'step.upsert', 'frame.upsert'])
-    const page = pageFromState(applyOps(emptyTimeline(), [...p.textDelta('x'), ...ops]))
+    expect(events.map((event) => event.type)).toEqual([
+      'item.completed',
+      'step.completed',
+      'step.started',
+      'item.started',
+      'item.completed',
+    ])
+    const page = snapshotOf(reduceAll(EMPTY_THREAD_STATE, [...p.textDelta('x'), ...events]))
     const roles = page.items.flatMap((item) =>
       item.kind === 'turn'
         ? item.steps.flatMap((s) => s.frames.flatMap((f) => (f.kind === 'text' ? [f.role] : [])))

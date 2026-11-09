@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { SubmitInput } from '@poietica/engine'
-import type { TranscriptOperation } from '@poietica/transcript'
+import type { AgentEvent } from '@poietica/agent-model'
+import type { SubmitInput } from '@poietica/runtime-protocol'
 import { OmpSession } from '../session'
 import { hostOf } from './host-fixture'
 
@@ -16,12 +16,12 @@ const settle = async (): Promise<void> => {
   for (let i = 0; i < 8; i += 1) await Promise.resolve()
 }
 
-function opRecorder(session: OmpSession): TranscriptOperation[] {
-  const ops: TranscriptOperation[] = []
+function eventRecorder(session: OmpSession): AgentEvent[] {
+  const events: AgentEvent[] = []
   session.subscribe((event) => {
-    if (event.type === 'timeline') ops.push(...event.ops)
+    if (event.type === 'timeline') events.push(...event.events)
   })
-  return ops
+  return events
 }
 
 describe('轮号与提交结果', () => {
@@ -43,7 +43,7 @@ describe('轮号与提交结果', () => {
       },
     }
     const session = new OmpSession(host, { sessionId: 's1', sessionFile: 'f1' })
-    const ops = opRecorder(session)
+    const events = eventRecorder(session)
 
     await session.submit(INPUT)
     await settle()
@@ -54,8 +54,10 @@ describe('轮号与提交结果', () => {
     await settle()
 
     /* 没有回摆的话第二次是 t2：文件里只有一轮，冷读时那个提交行永远盖不上号。
-     * turnEnd 也会 upsert 同一个轮（收尾那一格），所以按去重后的 id 判。 */
-    const ids = ops.filter((op) => op.op === 'turn.upsert').map((op) => op.turn.turnId)
+     * 收尾事件也带着同一个轮号，所以按去重后的 id 判。 */
+    const ids = events.flatMap((event) =>
+      event.type === 'run.started' ? [event.run.turnId] : event.type === 'run.completed' ? [event.runId] : [],
+    )
     expect([...new Set(ids)]).toEqual(['t1'])
   })
 })

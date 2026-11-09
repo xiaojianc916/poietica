@@ -2,8 +2,9 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
-import type { EngineSession, EngineSessionEvent, OpenSessionSpec } from '@poietica/engine'
+import type { AgentEvent } from '@poietica/agent-model'
 import { type Logger, noopLogger } from '@poietica/foundation'
+import type { EngineSession, EngineSessionEvent, OpenSessionSpec } from '@poietica/runtime-protocol'
 import { wrapOmpSession } from '../../../session/omp-session-adapter'
 import { hashMediaRef } from '../../media'
 
@@ -181,11 +182,9 @@ export async function fakeOmpSession(o: FakeSessionOptions = {}): Promise<FakeSe
   }
 }
 
-/** 事件流里所有 timeline 的 ops，按到达顺序摊平 */
-export function opsOf(events: readonly EngineSessionEvent[]): readonly Record<string, unknown>[] {
-  return events.flatMap((event) =>
-    event.type === 'timeline' ? (event.ops as unknown as Record<string, unknown>[]) : [],
-  )
+/** 事件流里所有 timeline 的 AgentEvent，按到达顺序摊平 */
+export function eventsOf(events: readonly EngineSessionEvent[]): readonly AgentEvent[] {
+  return events.flatMap((event) => (event.type === 'timeline' ? event.events : []))
 }
 
 /**

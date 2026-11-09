@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ModelsPort } from '@poietica/engine'
+import type { ModelsPort } from '@poietica/runtime-protocol'
 import { openDatabase } from '@poietica/storage-sqlite'
 import { createTestLogger } from '@poietica/test-kit'
 import type {

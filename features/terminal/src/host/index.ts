@@ -20,7 +20,7 @@ export default defineHostModule({
           rows: o.rows,
           env: o.env,
         }),
-      emitOutput: (terminalId, data, offset) => ctx.rpc.emit('terminal.output', { terminalId, data, offset }),
+      emitOutput: (p) => ctx.rpc.emit('terminal.output', p),
       emitExited: (terminalId, exitCode) => ctx.rpc.emit('terminal.exited', { terminalId, exitCode }),
       killTree,
     })
@@ -39,6 +39,7 @@ export default defineHostModule({
     })
     ctx.rpc.handle('terminal.list', () => ({ terminals: service.list() }))
     ctx.rpc.handle('terminal.replay', (p) => service.replay(p.terminalId))
+    ctx.rpc.handle('terminal.catchUp', (p) => service.catchUp(p.terminalId, p.epoch, p.sinceSeq))
     ctx.lifecycle.onShutdown(() => service.disposeAll())
   },
 })

@@ -213,10 +213,6 @@ html:active-view-transition-type(ui-route) {
   view-transition-name: none;
 }
 
-html:active-view-transition-type(ui-route) .workspace-shell__main-panel {
-  view-transition-name: ui-route-content;
-}
-
 /* 侧栏收起时补左缝：主区贴窗口左缘，不留就三面有缝。 */
 .workspace-shell[data-sidebar-docked='false'] .workspace-shell__main {
   padding-inline-start: var(--workspace-card-gap);
@@ -225,6 +221,10 @@ html:active-view-transition-type(ui-route) .workspace-shell__main-panel {
 /* 面板圆角：地色铺在格位上、面板只管圆角与页面底色，缺一不可。 */
 .workspace-shell__main-panel {
   border-radius: var(--workspace-card-radius);
+}
+
+html:active-view-transition-type(ui-route) .workspace-shell__main-panel {
+  view-transition-name: ui-route-content;
 }
 
 .workspace-shell__auxiliary {

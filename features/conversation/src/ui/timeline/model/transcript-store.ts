@@ -1,5 +1,5 @@
+import { type AgentTranscriptSnapshot, turnOrdinal } from '@poietica/agent-model'
 import { AppError, createId, InvariantError, invariant, SystemErrorCode } from '@poietica/foundation'
-import { type AgentTranscriptSnapshot, turnOrdinal } from '@poietica/transcript'
 import type { SubmissionView } from '../../../contract'
 import { conversationErrors } from '../../../contract'
 import { describeFailure } from '../../failure'

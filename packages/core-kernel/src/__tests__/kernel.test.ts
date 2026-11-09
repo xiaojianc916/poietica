@@ -221,7 +221,7 @@ describe('core-kernel 启动', () => {
   test('K-5 ready 之前收到的请求回 kernel.core_unavailable', async () => {
     const { RpcPeer } = await import('@poietica/rpc')
     const { composeContracts } = await import('@poietica/contract-kit')
-    const { createFakeEngine } = await import('@poietica/engine-testkit')
+    const { createFakeEngine } = await import('@poietica/runtime-protocol-testkit')
     const { transportPair } = await import('@poietica/rpc/testing')
     const { createTestLogger, fakeClock, tempDir } = await import('@poietica/test-kit')
     const { createCoreKernel } = await import('../kernel')
@@ -276,7 +276,7 @@ describe('core-kernel 启动', () => {
   test('K-6 core.shutdown 请求：先回答 {}，再执行关闭', async () => {
     const { RpcPeer } = await import('@poietica/rpc')
     const { composeContracts } = await import('@poietica/contract-kit')
-    const { createFakeEngine } = await import('@poietica/engine-testkit')
+    const { createFakeEngine } = await import('@poietica/runtime-protocol-testkit')
     const { transportPair } = await import('@poietica/rpc/testing')
     const { createTestLogger, fakeClock, tempDir } = await import('@poietica/test-kit')
     const { createCoreKernel } = await import('../kernel')
@@ -448,7 +448,7 @@ describe('core-kernel 启动', () => {
     }
     const frozen = await (async () => {
       const { createAgentToolRegistry } = await import('../agent-tools')
-      const { createFakeEngine } = await import('@poietica/engine-testkit')
+      const { createFakeEngine } = await import('@poietica/runtime-protocol-testkit')
       const registry = createAgentToolRegistry(createFakeEngine(), 'alpha', () => true)
       try {
         registry.register(tool)
@@ -601,7 +601,7 @@ describe('core-kernel 启动', () => {
   test('R-05 M5 关停总预算：钩子按剩余预算放弃，db 与 engine 仍收尾', async () => {
     const { RpcPeer } = await import('@poietica/rpc')
     const { composeContracts } = await import('@poietica/contract-kit')
-    const { createFakeEngine } = await import('@poietica/engine-testkit')
+    const { createFakeEngine } = await import('@poietica/runtime-protocol-testkit')
     const { transportPair } = await import('@poietica/rpc/testing')
     const { createTestLogger, fakeClock, tempDir } = await import('@poietica/test-kit')
     const { rmSync } = await import('node:fs')

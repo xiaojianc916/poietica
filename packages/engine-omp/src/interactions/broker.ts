@@ -1,5 +1,5 @@
-import { EngineErrorCode, type Interaction, type InteractionAnswer } from '@poietica/engine'
 import { AppError, createId, Emitter, type Event, SystemErrorCode } from '@poietica/foundation'
+import { EngineErrorCode, type Interaction, type InteractionAnswer } from '@poietica/runtime-protocol'
 
 /** 去掉基类三格（id / createdAt / timeoutAt）的交互草稿；分配式，判别联合的每一支都保留 */
 export type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never

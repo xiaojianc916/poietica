@@ -35,6 +35,8 @@ function fakeApi(restored: readonly TerminalInfo[] = []): TerminalApi & { readon
     },
     list: async () => restored,
     replay: async () => ({ data: '', endOffset: 0 }),
+    subscribe: async () => undefined,
+    unsubscribe: async () => undefined,
     onOutput: () => ({ dispose: () => undefined }),
     onExited: () => ({ dispose: () => undefined }),
   }

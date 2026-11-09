@@ -1,4 +1,4 @@
-import type { TranscriptPage } from '@poietica/transcript'
+import type { TranscriptPage } from '@poietica/agent-model'
 import type { OmpMessage } from '../../history'
 
 export const T0 = 1_700_000_000_000

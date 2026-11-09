@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { SideTopic, SideTurn } from '@poietica/engine'
+import type { SideTopic, SideTurn } from '@poietica/runtime-protocol'
 import { createSideStore, fresherTopic, runningTopicOf, type SideApi, selectedTopicOf } from '../side-store'
 
 /*

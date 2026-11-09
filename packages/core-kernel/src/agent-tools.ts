@@ -1,5 +1,5 @@
-import type { AgentEngine, EngineToolSpec } from '@poietica/engine'
 import { AppError, SystemErrorCode } from '@poietica/foundation'
+import type { AgentEngine, EngineToolSpec } from '@poietica/runtime-protocol'
 
 export interface AgentToolRegistry {
   /** 只能在 setup 期间调用；工具存活到进程结束（omp 会话创建后工具集不可变）。 */

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { EngineErrorCode } from '@poietica/engine'
 import { type AppError, SystemErrorCode } from '@poietica/foundation'
+import { EngineErrorCode } from '@poietica/runtime-protocol'
 import { planApprovedText, planRejectedText, planRevisionText } from '../../interactions/plan'
 import type { SettingsScope } from '../../settings-access'
 import {

@@ -1,4 +1,5 @@
 import { type DiffFile, type DiffStat, diffStatOf, toDisplayPath } from '@poietica/design-system/diff'
+import type { OmpToolInputOf, OmpToolOutputOf } from '@poietica/omp-types'
 import type { ToolCallContent } from '../model/tool-call'
 import { toDiffFiles } from './file-diff'
 import { type ToolContentPart, toToolContentParts } from './tool-call-content'
@@ -9,8 +10,8 @@ import { type ToolContentPart, toToolContentParts } from './tool-call-content'
 export interface ToolCallFacetSource {
   readonly requestContent?: readonly ToolCallContent[] | undefined
   readonly content: readonly ToolCallContent[]
-  readonly rawInput?: unknown
-  readonly rawOutput?: unknown
+  readonly rawInput?: OmpToolInputOf | undefined
+  readonly rawOutput?: OmpToolOutputOf | undefined
 }
 
 export interface ToolCallFacets {

@@ -2,8 +2,8 @@ import { readFileSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { isUserInvokedSkillPrompt, SKILL_PROMPT_MESSAGE_TYPE } from '@oh-my-pi/pi-coding-agent/session/messages'
 import { tagImageAttachmentSource } from '@oh-my-pi/pi-tui/prompt/image-source'
-import type { SubmitInput, TurnContextBlock } from '@poietica/engine'
 import { AppError, mapLimited, SystemErrorCode } from '@poietica/foundation'
+import type { SubmitInput, TurnContextBlock } from '@poietica/runtime-protocol'
 
 /** 一张图片超过 20 MB 就拒收：base64 要进上下文，太大等于把一轮直接撑爆 */
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024

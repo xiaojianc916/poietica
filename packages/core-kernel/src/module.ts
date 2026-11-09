@@ -1,7 +1,7 @@
 import type { Contract } from '@poietica/contract-kit'
-import type { AgentEngine } from '@poietica/engine'
 import type { Clock, DisposableStore, Logger, ModuleServices } from '@poietica/foundation'
 import type { DataLayout } from '@poietica/runtime-layout'
+import type { AgentEngine, RuntimeServices } from '@poietica/runtime-protocol'
 import type { Migration, ModuleDatabase } from '@poietica/storage-sqlite'
 import type { AgentToolRegistry } from './agent-tools'
 import type { CoreEventBus } from './events'
@@ -48,8 +48,8 @@ export interface CoreModuleContext<C extends Contract = Contract> {
   readonly clock: Clock
   readonly layout: DataLayout
   readonly db: ModuleDatabase
-  /** 引擎端口；注册 agent 工具走 ctx.agentTools（内核在全部 setup 之后冻结工具表）。 */
-  readonly engine: AgentEngine
+  /** 按能力收窄的运行时门面；注册 agent 工具走 ctx.agentTools（内核在全部 setup 之后冻结工具表）。 */
+  readonly agentRuntime: RuntimeServices
   readonly rpc: CoreRpcBinding<C>
   readonly host: HostCaller
   readonly services: ModuleServices

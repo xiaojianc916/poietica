@@ -6,9 +6,6 @@
       "path": "../contract-kit"
     },
     {
-      "path": "../engine"
-    },
-    {
       "path": "../foundation"
     },
     {
@@ -16,6 +13,9 @@
     },
     {
       "path": "../runtime-layout"
+    },
+    {
+      "path": "../runtime-protocol"
     },
     {
       "path": "../storage-sqlite"

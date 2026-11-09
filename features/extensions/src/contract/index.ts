@@ -1,5 +1,12 @@
 import { defineContract, defineMethod, defineNotification } from '@poietica/contract-kit'
-import { MarketplaceEntry, McpCatalogEntry, McpServerInfo, McpStatus, PluginInfo, SkillInfo } from '@poietica/engine'
+import {
+  MarketplaceEntry,
+  McpCatalogEntry,
+  McpServerInfo,
+  McpStatus,
+  PluginInfo,
+  SkillInfo,
+} from '@poietica/runtime-protocol'
 import { z } from 'zod'
 import { SkillInstallSource } from './entities'
 import { extensionsErrors } from './errors'

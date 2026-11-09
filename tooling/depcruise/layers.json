@@ -2,8 +2,8 @@
   "foundation": 0,
   "contract-kit": 1,
   "rpc": 1,
-  "transcript": 1,
-  "engine": 1,
+  "agent-model": 1,
+  "runtime-protocol": 1,
   "runtime-layout": 2,
   "process-kit": 2,
   "fs-kit": 2,
@@ -19,5 +19,7 @@
   "design-system": 3,
   "workbench": 5,
   "protocol": 5,
-  "workbuddy-client": 2
+  "workbuddy-client": 2,
+  "omp-types": 1,
+  "stream-kit": 1
 }

@@ -8,7 +8,7 @@ import {
   DropdownMenuRadioItemIndicator,
   DropdownMenuTrigger,
 } from '@poietica/design-system'
-import type { ModelRef, Posture } from '@poietica/engine'
+import type { ModelRef, Posture } from '@poietica/runtime-protocol'
 import { Brain, Check, ChevronDown, Hand, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 

@@ -1,33 +1,28 @@
+import type { OmpGenericToolDetails } from '@poietica/omp-types'
 import type { ToolCallContent } from '../../../shared/model/tool-call'
 import type { Ctx, Handler } from '../view-kit'
 import {
   at,
-  bag,
-  blocksOf,
   code,
   failOr,
-  flag,
-  get,
+  given,
   join,
   langOf,
-  list,
   NONE,
-  numb,
   oneLine,
-  pick,
+  outputBlocks,
   prose,
   saidText,
-  strings,
   view,
   viewOf,
 } from '../view-kit'
 
 // 非零退出码与超时不在折叠行上报，落在产出那面。
-export const bashView: Handler = (ctx) => {
-  const command = pick(ctx.input, 'command') ?? ''
-  const exit = numb(ctx.details, 'exitCode')
+export const bashView: Handler<'bash'> = (ctx) => {
+  const command = ctx.input?.command ?? ''
+  const exit = ctx.details?.exitCode
   const foot =
-    flag(ctx.details, 'timedOut') === true
+    ctx.details?.timedOut === true
       ? [prose('命令超时被杀。')]
       : exit === undefined || exit === 0
         ? NONE
@@ -75,15 +70,39 @@ function readHeadOf(path: string, isFetch: boolean): { readonly kind: 'fetch' | 
     : { kind: 'read', head: `${verb} ${rest}` }
 }
 
-// 给人看的原始正文在 details.displayContent.text（hashline 模式下入参带行号前缀）。
-function readWith(isFetch: boolean): Handler {
-  return (ctx) => {
-    const path = pick(ctx.input, 'path') ?? pick(ctx.input, 'url') ?? pick(ctx.details, 'resolvedPath') ?? ''
-    const shown = pick(get(ctx.details, 'displayContent'), 'text') ?? ctx.said
-    const conflict = numb(ctx.details, 'conflictCount')
-    const { head, kind } = readHeadOf(path, isFetch)
+/** 不是内部 URL（http、盘符路径）就是空串。 */
+function schemeFrom(value: string | undefined): string {
+  if (value === undefined) {
+    return ''
+  }
 
-    return view(
+  const cut = value.indexOf('://')
+
+  return cut <= 0 ? '' : value.slice(0, cut).toLowerCase()
+}
+
+/*
+ * 内部地址的 scheme：omp 自己盖的章（details.meta.source.type === 'internal'）优先 —— 它是跑完之后的事实；
+ * 调用还在飞的时候没有产出，退回入参 path 上的 scheme。
+ */
+function schemeOf(
+  details: { readonly meta?: { readonly source?: { readonly type: string; readonly value: string } } } | undefined,
+  path: string | undefined,
+): string {
+  const source = details?.meta?.source
+
+  return schemeFrom(source?.type === 'internal' ? source.value : path)
+}
+
+// 给人看的原始正文在 details.displayContent.text（hashline 模式下入参带行号前缀）。
+export const readView: Handler<'read'> = (ctx) => {
+  const path = given(ctx.input?.path) ?? given(ctx.details?.resolvedPath) ?? ''
+  const shown = ctx.details?.displayContent?.text ?? ctx.said
+  const conflict = ctx.details?.conflictCount
+  const { head, kind } = readHeadOf(path, false)
+
+  return {
+    ...view(
       kind,
       head,
       path,
@@ -95,88 +114,103 @@ function readWith(isFetch: boolean): Handler {
           : [prose(`这个文件有 ${String(conflict)} 处未解决的冲突。`)]),
       ]),
       'result',
-    )
+    ),
+    scheme: schemeOf(ctx.details, path),
   }
 }
 
-export const readView: Handler = readWith(false)
+// fetch 是「读 URL」那一把：画法与 read 相同，类别与动词归网页。产出细节是 ReadUrlToolDetails，没有 displayContent。
+export const fetchView: Handler<'fetch'> = (ctx) => {
+  const path = given(ctx.input?.path) ?? given(ctx.input?.url) ?? ''
+  const { head, kind } = readHeadOf(path, true)
 
-// fetch 是「读 URL」那一把：画法与 read 相同，类别与动词归网页。
-export const fetchView: Handler = readWith(true)
+  return view(
+    kind,
+    head,
+    path,
+    NONE,
+    failOr(ctx, ctx.said === undefined ? NONE : [code(ctx.said, langOf(path))]),
+    'result',
+  )
+}
 
 // write 还是 xd:// 传输本身：omp 把可挂载工具收进 write xd://<tool>，
 // 一次 write 其实是在调另一个工具，按被调的那个工具画，否则永远显示成「写入 xd://browser」。
-export const writeView: Handler = (ctx) => {
-  const path = pick(ctx.input, 'path') ?? pick(ctx.details, 'resolvedPath') ?? ''
-  const device = bag(get(ctx.details, 'xdev'))
-  const tool = pick(device, 'tool')
+export const writeView: Handler<'write'> = (ctx) => {
+  const path = given(ctx.input?.path) ?? given(ctx.details?.resolvedPath) ?? ''
+  const device = ctx.details?.xdev
 
   // read/write 是传输本身，不会是被挂载的设备。
-  if (tool !== undefined && tool !== 'read' && tool !== 'write' && pick(device, 'mode') !== 'help') {
-    const inner = get(device, 'inner')
-    const args = get(device, 'args')
-    const invoked = viewOf(tool, args, { content: blocksOf(ctx.output), details: inner })
+  if (device !== undefined && device.tool !== 'read' && device.tool !== 'write' && device.mode !== 'help') {
+    /* 设备的内层产出是原样透传的那一份，类型由被调工具的 schema 保证。 */
+    const inner = device.inner as OmpGenericToolDetails | undefined
+    const invoked = viewOf(device.tool, device.args, {
+      content: outputBlocks(ctx.output),
+      ...(inner === undefined ? {} : { details: inner }),
+    })
 
     /* 名字要跟着被调的工具走：字形按名字取，认 write 会画成铅笔而屏幕上写着「读取诊断」。 */
     return {
       ...invoked,
-      invokedTool: tool,
-      headline: invoked.headline === '' ? `xd://${tool}` : `xd://${tool} · ${invoked.headline}`,
-      subject: invoked.subject === '' ? tool : invoked.subject,
+      invokedTool: device.tool,
+      headline: invoked.headline === '' ? `xd://${device.tool}` : `xd://${device.tool} · ${invoked.headline}`,
+      subject: invoked.subject === '' ? device.tool : invoked.subject,
     }
   }
 
-  const body = pick(ctx.input, 'content')
-  const head = flag(ctx.details, 'madeExecutable') ? '写入并标记可执行' : '写入'
+  const body = given(ctx.input?.content)
+  const head = ctx.details?.madeExecutable === true ? '写入并标记可执行' : '写入'
 
-  return view(
-    'write',
-    join(head, path) || head,
-    path,
-    body === undefined ? NONE : [code(body, langOf(path))],
-    failOr(ctx, saidText(ctx)),
-  )
+  return {
+    ...view(
+      'write',
+      join(head, path) || head,
+      path,
+      body === undefined ? NONE : [code(body, langOf(path))],
+      failOr(ctx, saidText(ctx)),
+    ),
+    scheme: schemeOf(ctx.details, path),
+  }
 }
 
+type EditCtx = Ctx<'edit' | 'apply_patch'>
+
 // hashline 模式下入参只有一段补丁正文，真正的结构在产出 details 里（source of truth）。
-export function editDiffs(ctx: Ctx): readonly ToolCallContent[] {
+function editDiffs(ctx: EditCtx): readonly ToolCallContent[] {
   const held = ctx.details
-  const many = get(held, 'perFileResults')
+  const many = held?.perFileResults
 
-  if (Array.isArray(many)) {
-    return many.flatMap((entry) => {
-      const path = pick(entry, 'path')
-      const newText = pick(entry, 'newText')
-
-      return path === undefined || newText === undefined
+  if (many !== undefined) {
+    return many.flatMap((entry) =>
+      entry.newText === undefined
         ? NONE
         : [
             {
               type: 'diff' as const,
-              path,
-              ...(pick(entry, 'oldText') === undefined ? {} : { oldText: pick(entry, 'oldText') }),
-              newText,
+              path: entry.path,
+              ...(entry.oldText === undefined ? {} : { oldText: entry.oldText }),
+              newText: entry.newText,
             },
-          ]
-    })
+          ],
+    )
   }
 
-  const path = pick(held, 'path') ?? pick(ctx.input, 'path')
-  const newText = pick(held, 'newText') ?? pick(ctx.input, 'newText') ?? pick(ctx.input, 'new_string')
+  const path = given(held?.path) ?? given(ctx.input?.path)
+  const newText = given(held?.newText) ?? given(ctx.input?.newText) ?? given(ctx.input?.new_string)
 
   if (path === undefined || newText === undefined) {
     return NONE
   }
 
-  const oldText = pick(held, 'oldText') ?? pick(ctx.input, 'oldText') ?? pick(ctx.input, 'old_string')
+  const oldText = given(held?.oldText) ?? given(ctx.input?.oldText) ?? given(ctx.input?.old_string)
 
   return [{ type: 'diff' as const, path, ...(oldText === undefined ? {} : { oldText }), newText }]
 }
 
 // 交不出新旧正文时：先退回产出自己算好的统一 diff，再是入参补丁正文。
-export function editPatch(ctx: Ctx): readonly ToolCallContent[] {
-  const diff = pick(ctx.details, 'diff')
-  const patch = pick(ctx.input, 'input')
+function editPatch(ctx: EditCtx): readonly ToolCallContent[] {
+  const diff = given(ctx.details?.diff)
+  const patch = given(ctx.input?.input)
 
   if (diff !== undefined) {
     return [code(diff, 'diff')]
@@ -185,31 +219,29 @@ export function editPatch(ctx: Ctx): readonly ToolCallContent[] {
   return patch === undefined ? NONE : [code(patch, 'diff')]
 }
 
-export const EDIT_HEADS: Readonly<Record<string, string>> = {
+const EDIT_HEADS: Readonly<Record<string, string>> = {
   create: '新建',
   delete: '删除',
   update: '编辑',
 }
 
-export function editOp(ctx: Ctx): string | undefined {
-  const top = pick(ctx.details, 'op')
+function editOp(ctx: EditCtx): string | undefined {
+  const top = ctx.details?.op
 
   if (top !== undefined) {
     return top
   }
 
-  const many = get(ctx.details, 'perFileResults')
-
-  return Array.isArray(many) ? pick(many[0], 'op') : undefined
+  return ctx.details?.perFileResults?.[0]?.op
 }
 
-export const editView: Handler = (ctx) => {
-  const path = pick(ctx.input, 'path') ?? pick(ctx.details, 'path') ?? pick(ctx.details, 'resolvedPath') ?? ''
+export const editView: Handler<'edit' | 'apply_patch'> = (ctx) => {
+  const path = given(ctx.input?.path) ?? given(ctx.details?.path) ?? ''
   const diffs = editDiffs(ctx)
   const patch = editPatch(ctx)
   const request = diffs.length > 0 ? diffs : patch.length > 0 ? patch : path === '' ? NONE : [prose(`编辑 ${at(path)}`)]
   const head = join(EDIT_HEADS[editOp(ctx) ?? ''] ?? '编辑', path === '' ? undefined : path)
-  const moved = pick(ctx.details, 'move')
+  const moved = given(ctx.details?.move)
 
   return view(
     'edit',
@@ -221,10 +253,10 @@ export const editView: Handler = (ctx) => {
   )
 }
 
-export const astEditView: Handler = (ctx) => {
-  const where = strings(ctx.input, 'paths').join('、')
-  const ops = list(ctx.input, 'ops')
-  const pats = ops.map((entry) => pick(entry, 'pat')).filter((entry): entry is string => entry !== undefined)
+export const astEditView: Handler<'ast_edit'> = (ctx) => {
+  const where = (ctx.input?.paths ?? []).filter((one) => one !== '').join('、')
+  const ops = ctx.input?.ops ?? []
+  const pats = ops.map((entry) => entry.pat).filter((entry): entry is string => given(entry) !== undefined)
   const request =
     pats.length === 0 ? NONE : [code(pats.map((pat, index) => `${String(index + 1)}. ${pat}`).join('\n'), 'text')]
   const subject = where === '' ? `${String(ops.length)} 处` : where

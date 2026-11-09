@@ -99,7 +99,7 @@ async function main(): Promise<void> {
     console.log(`[probe]     core.ready：coreVersion=${ready.coreVersion} engineVersion=${ready.engineVersion}`)
 
     console.log('[probe] 4/5 检查隔离目录与用户目录…')
-    const check = await import('@poietica/engine-omp/bootstrap')
+    const check = await import('@poietica/runtime-protocol-omp/bootstrap')
     void check
     const leaked = listLeaks(fakeHome, dataRoot)
     if (leaked.length > 0) fail(`假用户目录里出现了数据根之外的路径：\n  ${leaked.join('\n  ')}`)

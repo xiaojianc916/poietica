@@ -1,4 +1,4 @@
-import type { ModelRef } from '@poietica/engine'
+import type { ModelRef } from '@poietica/runtime-protocol'
 import { createFeatureStore, type FeatureStore } from '@poietica/ui-kernel'
 import type { SerializedEditorState } from 'lexical'
 import type { DraftAttachment } from '../../ui-api'

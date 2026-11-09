@@ -1,4 +1,4 @@
-import type { Interaction } from '@poietica/engine'
+import type { Interaction } from '@poietica/runtime-protocol'
 
 /**
  * 题组 ↔ 发起它的那次 ask 调用（Q1-E）。omp 的 ask 工具调 askDialog 时不带调用号（只有

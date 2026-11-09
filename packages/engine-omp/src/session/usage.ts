@@ -1,4 +1,4 @@
-import type { UsageSample } from '@poietica/engine'
+import type { UsageSample } from '@poietica/runtime-protocol'
 
 /**
  * 一条 assistant 消息的用量。

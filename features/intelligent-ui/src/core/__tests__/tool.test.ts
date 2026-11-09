@@ -1,13 +1,14 @@
 import { describe, expect, test } from 'bun:test'
 import { type CoreHarness, createCoreHarness } from '@poietica/core-kernel/testing'
-import type { EngineToolContext, EngineToolSpec } from '@poietica/engine'
-import { createFakeEngine } from '@poietica/engine-testkit'
 import attachments from '@poietica/feature-attachments/core'
 import { conversationContract } from '@poietica/feature-conversation/contract'
 import conversation from '@poietica/feature-conversation/core'
+import journal from '@poietica/feature-journal/core'
 import { workspacesContract } from '@poietica/feature-workspaces/contract'
 import workspaces from '@poietica/feature-workspaces/core'
 import type { AppError } from '@poietica/foundation'
+import type { EngineToolContext, EngineToolSpec } from '@poietica/runtime-protocol'
+import { createFakeEngine } from '@poietica/runtime-protocol-testkit'
 import { fakeClock, tempDir } from '@poietica/test-kit'
 import {
   INTELLIGENT_UI_CLASS_NAMES,
@@ -159,7 +160,7 @@ describe('intelligent_ui 经真内核', () => {
           : [{ kind: 'text', text: '好的' }],
     })
     const h = await createCoreHarness({
-      modules: [attachments, workspaces, conversation, intelligentUi],
+      modules: [journal, attachments, workspaces, conversation, intelligentUi],
       engine,
       clock,
     })
@@ -257,7 +258,7 @@ describe('intelligent_ui 经真内核', () => {
     const dir = await tempDir('intelligent-ui-')
     const clock = fakeClock()
     const h = await createCoreHarness({
-      modules: [attachments, workspaces, conversation, intelligentUi],
+      modules: [journal, attachments, workspaces, conversation, intelligentUi],
       engine: createFakeEngine({ clock }),
       clock,
     })

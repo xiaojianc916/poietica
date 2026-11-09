@@ -6,10 +6,10 @@ import {
   defineMethod,
   defineNotification,
 } from '@poietica/contract-kit'
-import { createFakeEngine } from '@poietica/engine-testkit'
 import { AppError, invariant } from '@poietica/foundation'
 import { createTypedClient, RpcPeer, type TypedRpcClient } from '@poietica/rpc'
 import { transportPair } from '@poietica/rpc/testing'
+import { createFakeEngine } from '@poietica/runtime-protocol-testkit'
 import { createTestLogger, fakeClock, type TestLogger, tempDir } from '@poietica/test-kit'
 import { z } from 'zod'
 import { type CoreKernel, type CoreKernelOptions, createCoreKernel } from '../kernel'

@@ -1,4 +1,4 @@
-import type { CommandOutputTone, SlashCommand } from '@poietica/engine'
+import type { CommandOutputTone, SlashCommand } from '@poietica/runtime-protocol'
 
 /**
  * 一条命令最近一次给人的话（引擎的 commands.output，或执行失败的原因）。不进会话文件、不画进输入框上方：

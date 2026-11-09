@@ -27,5 +27,5 @@ WorkBuddy（腾讯 CodeBuddy 桌面端）账号、积分、每日签到与内置
 
 - 反代逻辑与 WorkBuddy 协议在 `@poietica/workbuddy-client`（L2）里，本功能只做存储、
   RPC、Provider 注册与界面。
-- 只依赖 `@poietica/engine` 的 `ModelsPort`，不 import `engine-omp`。
+- 只依赖 `@poietica/runtime-protocol` 的 `ModelsPort`，不 import `engine-omp`。
 - 插件来源与 MIT 许可见 `packages/workbuddy-client/src/vendor/LICENSE`。

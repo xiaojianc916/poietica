@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createFakeEngine } from '@poietica/engine-testkit'
 import { AppError } from '@poietica/foundation'
+import { createFakeEngine } from '@poietica/runtime-protocol-testkit'
 import { createTestLogger, type TestLogRecord } from '@poietica/test-kit'
 import type { ModelInfo, ProviderInfo } from '../../contract'
 import { type ApiKeyVault, restoreApiKeys } from '../api-keys'

@@ -1,4 +1,4 @@
-import type { ContextUsage, Controls } from '@poietica/engine'
+import type { ContextUsage, Controls } from '@poietica/runtime-protocol'
 import { createFeatureStore, type FeatureStore } from '@poietica/ui-kernel'
 import type { ConversationApi } from '../../api'
 

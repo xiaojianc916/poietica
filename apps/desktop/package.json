@@ -19,7 +19,7 @@
   "devDependencies": {
     "@poietica/app-core": "workspace:*",
     "@poietica/design-system": "workspace:*",
-    "@poietica/engine": "workspace:*",
+    "@poietica/runtime-protocol": "workspace:*",
     "@poietica/feature-agent-settings": "workspace:*",
     "@poietica/feature-attachments": "workspace:*",
     "@poietica/feature-automations": "workspace:*",

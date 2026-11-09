@@ -1,5 +1,5 @@
-import { ModelRef, Posture, QueueSnapshot, SessionState } from '@poietica/engine'
-import { type TranscriptPage, transcriptPageSchema } from '@poietica/transcript'
+import { type TranscriptPage, transcriptPageSchema } from '@poietica/agent-model'
+import { ModelRef, Posture, QueueSnapshot, SessionState } from '@poietica/runtime-protocol'
 import { z } from 'zod'
 
 export const ThreadId = z.string().min(1)
@@ -114,7 +114,7 @@ export const QueueView = z.object({
 export type QueueView = z.infer<typeof QueueView>
 
 /*
- * 快照的编译期类型显式写成 @poietica/transcript 的 TranscriptPage。
+ * 快照的编译期类型显式写成 @poietica/agent-model 的 TranscriptPage。
  *
  * zod 的推断会把可选字段放宽成 `?: T | undefined`，与上游模型的 exactOptionalPropertyTypes
  * 形状不同（而线上跑的就是上游那一份 JSON）。契约结果因此钉在 TranscriptPage 上：运行时仍然是

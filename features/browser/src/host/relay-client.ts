@@ -1,10 +1,10 @@
+import { AppError, type Clock, type Disposable, type Logger, systemClock, toDisposable } from '@poietica/foundation'
 import {
   DISCARDED_TABS_PROTOCOL_VERSION,
   type RelayInbound,
   type RelayOutbound,
   type TabSnapshot,
-} from '@poietica/engine'
-import { AppError, type Clock, type Disposable, type Logger, systemClock, toDisposable } from '@poietica/foundation'
+} from '@poietica/runtime-protocol'
 import type { BrowserState } from '../contract/entities'
 import { BLANK_PAGE } from '../contract/entities'
 import { browserErrors } from '../contract/errors'
@@ -357,7 +357,7 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
       browserVersion: tabs.browserVersion(),
       tabs: snapshots,
       attachedTabIds: [],
-      /* 缺了它 relay 把这一侧整实例判成不 eligible、浏览器工具直接报「扩展过期」（见 @poietica/engine 的 browser-relay.ts 文件头）。 */
+      /* 缺了它 relay 把这一侧整实例判成不 eligible、浏览器工具直接报「扩展过期」（见 @poietica/runtime-protocol 的 browser-relay.ts 文件头）。 */
       discardedTabsProtocol: DISCARDED_TABS_PROTOCOL_VERSION,
     })
   }

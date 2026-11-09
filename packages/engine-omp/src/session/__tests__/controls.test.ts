@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
-import type { EngineSessionEvent } from '@poietica/engine'
+import type { EngineSessionEvent } from '@poietica/runtime-protocol'
 import { readSetting } from '../../settings-access'
 import { applyPosture } from '../posture'
 import { OmpSession, type OmpSessionHost } from '../session'

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import type { EngineSessionEvent } from '@poietica/engine'
+import { EMPTY_THREAD_STATE, materialize, reduceAll } from '@poietica/agent-model'
 import type { Logger, LogLevel } from '@poietica/foundation'
-import { applyOps, emptyTimeline } from '@poietica/transcript'
+import type { EngineSessionEvent } from '@poietica/runtime-protocol'
 import { fakeOmpSession } from '../../projector/__tests__/fixtures/omp-session'
 
 /*
@@ -47,8 +47,8 @@ interface Notice {
 
 /** 事件流里所有 notice 帧，按到达顺序 */
 function noticesOf(events: readonly EngineSessionEvent[]): Notice[] {
-  const ops = events.flatMap((event) => (event.type === 'timeline' ? event.ops : []))
-  const state = applyOps(emptyTimeline(), ops)
+  const timeline = events.flatMap((event) => (event.type === 'timeline' ? event.events : []))
+  const state = materialize(reduceAll(EMPTY_THREAD_STATE, timeline))
   const out: Notice[] = []
   for (const item of state.items) {
     if (item.kind !== 'turn') continue
@@ -62,8 +62,8 @@ function noticesOf(events: readonly EngineSessionEvent[]): Notice[] {
 
 /** 全部帧的 `kind:frameId`，按顺序；用来断言 info 不占帧号 */
 function frameIds(events: readonly EngineSessionEvent[]): string[] {
-  const ops = events.flatMap((event) => (event.type === 'timeline' ? event.ops : []))
-  const state = applyOps(emptyTimeline(), ops)
+  const timeline = events.flatMap((event) => (event.type === 'timeline' ? event.events : []))
+  const state = materialize(reduceAll(EMPTY_THREAD_STATE, timeline))
   const out: string[] = []
   for (const item of state.items) {
     if (item.kind !== 'turn') continue

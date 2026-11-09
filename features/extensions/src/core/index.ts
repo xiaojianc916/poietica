@@ -25,7 +25,7 @@ export default defineCoreModule({
   contract: extensionsContract,
   dependsOn: ['workspaces'],
   setup(ctx) {
-    const { engine } = ctx
+    const { mcp: mcpPort, skills: skillsPort, plugins: pluginsPort } = ctx.agentRuntime
     const workspaces = ctx.services.get(WorkspacesServiceToken)
 
     const emitSkillsChanged = (): void => {
@@ -36,19 +36,19 @@ export default defineCoreModule({
     }
 
     ctx.disposables.add(
-      engine.mcp.onDidChangeStatus((statuses) => {
+      mcpPort.onDidChangeStatus((statuses) => {
         ctx.rpc.emit('mcp.statusChanged', { servers: statuses })
       }),
     )
 
     ctx.rpc.handle('skills.list', async (p) => {
       const cwd = p.workspaceId === undefined ? null : workspaces.requireUsable(p.workspaceId).path
-      const skills = await engine.skills.list(cwd)
+      const skills = await skillsPort.list(cwd)
       return { skills }
     })
 
     ctx.rpc.handle('skills.setEnabled', async (p) => {
-      await engine.skills.setEnabled(p.skillId, p.enabled)
+      await skillsPort.setEnabled(p.skillId, p.enabled)
       emitSkillsChanged()
       return {}
     })
@@ -56,15 +56,15 @@ export default defineCoreModule({
     ctx.rpc.handle('skills.install', async (p) => {
       const skill = await (
         p.source.kind === 'directory'
-          ? engine.skills.installFromDirectory(p.source.path)
-          : engine.skills.installFromZip(p.source.path)
+          ? skillsPort.installFromDirectory(p.source.path)
+          : skillsPort.installFromZip(p.source.path)
       ).catch(translateInstallError)
       emitSkillsChanged()
       return skill
     })
 
     ctx.rpc.handle('skills.remove', async (p) => {
-      const all = await engine.skills.list(null)
+      const all = await skillsPort.list(null)
       const skill = all.find((s) => s.id === p.skillId)
       if (skill === undefined) {
         throw new AppError(extensionsErrors.skill_not_found, '技能不存在')
@@ -73,66 +73,66 @@ export default defineCoreModule({
         throw new AppError(extensionsErrors.skill_not_removable, '内置或项目技能不能删除')
       }
       await ctx.host.call(platformContract, 'shell.trashItem', { path: skill.path })
-      await engine.skills.forget(p.skillId)
+      await skillsPort.forget(p.skillId)
       emitSkillsChanged()
       return {}
     })
 
     ctx.rpc.handle('skills.read', async (p) => {
-      return engine.skills.read(p.skillId)
+      return skillsPort.read(p.skillId)
     })
 
     ctx.rpc.handle('mcp.list', async () => {
-      const servers = await engine.mcp.list()
+      const servers = await mcpPort.list()
       return { servers }
     })
 
     ctx.rpc.handle('mcp.upsert', async (p) => {
       /* 按名字 upsert（幂等）。**mcp_name_conflict 在 Core 侧目前不可达**：参数只有 McpServerInfo，「新增」与「更新」在线上没有区分位，
        * 而「名字已存在」恰恰就是更新（见 docs/refactor-log.md 的待决问题 Q21）。 */
-      await engine.mcp.upsert(p)
+      await mcpPort.upsert(p)
       return {}
     })
 
     ctx.rpc.handle('mcp.remove', async (p) => {
-      await engine.mcp.remove(p.name)
+      await mcpPort.remove(p.name)
       return {}
     })
 
     ctx.rpc.handle('mcp.status', async () => {
-      const statuses = await engine.mcp.status()
+      const statuses = await mcpPort.status()
       return { servers: statuses }
     })
 
     ctx.rpc.handle('mcp.catalog', async (p) => {
-      const entries = await engine.mcp.catalog(p.query)
+      const entries = await mcpPort.catalog(p.query)
       return { entries }
     })
 
     ctx.rpc.handle('plugins.list', async () => {
-      const plugins = await engine.plugins.list()
+      const plugins = await pluginsPort.list()
       return { plugins }
     })
 
     ctx.rpc.handle('plugins.marketplace', async (p) => {
-      const entries = await engine.plugins.marketplace(p.query)
+      const entries = await pluginsPort.marketplace(p.query)
       return { entries }
     })
 
     ctx.rpc.handle('plugins.install', async (p) => {
-      const plugin = await engine.plugins.install(p.pluginId)
+      const plugin = await pluginsPort.install(p.pluginId)
       emitPluginsChanged()
       return plugin
     })
 
     ctx.rpc.handle('plugins.uninstall', async (p) => {
-      await engine.plugins.uninstall(p.pluginId).catch(translatePluginError)
+      await pluginsPort.uninstall(p.pluginId).catch(translatePluginError)
       emitPluginsChanged()
       return {}
     })
 
     ctx.rpc.handle('plugins.setEnabled', async (p) => {
-      await engine.plugins.setEnabled(p.pluginId, p.enabled).catch(translatePluginError)
+      await pluginsPort.setEnabled(p.pluginId, p.enabled).catch(translatePluginError)
       emitPluginsChanged()
       return {}
     })

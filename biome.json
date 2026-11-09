@@ -119,7 +119,7 @@
   },
   "overrides": [
     {
-      "includes": ["packages/transcript/src/ops/apply.ts"],
+      "includes": ["packages/agent-model/src/ops/apply.ts"],
       "linter": {
         "rules": {
           "complexity": {
@@ -223,7 +223,7 @@
         "packages/logging/src/console-sink.ts",
         "packages/test-kit/src/test-logger.ts",
         "packages/ui-kernel/src/services/logging.ts",
-        "packages/engine-omp/src/bootstrap/stdout-guard.ts"
+        "packages/runtime-protocol-omp/src/bootstrap/stdout-guard.ts"
       ],
       "linter": {
         "rules": {
@@ -254,7 +254,7 @@
         "features/conversation/src/ui/timeline/model/transcript-store.ts",
         "features/models/src/ui/models-settings.tsx",
         "features/platform/src/host/storage-service.ts",
-        "packages/engine-testkit/src/conformance.ts",
+        "packages/runtime-protocol-testkit/src/conformance.ts",
         "packages/host-kernel/src/core-supervisor.ts",
         "tooling/refs/sync.ts"
       ],
@@ -275,7 +275,7 @@
       "includes": [
         "features/conversation/src/ui/session/session-port.ts",
         "features/extensions/src/ui/mcp-config.ts",
-        "packages/engine-omp/src/projector/__tests__/fixtures/live.ts"
+        "packages/runtime-protocol-omp/src/projector/__tests__/fixtures/live.ts"
       ],
       "linter": {
         "rules": {

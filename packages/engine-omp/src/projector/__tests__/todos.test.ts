@@ -38,7 +38,7 @@ describe('TodoMirror', () => {
     expect(mirror.current).toBeNull()
     const first = mirror.sync(phases('pending', 'pending'))
     expect(first).toHaveLength(1)
-    expect(first[0]).toMatchObject({ op: 'todo.upsert', todo: { todoId: OMP_TODO_ID } })
+    expect(first[0]).toMatchObject({ type: 'todo.updated', todo: { todoId: OMP_TODO_ID } })
     expect(mirror.sync(phases('pending', 'pending'))).toEqual([])
     expect(mirror.sync(phases('completed', 'in_progress'))).toHaveLength(1)
     expect(mirror.current?.items.map((item) => item.status)).toEqual(['done', 'in_progress'])

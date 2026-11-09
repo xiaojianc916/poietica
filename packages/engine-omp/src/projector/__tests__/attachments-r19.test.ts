@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { applyOps, emptyTimeline, pageFromState, type TranscriptOperation } from '@poietica/transcript'
+import {
+  type AgentEvent,
+  EMPTY_THREAD_STATE,
+  materialize,
+  reduceAll,
+  snapshotOf,
+  type ThreadState,
+} from '@poietica/agent-model'
 import { projectHistoryPage } from '../history'
 import { assistant, T0 } from './fixtures/history'
 import { projector } from './fixtures/live'
@@ -62,31 +69,32 @@ describe('历史分页：轮头挂上图片的号', () => {
 
 describe('LiveProjector：插话与开轮带图', () => {
   const image = (id: string) => ({ attachmentId: id, mediaType: 'image/png', sha256: 'c'.repeat(64) })
+  const fold = (events: readonly AgentEvent[]): ThreadState => reduceAll(EMPTY_THREAD_STATE, events)
 
   test('userTurn 带 images：先发条目、轮头挂号，开着时 openTurnAttachments 交得出这批条目', () => {
     const p = projector()
-    const ops = p.userTurn({ text: '看图', images: [image('a#0'), image('a#1')] })
-    expect(ops.slice(0, 2).map((op) => op.op)).toEqual(['attachment.upsert', 'attachment.upsert'])
-    const turn = ops.find((op) => op.op === 'turn.upsert')
-    expect(turn?.op === 'turn.upsert' ? turn.turn.attachmentIds : undefined).toEqual(['a#0', 'a#1'])
+    const events = p.userTurn({ text: '看图', images: [image('a#0'), image('a#1')] })
+    expect(events.slice(0, 2).map((event) => event.type)).toEqual(['attachment.added', 'attachment.added'])
+    const turn = events.find((event) => event.type === 'run.started')
+    expect(turn?.type === 'run.started' ? turn.run.attachmentIds : undefined).toEqual(['a#0', 'a#1'])
     expect(p.openTurnAttachments.map((attachment) => attachment.attachmentId)).toEqual(['a#0', 'a#1'])
 
     const end = p.turnEnd('completed', null)
-    const closed = end.find((op) => op.op === 'turn.upsert')
-    expect(closed?.op === 'turn.upsert' ? closed.turn.attachmentIds : undefined).toEqual(['a#0', 'a#1'])
+    const closed = materialize(reduceAll(fold(events), end)).items[0]
+    expect(closed?.kind === 'turn' ? closed.attachmentIds : undefined).toEqual(['a#0', 'a#1'])
     expect(p.openTurnAttachments).toEqual([])
   })
 
   test('开着一轮时插话带图：条目先到，插话帧挂上号', () => {
     const p = projector()
     p.userTurn({ text: 'q' })
-    const ops: TranscriptOperation[] = p.steeredFrame('再看这张', [image('s#0')])
-    expect(ops[0]?.op).toBe('attachment.upsert')
-    const frame = ops.find((op) => op.op === 'frame.upsert')
-    expect(frame?.op === 'frame.upsert' && frame.frame.kind === 'text' ? frame.frame.attachmentIds : undefined).toEqual(
-      ['s#0'],
-    )
-    const page = pageFromState(applyOps(emptyTimeline(), ops))
+    const events = p.steeredFrame('再看这张', [image('s#0')])
+    expect(events[0]?.type).toBe('attachment.added')
+    const frame = events.find((event) => event.type === 'item.started')
+    expect(
+      frame?.type === 'item.started' && frame.frame.kind === 'text' ? frame.frame.attachmentIds : undefined,
+    ).toEqual(['s#0'])
+    const page = snapshotOf(fold(events))
     expect(page.attachments.map((attachment) => attachment.attachmentId)).toEqual(['s#0'])
   })
 
@@ -94,8 +102,8 @@ describe('LiveProjector：插话与开轮带图', () => {
     const p = projector()
     p.userTurn({ text: 'q' })
     p.turnEnd('completed', null)
-    const ops = p.steeredFrame('下一句', [image('n#0')])
-    const turn = ops.find((op) => op.op === 'turn.upsert')
-    expect(turn?.op === 'turn.upsert' ? turn.turn.attachmentIds : undefined).toEqual(['n#0'])
+    const events = p.steeredFrame('下一句', [image('n#0')])
+    const turn = events.find((event) => event.type === 'run.started')
+    expect(turn?.type === 'run.started' ? turn.run.attachmentIds : undefined).toEqual(['n#0'])
   })
 })

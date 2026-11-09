@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import type { TranscriptOperation, TranscriptTask } from '@poietica/transcript'
+import type { AgentEvent, TranscriptTask } from '@poietica/agent-model'
 import { BackgroundJobLedger, jobIdOf, jobTaskId } from '../background-jobs'
 
-const taskOf = (ops: readonly TranscriptOperation[]): TranscriptTask => {
-  const op = ops[0]
-  if (op?.op !== 'task.upsert') throw new Error('expected task.upsert')
-  return op.task
+const taskOf = (events: readonly AgentEvent[]): TranscriptTask => {
+  const event = events[0]
+  if (event?.type !== 'task.started' && event?.type !== 'task.finished') throw new Error('expected task event')
+  return event.task
 }
 
 describe('作业号', () => {

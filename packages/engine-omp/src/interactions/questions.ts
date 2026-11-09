@@ -3,7 +3,7 @@ import type {
   ExtensionAskDialogResult,
   ExtensionAskDialogResultItem,
 } from '@oh-my-pi/pi-coding-agent/extensibility/extensions/types'
-import type { Interaction } from '@poietica/engine'
+import type { Interaction } from '@poietica/runtime-protocol'
 import type { InteractionDraft } from './broker'
 
 export type EngineQuestionGroup = Extract<Interaction, { kind: 'question' }>['questions'][number]

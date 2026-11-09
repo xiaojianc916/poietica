@@ -1,13 +1,13 @@
+import type { AgentEvent } from '@poietica/agent-model'
 import type { Clock, Disposable } from '@poietica/foundation'
-import type { TranscriptOperation } from '@poietica/transcript'
 import { TimelineChannel } from './timeline-channel'
 
-export interface TimelineOpsNotice {
+export interface TimelineEventsNotice {
   readonly threadId: string
   readonly agentId: string
   readonly epoch: number
   readonly seq: number
-  readonly ops: readonly TranscriptOperation[]
+  readonly events: readonly AgentEvent[]
 }
 
 export interface TimelineResetNotice {
@@ -18,7 +18,7 @@ export interface TimelineResetNotice {
 
 export interface TimelineHubDeps {
   readonly clock: Clock
-  readonly emitOps: (p: TimelineOpsNotice) => void
+  readonly emitEvents: (p: TimelineEventsNotice) => void
   readonly emitReset: (p: TimelineResetNotice) => void
   /**
    * 本进程 epoch 的起点；默认随机。测试注入固定值。
@@ -52,7 +52,7 @@ export class TimelineHub implements Disposable {
     let c = this.channels.get(k)
     if (c === undefined) {
       c = new TimelineChannel(this.next++, () => this.next++, this.d.clock, {
-        ops: (p) => this.d.emitOps({ threadId, agentId, ...p }),
+        events: (p) => this.d.emitEvents({ threadId, agentId, ...p }),
         reset: (p) => this.d.emitReset({ threadId, agentId, ...p }),
       })
       this.channels.set(k, c)
@@ -64,8 +64,8 @@ export class TimelineHub implements Disposable {
     return this.channels.has(this.key(threadId, agentId))
   }
 
-  push(threadId: string, agentId: string, ops: readonly TranscriptOperation[]): void {
-    this.channel(threadId, agentId).push(ops)
+  push(threadId: string, agentId: string, events: readonly AgentEvent[]): void {
+    this.channel(threadId, agentId).push(events)
   }
 
   reset(threadId: string, agentId: string): void {
@@ -81,7 +81,7 @@ export class TimelineHub implements Disposable {
     agentId: string,
     epoch: number,
     sinceSeq: number,
-  ): { batches: { seq: number; ops: readonly TranscriptOperation[] }[]; latestSeq: number; complete: boolean } {
+  ): { batches: { seq: number; events: readonly AgentEvent[] }[]; latestSeq: number; complete: boolean } {
     const c = this.channels.get(this.key(threadId, agentId))
     if (c === undefined) return { batches: [], latestSeq: 0, complete: false }
     return c.catchUp(epoch, sinceSeq)

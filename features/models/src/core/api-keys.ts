@@ -1,7 +1,7 @@
 import type { HostCaller } from '@poietica/core-kernel'
-import type { ApiKeyEntry, ModelsPort } from '@poietica/engine'
 import { secretsContract } from '@poietica/feature-secrets/contract'
 import type { Logger } from '@poietica/foundation'
+import type { ApiKeyEntry, ModelsPort } from '@poietica/runtime-protocol'
 
 /** 凭据库里服务商 API Key 那一格：键 = provider id，值 = key */
 export const API_KEY_NAMESPACE = 'model-api-keys'

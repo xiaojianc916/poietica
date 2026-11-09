@@ -1,4 +1,4 @@
-import type { Interaction } from '@poietica/engine'
+import type { Interaction } from '@poietica/runtime-protocol'
 import type { PendingInteraction } from '../contract/entities'
 
 /**

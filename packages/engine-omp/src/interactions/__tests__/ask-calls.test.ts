@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { Interaction } from '@poietica/engine'
+import type { Interaction } from '@poietica/runtime-protocol'
 import { AskCallTracker } from '../ask-calls'
 
 /* 题组 ↔ ask 调用号：askDialog 不带号，两边谁先到不确定（Q1-E）。 */

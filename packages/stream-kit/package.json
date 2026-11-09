@@ -1,0 +1,13 @@
+{
+  "name": "@poietica/stream-kit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@poietica/foundation": "workspace:*"
+  },
+  "devDependencies": {}
+}

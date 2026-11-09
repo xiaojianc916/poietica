@@ -1,4 +1,4 @@
-import { ContextUsage, Controls, ModelRef, type Posture, SessionGoalSnapshot } from '@poietica/engine'
+import { ContextUsage, Controls, ModelRef, type Posture, SessionGoalSnapshot } from '@poietica/runtime-protocol'
 import { z } from 'zod'
 
 /**

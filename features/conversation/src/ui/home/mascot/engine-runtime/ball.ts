@@ -123,7 +123,7 @@ function r2(v: number): number {
   return Math.round(v * 100) / 100
 }
 function clamp(v: number, a: number, b: number): number {
-  return v < a ? a : v > b ? b : v
+  return v < a ? a : Math.min(v, b)
 }
 function rand(a: number, b: number): number {
   return a + Math.random() * (b - a)

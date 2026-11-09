@@ -1,5 +1,5 @@
-import type { ModelsPort } from '@poietica/engine'
 import { AppError, type Logger } from '@poietica/foundation'
+import type { ModelsPort } from '@poietica/runtime-protocol'
 import type { CustomProviderDef, ModelInfo, ModelRef, ModelRoleInfo, ProviderInfo } from '../contract'
 import { modelsErrors } from '../contract/errors'
 import type { ApiKeyVault } from './api-keys'
@@ -38,7 +38,7 @@ async function builtinIds(models: ModelsPort): Promise<ReadonlySet<string>> {
 
 export function createModelsService(d: ModelsServiceDeps): ModelsService {
   return {
-    // 每个方法都是对 ctx.engine.models 的一次调用加参数校验，没有自己的表。
+    // 每个方法都是对 ctx.agentRuntime.models 的一次调用加参数校验，没有自己的表。
     providers: () => d.models.providers(),
 
     async setApiKey(provider, apiKey) {

@@ -15,10 +15,10 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
   )
 
   ctx.lifecycle.onDispose(
-    api.onTimelineOps((p) => {
+    api.onTimelineEvents((p) => {
       /* 时间线的增量由端口层翻译成副本信号；这里只剩「真实那一轮到达 → 提交行销账」这一条与转录无关的副作用。 */
-      const stamped = p.ops.flatMap((op) =>
-        op.op === 'turn.upsert' && op.turn.clientTurnId !== undefined ? [op.turn.clientTurnId] : [],
+      const stamped = p.events.flatMap((event) =>
+        event.type === 'run.started' && event.run.clientTurnId !== undefined ? [event.run.clientTurnId] : [],
       )
       if (stamped.length > 0) {
         /* 待发提交表在真实那一轮到达时销账。 */

@@ -2,11 +2,18 @@ import { describe, expect, test } from 'bun:test'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import type { EngineSessionEvent, EngineToolSpec } from '@poietica/engine'
-import type { ScenarioStep } from '@poietica/engine-testkit'
+import {
+  type AgentEvent,
+  EMPTY_THREAD_STATE,
+  reduceAll,
+  snapshotOf,
+  type TranscriptFrame,
+  type TranscriptPage,
+} from '@poietica/agent-model'
 import { noopLogger } from '@poietica/foundation'
 import type { DataLayout } from '@poietica/runtime-layout'
-import { applyOps, emptyTimeline, pageFromState, type TranscriptFrame, type TranscriptPage } from '@poietica/transcript'
+import type { EngineSessionEvent, EngineToolSpec } from '@poietica/runtime-protocol'
+import type { ScenarioStep } from '@poietica/runtime-protocol-testkit'
 import { z } from 'zod'
 import { createOmpEngineForTest } from '../testing'
 import { testLayout } from './omp-home'
@@ -99,9 +106,8 @@ async function threePages(turns: readonly (readonly ScenarioStep[])[]) {
     }
   }
   await Bun.sleep(50)
-  let state = emptyTimeline()
-  for (const event of events) if (event.type === 'timeline') state = applyOps(state, event.ops)
-  const live = pageFromState(state)
+  const timeline: AgentEvent[] = events.flatMap((event) => (event.type === 'timeline' ? event.events : []))
+  const live = snapshotOf(reduceAll(EMPTY_THREAD_STATE, timeline))
   const history = await session.page('main', null)
   const file = session.sessionFile
   await session.dispose()

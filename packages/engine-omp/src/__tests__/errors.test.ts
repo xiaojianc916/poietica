@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { EngineErrorCode } from '@poietica/engine'
 import { AppError } from '@poietica/foundation'
+import { EngineErrorCode } from '@poietica/runtime-protocol'
 import { outcomeOf, toEngineError } from '../errors'
 
 describe('toEngineError', () => {

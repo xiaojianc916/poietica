@@ -8,9 +8,9 @@ import {
   MODEL_ROLES,
   roleCandidatePool,
 } from '@oh-my-pi/pi-coding-agent/config/model-roles'
-import type { AgentEngine } from '@poietica/engine'
 import { type Logger, systemClock } from '@poietica/foundation'
 import type { DataLayout } from '@poietica/runtime-layout'
+import type { AgentEngine } from '@poietica/runtime-protocol'
 import type { OmpMcpManager, OmpModelRegistry } from '../omp-context'
 import type { MediaRef } from '../projector/media'
 import { readSetting, type SettingsScope } from '../settings-access'

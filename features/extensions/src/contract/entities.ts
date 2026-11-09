@@ -5,7 +5,7 @@ import type {
   McpStatus as McpStatusSchema,
   PluginInfo as PluginInfoSchema,
   SkillInfo as SkillInfoSchema,
-} from '@poietica/engine'
+} from '@poietica/runtime-protocol'
 import { z } from 'zod'
 
 /* engine 把值对象导出为 **zod schema**（值）而不是类型别名：contract 只引推断类型，运行时校验用 engine 自己那份 schema。 */

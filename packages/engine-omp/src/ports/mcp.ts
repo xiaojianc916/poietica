@@ -9,8 +9,8 @@ import {
   validateServerName,
 } from '@oh-my-pi/pi-coding-agent/mcp/config-writer'
 import { searchSmitheryRegistry, toConfigName } from '@oh-my-pi/pi-coding-agent/mcp/smithery-registry'
-import type { McpCatalogEntry, McpPort, McpServerInfo, McpStatus } from '@poietica/engine'
 import { AppError, Emitter, type Logger, SystemErrorCode } from '@poietica/foundation'
+import type { McpCatalogEntry, McpPort, McpServerInfo, McpStatus } from '@poietica/runtime-protocol'
 import type { z } from 'zod'
 import { toEngineError } from '../errors'
 import type { OmpMcpManager } from '../omp-context'

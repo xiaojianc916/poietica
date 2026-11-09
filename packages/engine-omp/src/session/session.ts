@@ -1,3 +1,6 @@
+import type { AgentEvent, TranscriptInteraction, TranscriptPage } from '@poietica/agent-model'
+import { EMPTY_THREAD_STATE, reduceAll, snapshotOf, type ThreadState } from '@poietica/agent-model'
+import { AppError, createId, Emitter, type Logger, SystemErrorCode } from '@poietica/foundation'
 import {
   type ContextUsage,
   type Controls,
@@ -18,15 +21,12 @@ import {
   type SideTopic,
   type SlashCommand,
   type SubmitInput,
-} from '@poietica/engine'
-import { AppError, createId, Emitter, type Logger, SystemErrorCode } from '@poietica/foundation'
-import type { TranscriptInteraction, TranscriptOperation, TranscriptPage } from '@poietica/transcript'
+} from '@poietica/runtime-protocol'
 import { outcomeOf, type TurnOutcome, toEngineError } from '../errors'
 import { AskCallTracker } from '../interactions/ask-calls'
 import type { InteractionBroker } from '../interactions/broker'
 import type { FileAttachmentInput, ImageAttachmentInput, LiveProjector } from '../projector/live'
 import type { MediaRef } from '../projector/media'
-import { OpenTurnScreen, overlayOpenTurn } from '../projector/open-turn'
 import { commandErrorOf, commandOutputOf } from './command-output'
 import { describeError } from './event-faults'
 import type { LoadedImage } from './prompt'
@@ -118,7 +118,7 @@ export interface OmpSessionHost {
   readonly goalAvailable: () => boolean
   readonly livePlanMode: () => boolean
   readonly liveGoal: () => string | null
-  readonly liveGoalSnapshot: () => import('@poietica/engine').SessionGoalSnapshot | null
+  readonly liveGoalSnapshot: () => import('@poietica/runtime-protocol').SessionGoalSnapshot | null
   /**
    * 历史投影的一页。`openTurnShown` = 开着的那一轮会由 `OpenTurnScreen` 换上实时版本：
    * 这时历史投影不要再把「最新一轮」标成 running —— omp 还没写进这句话时，最新一轮是上一轮，标了就错。
@@ -205,8 +205,8 @@ export class OmpSession implements EngineSession {
   private mutation: Promise<void> = Promise.resolve()
   private readonly modes: QueueSnapshot['modes'] = { steer: 'all', followUp: 'all' }
   private readonly subscriptions: { dispose(): void }[] = []
-  /** 开着的那一轮在屏幕上已经是什么样：整页重取时这一轮用它，不用历史投影的版本（见 OpenTurnScreen） */
-  private readonly openTurn = new OpenTurnScreen()
+  /** 这条会话从打开起收到的全部已提交事件折出来的状态：整页快照里开着的那一轮以它为准 */
+  private liveState: ThreadState = EMPTY_THREAD_STATE
   /** 题组 ↔ ask 调用号：askDialog 不带号，号只在工具事件里（Q1-E） */
   private readonly askCalls = new AskCallTracker()
   private stateValue: SessionState = 'idle'
@@ -301,12 +301,10 @@ export class OmpSession implements EngineSession {
     this.emit({ type: 'state', state: next, error })
   }
 
-  private timeline(ops: readonly TranscriptOperation[]): void {
-    if (ops.length === 0) return
-    if (!this.openTurn.observe(ops)) {
-      this.o.logger.warn('open turn screen diverged; pages fall back to history projection', { ops: ops.length })
-    }
-    this.emit({ type: 'timeline', agentId: 'main', ops })
+  private timeline(events: readonly AgentEvent[]): void {
+    if (events.length === 0) return
+    this.liveState = reduceAll(this.liveState, events)
+    this.emit({ type: 'timeline', agentId: 'main', events })
   }
 
   /** broker 变化：待答交互数决定 running 与 awaiting 的来回切 */
@@ -878,13 +876,12 @@ export class OmpSession implements EngineSession {
 
   async page(agentId: string, beforeTurnId: string | null, options?: PageOptions): Promise<TranscriptPage> {
     this.assertLive()
-    /* 与历史投影同一刻取：o.page 的投影在调用时就同步算完，等它的这一拍里可能又发出了增量 */
-    const view = agentId === 'main' ? this.openTurn.view() : null
+    /* 开着的那一轮由历史投影按 isTurnOpen 带上，实时增量在它上面叠加；不再有第二份「开轮屏」。 */
     const page = await this.o.page(agentId, beforeTurnId, {
-      openTurnShown: view !== null,
+      openTurnShown: false,
       throughTurnId: options?.throughTurnId,
     })
-    return overlayOpenTurn(page, view, beforeTurnId === null)
+    return agentId === 'main' ? mergeLivePage(page, this.liveState, beforeTurnId) : page
   }
 
   /** 转发交互事件、把卡片 upsert 上屏、按待答数调整状态；session-factory 在 omp 会话建好后调用一次 */
@@ -952,20 +949,39 @@ export class OmpSession implements EngineSession {
 
   /** 交互上屏：requested 时 pending，resolved 时终态；卡片形状归 `interactionCardOf`，不归 broker（它不认识 transcript） */
   interactionOp(interaction: TranscriptInteraction): void {
-    this.emit({ type: 'timeline', agentId: 'main', ops: [{ op: 'interaction.upsert', interaction }] })
+    const at = new Date().toISOString()
+    this.timeline([
+      interaction.state === 'pending'
+        ? {
+            type: 'interaction.requested',
+            durability: 'committed',
+            schema: 1,
+            at,
+            itemId: interaction.interactionId,
+            interaction,
+          }
+        : {
+            type: 'interaction.resolved',
+            durability: 'committed',
+            schema: 1,
+            at,
+            itemId: interaction.interactionId,
+            interaction,
+          },
+    ])
   }
 
-  requestTimeline(ops: readonly TranscriptOperation[]): void {
-    this.timeline(ops)
+  requestTimeline(events: readonly AgentEvent[]): void {
+    this.timeline(events)
   }
 
   /**
    * 子代理通道的增量：**不过** `openTurn` —— 那块屏只认主对话的开着那一轮，子代理的帧喂进去会让它判成分叉、
    * 主对话的页退回历史投影。子代理自己的开轮屏由 subagent-channels 各自持有。
    */
-  emitAgentTimeline(agentId: string, ops: readonly TranscriptOperation[]): void {
-    if (ops.length === 0 || this.disposed) return
-    this.emit({ type: 'timeline', agentId, ops })
+  emitAgentTimeline(agentId: string, events: readonly AgentEvent[]): void {
+    if (events.length === 0 || this.disposed) return
+    this.emit({ type: 'timeline', agentId, events })
   }
 
   async cancelSubagent(agentId: string): Promise<boolean> {
@@ -1041,6 +1057,7 @@ export class OmpSession implements EngineSession {
   }
 
   timelineReset(agentId: string): void {
+    if (agentId === 'main') this.liveState = EMPTY_THREAD_STATE
     this.emit({ type: 'timelineReset', agentId })
   }
 
@@ -1113,4 +1130,43 @@ const ASK_TOOL = 'ask'
 
 function withToolCall(card: TranscriptInteraction, toolCallId: string | undefined): TranscriptInteraction {
   return toolCallId === undefined ? card : { ...card, toolCallId }
+}
+
+/**
+ * 开着的那一轮以实时 fold 为准：历史投影给的是会话文件里的内容，流式增量的偏移却按实时已发字符数算，
+ * 两份正文长度一旦不同，接着到的 item.delta 就会被判成缺口。这里只替换开着的最后一轮，其余仍用历史页；
+ * 侧表按 id 以实时为准（交互、任务、待办比历史页新）。
+ */
+function mergeLivePage(page: TranscriptPage, live: ThreadState, beforeTurnId: string | null): TranscriptPage {
+  const snapshot = snapshotOf(live)
+  const openTurn = snapshot.items.findLast(
+    (item): item is Extract<(typeof snapshot.items)[number], { kind: 'turn' }> =>
+      item.kind === 'turn' && item.state === 'running',
+  )
+  if (openTurn === undefined) return page
+  const before = beforeTurnId === null ? Number.POSITIVE_INFINITY : Number(beforeTurnId.slice(1))
+  if (openTurn.ordinal >= before) return page
+  const items = page.items.some((item) => item.kind === 'turn' && item.turnId === openTurn.turnId)
+    ? page.items.map((item) => (item.kind === 'turn' && item.turnId === openTurn.turnId ? openTurn : item))
+    : [...page.items, openTurn].toSorted((a, b) => {
+        if (a.kind !== 'turn' || b.kind !== 'turn') return 0
+        return a.ordinal - b.ordinal
+      })
+  return {
+    ...page,
+    items,
+    tasks: mergeById(page.tasks, snapshot.tasks, (task) => task.taskId),
+    interactions: mergeById(page.interactions, snapshot.interactions, (entry) => entry.interactionId),
+    attachments: mergeById(page.attachments, snapshot.attachments, (entry) => entry.attachmentId),
+    todos: mergeById(page.todos, snapshot.todos, (entry) => entry.todoId),
+    prompts: mergeById(page.prompts, snapshot.prompts, (entry) => entry.promptId),
+  }
+}
+
+function mergeById<T>(base: readonly T[], live: readonly T[], key: (value: T) => string): readonly T[] {
+  if (live.length === 0) return base
+  const liveById = new Map(live.map((value) => [key(value), value]))
+  const merged = base.map((value) => liveById.get(key(value)) ?? value)
+  for (const value of live) if (!base.some((held) => key(held) === key(value))) merged.push(value)
+  return merged
 }

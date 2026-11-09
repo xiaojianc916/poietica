@@ -48,7 +48,7 @@ export default defineCoreModule({
       service,
       conversation,
       workspaces,
-      engine: ctx.engine,
+      agentRuntime: ctx.agentRuntime.sessions,
       clock: ctx.clock,
       localTimeZone,
     })

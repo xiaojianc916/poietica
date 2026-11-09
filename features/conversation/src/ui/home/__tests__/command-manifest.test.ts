@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { SlashCommand } from '@poietica/engine'
+import type { SlashCommand } from '@poietica/runtime-protocol'
 import type { SlashCommandContribution } from '../../../ui-api'
 import type { SessionConfigControl } from '../../shared/model/config'
 import { availableCommands, type CommandContext, resolveCommand } from '../command-manifest'

@@ -1,27 +1,31 @@
 import { describe, expect, test } from 'bun:test'
-import { EngineErrorCode } from '@poietica/engine'
-import { createFakeEngine, type FakeEngine, type ScenarioScript, writeFile } from '@poietica/engine-testkit'
+import type { AgentEvent } from '@poietica/agent-model'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
+import type { JournalService } from '@poietica/feature-journal/core-api'
 import type { Workspace } from '@poietica/feature-workspaces/contract'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, createId, systemClock } from '@poietica/foundation'
+import { EngineErrorCode } from '@poietica/runtime-protocol'
+import { createFakeEngine, type FakeEngine, type ScenarioScript, writeFile } from '@poietica/runtime-protocol-testkit'
 import { openDatabase } from '@poietica/storage-sqlite'
 import { createTestLogger, tempDir, waitFor } from '@poietica/test-kit'
-import type { TranscriptOperation } from '@poietica/transcript'
 import type { QueueView, Thread } from '../../contract'
 import { ConversationCore } from '../conversation'
 import { migrations } from '../migrations'
 import { TimelineHub } from '../timeline-hub'
+import { fakeJournal } from './fake-journal'
 import { deferredOpenEngine } from './helpers'
 
 /** 直接构造 ConversationCore：注入内存库、假工作区与假附件服务，比装整个内核更快也更聚焦 */
-async function makeCore(overrides: { engine?: FakeEngine; workspaces?: WorkspacesService } = {}) {
+async function makeCore(
+  overrides: { runtime?: FakeEngine; workspaces?: WorkspacesService; journal?: JournalService } = {},
+) {
   const db = openDatabase(':memory:')
   for (const m of migrations) db.forModule('conversation').exec(m.sql)
   /* 用 systemClock：这些用例要观察「运行中」这一刻，fakeClock 不推时间就永远不开始 */
   const clock = systemClock
   const dir = await tempDir('conv-core-')
-  const hub = new TimelineHub({ clock, emitOps: () => undefined, emitReset: () => undefined })
+  const hub = new TimelineHub({ clock, emitEvents: () => undefined, emitReset: () => undefined })
 
   const workspaces: WorkspacesService =
     overrides.workspaces ??
@@ -86,12 +90,13 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
   const fileChanges: { threadId: string; turn: number; path: string; before: string | null; after: string | null }[] =
     []
 
-  const engine: FakeEngine = overrides.engine ?? createFakeEngine()
+  const engine: FakeEngine = overrides.runtime ?? createFakeEngine()
   engine.freezeTools()
 
   const core = new ConversationCore({
     db: db.forModule('conversation'),
-    engine,
+    journal: overrides.journal ?? fakeJournal(),
+    runtime: engine,
     hub,
     workspaces,
     attachments,
@@ -204,6 +209,28 @@ function stalledTurnEngine(engine: FakeEngine): FakeEngine {
 }
 
 describe('conversation core（不经内核的直连测试）', () => {
+  test('committed 事件先写 Journal 再广播', async () => {
+    const appended: { threadId: string; agentId: string; events: readonly unknown[] }[] = []
+    const journal: JournalService = {
+      ...fakeJournal(),
+      appendAndStamp: (threadId, agentId, events) => {
+        appended.push({ threadId, agentId, events })
+        return events
+      },
+    }
+    const { core, dir, db } = await makeCore({ journal })
+    const row = core.threads.create({ workspaceId: 'ws1' })
+    await submit(core, row.id, '你好')
+    await new Promise((r) => setTimeout(r, 30))
+    expect(appended.some((entry) => entry.threadId === row.id && entry.agentId === 'main')).toBe(true)
+    expect(
+      appended.flatMap((entry) => entry.events).some((event) => (event as { type?: string }).type === 'run.started'),
+    ).toBe(true)
+    await core.dispose()
+    db.close()
+    await dir.dispose()
+  })
+
   test('threads.create 不打开会话；submit 之后绑定会话文件', async () => {
     const { core, engine, dir, db } = await makeCore()
     const row = core.threads.create({ workspaceId: 'ws1' })
@@ -230,10 +257,10 @@ describe('conversation core（不经内核的直连测试）', () => {
     const dir = await tempDir('conv-core-')
     const clock = systemClock
     /* 线上形状：clientTurnId 只在这里有 */
-    const batches: { seq: number; ops: readonly TranscriptOperation[] }[] = []
+    const batches: { seq: number; events: readonly AgentEvent[] }[] = []
     const hub = new TimelineHub({
       clock,
-      emitOps: (p) => batches.push({ seq: p.seq, ops: p.ops }),
+      emitEvents: (p) => batches.push({ seq: p.seq, events: p.events }),
       emitReset: () => undefined,
     })
     const workspaces = {
@@ -276,7 +303,8 @@ describe('conversation core（不经内核的直连测试）', () => {
     engine.freezeTools()
     const core = new ConversationCore({
       db: db.forModule('conversation'),
-      engine,
+      journal: fakeJournal(),
+      runtime: engine,
       hub,
       workspaces,
       attachments,
@@ -317,20 +345,23 @@ describe('conversation core（不经内核的直连测试）', () => {
     })
     await new Promise((r) => setTimeout(r, 60))
 
-    const upserts = batches
-      .flatMap((b) => b.ops)
-      .filter((op): op is Extract<TranscriptOperation, { op: 'turn.upsert' }> => op.op === 'turn.upsert')
-    expect(upserts.length).toBeGreaterThan(0)
+    const runs = batches
+      .flatMap((b) => b.events)
+      .filter(
+        (event): event is Extract<AgentEvent, { type: 'run.started' | 'run.queued' }> =>
+          event.type === 'run.started' || event.type === 'run.queued',
+      )
+    expect(runs.length).toBeGreaterThan(0)
 
-    const stamped = upserts.filter((op) => op.turn.clientTurnId === clientTurnId)
+    const stamped = runs.filter((event) => event.run.clientTurnId === clientTurnId)
     /*
-     * **每条** upsert 都要带号（不是只带第一条）：收尾那条会把整条 turn 换掉，只在首条写的话
+     * **每条** run 事件都要带号（不是只带第一条）：收尾那条会把整条 turn 换掉，只在首条写的话
      * 界面判不出「真轮到了没」，会同时画出提交行与真实轮 —— 两个用户气泡。
      */
     expect(stamped.length).toBeGreaterThan(0)
-    const turnId = stamped[0]!.turn.turnId
-    const allOnTurn = upserts.filter((op) => op.turn.turnId === turnId)
-    expect(allOnTurn.every((op) => op.turn.clientTurnId === clientTurnId)).toBe(true)
+    const turnId = stamped[0]!.run.turnId
+    const allOnTurn = runs.filter((event) => event.run.turnId === turnId)
+    expect(allOnTurn.every((event) => event.run.clientTurnId === clientTurnId)).toBe(true)
 
     await core.dispose()
     db.close()
@@ -338,7 +369,7 @@ describe('conversation core（不经内核的直连测试）', () => {
   })
 
   test('CV-10 取消后 outcome 为 cancelled', async () => {
-    const { core, settled, dir, db } = await makeCore({ engine: createFakeEngine({ script: BUSY_SCRIPT }) })
+    const { core, settled, dir, db } = await makeCore({ runtime: createFakeEngine({ script: BUSY_SCRIPT }) })
     const row = core.threads.create({ workspaceId: 'ws1' })
     await submit(core, row.id, '开始')
     await new Promise((r) => setTimeout(r, 5))
@@ -354,7 +385,7 @@ describe('conversation core（不经内核的直连测试）', () => {
     const engine = createFakeEngine({
       script: () => [{ kind: 'fail', code: 'engine.upstream_error', message: '上游炸了' }],
     })
-    const { core, settled, dir, db } = await makeCore({ engine })
+    const { core, settled, dir, db } = await makeCore({ runtime: engine })
     const row = core.threads.create({ workspaceId: 'ws1' })
     await submit(core, row.id, '会失败')
     await new Promise((r) => setTimeout(r, 40))
@@ -383,7 +414,7 @@ describe('conversation core（不经内核的直连测试）', () => {
   })
 
   test('CV-5 删除运行中的线程被拒（thread_busy）', async () => {
-    const { core, dir, db } = await makeCore({ engine: createFakeEngine({ script: BUSY_SCRIPT }) })
+    const { core, dir, db } = await makeCore({ runtime: createFakeEngine({ script: BUSY_SCRIPT }) })
     const row = core.threads.create({ workspaceId: 'ws1' })
     await submit(core, row.id, '长任务')
     // FakeEngine 在下一拍才开始跑，先让它进入 running
@@ -407,7 +438,7 @@ describe('conversation core（不经内核的直连测试）', () => {
   test('上下文用量单独转发：引擎每报一次就发一次，null 也发（它是一次有效报数）', async () => {
     const contextUsage = { usedTokens: 27_200, windowTokens: 1_000_000, breakdown: null, session: null }
     const { core, contextUsages, dir, db } = await makeCore({
-      engine: createFakeEngine({
+      runtime: createFakeEngine({
         contextUsage,
         script: () => [
           {
@@ -451,7 +482,7 @@ describe('conversation core（不经内核的直连测试）', () => {
    * 「Core 即时回显」之后先存库再交接，交接时发现会话在忙就自动改成排队。
    */
   test('CV-3 运行中提交 turn 被接受并转为排队，steer 与 followUp 也被接受', async () => {
-    const { core, engine, dir, db } = await makeCore({ engine: createFakeEngine({ script: BUSY_SCRIPT }) })
+    const { core, engine, dir, db } = await makeCore({ runtime: createFakeEngine({ script: BUSY_SCRIPT }) })
     const row = core.threads.create({ workspaceId: 'ws1' })
     await submit(core, row.id, '第一句')
     // 直接检查会话状态：FakeEngine 的 submit 立即返回、下一拍才 running
@@ -496,7 +527,7 @@ describe('conversation core（不经内核的直连测试）', () => {
    * 账上却已经多了一句没说过的话。
    */
   test('US-7 发出去一句话算一句（插话也算）', async () => {
-    const { core, messages, dir, db } = await makeCore({ engine: createFakeEngine({ script: BUSY_SCRIPT }) })
+    const { core, messages, dir, db } = await makeCore({ runtime: createFakeEngine({ script: BUSY_SCRIPT }) })
     const row = core.threads.create({ workspaceId: 'ws1' })
 
     await submit(core, row.id, '第一句')
@@ -592,7 +623,7 @@ describe('conversation core（不经内核的直连测试）', () => {
   })
 
   test('引擎配置变化时空闲会话被释放、忙会话保留', async () => {
-    const { core, dir, db } = await makeCore({ engine: createFakeEngine({ script: BUSY_SCRIPT }) })
+    const { core, dir, db } = await makeCore({ runtime: createFakeEngine({ script: BUSY_SCRIPT }) })
     const idle = core.threads.create({ workspaceId: 'ws1' })
     const busy = core.threads.create({ workspaceId: 'ws1' })
     await core.turns.open(idle.id)
@@ -639,7 +670,7 @@ describe('conversation core（不经内核的直连测试）', () => {
    */
   test('引擎报 fileChanged：带轮号与本轮对话号原样转给 Core 事件', async () => {
     const { core, fileChanges, dir, db } = await makeCore({
-      engine: createFakeEngine({ script: () => [writeFile('src/a.ts', 'old\n', 'new\n')] }),
+      runtime: createFakeEngine({ script: () => [writeFile('src/a.ts', 'old\n', 'new\n')] }),
     })
     const row = core.threads.create({ workspaceId: 'ws1' })
     await submit(core, row.id, '改一下')
@@ -676,7 +707,7 @@ describe('conversation core（不经内核的直连测试）', () => {
    */
   test('R-03 T1 打开中删除线程：会话被 dispose，不属于该线程的活会话不存在', async () => {
     const controlled = deferredOpenEngine()
-    const { core, engine, dir, db } = await makeCore({ engine: controlled.engine })
+    const { core, engine, dir, db } = await makeCore({ runtime: controlled.engine })
     const row = core.threads.create({ workspaceId: 'ws1' })
     await submit(core, row.id, '第一句')
 
@@ -757,7 +788,7 @@ describe('conversation core（不经内核的直连测试）', () => {
   })
 
   test('R-01 queue.move 把一条 followUp 换到 steer：快照里那一项换了层', async () => {
-    const { core, dir, db } = await makeCore({ engine: createFakeEngine({ script: BUSY_SCRIPT }) })
+    const { core, dir, db } = await makeCore({ runtime: createFakeEngine({ script: BUSY_SCRIPT }) })
     const row = core.threads.create({ workspaceId: 'ws1' })
     await submit(core, row.id, '第一句')
     await new Promise((r) => setTimeout(r, 5))
@@ -786,7 +817,7 @@ describe('conversation core（不经内核的直连测试）', () => {
 
   /* R-20-1：排队项撤回之后，它的提交行跟着收口 —— 留着就是下次启动被改成 failed，旧对话冒出「提交未完成」 */
   test('R-20-1 撤回一条排队的话：提交行删掉并推 submissions.removed', async () => {
-    const { core, dir, db, submissionRemoved } = await makeCore({ engine: createFakeEngine({ script: BUSY_SCRIPT }) })
+    const { core, dir, db, submissionRemoved } = await makeCore({ runtime: createFakeEngine({ script: BUSY_SCRIPT }) })
     const row = core.threads.create({ workspaceId: 'ws1' })
     await submit(core, row.id, '第一句')
     await new Promise((r) => setTimeout(r, 5))
@@ -812,7 +843,7 @@ describe('conversation core（不经内核的直连测试）', () => {
 
   /* 队列条要画缩略图：引擎快照只有号与正文，Core 按 ref 找回提交行把附件挂上 —— 读与推两条路都要有，换层后也不丢 */
   test('排队的一句带图：queue.get 与 queue.changed 都带着它的附件，换层之后还在', async () => {
-    const { core, dir, db, queues } = await makeCore({ engine: createFakeEngine({ script: BUSY_SCRIPT }) })
+    const { core, dir, db, queues } = await makeCore({ runtime: createFakeEngine({ script: BUSY_SCRIPT }) })
     const row = core.threads.create({ workspaceId: 'ws1' })
     await submit(core, row.id, '第一句')
     await new Promise((r) => setTimeout(r, 5))
@@ -947,7 +978,7 @@ describe('conversation core（不经内核的直连测试）', () => {
   describe('R-06 submissionFailed / threadRemoved', () => {
     test('冷打开失败：恰好发一次，字段是提交行上的那一份', async () => {
       const engine = createFakeEngine()
-      const { core, submissionFailures, dir, db } = await makeCore({ engine })
+      const { core, submissionFailures, dir, db } = await makeCore({ runtime: engine })
       engine.openSession = () => Promise.reject(new Error('工作区目录已改名'))
 
       const row = core.threads.create({ workspaceId: 'ws1' })
@@ -967,7 +998,7 @@ describe('conversation core（不经内核的直连测试）', () => {
 
     test('settleUnstarted（引擎开轮前拒收）：发一次失败事件', async () => {
       /* 交给了 omp、但 omp 一个 turn.upsert 都没产出：这正是 settleUnstarted 管的那一档 */
-      const { core, submissionFailures, dir, db } = await makeCore({ engine: stalledTurnEngine(createFakeEngine()) })
+      const { core, submissionFailures, dir, db } = await makeCore({ runtime: stalledTurnEngine(createFakeEngine()) })
       const row = core.threads.create({ workspaceId: 'ws1' })
       await submit(core, row.id, '被拒的一句')
       await new Promise((r) => setTimeout(r, 30))
@@ -989,7 +1020,7 @@ describe('conversation core（不经内核的直连测试）', () => {
     })
 
     test('cancelUnhanded（取消还没交出去的提交）：发一次失败事件', async () => {
-      const { core, submissionFailures, dir, db } = await makeCore({ engine: stalledTurnEngine(createFakeEngine()) })
+      const { core, submissionFailures, dir, db } = await makeCore({ runtime: stalledTurnEngine(createFakeEngine()) })
       const row = core.threads.create({ workspaceId: 'ws1' })
       await submit(core, row.id, '取消的一句')
       await new Promise((r) => setTimeout(r, 30))
@@ -1009,7 +1040,7 @@ describe('conversation core（不经内核的直连测试）', () => {
       const moduleDb = db.forModule('conversation')
       for (const m of migrations) moduleDb.exec(m.sql)
       const dir = await tempDir('conv-core-')
-      const hub = new TimelineHub({ clock: systemClock, emitOps: () => undefined, emitReset: () => undefined })
+      const hub = new TimelineHub({ clock: systemClock, emitEvents: () => undefined, emitReset: () => undefined })
       const engine = createFakeEngine()
       engine.freezeTools()
 
@@ -1034,7 +1065,8 @@ describe('conversation core（不经内核的直连测试）', () => {
       const submissions: { status: string }[] = []
       const core = new ConversationCore({
         db: moduleDb,
-        engine,
+        journal: fakeJournal(),
+        runtime: engine,
         hub,
         workspaces: {
           get: () => null,

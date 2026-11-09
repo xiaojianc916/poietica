@@ -1,4 +1,5 @@
-import type { TranscriptOperation, TranscriptTask } from '@poietica/transcript'
+import type { AgentEvent, TranscriptTask } from '@poietica/agent-model'
+import { taskEvent } from './events'
 
 import { recordOf } from './wire'
 
@@ -127,7 +128,7 @@ export class SubagentLedger {
   }
 
   /** 一条生命周期帧 → 一行 task；认不出状态、或已结后又来的非终态，都交空表 */
-  lifecycle(data: unknown): TranscriptOperation[] {
+  lifecycle(data: unknown): AgentEvent[] {
     const frame = lifecycleFrameOf(data)
     if (frame === null) return []
     const state = taskStateOf(frame.status)
@@ -157,7 +158,7 @@ export class SubagentLedger {
    * 一条进度帧 → 那一行的最新投影。进度帧只带指标不带生死：状态沿用上一帧
    * （没有上一帧时按 running —— 进度先于生命周期到达只可能是重连）。
    */
-  progress(data: unknown): TranscriptOperation[] {
+  progress(data: unknown): AgentEvent[] {
     const frame = progressFrameOf(data)
     const id = frame?.progress?.id
     if (frame === null || id === undefined) return []
@@ -186,10 +187,10 @@ export class SubagentLedger {
   }
 
   /** 唯一的写点：整格替换前先比一次，没变就不发 */
-  private commit(task: TranscriptTask): TranscriptOperation[] {
+  private commit(task: TranscriptTask): AgentEvent[] {
     if (sameTask(this.tasksById.get(task.taskId), task)) return []
     this.tasksById.set(task.taskId, task)
-    return [{ op: 'task.upsert', task }]
+    return [taskEvent(task, new Date(this.o.now()).toISOString())]
   }
 }
 

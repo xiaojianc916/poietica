@@ -1,7 +1,7 @@
 import { tmpdir } from 'node:os'
-import type { AgentEngine } from '@poietica/engine'
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
 import type { DataLayout } from '@poietica/runtime-layout'
+import type { AgentEngine } from '@poietica/runtime-protocol'
 import { OmpEngine } from './engine'
 import { disableForeignProviders } from './foreign-providers'
 import { resolveSessionModel } from './model-resolve'

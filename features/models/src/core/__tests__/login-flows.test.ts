@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { LoginIO } from '@poietica/engine'
 import type { Logger } from '@poietica/foundation'
+import type { LoginIO } from '@poietica/runtime-protocol'
 import type { LoginEvent } from '../../contract'
 import { LoginFlows } from '../login-flows'
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { applyOps, emptyTimeline, pageFromState, type TranscriptPage } from '@poietica/transcript'
+import { EMPTY_THREAD_STATE, reduceAll, snapshotOf, type TranscriptPage } from '@poietica/agent-model'
 import { lastTurnOrdinal, type OmpMessage, projectHistoryPage } from '../history'
 import { LiveProjector } from '../live'
 import { assistant, assistantTexts, prompts, T0, toolCall, toolResult, user } from './fixtures/history'
@@ -197,7 +197,7 @@ describe('实时与重开一致（R-25）', () => {
       ...p.textDelta('会话树记录每一次分叉……'),
       ...p.turnEnd('completed', null),
     ]
-    const live = pageFromState(applyOps(emptyTimeline(), liveOps)) as unknown as TranscriptPage
+    const live = snapshotOf(reduceAll(EMPTY_THREAD_STATE, liveOps)) as unknown as TranscriptPage
     const history = projectHistoryPage(reported, null)
     expect(shape(history)).toEqual(shape(live))
   })

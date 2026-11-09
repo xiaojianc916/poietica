@@ -1,6 +1,6 @@
 import { orderedSettings } from '@oh-my-pi/pi-coding-agent/config/all-settings'
-import type { Capabilities, SettingDescriptor, SettingsPort } from '@poietica/engine'
 import { AppError, Emitter, type Logger, SystemErrorCode } from '@poietica/foundation'
+import type { Capabilities, SettingDescriptor, SettingsPort } from '@poietica/runtime-protocol'
 import type { z } from 'zod'
 import { toEngineError } from '../errors'
 import {

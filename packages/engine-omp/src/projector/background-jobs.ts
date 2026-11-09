@@ -1,4 +1,5 @@
-import type { TranscriptOperation, TranscriptTask } from '@poietica/transcript'
+import type { AgentEvent, TranscriptTask } from '@poietica/agent-model'
+import { taskEvent } from './events'
 
 /*
  * omp 的后台作业（AsyncJobManager：`bash` 后台命令、`eval` 后台单元）→ transcript 的 task 行（kind shell / tool，detached）。
@@ -93,6 +94,8 @@ function rowOf(entry: unknown): AsyncJobRow | null {
 export class BackgroundJobLedger {
   private readonly tasksById = new Map<string, TranscriptTask>()
 
+  constructor(private readonly now: () => number = Date.now) {}
+
   get tasks(): readonly TranscriptTask[] {
     return [...this.tasksById.values()]
   }
@@ -102,8 +105,8 @@ export class BackgroundJobLedger {
     return false
   }
 
-  reconcile(snapshot: unknown): TranscriptOperation[] {
-    const ops: TranscriptOperation[] = []
+  reconcile(snapshot: unknown): AgentEvent[] {
+    const ops: AgentEvent[] = []
     const seen = new Set<string>()
     for (const row of rowsOf(snapshot)) {
       const task = this.taskOf(row, seen)
@@ -140,11 +143,11 @@ export class BackgroundJobLedger {
     }
   }
 
-  private commit(task: TranscriptTask): TranscriptOperation[] {
+  private commit(task: TranscriptTask): AgentEvent[] {
     const previous = this.tasksById.get(task.taskId)
     if (previous !== undefined && sameTask(previous, task)) return []
     this.tasksById.set(task.taskId, task)
-    return [{ op: 'task.upsert', task }]
+    return [taskEvent(task, new Date(this.now()).toISOString())]
   }
 }
 

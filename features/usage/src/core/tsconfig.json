@@ -6,7 +6,7 @@
       "path": "../../../../packages/core-kernel"
     },
     {
-      "path": "../../../../packages/engine"
+      "path": "../../../../packages/runtime-protocol"
     },
     {
       "path": "../../../../packages/storage-sqlite"

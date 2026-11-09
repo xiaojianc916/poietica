@@ -1,9 +1,15 @@
 import { describe, expect, test } from 'bun:test'
 import '@oh-my-pi/pi-coding-agent/config/all-settings'
 import { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
-import type { EngineSession, EngineSessionEvent, EngineToolSpec, OpenSessionSpec, SubmitInput } from '@poietica/engine'
+import type { AgentEvent } from '@poietica/agent-model'
 import type { Logger, LogLevel } from '@poietica/foundation'
-import type { TranscriptOperation } from '@poietica/transcript'
+import type {
+  EngineSession,
+  EngineSessionEvent,
+  EngineToolSpec,
+  OpenSessionSpec,
+  SubmitInput,
+} from '@poietica/runtime-protocol'
 import { z } from 'zod'
 import { TOOL_FALLBACK_TEXT } from '../../projector/live'
 import { hashMediaRef } from '../../projector/media'
@@ -204,29 +210,33 @@ function submit(text: string, deliverAs: 'turn' | 'steer' | 'followUp' = 'turn')
   return { text, images: [], files: [], skills: [], deliverAs }
 }
 
-type FrameUpsert = Extract<TranscriptOperation, { readonly op: 'frame.upsert' }>
-type TurnUpsert = Extract<TranscriptOperation, { readonly op: 'turn.upsert' }>
-type Append = Extract<TranscriptOperation, { readonly op: 'append' }>
+type FrameEvent = Extract<AgentEvent, { type: 'item.started' | 'item.completed' | 'item.failed' }>
+type RunStarted = Extract<AgentEvent, { type: 'run.started' }>
+type RunCompleted = Extract<AgentEvent, { type: 'run.completed' }>
+type DeltaEvent = Extract<AgentEvent, { type: 'item.delta' }>
 
-function opsOf(events: readonly EngineSessionEvent[]): readonly TranscriptOperation[] {
-  return events.flatMap((event) => (event.type === 'timeline' ? event.ops : []))
+function eventsOf(events: readonly EngineSessionEvent[]): readonly AgentEvent[] {
+  return events.flatMap((event) => (event.type === 'timeline' ? event.events : []))
 }
 
-function framesOf(ops: readonly TranscriptOperation[]): readonly FrameUpsert[] {
-  return ops.filter((op): op is FrameUpsert => op.op === 'frame.upsert')
+function framesOf(events: readonly AgentEvent[]): readonly FrameEvent[] {
+  return events.filter(
+    (event): event is FrameEvent =>
+      event.type === 'item.started' || event.type === 'item.completed' || event.type === 'item.failed',
+  )
 }
 
-function turnsOf(ops: readonly TranscriptOperation[]): readonly TurnUpsert[] {
-  return ops.filter((op): op is TurnUpsert => op.op === 'turn.upsert')
+function turnsOf(events: readonly AgentEvent[]): readonly RunStarted[] {
+  return events.filter((event): event is RunStarted => event.type === 'run.started')
 }
 
-/** 一条 turn.upsert 是「开轮」还是「收轮」：同一轮会出现两次，数轮号要先去重 */
-function closedTurnsOf(ops: readonly TranscriptOperation[]): readonly TurnUpsert[] {
-  return turnsOf(ops).filter((turn) => turn.turn.state !== 'running')
+/** 收轮事件：同一轮只会收一次，数收了几轮用它 */
+function closedTurnsOf(events: readonly AgentEvent[]): readonly RunCompleted[] {
+  return events.filter((event): event is RunCompleted => event.type === 'run.completed')
 }
 
-function appendsOf(ops: readonly TranscriptOperation[]): readonly Append[] {
-  return ops.filter((op): op is Append => op.op === 'append')
+function appendsOf(events: readonly AgentEvent[]): readonly DeltaEvent[] {
+  return events.filter((event): event is DeltaEvent => event.type === 'item.delta')
 }
 
 function warningsOf(logs: readonly LogRecord[], eventType: string): readonly LogRecord[] {
@@ -234,7 +244,7 @@ function warningsOf(logs: readonly LogRecord[], eventType: string): readonly Log
 }
 
 /** 降级帧正文的形状（omp 工具结果那一套：{ content: [text 块] }） */
-function fallbackTextOf(frame: FrameUpsert | undefined): string {
+function fallbackTextOf(frame: FrameEvent | undefined): string {
   if (frame === undefined || frame.frame.kind !== 'tool') return ''
   const output = frame.frame.output as { content?: readonly { type?: unknown; text?: unknown }[] } | undefined
   const block = output?.content?.[0]
@@ -257,8 +267,8 @@ describe('omp 事件泵（R-02 §4）', () => {
 
     expect(f.session.state()).toBe('idle')
     expect(f.events.some((event) => event.type === 'state' && event.state === 'idle')).toBe(true)
-    const turn = turnsOf(opsOf(f.events)).at(-1)
-    expect(turn?.turn.state).toBe('completed')
+    const turn = closedTurnsOf(eventsOf(f.events)).at(-1)
+    expect(turn?.outcome).toBe('completed')
     expect(f.logs.some((entry) => entry.msg === 'turn outcome unavailable')).toBe(true)
     expectNoReset(f.events)
   })
@@ -285,13 +295,13 @@ describe('omp 事件泵（R-02 §4）', () => {
     f.takeSteer('插一句')
     f.feed({ type: 'message_start', message: { role: 'user', content: '插一句' } })
 
-    const ops = opsOf(f.events)
-    const ordinals = turnsOf(ops).map((turn) => turn.turn.ordinal)
+    const ops = eventsOf(f.events)
+    const ordinals = turnsOf(ops).map((turn) => turn.run.ordinal)
     expect([...new Set(ordinals)]).toEqual([1, 2])
     const steered = framesOf(ops).filter((frame) => frame.frame.kind === 'text' && frame.frame.text === '插一句')
-    expect(steered).toHaveLength(1)
-    const openTurns = turnsOf(ops).filter((turn) => turn.turn.state === 'running')
-    expect(steered[0]?.turnId).toBe(openTurns.at(-1)?.turn.turnId)
+    expect(new Set(steered.map((frame) => frame.frame.frameId)).size).toBe(1)
+    const openTurns = turnsOf(ops).filter((turn) => turn.run.state === 'running')
+    expect(steered[0]?.turnId).toBe(openTurns.at(-1)?.run.turnId)
     expectNoReset(f.events)
   })
 
@@ -306,7 +316,7 @@ describe('omp 事件泵（R-02 §4）', () => {
 
     const warns = warningsOf(f.logs, 'message_end')
     expect(warns).toHaveLength(1)
-    expect(appendsOf(opsOf(f.events)).map((op) => op.offset)).toEqual([0, 3])
+    expect(appendsOf(eventsOf(f.events)).map((op) => op.offset)).toEqual([0, 3])
     expectNoReset(f.events)
   })
 
@@ -327,14 +337,14 @@ describe('omp 事件泵（R-02 §4）', () => {
     })
     f.feed({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: '继续' } })
 
-    const tool = framesOf(opsOf(f.events))
+    const tool = framesOf(eventsOf(f.events))
       .filter((frame) => frame.frame.kind === 'tool')
       .at(-1)
     expect(tool?.frame.kind === 'tool' && tool.frame.frameId).toBe('tool.c1')
     expect(tool?.frame.kind === 'tool' && tool.frame.state).toBe('error')
     expect(tool?.frame.kind === 'tool' && tool.frame.error).toBe(TOOL_FALLBACK_TEXT)
     expect(fallbackTextOf(tool)).toBe(TOOL_FALLBACK_TEXT)
-    expect(appendsOf(opsOf(f.events)).some((op) => op.text === '继续')).toBe(true)
+    expect(appendsOf(eventsOf(f.events)).some((op) => op.text === '继续')).toBe(true)
     expect(warningsOf(f.logs, 'tool_execution_end')).toHaveLength(1)
     expectNoReset(f.events)
   })
@@ -350,7 +360,7 @@ describe('omp 事件泵（R-02 §4）', () => {
     }
     f.feed({ type: 'tool_execution_start', toolCallId: 'c1', toolName: explosive, args: { path: 'a.ts' } })
 
-    const fallback = framesOf(opsOf(f.events))
+    const fallback = framesOf(eventsOf(f.events))
       .filter((frame) => frame.frame.kind === 'tool')
       .at(-1)
     expect(fallback?.frame.kind === 'tool' && fallback.frame.state).toBe('running')
@@ -358,7 +368,7 @@ describe('omp 事件泵（R-02 §4）', () => {
 
     f.feed({ type: 'tool_execution_end', toolCallId: 'c1', toolName: 'read', result: '真实结果' })
 
-    const done = framesOf(opsOf(f.events))
+    const done = framesOf(eventsOf(f.events))
       .filter((frame) => frame.frame.kind === 'tool')
       .at(-1)
     expect(done?.frame.kind === 'tool' && done.frame.state).toBe('done')
@@ -375,8 +385,8 @@ describe('omp 事件泵（R-02 §4）', () => {
     f.feed({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: '后面' } })
 
     expect(warningsOf(f.logs, 'tool_execution_end')).toHaveLength(1)
-    expect(framesOf(opsOf(f.events)).filter((frame) => frame.frame.kind === 'tool')).toHaveLength(0)
-    expect(appendsOf(opsOf(f.events)).some((op) => op.text === '后面')).toBe(true)
+    expect(framesOf(eventsOf(f.events)).filter((frame) => frame.frame.kind === 'tool')).toHaveLength(0)
+    expect(appendsOf(eventsOf(f.events)).some((op) => op.text === '后面')).toBe(true)
     expectNoReset(f.events)
   })
 
@@ -408,7 +418,7 @@ describe('omp 事件泵（R-02 §4）', () => {
     f.feed({ type: 'agent_end' })
 
     expect(f.logs.filter((entry) => entry.level === 'warn')).toEqual([])
-    expect(fallbackTextOf(framesOf(opsOf(f.events)).at(-1))).toBe('')
+    expect(fallbackTextOf(framesOf(eventsOf(f.events)).at(-1))).toBe('')
     expect(f.session.state()).toBe('idle')
     expectNoReset(f.events)
   })
@@ -446,15 +456,15 @@ describe('omp 事件泵（R-02 §4）', () => {
     f.feed({ type: 'agent_end', isTerminal: false })
 
     expect(f.session.state()).toBe('running')
-    expect(closedTurnsOf(opsOf(f.events))).toHaveLength(0)
-    expect(turnsOf(opsOf(f.events)).filter((turn) => turn.turn.state === 'running')).toHaveLength(1)
+    expect(closedTurnsOf(eventsOf(f.events))).toHaveLength(0)
+    expect(turnsOf(eventsOf(f.events)).filter((turn) => turn.run.state === 'running')).toHaveLength(1)
     /* 读数与异常账仍要跟上：不收轮不等于把这一段的账漏掉 */
     expect(f.events.some((event) => event.type === 'contextUsage')).toBe(true)
 
     f.feed({ type: 'agent_end' })
 
     expect(f.session.state()).toBe('idle')
-    expect(closedTurnsOf(opsOf(f.events))).toHaveLength(1)
+    expect(closedTurnsOf(eventsOf(f.events))).toHaveLength(1)
     expectNoReset(f.events)
   })
 
@@ -465,12 +475,12 @@ describe('omp 事件泵（R-02 §4）', () => {
 
     /* omp 的 event-controller 对 awaitingAsyncWork 也只把标题置 idle，run 本身没结束 —— 不能在这里提前收轮 */
     expect(f.session.state()).toBe('running')
-    expect(closedTurnsOf(opsOf(f.events))).toHaveLength(0)
+    expect(closedTurnsOf(eventsOf(f.events))).toHaveLength(0)
 
     /* 夹具没有后台活：看门狗下一拍就发现会话已静，按终态收 */
     await Bun.sleep(0)
     expect(f.session.state()).toBe('idle')
-    expect(closedTurnsOf(opsOf(f.events))).toHaveLength(1)
+    expect(closedTurnsOf(eventsOf(f.events))).toHaveLength(1)
     expectNoReset(f.events)
   })
 
@@ -489,7 +499,7 @@ describe('omp 事件泵（R-02 §4）', () => {
     await Bun.sleep(0)
 
     expect(f.session.state()).toBe('idle')
-    expect(closedTurnsOf(opsOf(f.events))).toHaveLength(1)
+    expect(closedTurnsOf(eventsOf(f.events))).toHaveLength(1)
     expectNoReset(f.events)
   })
 
@@ -502,7 +512,7 @@ describe('omp 事件泵（R-02 §4）', () => {
     await Bun.sleep(0)
 
     expect(f.session.state()).toBe('running')
-    expect(closedTurnsOf(opsOf(f.events))).toHaveLength(0)
+    expect(closedTurnsOf(eventsOf(f.events))).toHaveLength(0)
     expectNoReset(f.events)
   })
 
@@ -515,7 +525,7 @@ describe('omp 事件泵（R-02 §4）', () => {
     f.feed({ type: 'agent_end' })
 
     expect(f.events.filter((event) => event.type === 'state' && event.state === 'idle')).toHaveLength(1)
-    expect(closedTurnsOf(opsOf(f.events))).toHaveLength(1)
+    expect(closedTurnsOf(eventsOf(f.events))).toHaveLength(1)
     expect(f.session.state()).toBe('idle')
     expectNoReset(f.events)
   })
@@ -558,7 +568,7 @@ describe('工具参数流式上屏（toolcall_start / delta / end）', () => {
         arguments: { title: '表', html: '<p>x</p>' },
       }),
     )
-    const frames = framesOf(opsOf(f.events)).filter((op) => op.frame.kind === 'tool')
+    const frames = framesOf(eventsOf(f.events)).filter((op) => op.frame.kind === 'tool')
     expect(frames).toHaveLength(2)
     const [first, last] = frames
     expect(first?.frame).toMatchObject({ toolCallId: 'u1', name: 'intelligent_ui', inputPending: true })
@@ -577,7 +587,7 @@ describe('工具参数流式上屏（toolcall_start / delta / end）', () => {
     f.feed(toolcall('toolcall_start', { type: 'toolCall', id: 'b1', name: 'bash', arguments: {} }))
     f.feed(toolcall('toolcall_delta', { type: 'toolCall', id: '', name: 'intelligent_ui', arguments: {} }))
     f.feed({ type: 'message_update', assistantMessageEvent: { type: 'toolcall_delta', contentIndex: 3, partial: {} } })
-    expect(framesOf(opsOf(f.events)).filter((op) => op.frame.kind === 'tool')).toHaveLength(0)
+    expect(framesOf(eventsOf(f.events)).filter((op) => op.frame.kind === 'tool')).toHaveLength(0)
     expect(f.logs.filter((entry) => entry.level === 'warn')).toHaveLength(0)
     expectNoReset(f.events)
   })
@@ -595,7 +605,7 @@ describe('工具参数流式上屏（toolcall_start / delta / end）', () => {
     f.feed(
       toolcall('toolcall_end', { type: 'toolCall', id: 'u2', name: 'intelligent_ui', arguments: { title: 'late' } }),
     )
-    const frames = framesOf(opsOf(f.events)).filter((op) => op.frame.kind === 'tool')
+    const frames = framesOf(eventsOf(f.events)).filter((op) => op.frame.kind === 'tool')
     expect(new Set(frames.map((op) => op.frame.frameId)).size).toBe(1)
     expect(frames.at(-1)?.frame).toMatchObject({ input: { title: 't', html: 'h' } })
     expect(frames.at(-1)?.frame).not.toHaveProperty('inputPending')

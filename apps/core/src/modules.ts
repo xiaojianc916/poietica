@@ -7,6 +7,7 @@ import conversation from '@poietica/feature-conversation/core'
 import extensions from '@poietica/feature-extensions/core'
 import files from '@poietica/feature-files/core'
 import intelligentUi from '@poietica/feature-intelligent-ui/core'
+import journal from '@poietica/feature-journal/core'
 import models from '@poietica/feature-models/core'
 import platform from '@poietica/feature-platform/core'
 import python from '@poietica/feature-python/core'
@@ -33,6 +34,7 @@ export const coreModules: readonly CoreModule[] = [
   automations,
   browser,
   intelligentUi,
+  journal,
   workbuddy,
 ]
 

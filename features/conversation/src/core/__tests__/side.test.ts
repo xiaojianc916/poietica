@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import { say } from '@poietica/engine-testkit'
 import { workspacesContract } from '@poietica/feature-workspaces/contract'
 import { AppError } from '@poietica/foundation'
+import { say } from '@poietica/runtime-protocol-testkit'
 import { tempDir } from '@poietica/test-kit'
 import { conversationContract } from '../../contract'
 import { BUSY_SCRIPT, harness } from './helpers'
@@ -49,8 +49,17 @@ describe('side.*（侧边提问）', () => {
     await settle(h)
 
     const deltas = h.notifications(conversationContract, 'side.delta').filter((n) => n.topicId === topic.id)
-    expect(deltas.map((d) => d.offset)).toEqual([0, 2])
+    expect(deltas.map((d) => d.offset)).toEqual([0])
     expect(deltas.map((d) => d.delta).join('')).toBe('先说结论')
+    expect(deltas[0]?.seq).toBe(1)
+    const caught = await api.call('side.catchUp', {
+      threadId: thread.id,
+      topicId: topic.id,
+      epoch: deltas[0]!.epoch,
+      sinceSeq: 0,
+    })
+    expect(caught.complete).toBe(true)
+    expect(caught.batches).toEqual([{ seq: 1, turn: 0, offset: 0, delta: '先说结论' }])
     const snapshots = h.notifications(conversationContract, 'side.topic').filter((n) => n.topic.id === topic.id)
     expect(snapshots.at(-1)?.topic.turns[0]).toMatchObject({ answer: '先说结论', status: 'complete' })
 

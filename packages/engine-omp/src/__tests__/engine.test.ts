@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import { EngineErrorCode, type EngineSession, type EngineToolSpec } from '@poietica/engine'
+import type { TranscriptOperation } from '@poietica/agent-model'
 import { AppError, Deferred, noopLogger } from '@poietica/foundation'
-import type { TranscriptOperation } from '@poietica/transcript'
+import { EngineErrorCode, type EngineSession, type EngineToolSpec } from '@poietica/runtime-protocol'
 import { z } from 'zod'
 import { OmpEngine } from '../engine'
 

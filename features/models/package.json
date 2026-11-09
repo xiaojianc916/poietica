@@ -12,7 +12,7 @@
     "@poietica/contract-kit": "workspace:*",
     "@poietica/core-kernel": "workspace:*",
     "@poietica/design-system": "workspace:*",
-    "@poietica/engine": "workspace:*",
+    "@poietica/runtime-protocol": "workspace:*",
     "@poietica/feature-preferences": "workspace:*",
     "@poietica/feature-secrets": "workspace:*",
     "@poietica/foundation": "workspace:*",
@@ -23,7 +23,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@poietica/engine-testkit": "workspace:*",
+    "@poietica/runtime-protocol-testkit": "workspace:*",
     "@poietica/test-kit": "workspace:*",
     "@testing-library/react": "catalog:",
     "@types/bun": "catalog:",

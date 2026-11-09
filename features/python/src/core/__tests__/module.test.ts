@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { createCoreHarness } from '@poietica/core-kernel/testing'
-import { createFakeEngine } from '@poietica/engine-testkit'
+import { createFakeEngine } from '@poietica/runtime-protocol-testkit'
 import { pythonContract } from '../../contract'
 import python from '../index'
 

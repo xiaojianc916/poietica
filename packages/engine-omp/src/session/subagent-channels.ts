@@ -1,9 +1,8 @@
-import type { TranscriptOperation, TranscriptPage } from '@poietica/transcript'
+import type { AgentEvent, TranscriptPage } from '@poietica/agent-model'
 import { outcomeOf } from '../errors'
 import { isSubagentChannelId } from '../projector/agent-refs'
 import { type OmpMessage, projectHistoryPage } from '../projector/history'
 import { LiveProjector } from '../projector/live'
-import { OpenTurnScreen, overlayOpenTurn } from '../projector/open-turn'
 import { retryEndOf, retryStartOf } from '../projector/retry'
 import { recordOf } from '../projector/wire'
 
@@ -20,7 +19,7 @@ import { recordOf } from '../projector/wire'
 export interface SubagentChannelsOptions {
   readonly now: () => number
   /** 把一个子代理通道的增量推出去（OmpSession.emitAgentTimeline） */
-  readonly emit: (agentId: string, ops: readonly TranscriptOperation[]) => void
+  readonly emit: (agentId: string, events: readonly AgentEvent[]) => void
   /** 子代理会话文件里的消息（读不到 / 不认识交空表，不抛） */
   readonly readMessages: (agentId: string) => Promise<readonly OmpMessage[]>
   /** 投影出错只记日志：一条子代理事件翻译失败，不能连累主对话的事件泵 */
@@ -29,7 +28,6 @@ export interface SubagentChannelsOptions {
 
 interface Channel {
   readonly projector: LiveProjector
-  readonly screen: OpenTurnScreen
   /** 最近一条落地的助手消息：轮终的结局由它决出（与主对话 finishTurn 同一条规矩） */
   last: { readonly stopReason?: string; readonly errorMessage?: string } | undefined
 }
@@ -73,13 +71,11 @@ export class SubagentChannels {
   async page(agentId: string, beforeTurnId: string | null): Promise<TranscriptPage> {
     if (!isSubagentChannelId(agentId)) return projectHistoryPage([], null)
     const channel = this.channels.get(agentId)
-    const view = channel?.screen.view() ?? null
     const messages = await this.o.readMessages(agentId)
-    const page = projectHistoryPage(messages, beforeTurnId, {
-      isTurnOpen: channel?.projector.isTurnOpen === true && view === null,
+    return projectHistoryPage(messages, beforeTurnId, {
+      isTurnOpen: channel?.projector.isTurnOpen === true,
       openTurnAttachments: channel?.projector.openTurnAttachments ?? [],
     })
-    return overlayOpenTurn(page, view, beforeTurnId === null)
   }
 
   private channelOf(id: string): Channel {
@@ -87,18 +83,15 @@ export class SubagentChannels {
     if (known !== undefined) return known
     const channel: Channel = {
       projector: new LiveProjector({ now: this.o.now }),
-      screen: new OpenTurnScreen(),
       last: undefined,
     }
     this.channels.set(id, channel)
     return channel
   }
 
-  private push(id: string, channel: Channel, ops: readonly TranscriptOperation[]): void {
-    if (ops.length === 0) return
-    /* 与主对话同一条规矩：先记进开轮屏，再发出去 —— 整页随时可能在这两步之间来取 */
-    if (!channel.screen.observe(ops)) this.o.warn('subagent open turn screen diverged', { agentId: id })
-    this.o.emit(id, ops)
+  private push(id: string, _channel: Channel, events: readonly AgentEvent[]): void {
+    if (events.length === 0) return
+    this.o.emit(id, events)
   }
 
   /** 子代理事件 → ops：与主会话 dispatchOmpEvent 同一套词，只是没有队列、交互、目标这些主对话独有的格 */
@@ -143,7 +136,7 @@ export class SubagentChannels {
   private messageStart(id: string, channel: Channel, message: Record<string, unknown> | null): void {
     const { projector } = channel
     if (message?.role === 'assistant') {
-      projector.assistantMessageStart()
+      this.push(id, channel, projector.assistantMessageStart())
       return
     }
     if (message?.role !== 'user') return
@@ -183,7 +176,7 @@ function messageEnd(channel: Channel, message: Record<string, unknown> | null): 
 }
 
 /** 工具三帧：同一个 toolCallId / toolName，各自带开始的入参、中途的部分结果、结束的结果。 */
-function toolOps(projector: LiveProjector, event: Record<string, unknown>): TranscriptOperation[] {
+function toolOps(projector: LiveProjector, event: Record<string, unknown>): AgentEvent[] {
   const toolCallId = String(event.toolCallId)
   const toolName = String(event.toolName)
   if (event.type === 'tool_execution_start') {

@@ -1,4 +1,4 @@
-import type { Interaction, SubmitInput, UsageSample } from '@poietica/engine'
+import type { Interaction, SubmitInput, UsageSample } from '@poietica/runtime-protocol'
 
 /** 一轮里依次发生的事情。FakeEngine 与 omp mock 都由它驱动。 */
 export type ScenarioStep =

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
-import type { EngineSession, OpenSessionSpec } from '@poietica/engine'
 import { noopLogger } from '@poietica/foundation'
+import type { EngineSession, OpenSessionSpec } from '@poietica/runtime-protocol'
 import { testLayout } from '../../__tests__/omp-home'
 import { SessionFactory, type SessionFactoryOptions } from '../session-factory'
 

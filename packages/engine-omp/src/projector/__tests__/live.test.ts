@@ -1,22 +1,24 @@
 import { describe, expect, test } from 'bun:test'
-import { applyOps, emptyTimeline, pageFromState, type TranscriptFrame } from '@poietica/transcript'
+import { type AgentEvent, EMPTY_THREAD_STATE, materialize, reduceAll, type ThreadState } from '@poietica/agent-model'
 import { TOOL_FALLBACK_TEXT } from '../live'
 import { GOAL_CONTINUATION_ORIGIN } from '../origin'
 import { framesOf, projector, snapshot } from './fixtures/live'
+
+const fold = (events: readonly AgentEvent[]): ThreadState => reduceAll(EMPTY_THREAD_STATE, events)
 
 describe('LiveProjector', () => {
   test('纯文本：分两段 append 拼成完整正文', () => {
     const p = projector()
     p.userTurn({ text: '你好' })
-    const ops = [...p.textDelta('Hel'), ...p.textDelta('lo'), ...p.turnEnd('completed', null)]
-    const state = applyOps(emptyTimeline(), ops)
+    const events = [...p.textDelta('Hel'), ...p.textDelta('lo'), ...p.turnEnd('completed', null)]
+    const state = fold(events)
     expect(snapshot(state).texts).toEqual(['Hello'])
   })
 
   test('思考 + 文本各占一帧', () => {
     const p = projector()
     p.userTurn({ text: 'q' })
-    const state = applyOps(emptyTimeline(), [...p.thinkingDelta('想'), ...p.textDelta('答')])
+    const state = fold([...p.thinkingDelta('想'), ...p.textDelta('答')])
     expect(snapshot(state).thoughts).toEqual(['想'])
     expect(snapshot(state).texts).toEqual(['答'])
   })
@@ -27,9 +29,9 @@ describe('LiveProjector', () => {
     const start = p.toolStart({ toolCallId: 'c1', toolName: 'read', args: { path: 'a.ts' }, intent: '看文件' })
     const update = p.toolUpdate({ toolCallId: 'c1', toolName: 'read', partial: '前半' })
     const end = p.toolEnd({ toolCallId: 'c1', toolName: 'read', result: '全文' })
-    const state = applyOps(emptyTimeline(), [...start, ...update, ...end])
+    const state = fold([...start, ...update, ...end])
     expect(snapshot(state).tools).toEqual(['read:done:全文'])
-    const turn = state.items[0]
+    const turn = materialize(state).items[0]
     const frame = turn?.kind === 'turn' ? turn.steps[0]?.frames[0] : undefined
     expect(frame?.kind === 'tool' && frame.input).toEqual({ path: 'a.ts' })
     expect(frame?.kind === 'tool' && frame.intent).toBe('看文件')
@@ -38,12 +40,12 @@ describe('LiveProjector', () => {
   test('工具出错：state 为 error 且 error 文本落地', () => {
     const p = projector()
     p.userTurn({ text: 'q' })
-    const ops = [
+    const events = [
       ...p.toolStart({ toolCallId: 'c1', toolName: 'bash', args: {} }),
       ...p.toolEnd({ toolCallId: 'c1', toolName: 'bash', result: 'boom', isError: true }),
     ]
-    const state = applyOps(emptyTimeline(), ops)
-    const turn = state.items[0]
+    const state = fold(events)
+    const turn = materialize(state).items[0]
     const frame = turn?.kind === 'turn' ? turn.steps[0]?.frames[0] : undefined
     expect(frame?.kind === 'tool' && frame.state).toBe('error')
     expect(frame?.kind === 'tool' && frame.error).toBe('boom')
@@ -52,8 +54,7 @@ describe('LiveProjector', () => {
   test('插话：开着一轮时进当前 step 并封掉正在流的帧', () => {
     const p = projector()
     p.userTurn({ text: 'q' })
-    const ops = [...p.textDelta('前半'), ...p.steeredFrame('插一句'), ...p.textDelta('后半')]
-    const state = applyOps(emptyTimeline(), ops)
+    const state = fold([...p.textDelta('前半'), ...p.steeredFrame('插一句'), ...p.textDelta('后半')])
     const textFrames = framesOf(state).filter((frame) => frame.kind === 'text')
     const texts = textFrames.map((frame) => frame.text)
     const roles = textFrames.map((frame) => frame.role)
@@ -66,12 +67,12 @@ describe('LiveProjector', () => {
     const p = projector()
     p.userTurn({ text: 'q' })
     p.textDelta('答')
-    const ops = p.turnEnd('failed', '出错了')
-    const state = applyOps(emptyTimeline(), ops)
-    const turn = state.items[0]
+    const events = p.turnEnd('failed', '出错了')
+    const state = fold(events)
+    const turn = materialize(state).items[0]
     expect(turn?.kind === 'turn' && turn.state).toBe('failed')
     expect(turn?.kind === 'turn' && turn.error).toBe('出错了')
-    expect(state.meta.activity).toBe('idle')
+    expect(materialize(state).meta.activity).toBe('idle')
   })
 
   test('seat 只在没开着轮时改号', () => {
@@ -87,15 +88,15 @@ describe('LiveProjector', () => {
   test('notice 落在当前 step，不绑轮也能生成 marker', () => {
     const p = projector()
     p.userTurn({ text: 'q' })
-    const ops = [...p.notice('warning', '小心', 'omp'), ...p.marker({ markerId: 'm1', marker: 'compaction' })]
-    const state = applyOps(emptyTimeline(), ops)
-    const turn = state.items[0]
-    const frames: TranscriptFrame[] = turn?.kind === 'turn' ? (turn.steps[0]?.frames ?? []) : []
+    const events = [...p.notice('warning', '小心', 'omp'), ...p.marker({ markerId: 'm1', marker: 'compaction' })]
+    const state = fold(events)
+    const turn = materialize(state).items[0]
+    const frames = turn?.kind === 'turn' ? (turn.steps[0]?.frames ?? []) : []
     expect(frames.some((f) => f.kind === 'notice' && f.message === '小心')).toBe(true)
-    expect(state.items.some((i) => i.kind === 'marker' && i.markerId === 'm1')).toBe(true)
+    expect(materialize(state).items.some((i) => i.kind === 'marker' && i.markerId === 'm1')).toBe(true)
   })
 
-  test('没开轮时所有流式与工具调用都不产出 op', () => {
+  test('没开轮时所有流式与工具调用都不产出事件', () => {
     const p = projector()
     expect(p.textDelta('x')).toEqual([])
     expect(p.thinkingDelta('x')).toEqual([])
@@ -108,10 +109,10 @@ describe('LiveProjector', () => {
     p.userTurn({ text: 'q' })
     const first = p.textDelta('a')
     const second = p.textDelta('b')
-    expect(first.some((op) => op.op === 'meta.merge')).toBe(true)
-    expect(second.some((op) => op.op === 'meta.merge')).toBe(false)
-    const state = applyOps(emptyTimeline(), [...first, ...second])
-    expect(pageFromState(state).items.length).toBe(1)
+    expect(first.some((event) => event.type === 'agent.updated')).toBe(true)
+    expect(second.some((event) => event.type === 'agent.updated')).toBe(false)
+    const state = fold([...first, ...second])
+    expect(materialize(state).items.length).toBe(1)
   })
 
   /*
@@ -122,9 +123,9 @@ describe('LiveProjector', () => {
     const p = projector()
     p.userTurn({ text: 'q' })
     p.toolStart({ toolCallId: 'c1', toolName: 'read', args: { path: 'a.ts' } })
-    const ops = p.toolFallback({ toolCallId: 'c1', toolName: 'read', ended: true })
-    const state = applyOps(emptyTimeline(), ops)
-    const turn = state.items[0]
+    const events = p.toolFallback({ toolCallId: 'c1', toolName: 'read', ended: true })
+    const state = fold(events)
+    const turn = materialize(state).items[0]
     const frame = turn?.kind === 'turn' ? turn.steps[0]?.frames.at(-1) : undefined
     expect(frame?.kind === 'tool' && frame.frameId).toBe('tool.c1')
     expect(frame?.kind === 'tool' && frame.state).toBe('error')
@@ -139,7 +140,7 @@ describe('LiveProjector', () => {
     const fallback = p.toolFallback({ toolCallId: 'c9', toolName: 'bash', ended: null })
     const after = p.textDelta('后半')
 
-    const state = applyOps(emptyTimeline(), [...before, ...fallback, ...after])
+    const state = fold([...before, ...fallback, ...after])
     // 降级帧把正文封死，后半段因此另起一帧（顺序：前半、降级工具格、后半）
     expect(snapshot(state).texts).toEqual(['前半', '后半'])
     const tools = framesOf(state).filter((frame) => frame.kind === 'tool')
@@ -158,9 +159,9 @@ describe('LiveProjector', () => {
     p.userTurn({ text: 'q' })
     p.abandonTurn()
     expect(p.isTurnOpen).toBe(false)
-    const ops = p.steeredFrame('下一句')
-    const state = applyOps(emptyTimeline(), ops)
-    const turns = state.items.filter((item) => item.kind === 'turn')
+    const events = p.steeredFrame('下一句')
+    const state = fold(events)
+    const turns = materialize(state).items.filter((item) => item.kind === 'turn')
     const latest = turns.at(-1)
     expect(latest?.kind === 'turn' && latest.prompt).toBe('下一句')
   })
@@ -184,37 +185,36 @@ describe('LiveProjector', () => {
       abandoned.toolFallback({ toolCallId: 'c1', toolName: 'read', ended: true }),
     )
 
-    const first = applyOps(emptyTimeline(), closed.userTurn({ text: '下一句' }))
-    const second = applyOps(emptyTimeline(), abandoned.userTurn({ text: '下一句' }))
-    expect(JSON.stringify(first)).toBe(JSON.stringify(second))
+    const first = fold(closed.userTurn({ text: '下一句' }))
+    const second = fold(abandoned.userTurn({ text: '下一句' }))
+    expect(JSON.stringify(materialize(first))).toBe(JSON.stringify(materialize(second)))
   })
 
   test('技能那一句跑完之后轮头仍带技能：turnEnd 不冲掉来源（审查 R-11）', () => {
     const p = projector()
-    const ops = [
+    const events = [
       ...p.userTurn({ text: '看看这段', skills: ['review'] }),
       ...p.textDelta('好'),
       ...p.turnEnd('completed', null),
     ]
-    const heads = ops.flatMap((op) => (op.op === 'turn.upsert' ? [op.turn] : []))
-    expect(heads).toHaveLength(2)
-    expect(heads[1]?.origin).toEqual(heads[0]?.origin)
-    expect(heads[1]?.origin).toEqual({ kind: 'user', skillActivations: [{ skillName: 'review' }] })
-    expect(heads[1]?.prompt).toBe('看看这段')
+    const turn = materialize(fold(events)).items[0]
+    expect(turn?.kind === 'turn' && turn.origin).toEqual({
+      kind: 'user',
+      skillActivations: [{ skillName: 'review' }],
+    })
+    expect(turn?.kind === 'turn' && turn.prompt).toBe('看看这段')
   })
 
   test('目标续跑开的一轮：来源 goal_continuation、不带 prompt，收尾也不变（审查 R-11）', () => {
     const p = projector()
     p.userTurn({ text: '把测试迁完' })
     p.turnEnd('completed', null)
-    const ops = [...p.goalContinuationTurn(), ...p.textDelta('接着干'), ...p.turnEnd('completed', null)]
-    const heads = ops.flatMap((op) => (op.op === 'turn.upsert' ? [op.turn] : []))
-    expect(heads).toHaveLength(2)
-    for (const head of heads) {
-      expect(head.origin).toEqual(GOAL_CONTINUATION_ORIGIN)
-      expect(head.prompt).toBeUndefined()
-      expect(head.ordinal).toBe(2)
-    }
-    expect(snapshot(applyOps(emptyTimeline(), ops)).texts).toEqual(['接着干'])
+    const events = [...p.goalContinuationTurn(), ...p.textDelta('接着干'), ...p.turnEnd('completed', null)]
+    const state = fold(events)
+    const turn = materialize(state).items.find((item) => item.kind === 'turn' && item.ordinal === 2)
+    expect(turn?.kind === 'turn' && turn.origin).toEqual(GOAL_CONTINUATION_ORIGIN)
+    expect(turn?.kind === 'turn' && turn.prompt).toBeUndefined()
+    expect(turn?.kind === 'turn' && turn.ordinal).toBe(2)
+    expect(snapshot(state).texts).toEqual(['接着干'])
   })
 })

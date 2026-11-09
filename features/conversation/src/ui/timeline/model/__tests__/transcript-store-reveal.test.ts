@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { applyOps, emptyTimeline, type TranscriptOperation } from '@poietica/transcript'
+import { type AgentEvent, EMPTY_THREAD_STATE, reduceAll, snapshotOf } from '@poietica/agent-model'
 import type { AgentSessionPort } from '../../../shared/model/session'
 import type { TranscriptPage } from '../../../shared/model/transcript'
 import { TranscriptStore } from '../transcript-store'
@@ -12,33 +12,58 @@ import { TranscriptStore } from '../transcript-store'
 const AT = '2026-10-10T00:00:00.000Z'
 const TOTAL = 100
 
-function turnsOf(from: number, to: number): TranscriptOperation[] {
-  const ops: unknown[] = []
+function eventsOf(from: number, to: number): AgentEvent[] {
+  const events: AgentEvent[] = []
   for (let n = from; n <= to; n += 1) {
     const turnId = `t${n}`
     const stepId = `${turnId}:s0`
-    ops.push(
+    events.push(
       {
-        op: 'turn.upsert',
-        turn: {
+        type: 'run.started',
+        durability: 'committed',
+        schema: 1,
+        at: AT,
+        runId: turnId,
+        run: {
           kind: 'turn',
           turnId,
           ordinal: n,
-          state: 'completed',
+          state: 'running',
           origin: { kind: 'user' },
           prompt: `问 ${n}`,
           startedAt: AT,
-          endedAt: AT,
         },
       },
       {
-        op: 'step.upsert',
+        type: 'step.started',
+        durability: 'committed',
+        schema: 1,
+        at: AT,
+        runId: turnId,
+        turnId,
+        step: { kind: 'step', stepId, turnId, ordinal: 0, state: 'running', startedAt: AT },
+      },
+      {
+        type: 'step.completed',
+        durability: 'committed',
+        schema: 1,
+        at: AT,
+        runId: turnId,
         turnId,
         step: { kind: 'step', stepId, turnId, ordinal: 0, state: 'completed', startedAt: AT, endedAt: AT },
       },
+      {
+        type: 'run.completed',
+        durability: 'committed',
+        schema: 1,
+        at: AT,
+        runId: turnId,
+        outcome: 'completed',
+        endedAt: AT,
+      },
     )
   }
-  return ops as TranscriptOperation[]
+  return events
 }
 
 function pageOf(from: number, to: number, head: boolean): TranscriptPage {
@@ -48,19 +73,14 @@ function pageOf(from: number, to: number, head: boolean): TranscriptPage {
     prompt: `问 ${at + 1}`,
   }))
   return {
-    ...applyOps(emptyTimeline(), turnsOf(from, to)),
-    tasks: [],
-    interactions: [],
-    attachments: [],
-    todos: [],
-    prompts: [],
-    meta: {},
-    hasMoreOlder: from > 1,
+    ...snapshotOf(reduceAll(EMPTY_THREAD_STATE, eventsOf(from, to)), {
+      hasMoreOlder: from > 1,
+      ...(head ? { outline } : {}),
+    }),
     agentId: 'main',
     agents: [],
     pendingInteractions: [],
     seq: 1,
-    ...(head ? { outline } : {}),
   } as unknown as TranscriptPage
 }
 

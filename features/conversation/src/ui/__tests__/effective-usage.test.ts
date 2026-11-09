@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ContextUsage } from '@poietica/engine'
+import type { ContextUsage } from '@poietica/runtime-protocol'
 import { effectiveUsage } from '../session/configuration/control-shapes'
 
 /*

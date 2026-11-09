@@ -5,7 +5,7 @@ import {
   ModelRef as ModelRefSchema,
   ModelRoleInfo as ModelRoleInfoSchema,
   ProviderInfo as ProviderInfoSchema,
-} from '@poietica/engine'
+} from '@poietica/runtime-protocol'
 import { z } from 'zod'
 
 export const ModelInfo = ModelInfoSchema

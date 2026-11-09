@@ -1,5 +1,5 @@
-import type { LoginIO, ModelsPort } from '@poietica/engine'
 import { AppError, createId, type Logger, SystemErrorCode } from '@poietica/foundation'
+import type { LoginIO, ModelsPort } from '@poietica/runtime-protocol'
 import type { LoginEvent } from '../contract'
 import { modelsErrors } from '../contract/errors'
 

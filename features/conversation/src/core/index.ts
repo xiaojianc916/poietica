@@ -1,5 +1,6 @@
 import { defineCoreModule } from '@poietica/core-kernel'
 import { AttachmentsServiceToken } from '@poietica/feature-attachments/core-api'
+import { JournalServiceToken } from '@poietica/feature-journal/core-api'
 import { type WorkspaceRemoved, WorkspacesServiceToken, workspaceRemoved } from '@poietica/feature-workspaces/core-api'
 import { conversationContract } from '../contract'
 import {
@@ -17,28 +18,36 @@ import { conversationService } from './conversation-service'
 import { registerHandlers } from './handlers'
 import { registerImageTool } from './image-tool'
 import { migrations } from './migrations'
+import { SideTopicHub } from './side-topic-hub'
 import { TimelineHub } from './timeline-hub'
 import { TurnContextHub } from './turn-context'
-import { wireOpsNotice, wireResetNotice } from './wire'
+import { wireEventsNotice, wireResetNotice } from './wire'
 
 export default defineCoreModule({
   id: 'conversation',
   contract: conversationContract,
-  dependsOn: ['workspaces', 'attachments'],
+  dependsOn: ['workspaces', 'attachments', 'journal'],
   migrations,
   setup(ctx) {
     const hub = new TimelineHub({
       clock: ctx.clock,
-      emitOps: (p) => ctx.rpc.emit('timeline.ops', wireOpsNotice(p)),
+      emitEvents: (p) => ctx.rpc.emit('timeline.events', wireEventsNotice(p)),
       emitReset: (p) => ctx.rpc.emit('timeline.reset', wireResetNotice(p)),
     })
+
+    const sideHub = new SideTopicHub({
+      clock: ctx.clock,
+      emit: (p) => ctx.rpc.emit('side.delta', p),
+    })
+    ctx.disposables.add(sideHub)
 
     const attachments = ctx.services.get(AttachmentsServiceToken)
     /* 别的功能（例如 intelligent-ui）往这里登记「下一句顺带告诉模型的事」；交接时由提交服务收一次 */
     const turnContext = new TurnContextHub(ctx.logger)
     const core = new ConversationCore({
       db: ctx.db,
-      engine: ctx.engine,
+      runtime: { ...ctx.agentRuntime.sessions, models: ctx.agentRuntime.models, settings: ctx.agentRuntime.settings },
+      journal: ctx.services.get(JournalServiceToken),
       hub,
       workspaces: ctx.services.get(WorkspacesServiceToken),
       attachments,
@@ -55,7 +64,7 @@ export default defineCoreModule({
       emitCommandOutput: (p) => ctx.rpc.emit('commands.output', p),
       emitCommandsChanged: (p) => ctx.rpc.emit('commands.changed', p),
       emitSideTopic: (p) => ctx.rpc.emit('side.topic', p),
-      emitSideDelta: (p) => ctx.rpc.emit('side.delta', p),
+      emitSideDelta: (p) => sideHub.push(p),
       emitSideNotice: (p) => ctx.rpc.emit('side.notice', p),
       emitFileChanged: (p) => ctx.events.emit(turnFileChanged, p),
       emitInteractionRequested: (p) => ctx.rpc.emit('interactions.requested', p),
@@ -71,7 +80,7 @@ export default defineCoreModule({
       turnContext,
     })
 
-    registerHandlers(ctx, core, hub)
+    registerHandlers(ctx, core, hub, sideHub)
     // R-13：agent 往对话里展示图片的正式入口。工具集在全部 setup 之后冻结，只能在这里注册
     registerImageTool({ tools: ctx.agentTools, attachments })
     ctx.services.provide(ConversationServiceToken, conversationService(core))
@@ -81,8 +90,8 @@ export default defineCoreModule({
     const invalidateSessions = (): void => {
       void core.turns.invalidateSessions()
     }
-    ctx.disposables.add(ctx.engine.settings.onDidChange(invalidateSessions))
-    ctx.disposables.add(ctx.engine.models.onDidChange(invalidateSessions))
+    ctx.disposables.add(ctx.agentRuntime.settings.onDidChange(invalidateSessions))
+    ctx.disposables.add(ctx.agentRuntime.models.onDidChange(invalidateSessions))
 
     /*
      * 模型列表变了 → 通知入口页重读**草稿**表。草稿选择是入口页本地的，Core 不知道用户选了
@@ -92,13 +101,13 @@ export default defineCoreModule({
     const draftChanged = (): void => {
       ctx.rpc.emit('controls.draftChanged', {})
     }
-    ctx.disposables.add(ctx.engine.models.onDidChange(draftChanged))
+    ctx.disposables.add(ctx.agentRuntime.models.onDidChange(draftChanged))
     /*
      * 只是「新对话默认模型 / 档位」变了（入口页写穿意图、模型页设为默认）：草稿表要重读，但**不**换代
      * 会话池 —— 活着的会话早定好了自己的模型与档位。两件事共用一次通知时，入口页每切一次模型就会把
      * 空闲会话全部释放，下一次进对话要重开会话。
      */
-    ctx.disposables.add(ctx.engine.models.onDidChangeDefaults(draftChanged))
+    ctx.disposables.add(ctx.agentRuntime.models.onDidChangeDefaults(draftChanged))
 
     // 工作区被移除：其中所有线程被删除（运行中的先取消）
     ctx.disposables.add(
@@ -124,7 +133,9 @@ export default defineCoreModule({
         .catch((err: unknown) => {
           ctx.logger.warn('session file reclaim failed', { error: String(err) })
         })
-        .then(() => (maintenance.signal.aborted ? null : ctx.engine.sessionFiles.collectGarbage(maintenance.signal)))
+        .then(() =>
+          maintenance.signal.aborted ? null : ctx.agentRuntime.sessions.sessionFiles.collectGarbage(maintenance.signal),
+        )
         .then((gc) => {
           if (gc !== null && (gc.deletedFiles > 0 || gc.errors.length > 0)) {
             ctx.logger.info('session media collected', { ...gc })

@@ -4,7 +4,7 @@ import './auxiliary-composer.css'
 
 import { useCopy } from '@poietica/design-system'
 import { Prose } from '@poietica/design-system/prose'
-import { latestSideTurn, type SideTopic, type SideTurn } from '@poietica/engine'
+import { latestSideTurn, type SideTopic, type SideTurn } from '@poietica/runtime-protocol'
 import { useFeatureStore } from '@poietica/ui-kernel'
 import {
   type KeyboardEvent,

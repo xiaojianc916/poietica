@@ -1,5 +1,5 @@
-import type { Controls } from '@poietica/engine'
 import { assertNever, isAppError } from '@poietica/foundation'
+import type { Controls } from '@poietica/runtime-protocol'
 import { describeFailure } from '../../failure'
 import type { GoalAction, GoalActionResult } from '../../shared/model/goal-control'
 

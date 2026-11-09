@@ -1,7 +1,7 @@
-import type { TranscriptOperation, TranscriptPage as WireTranscriptPage } from '@poietica/transcript'
+import type { AgentEvent, TranscriptPage as WireTranscriptPage } from '@poietica/agent-model'
 
 /*
- * 保留 legacy 的读法（线上快照 + agent 花名册 + 待答表三合一），字段来源换成：快照 = @poietica/transcript 的
+ * 保留 legacy 的读法（线上快照 + agent 花名册 + 待答表三合一），字段来源换成：快照 = @poietica/agent-model 的
  * TranscriptPage；花名册 = engine 的 task.upsert op 折出来的任务表（ui/timeline/delegate-channel.ts 读它）；待答表 = pendingInteractions。
  */
 type AgentTranscriptSnapshot = WireTranscriptPage
@@ -20,7 +20,7 @@ export interface TranscriptCatchUp {
   readonly agentId: TranscriptAgentId
   readonly batches: readonly {
     readonly seq: number
-    readonly ops: readonly TranscriptOperation[]
+    readonly events: readonly AgentEvent[]
   }[]
   readonly latestSeq: number
   readonly complete: boolean
@@ -28,11 +28,11 @@ export interface TranscriptCatchUp {
 
 export type TranscriptSignal =
   | {
-      readonly kind: 'ops'
+      readonly kind: 'events'
       readonly sessionId: string
       readonly agentId: string
       readonly seq: number
-      readonly ops: readonly TranscriptOperation[]
+      readonly events: readonly AgentEvent[]
     }
   /* `seq` 是 server 报的当前水位：缺席即水位未知，只能整读重建；相等即无待补的帧，不必再整读。 */
   | {

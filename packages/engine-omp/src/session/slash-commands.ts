@@ -6,7 +6,7 @@ import {
 } from '@oh-my-pi/pi-coding-agent/slash-commands/available-commands'
 import { parseSlashCommand } from '@oh-my-pi/pi-coding-agent/slash-commands/helpers/parse'
 import type { SlashCommandRuntime } from '@oh-my-pi/pi-coding-agent/slash-commands/types'
-import type { CommandCatalogOptions, SlashCommand } from '@poietica/engine'
+import type { CommandCatalogOptions, SlashCommand } from '@poietica/runtime-protocol'
 import { builtinDescriptionOf, builtinHintOf, builtinRankOf } from './command-text'
 
 /*

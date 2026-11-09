@@ -1,5 +1,5 @@
-import { EngineErrorCode } from '@poietica/engine'
 import { AppError, isAppError, SystemErrorCode } from '@poietica/foundation'
+import { EngineErrorCode } from '@poietica/runtime-protocol'
 
 /**
  * 唯一的错误映射点：引擎边界把任意异常换成 AppError。

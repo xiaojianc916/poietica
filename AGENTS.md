@@ -7,7 +7,7 @@
 - Windows 本地 AI agent 桌面应用。三个进程：**UI**（Electron 渲染进程，React）↔ **Host**（Electron 主进程）↔ **Core**（`poietica-core.exe`，Bun 编译）。
 - UI↔Host 走 IPC `poietica:rpc`，Host↔Core 走 stdio（`\x1e` 分帧），两段都是 JSON-RPC 2.0。Core → Host 的帧拆成「信封 `\x1f` 载荷」：Host 只解析信封做路由，载荷以 JSON 文本原样转交、由页面解析（`packages/rpc/src/frame-bytes.ts`）；Host 代码要用 Core 载荷的值一律经 `jsonValue()`。Host 的 `CoreSupervisor` 负责看护 Core：Core 会崩溃、会重启，UI 必须能重新同步。
 - 每个进程一个微内核（`core-kernel` / `host-kernel` / `ui-kernel`），功能以模块或贡献的形式插进去。外壳（`workbench`）只渲染贡献点，不认识任何具体功能。
-- agent 引擎是 omp（Oh My Pi，`@oh-my-pi/*` 的版本锁在根 `package.json` 的 catalog），只经 `@poietica/engine` 端口接入，唯一实现是 `packages/engine-omp`。omp 随包发布，数据落在 `%APPDATA%\Poietica\omp\`，与用户机器上的全局 omp 完全隔离。
+- agent 引擎是 omp（Oh My Pi，`@oh-my-pi/*` 的版本锁在根 `package.json` 的 catalog），只经 `@poietica/runtime-protocol` 端口接入，唯一实现是 `packages/runtime-protocol-omp`。omp 随包发布，数据落在 `%APPDATA%\Poietica\omp\`，与用户机器上的全局 omp 完全隔离。
 
 必读文档：
 
@@ -46,7 +46,7 @@ L5  protocol · workbench · apps/core · apps/desktop      汇总与外壳
 L4  features/*（17 个功能，垂直切片）                    功能
 L3  core-kernel · host-kernel · ui-kernel · design-system · engine-omp · engine-testkit
 L2  runtime-layout · process-kit · fs-kit · logging · storage-sqlite · git · test-kit
-L1  contract-kit · rpc · transcript · engine
+L1  contract-kit · rpc · agent-model · omp-types · runtime-protocol · stream-kit
 L0  foundation
 ```
 
@@ -57,9 +57,9 @@ L0  foundation
 
 ## 4. 边界铁律（全部有闸门，违反就是 check 红）
 
-1. **只有 `packages/engine-omp` 能 import `@oh-my-pi/*`**（`apps/core/scripts` 的构建脚本除外）；也只有 `apps/core` 能依赖 `engine-omp`。业务只认 `@poietica/engine` 的接口。
+1. **只有 `packages/runtime-protocol-omp` 能 import `@oh-my-pi/*`**（`apps/core/scripts` 的构建脚本除外）；也只有 `apps/core` 能依赖 `engine-omp`。业务只认 `@poietica/runtime-protocol` 的接口。
 2. **功能之间只经 `contract` / `core-api` / `ui-api` 协作**，绝不 import 别的功能的 `core` / `host` / `ui`；且只能依赖**级别更低**的功能（`tooling/depcruise/feature-tiers.json`：平台 < 基础状态 < 能力 < 主干 < 插件，插件之间互不依赖）。同进程内只有三种合法协作方式：服务令牌、进程内事件（`ctx.events`）、UI 贡献点。`core-api` 的服务令牌只在 Core 进程里有主人，所以**只有 `core` 子入口能跨功能 import 它**（`feature-core-api-cross-process`）；UI 与 Host 侧协作走 `ui-api` / `contract`。
-3. **子入口的运行时纯度**：`ui` 不碰 electron、node-pty 和 Node core 模块；`core` 不碰 react、electron、zustand；`host` 不碰 react、zustand、`bun:`；`contract` / `core-api` 只依赖 contract-kit、foundation、transcript、engine、zod 和功能 contract。
+3. **子入口的运行时纯度**：`ui` 不碰 electron、node-pty 和 Node core 模块；`core` 不碰 react、electron、zustand；`host` 不碰 react、zustand、`bun:`；`contract` / `core-api` 只依赖 contract-kit、foundation、agent-model、runtime-protocol、zod 和功能 contract；omp 的公开类型只从 omp-types 取。
 4. **平台包和内核不认识功能**（`protocol` 例外，且只能 import 功能的 contract）；功能包不依赖 workbench、protocol、apps。
 5. **只能 import 本包 `package.json` 声明过的依赖**。第三方版本只写在根 `package.json` 的 `catalog`，子包写 `"catalog:"`；改了依赖要跑 `bun install`。反过来，声明过的工作区依赖（`@poietica/*`）必须真被用到，只有测试用的放 `devDependencies`（闸门 `manifest-deps`）：isolated linker 按清单放行，清单多一条，第一层强制就松一条。
 6. 无循环依赖。
@@ -68,16 +68,16 @@ L0  foundation
 
 ### 5.1 代码放在哪
 
-| 要做的事                                               | 放在                                                                     |
-| ------------------------------------------------------ | ------------------------------------------------------------------------ |
-| 业务逻辑、数据表、调用引擎                             | `features/<id>/src/core`（Core 进程）                                    |
-| 系统能力：窗口、对话框、pty、自动更新、shell、资源协议 | `features/<id>/src/host`（Host 进程）                                    |
-| 界面、命令、设置页、前端状态                           | `features/<id>/src/ui`（UI 进程）                                        |
-| 跨进程的方法、通知、错误码、实体                       | `features/<id>/src/contract`                                             |
-| 给别的功能在同进程内调用的服务和事件                   | `core-api`（Core 侧）/ `ui-api`（UI 侧）                                 |
-| 和 omp 打交道                                          | 先在 `packages/engine` 加端口，再在 `packages/engine-omp` 实现（见 5.5） |
-| 与具体功能无关、多处复用的能力                         | 平台包，按层级放                                                         |
-| 把功能装进应用                                         | `apps/*` 的三个清单，每个功能只加一行                                    |
+| 要做的事                                               | 放在                                                                                         |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| 业务逻辑、数据表、调用引擎                             | `features/<id>/src/core`（Core 进程）                                                        |
+| 系统能力：窗口、对话框、pty、自动更新、shell、资源协议 | `features/<id>/src/host`（Host 进程）                                                        |
+| 界面、命令、设置页、前端状态                           | `features/<id>/src/ui`（UI 进程）                                                            |
+| 跨进程的方法、通知、错误码、实体                       | `features/<id>/src/contract`                                                                 |
+| 给别的功能在同进程内调用的服务和事件                   | `core-api`（Core 侧）/ `ui-api`（UI 侧）                                                     |
+| 和 omp 打交道                                          | 先在 `packages/runtime-protocol` 加端口，再在 `packages/runtime-protocol-omp` 实现（见 5.5） |
+| 与具体功能无关、多处复用的能力                         | 平台包，按层级放                                                                             |
+| 把功能装进应用                                         | `apps/*` 的三个清单，每个功能只加一行                                                        |
 
 拿不准放哪时，先问「它属于哪个功能」，再问「它必须在哪个进程跑」。答不上来的，就是待决问题。
 
@@ -120,10 +120,10 @@ L0  foundation
 
 ### 5.5 引擎端口
 
-- 业务只认 `@poietica/engine` 的接口（`AgentEngine`、`EngineSession`、事件类型）。要用 omp 的新能力，按顺序做：
-  1. 在 `packages/engine` 加端口（接口和类型）；
-  2. 在 `@poietica/engine-testkit` 的 FakeEngine 里实现，并加一致性用例；
-  3. 在 `packages/engine-omp` 实现，跑通同一套一致性用例。
+- 业务只认 `@poietica/runtime-protocol` 的接口（`AgentEngine`、`EngineSession`、事件类型）。要用 omp 的新能力，按顺序做：
+  1. 在 `packages/runtime-protocol` 加端口（接口和类型）；
+  2. 在 `@poietica/runtime-protocol-testkit` 的 FakeEngine 里实现，并加一致性用例；
+  3. 在 `packages/runtime-protocol-omp` 实现，跑通同一套一致性用例。
 - omp 的事件形状、设置键、会话文件格式以 `docs/omp-sdk-reference.md` 为准；写 engine-omp 时把踩到的坑写成「omp 知识 #N」注释。
 - 隔离是硬要求：omp 的全部数据只落在 `DataLayout.ompRoot`；全局 `~/.omp`、`.env` 和其它工具的凭据变量一律屏蔽；启动自检不过就拒绝启动。动到 bootstrap、环境或路径的改动，必须跑 isolation 测试和 `core:probe`。
 
@@ -136,7 +136,7 @@ L0  foundation
 
 ## 7. 代码约定
 
-- **一源、一责、一跳**（正交性）：每份事实只有一个主人（SSOT，见下文「存储」）；每个单元只有一个变更理由；在依赖方向允许的最低层直接调用，封装必须带来语义——纯转发的包装层不建，没有第二个实现或测试替身需求时宁可各处直调。跨越架构边界的端口（如 `@poietica/engine`、platform 的系统能力契约）不算转发层：它隔离第三方、可替换、可测试，该留；边界之内再套的转发层才该删。
+- **一源、一责、一跳**（正交性）：每份事实只有一个主人（SSOT，见下文「存储」）；每个单元只有一个变更理由；在依赖方向允许的最低层直接调用，封装必须带来语义——纯转发的包装层不建，没有第二个实现或测试替身需求时宁可各处直调。跨越架构边界的端口（如 `@poietica/runtime-protocol`、platform 的系统能力契约）不算转发层：它隔离第三方、可替换、可测试，该留；边界之内再套的转发层才该删。
 - **TypeScript 严格模式**。禁止 `any`、`@ts-ignore`、`@ts-expect-error`、`biome-ignore`。确实需要的规则例外，只能写进 `biome.json` 的 `overrides`，按精确文件路径列出，并在文件头注释说明原因。
 - **格式**交给 bun fmt（配置在 `bunfig.toml` 的 `[fmt]`）：2 空格缩进，行宽 120，单引号，不写分号，尾逗号。单个函数的认知复杂度不超过 15，超了就拆函数，不许压制。
 - **错误三分类**（`features/**` 里不许出现裸 `Error`）：
@@ -172,9 +172,9 @@ L0  foundation
 ## 10. 测试
 
 - 框架是 `bun:test`。测试放在 `src/**/__tests__/*.test.ts(x)`；UI 测试由 `tooling/test/` 的 preload 提供 happy-dom 和 React 环境；omp 的落盘隔离也在 preload 里（`omp-isolation.ts`，整个测试进程的 omp 目录指到一次性数据根），测试文件不要自己设 `PI_*` 隔离变量，要数据根就从 `engine-omp/src/__tests__/omp-home.ts` 取 `testLayout`。
-- 内核级测试用 `@poietica/core-kernel/testing` 的 `createCoreHarness`（只装被测模块和它的依赖，加 FakeEngine）。引擎替身来自 `@poietica/engine-testkit`；改了引擎行为时，一致性用例要同时跑 FakeEngine 和 OmpEngine。测试用 logger 来自 `@poietica/test-kit`。
+- 内核级测试用 `@poietica/core-kernel/testing` 的 `createCoreHarness`（只装被测模块和它的依赖，加 FakeEngine）。引擎替身来自 `@poietica/runtime-protocol-testkit`；改了引擎行为时，一致性用例要同时跑 FakeEngine 和 OmpEngine。测试用 logger 来自 `@poietica/test-kit`。
 - 修 bug 时**先写一个在旧代码上失败的测试**，再改实现。
-- 隔离相关的改动要过 `packages/engine-omp/src/__tests__/isolation.test.ts`，再跑 `bun run core:probe`。
+- 隔离相关的改动要过 `packages/runtime-protocol-omp/src/__tests__/isolation.test.ts`，再跑 `bun run core:probe`。
 - 改 `timeline/rolling-line*`、`ticker-*`、`roll-scheduler*`、`flow-row.css` 必须跑 `bun run check:ticker`（真实 Electron + 真实组件，逐帧量「最新的字有没有被裁」「放得下时句首有没有被吃」——这两条 happy-dom 量不出来，v1 全绿而真机全错就栽在这里）。它需要真实 GPU 与窗口，不进 `bun run all`。
 - 测试文件可以用裸 `Error` 和 `console`，也不受子入口运行时规则约束；但测试文件也必须被某个带 `bun` types 的 tsconfig 收录（闸门 `editor-project-map`）。
 
@@ -183,7 +183,7 @@ L0  foundation
 - **加平台包**：`bun run new:package <name> --layer <0|1|2|3|5> --runtime <neutral|dom|node|bun|electron-main>`（会自动登记到 `layers.json`）→ `bun run refs` → `bun run  all`。
 - **加功能**：`bun run new:feature <id> --parts … [--tier <0-4>]`（登记功能分级，缺省 4 = 插件）→ 写 contract → 在 protocol 登记并提升版本 → 实现 core / host（服务、仓储、迁移、handlers）→ 实现 ui → 三个清单各加一行 → 写测试 → `refs` + `protocol:snapshot` + `check`。完整步骤见 ARCHITECTURE §9。
 - **加或删一个 RPC 方法**：改 contract → 实现 handler → 提升 `PROTOCOL_VERSION` → `protocol:snapshot`。
-- **升级 omp**：改 catalog 里四个 `@oh-my-pi/*` 的版本（版本号只有这一个产地）→ `bun install` → 跑 `bun run check:omp-doc:write` 刷 `docs/omp-sdk-reference.md` 的行号锚点，再对照它与代码里的「omp 知识 #N」注释（`rg "omp 知识 #" packages/engine-omp`）逐项核对会话文件格式、设置键、工具名、事件形状（浏览器 relay 协议由 `browser-relay-conformance.ts` 在 typecheck 里核对，类型报错即漂移）→ 核对结果写进 refactor-log → `core:build` + `core:probe` + `check`。核对完成前不合并。
+- **升级 omp**：改 catalog 里四个 `@oh-my-pi/*` 的版本（版本号只有这一个产地）→ `bun install` → 跑 `bun run check:omp-doc:write` 刷 `docs/omp-sdk-reference.md` 的行号锚点，再对照它与代码里的「omp 知识 #N」注释（`rg "omp 知识 #" packages/runtime-protocol-omp`）逐项核对会话文件格式、设置键、工具名、事件形状（浏览器 relay 协议由 `browser-relay-conformance.ts` 在 typecheck 里核对，类型报错即漂移）→ 核对结果写进 refactor-log → `core:build` + `core:probe` + `check`。核对完成前不合并。
 - **发布**：`bun run release`（本机链，唯一一条：门禁 → 写版本号 → 构建 + 冒烟 → 推 tag → `gh` 建 release → 验通道）。`.github/workflows/` 只有 CI，不按 tag 发版；`docs/release-notes/` 已删，说明走 `--generate-notes`。
 
 ## 12. 工作方式

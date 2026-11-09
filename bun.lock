@@ -30,7 +30,6 @@
         "@oh-my-pi/pi-coding-agent": "catalog:",
         "@oh-my-pi/pi-utils": "catalog:",
         "@poietica/core-kernel": "workspace:*",
-        "@poietica/engine-omp": "workspace:*",
         "@poietica/feature-agent-settings": "workspace:*",
         "@poietica/feature-attachments": "workspace:*",
         "@poietica/feature-automations": "workspace:*",
@@ -39,6 +38,7 @@
         "@poietica/feature-extensions": "workspace:*",
         "@poietica/feature-files": "workspace:*",
         "@poietica/feature-intelligent-ui": "workspace:*",
+        "@poietica/feature-journal": "workspace:*",
         "@poietica/feature-models": "workspace:*",
         "@poietica/feature-platform": "workspace:*",
         "@poietica/feature-python": "workspace:*",
@@ -51,10 +51,11 @@
         "@poietica/protocol": "workspace:*",
         "@poietica/rpc": "workspace:*",
         "@poietica/runtime-layout": "workspace:*",
+        "@poietica/runtime-protocol-omp": "workspace:*",
         "@poietica/storage-sqlite": "workspace:*",
       },
       "devDependencies": {
-        "@poietica/engine-testkit": "workspace:*",
+        "@poietica/runtime-protocol-testkit": "workspace:*",
         "@poietica/test-kit": "workspace:*",
         "@types/bun": "catalog:",
       },
@@ -69,7 +70,6 @@
       "devDependencies": {
         "@poietica/app-core": "workspace:*",
         "@poietica/design-system": "workspace:*",
-        "@poietica/engine": "workspace:*",
         "@poietica/feature-agent-settings": "workspace:*",
         "@poietica/feature-attachments": "workspace:*",
         "@poietica/feature-automations": "workspace:*",
@@ -92,6 +92,7 @@
         "@poietica/host-kernel": "workspace:*",
         "@poietica/protocol": "workspace:*",
         "@poietica/rpc": "workspace:*",
+        "@poietica/runtime-protocol": "workspace:*",
         "@poietica/ui-kernel": "workspace:*",
         "@poietica/workbench": "workspace:*",
         "@tailwindcss/node": "catalog:",
@@ -115,18 +116,18 @@
         "@poietica/contract-kit": "workspace:*",
         "@poietica/core-kernel": "workspace:*",
         "@poietica/design-system": "workspace:*",
-        "@poietica/engine": "workspace:*",
         "@poietica/feature-conversation": "workspace:*",
         "@poietica/feature-secrets": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/rpc": "workspace:*",
+        "@poietica/runtime-protocol": "workspace:*",
         "@poietica/ui-kernel": "workspace:*",
         "lucide-react": "catalog:",
         "react": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@poietica/engine-testkit": "workspace:*",
+        "@poietica/runtime-protocol-testkit": "workspace:*",
         "@poietica/test-kit": "workspace:*",
         "@testing-library/react": "catalog:",
         "@types/bun": "catalog:",
@@ -151,7 +152,7 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@poietica/engine-testkit": "workspace:*",
+        "@poietica/runtime-protocol-testkit": "workspace:*",
         "@poietica/test-kit": "workspace:*",
         "@testing-library/react": "catalog:",
         "@types/bun": "catalog:",
@@ -164,17 +165,17 @@
       "name": "@poietica/feature-automations",
       "version": "0.0.0",
       "dependencies": {
+        "@poietica/agent-model": "workspace:*",
         "@poietica/contract-kit": "workspace:*",
         "@poietica/core-kernel": "workspace:*",
         "@poietica/design-system": "workspace:*",
-        "@poietica/engine": "workspace:*",
         "@poietica/feature-conversation": "workspace:*",
         "@poietica/feature-platform": "workspace:*",
         "@poietica/feature-workspaces": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/rpc": "workspace:*",
+        "@poietica/runtime-protocol": "workspace:*",
         "@poietica/storage-sqlite": "workspace:*",
-        "@poietica/transcript": "workspace:*",
         "@poietica/ui-kernel": "workspace:*",
         "croner": "catalog:",
         "lucide-react": "catalog:",
@@ -182,8 +183,9 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@poietica/engine-testkit": "workspace:*",
         "@poietica/feature-attachments": "workspace:*",
+        "@poietica/feature-journal": "workspace:*",
+        "@poietica/runtime-protocol-testkit": "workspace:*",
         "@poietica/test-kit": "workspace:*",
         "@testing-library/react": "catalog:",
         "@types/bun": "catalog:",
@@ -197,19 +199,20 @@
         "@poietica/contract-kit": "workspace:*",
         "@poietica/core-kernel": "workspace:*",
         "@poietica/design-system": "workspace:*",
-        "@poietica/engine": "workspace:*",
         "@poietica/feature-attachments": "workspace:*",
         "@poietica/feature-conversation": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/host-kernel": "workspace:*",
+        "@poietica/omp-types": "workspace:*",
         "@poietica/runtime-layout": "workspace:*",
+        "@poietica/runtime-protocol": "workspace:*",
         "@poietica/ui-kernel": "workspace:*",
         "lucide-react": "catalog:",
         "react": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@poietica/engine-testkit": "workspace:*",
+        "@poietica/runtime-protocol-testkit": "workspace:*",
         "@poietica/test-kit": "workspace:*",
         "@testing-library/react": "catalog:",
         "@types/bun": "catalog:",
@@ -223,20 +226,23 @@
       "version": "0.0.0",
       "dependencies": {
         "@lexical/react": "catalog:",
+        "@poietica/agent-model": "workspace:*",
         "@poietica/contract-kit": "workspace:*",
         "@poietica/core-kernel": "workspace:*",
         "@poietica/design-system": "workspace:*",
-        "@poietica/engine": "workspace:*",
         "@poietica/feature-attachments": "workspace:*",
+        "@poietica/feature-journal": "workspace:*",
         "@poietica/feature-platform": "workspace:*",
         "@poietica/feature-preferences": "workspace:*",
         "@poietica/feature-workspaces": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/fs-kit": "workspace:*",
         "@poietica/host-kernel": "workspace:*",
+        "@poietica/omp-types": "workspace:*",
         "@poietica/rpc": "workspace:*",
+        "@poietica/runtime-protocol": "workspace:*",
         "@poietica/storage-sqlite": "workspace:*",
-        "@poietica/transcript": "workspace:*",
+        "@poietica/stream-kit": "workspace:*",
         "@poietica/ui-kernel": "workspace:*",
         "@tanstack/react-virtual": "catalog:",
         "lexical": "catalog:",
@@ -248,8 +254,8 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@poietica/engine-testkit": "workspace:*",
         "@poietica/runtime-layout": "workspace:*",
+        "@poietica/runtime-protocol-testkit": "workspace:*",
         "@poietica/test-kit": "workspace:*",
         "@testing-library/react": "catalog:",
         "@types/bun": "catalog:",
@@ -265,19 +271,19 @@
         "@poietica/contract-kit": "workspace:*",
         "@poietica/core-kernel": "workspace:*",
         "@poietica/design-system": "workspace:*",
-        "@poietica/engine": "workspace:*",
         "@poietica/feature-conversation": "workspace:*",
         "@poietica/feature-platform": "workspace:*",
         "@poietica/feature-workspaces": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/rpc": "workspace:*",
+        "@poietica/runtime-protocol": "workspace:*",
         "@poietica/ui-kernel": "workspace:*",
         "lucide-react": "catalog:",
         "react": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@poietica/engine-testkit": "workspace:*",
+        "@poietica/runtime-protocol-testkit": "workspace:*",
         "@poietica/test-kit": "workspace:*",
         "@testing-library/react": "catalog:",
         "@types/bun": "catalog:",
@@ -334,16 +340,30 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@poietica/engine": "workspace:*",
-        "@poietica/engine-testkit": "workspace:*",
         "@poietica/feature-attachments": "workspace:*",
+        "@poietica/feature-journal": "workspace:*",
         "@poietica/feature-workspaces": "workspace:*",
+        "@poietica/runtime-protocol": "workspace:*",
+        "@poietica/runtime-protocol-testkit": "workspace:*",
         "@poietica/test-kit": "workspace:*",
         "@testing-library/react": "catalog:",
         "@types/bun": "catalog:",
         "@types/node": "catalog:",
         "@types/react": "catalog:",
         "electron": "catalog:",
+      },
+    },
+    "features/journal": {
+      "name": "@poietica/feature-journal",
+      "version": "0.0.0",
+      "dependencies": {
+        "@poietica/agent-model": "workspace:*",
+        "@poietica/core-kernel": "workspace:*",
+        "@poietica/foundation": "workspace:*",
+        "@poietica/storage-sqlite": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.4.4",
       },
     },
     "features/models": {
@@ -353,18 +373,18 @@
         "@poietica/contract-kit": "workspace:*",
         "@poietica/core-kernel": "workspace:*",
         "@poietica/design-system": "workspace:*",
-        "@poietica/engine": "workspace:*",
         "@poietica/feature-preferences": "workspace:*",
         "@poietica/feature-secrets": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/rpc": "workspace:*",
+        "@poietica/runtime-protocol": "workspace:*",
         "@poietica/ui-kernel": "workspace:*",
         "lucide-react": "catalog:",
         "react": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@poietica/engine-testkit": "workspace:*",
+        "@poietica/runtime-protocol-testkit": "workspace:*",
         "@poietica/test-kit": "workspace:*",
         "@testing-library/react": "catalog:",
         "@types/bun": "catalog:",
@@ -388,7 +408,7 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@poietica/engine-testkit": "workspace:*",
+        "@poietica/runtime-protocol-testkit": "workspace:*",
         "@poietica/test-kit": "workspace:*",
         "@testing-library/react": "catalog:",
         "@types/bun": "catalog:",
@@ -436,7 +456,7 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@poietica/engine-testkit": "workspace:*",
+        "@poietica/runtime-protocol-testkit": "workspace:*",
         "@testing-library/react": "catalog:",
         "@types/bun": "catalog:",
         "@types/react": "catalog:",
@@ -499,6 +519,7 @@
         "@poietica/foundation": "workspace:*",
         "@poietica/host-kernel": "workspace:*",
         "@poietica/process-kit": "workspace:*",
+        "@poietica/stream-kit": "workspace:*",
         "@poietica/ui-kernel": "workspace:*",
         "@xterm/addon-fit": "catalog:",
         "@xterm/addon-web-links": "catalog:",
@@ -546,10 +567,10 @@
         "@poietica/contract-kit": "workspace:*",
         "@poietica/core-kernel": "workspace:*",
         "@poietica/design-system": "workspace:*",
-        "@poietica/engine": "workspace:*",
         "@poietica/feature-conversation": "workspace:*",
         "@poietica/feature-models": "workspace:*",
         "@poietica/rpc": "workspace:*",
+        "@poietica/runtime-protocol": "workspace:*",
         "@poietica/storage-sqlite": "workspace:*",
         "@poietica/ui-kernel": "workspace:*",
         "lucide-react": "catalog:",
@@ -569,10 +590,10 @@
         "@poietica/contract-kit": "workspace:*",
         "@poietica/core-kernel": "workspace:*",
         "@poietica/design-system": "workspace:*",
-        "@poietica/engine": "workspace:*",
         "@poietica/feature-platform": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/rpc": "workspace:*",
+        "@poietica/runtime-protocol": "workspace:*",
         "@poietica/storage-sqlite": "workspace:*",
         "@poietica/ui-kernel": "workspace:*",
         "@poietica/workbuddy-client": "workspace:*",
@@ -581,7 +602,7 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@poietica/engine-testkit": "workspace:*",
+        "@poietica/runtime-protocol-testkit": "workspace:*",
         "@poietica/test-kit": "workspace:*",
         "@testing-library/react": "catalog:",
         "@types/bun": "catalog:",
@@ -610,6 +631,14 @@
         "@types/react": "catalog:",
       },
     },
+    "packages/agent-model": {
+      "name": "@poietica/agent-model",
+      "version": "0.0.0",
+      "dependencies": {
+        "@poietica/omp-types": "workspace:*",
+        "zod": "catalog:",
+      },
+    },
     "packages/contract-kit": {
       "name": "@poietica/contract-kit",
       "version": "0.0.0",
@@ -623,16 +652,16 @@
       "version": "0.0.0",
       "dependencies": {
         "@poietica/contract-kit": "workspace:*",
-        "@poietica/engine": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/rpc": "workspace:*",
         "@poietica/runtime-layout": "workspace:*",
+        "@poietica/runtime-protocol": "workspace:*",
         "@poietica/storage-sqlite": "workspace:*",
         "@poietica/test-kit": "workspace:*",
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@poietica/engine-testkit": "workspace:*",
+        "@poietica/runtime-protocol-testkit": "workspace:*",
         "@types/bun": "catalog:",
       },
     },
@@ -666,29 +695,20 @@
         "tailwindcss": "catalog:",
       },
     },
-    "packages/engine": {
-      "name": "@poietica/engine",
-      "version": "0.0.0",
-      "dependencies": {
-        "@poietica/foundation": "workspace:*",
-        "@poietica/transcript": "workspace:*",
-        "zod": "catalog:",
-      },
-    },
     "packages/engine-omp": {
-      "name": "@poietica/engine-omp",
+      "name": "@poietica/runtime-protocol-omp",
       "version": "0.0.0",
       "dependencies": {
         "@oh-my-pi/pi-ai": "catalog:",
         "@oh-my-pi/pi-coding-agent": "catalog:",
         "@oh-my-pi/pi-tui": "catalog:",
         "@oh-my-pi/pi-utils": "catalog:",
-        "@poietica/engine": "workspace:*",
-        "@poietica/engine-testkit": "workspace:*",
+        "@poietica/agent-model": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/fs-kit": "workspace:*",
         "@poietica/runtime-layout": "workspace:*",
-        "@poietica/transcript": "workspace:*",
+        "@poietica/runtime-protocol": "workspace:*",
+        "@poietica/runtime-protocol-testkit": "workspace:*",
         "zod": "catalog:",
       },
       "devDependencies": {
@@ -696,12 +716,12 @@
       },
     },
     "packages/engine-testkit": {
-      "name": "@poietica/engine-testkit",
+      "name": "@poietica/runtime-protocol-testkit",
       "version": "0.0.0",
       "dependencies": {
-        "@poietica/engine": "workspace:*",
+        "@poietica/agent-model": "workspace:*",
         "@poietica/foundation": "workspace:*",
-        "@poietica/transcript": "workspace:*",
+        "@poietica/runtime-protocol": "workspace:*",
         "zod": "catalog:",
       },
       "devDependencies": {
@@ -767,6 +787,16 @@
         "@types/node": "catalog:",
       },
     },
+    "packages/omp-types": {
+      "name": "@poietica/omp-types",
+      "version": "0.0.0",
+      "dependencies": {
+        "@oh-my-pi/pi-agent-core": "18.16.0",
+        "@oh-my-pi/pi-ai": "catalog:",
+        "@oh-my-pi/pi-coding-agent": "catalog:",
+        "@oh-my-pi/pi-tui": "catalog:",
+      },
+    },
     "packages/process-kit": {
       "name": "@poietica/process-kit",
       "version": "0.0.0",
@@ -819,11 +849,27 @@
         "@types/node": "catalog:",
       },
     },
+    "packages/runtime-protocol": {
+      "name": "@poietica/runtime-protocol",
+      "version": "0.0.0",
+      "dependencies": {
+        "@poietica/agent-model": "workspace:*",
+        "@poietica/foundation": "workspace:*",
+        "zod": "catalog:",
+      },
+    },
     "packages/storage-sqlite": {
       "name": "@poietica/storage-sqlite",
       "version": "0.0.0",
       "devDependencies": {
         "@types/bun": "catalog:",
+      },
+    },
+    "packages/stream-kit": {
+      "name": "@poietica/stream-kit",
+      "version": "0.0.0",
+      "dependencies": {
+        "@poietica/foundation": "workspace:*",
       },
     },
     "packages/test-kit": {
@@ -834,13 +880,6 @@
       },
       "devDependencies": {
         "@types/bun": "catalog:",
-      },
-    },
-    "packages/transcript": {
-      "name": "@poietica/transcript",
-      "version": "0.0.0",
-      "dependencies": {
-        "zod": "catalog:",
       },
     },
     "packages/ui-kernel": {
@@ -1266,6 +1305,8 @@
 
     "@peculiar/webcrypto": ["@peculiar/webcrypto@1.7.2", "", { "dependencies": { "@peculiar/asn1-schema": "^2.7.0", "@peculiar/json-schema": "^1.1.12", "@peculiar/utils": "^2.0.2", "tslib": "^2.8.1", "webcrypto-core": "^1.9.2" } }, "sha512-ktTSACRJ5WdpfjHjFT2EWJQQPacGv1cPCDfEbdmpAHOxdFiYqPe4lfnXGA3D8Dg9/0kHPYSvyRlgujIOVlTdvQ=="],
 
+    "@poietica/agent-model": ["@poietica/agent-model@workspace:packages/agent-model"],
+
     "@poietica/app-core": ["@poietica/app-core@workspace:apps/core"],
 
     "@poietica/contract-kit": ["@poietica/contract-kit@workspace:packages/contract-kit"],
@@ -1275,12 +1316,6 @@
     "@poietica/design-system": ["@poietica/design-system@workspace:packages/design-system"],
 
     "@poietica/desktop": ["@poietica/desktop@workspace:apps/desktop"],
-
-    "@poietica/engine": ["@poietica/engine@workspace:packages/engine"],
-
-    "@poietica/engine-omp": ["@poietica/engine-omp@workspace:packages/engine-omp"],
-
-    "@poietica/engine-testkit": ["@poietica/engine-testkit@workspace:packages/engine-testkit"],
 
     "@poietica/feature-agent-settings": ["@poietica/feature-agent-settings@workspace:features/agent-settings"],
 
@@ -1297,6 +1332,8 @@
     "@poietica/feature-files": ["@poietica/feature-files@workspace:features/files"],
 
     "@poietica/feature-intelligent-ui": ["@poietica/feature-intelligent-ui@workspace:features/intelligent-ui"],
+
+    "@poietica/feature-journal": ["@poietica/feature-journal@workspace:features/journal"],
 
     "@poietica/feature-models": ["@poietica/feature-models@workspace:features/models"],
 
@@ -1330,6 +1367,8 @@
 
     "@poietica/logging": ["@poietica/logging@workspace:packages/logging"],
 
+    "@poietica/omp-types": ["@poietica/omp-types@workspace:packages/omp-types"],
+
     "@poietica/process-kit": ["@poietica/process-kit@workspace:packages/process-kit"],
 
     "@poietica/protocol": ["@poietica/protocol@workspace:packages/protocol"],
@@ -1338,11 +1377,17 @@
 
     "@poietica/runtime-layout": ["@poietica/runtime-layout@workspace:packages/runtime-layout"],
 
+    "@poietica/runtime-protocol": ["@poietica/runtime-protocol@workspace:packages/runtime-protocol"],
+
+    "@poietica/runtime-protocol-omp": ["@poietica/runtime-protocol-omp@workspace:packages/engine-omp"],
+
+    "@poietica/runtime-protocol-testkit": ["@poietica/runtime-protocol-testkit@workspace:packages/engine-testkit"],
+
     "@poietica/storage-sqlite": ["@poietica/storage-sqlite@workspace:packages/storage-sqlite"],
 
-    "@poietica/test-kit": ["@poietica/test-kit@workspace:packages/test-kit"],
+    "@poietica/stream-kit": ["@poietica/stream-kit@workspace:packages/stream-kit"],
 
-    "@poietica/transcript": ["@poietica/transcript@workspace:packages/transcript"],
+    "@poietica/test-kit": ["@poietica/test-kit@workspace:packages/test-kit"],
 
     "@poietica/ui-kernel": ["@poietica/ui-kernel@workspace:packages/ui-kernel"],
 

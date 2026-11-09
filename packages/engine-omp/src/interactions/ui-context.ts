@@ -27,7 +27,7 @@ import {
   setThemeInstance,
   type Theme,
 } from '@oh-my-pi/pi-tui/theme'
-import type { InteractionAnswer } from '@poietica/engine'
+import type { InteractionAnswer } from '@poietica/runtime-protocol'
 import {
   type ApprovalPrompt,
   approvalDetailOf,

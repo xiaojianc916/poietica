@@ -42,7 +42,7 @@
 
 1. **一个功能只在一个地方**：增删功能 = 增删 `features/<x>/` 一个目录，再改应用清单各一行。
 2. **外壳不认识功能**：`workbench` 与三个内核只渲染与调度「贡献」，不出现具体功能的名字。
-3. **业务不认识 omp**：只有 `packages/engine-omp` 能 import `@oh-my-pi/*`，业务只认 `@poietica/engine` 端口。
+3. **业务不认识 omp**：只有 `packages/runtime-protocol-omp` 能 import `@oh-my-pi/*`，业务只认 `@poietica/runtime-protocol` 端口。
 4. **运行时由类型系统把关**：每个包、每个子入口按运行时继承 tsconfig 预设，写错进程的 import 直接类型检查失败。
 5. **每份事实只存一处**：对话正文只在 omp 会话文件里，其余数据各有唯一主人。
 

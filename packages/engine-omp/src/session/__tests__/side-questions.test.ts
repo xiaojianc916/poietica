@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { BtwHistoryRecord } from '@oh-my-pi/pi-coding-agent/session/btw-history'
-import { EngineErrorCode } from '@poietica/engine'
 import { AppError, Deferred, noopLogger, SystemErrorCode } from '@poietica/foundation'
+import { EngineErrorCode } from '@poietica/runtime-protocol'
 import { type BtwControllerLike, type BtwFrame, type SideEvent, SideQuestions, topicOf } from '../side-questions'
 
 /*

@@ -10,6 +10,6 @@ export default defineCoreModule({
   id: 'browser',
   contract: browserContract,
   setup(ctx) {
-    ctx.rpc.handle('browser.relayEndpoint', () => ({ port: ctx.engine.browserRelay()?.port ?? null }))
+    ctx.rpc.handle('browser.relayEndpoint', () => ({ port: ctx.agentRuntime.browser.relay()?.port ?? null }))
   },
 })

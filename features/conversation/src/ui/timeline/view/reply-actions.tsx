@@ -1,7 +1,7 @@
 import './reply-actions.css'
 
+import type { TranscriptUsage } from '@poietica/agent-model'
 import { useCopy } from '@poietica/design-system'
-import type { TranscriptUsage } from '@poietica/transcript'
 import { Check, Copy, PenLine, Split } from 'lucide-react'
 import { memo, type ReactNode } from 'react'
 

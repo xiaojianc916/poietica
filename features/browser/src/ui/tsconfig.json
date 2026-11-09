@@ -9,6 +9,9 @@
       "path": "../../../../packages/foundation"
     },
     {
+      "path": "../../../../packages/omp-types"
+    },
+    {
       "path": "../../../../packages/ui-kernel"
     },
     {

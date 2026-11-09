@@ -1,9 +1,9 @@
 import { join } from 'node:path'
 import { RpcSubagentRegistry, readRpcSubagentTranscript } from '@oh-my-pi/pi-coding-agent/modes/rpc/rpc-subagents'
 import { TASK_SUBAGENT_EVENT_CHANNEL } from '@oh-my-pi/pi-coding-agent/task/types'
-import { EngineErrorCode } from '@poietica/engine'
+import type { AgentEvent, TranscriptPage } from '@poietica/agent-model'
 import { AppError, type Logger } from '@poietica/foundation'
-import type { TranscriptOperation, TranscriptPage } from '@poietica/transcript'
+import { EngineErrorCode } from '@poietica/runtime-protocol'
 import { isSubagentChannelId } from '../projector/agent-refs'
 import type { OmpMessage } from '../projector/history'
 import { SubagentChannels } from './subagent-channels'
@@ -25,7 +25,7 @@ export interface SubagentHostOptions {
   readonly bus: SubagentBus
   readonly now: () => number
   readonly logger: Logger
-  readonly emit: (agentId: string, ops: readonly TranscriptOperation[]) => void
+  readonly emit: (agentId: string, events: readonly AgentEvent[]) => void
   /** 会话的 artifacts 目录：名册里没有（Core 重启前的旧子代理）时按 omp 的布局 `<dir>/<id>.jsonl` 找会话文件 */
   readonly artifactsDir: () => string | null
 }

@@ -6,11 +6,12 @@ P0.8 生成的 `layer-order` 规则按「依赖同层或更高层的包」禁用
 
 白名单只收**同层**边：`config.cjs` 加载时校验每个条目两端层号相等，不相等直接报错。跨层向下的边本来就允许，
 写进来不起作用；跨层向上的边写进来会被悄悄放行。曾经的 `core-kernel`（L3→L2）、`host-kernel`（L3→L2）两条
-即属前者，已删。现存四条：
+即属前者，已删。现存五条：
 
-| 边                          | 层  | 理由                                                             |
-| --------------------------- | --- | ---------------------------------------------------------------- |
-| engine → transcript         | L1  | 引擎端口的事件流以 transcript 的 TimelineOp 为载荷               |
-| rpc → contract-kit          | L1  | 通道按契约描述做校验与分发                                       |
-| git → process-kit           | L2  | git 经 process-kit 起子进程                                      |
-| engine-omp → engine-testkit | L3  | 只有 `src/testing`（`@poietica/engine-omp/testing`）用到，类型级 |
+| 边                             | 层  | 理由                                                             |
+| ------------------------------ | --- | ---------------------------------------------------------------- |
+| runtime-protocol → agent-model | L1  | 运行时契约的交互卡片映射以 AgentEvent/时间线模型为载荷           |
+| agent-model → omp-types        | L1  | 工具帧的入参/产出按工具名收口到 omp 的公开类型（只读类型出口）   |
+| rpc → contract-kit             | L1  | 通道按契约描述做校验与分发                                       |
+| git → process-kit              | L2  | git 经 process-kit 起子进程                                      |
+| engine-omp → engine-testkit    | L3  | 只有 `src/testing`（`@poietica/engine-omp/testing`）用到，类型级 |

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { EngineSessionEvent } from '@poietica/engine'
+import type { EngineSessionEvent } from '@poietica/runtime-protocol'
 import { fakeOmpSession } from '../../projector/__tests__/fixtures/omp-session'
 
 /*

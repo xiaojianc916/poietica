@@ -3,10 +3,10 @@
   "include": ["."],
   "references": [
     {
-      "path": "../../../../packages/design-system"
+      "path": "../../../../packages/agent-model"
     },
     {
-      "path": "../../../../packages/engine"
+      "path": "../../../../packages/design-system"
     },
     {
       "path": "../../../../packages/foundation"
@@ -15,7 +15,7 @@
       "path": "../../../../packages/rpc"
     },
     {
-      "path": "../../../../packages/transcript"
+      "path": "../../../../packages/runtime-protocol"
     },
     {
       "path": "../../../../packages/ui-kernel"

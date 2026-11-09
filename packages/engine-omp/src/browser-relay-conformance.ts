@@ -1,5 +1,5 @@
 /*
- * 类型级对齐检查：我方的 browser relay 线上形状（@poietica/engine 的 browser-relay.ts）对 omp 的
+ * 类型级对齐检查：我方的 browser relay 线上形状（@poietica/runtime-protocol 的 browser-relay.ts）对 omp 的
  * `tools/browser/relay/protocol.ts`。omp 的这份协议是它的内部契约、没有版本号，以前靠 AGENTS 里「升级 omp 时人工核对」
  * 维持一致，结果 cdpEvent 的 params 已经漂成了 `unknown`。现在交给 `bun run typecheck`：任何一侧改了形状，下面的
  * 赋值检查就编译不过。本文件没有运行时代码，也不被任何人 import —— 它只为 typecheck 存在。
@@ -12,7 +12,12 @@ import type {
   TabSnapshot as OmpTabSnapshot,
   RelayToExtMessage,
 } from '@oh-my-pi/pi-coding-agent/tools/browser/relay/protocol'
-import type { DISCARDED_TABS_PROTOCOL_VERSION, RelayInbound, RelayOutbound, TabSnapshot } from '@poietica/engine'
+import type {
+  DISCARDED_TABS_PROTOCOL_VERSION,
+  RelayInbound,
+  RelayOutbound,
+  TabSnapshot,
+} from '@poietica/runtime-protocol'
 
 type Assignable<From, To> = [From] extends [To] ? true : false
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false

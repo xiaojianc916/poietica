@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { EngineSession, OpenSessionSpec } from '@poietica/engine'
-import { createFakeEngine, type ScenarioScript } from '@poietica/engine-testkit'
+import type { EngineSession, OpenSessionSpec } from '@poietica/runtime-protocol'
+import { createFakeEngine, type ScenarioScript } from '@poietica/runtime-protocol-testkit'
 import { createTestLogger, fakeClock, waitFor } from '@poietica/test-kit'
 import { IDLE_TTL_MS, MAX_IDLE_SESSIONS, SessionPool, SWEEP_INTERVAL_MS } from '../session-pool'
 import { deferredOpenEngine } from './helpers'
@@ -12,7 +12,7 @@ function poolFor(opts: { clock: ReturnType<typeof fakeClock>; threads: string[] 
   const events: { threadId: string; type: string }[] = []
   const released: string[] = []
   const pool = new SessionPool({
-    engine,
+    runtime: engine,
     clock: opts.clock,
     logger: createTestLogger(),
     describe: (threadId) => {
@@ -50,7 +50,7 @@ function controlledPool(opts: {
   const released: string[] = []
   const described: string[] = []
   const pool = new SessionPool({
-    engine,
+    runtime: engine,
     clock: opts.clock,
     logger: createTestLogger(),
     describe: (threadId) => {
@@ -76,7 +76,7 @@ function controlledPool(opts: {
 
   return {
     pool,
-    engine,
+    runtime: engine,
     get pending() {
       return controlled.pending
     },
@@ -119,7 +119,7 @@ describe('CV-7 会话池：并发 acquire 只打开一次', () => {
       },
     } as typeof engine
     const pool = new SessionPool({
-      engine: broken,
+      runtime: broken,
       clock,
       logger: createTestLogger(),
       describe: (threadId) => ({
@@ -204,7 +204,7 @@ describe('R-03 §4.1 会话池：打开中的释放 / 换代 / 绑定失败', ()
     const again = c.pool.acquire('t1')
     await c.resolveOpen(1)
     expect(await again).not.toBe(session)
-    expect(c.engine.opened.length).toBe(2)
+    expect(c.runtime.opened.length).toBe(2)
   })
 
   test('P4 打开中 invalidate：落地后是旧代，下一次 acquire 释放并重开', async () => {
@@ -222,7 +222,7 @@ describe('R-03 §4.1 会话池：打开中的释放 / 换代 / 绑定失败', ()
     const reopened = await c.resolveOpen(1)
     expect(await next).toBe(reopened)
     expect(reopened).not.toBe(session)
-    expect(c.engine.opened.length).toBe(2)
+    expect(c.runtime.opened.length).toBe(2)
   })
 
   test('P5 onOpened 抛异常：acquire 拒绝、会话被 dispose，下一次 acquire 重开', async () => {
@@ -248,7 +248,7 @@ describe('R-03 §4.1 会话池：打开中的释放 / 换代 / 绑定失败', ()
     const again = c.pool.acquire('t1')
     const second = await c.resolveOpen(1)
     expect(await again).toBe(second)
-    expect(c.engine.opened.length).toBe(2)
+    expect(c.runtime.opened.length).toBe(2)
   })
 
   test('P7 release 之后立刻 acquire：拿到的是新会话，不是被取消的那条', async () => {

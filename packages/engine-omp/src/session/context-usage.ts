@@ -1,4 +1,4 @@
-import type { ContextUsage, SessionTokenUsage } from '@poietica/engine'
+import type { ContextUsage, SessionTokenUsage } from '@poietica/runtime-protocol'
 
 /*
  * omp 的上下文读数、构成与会话用量 → 引擎端口的 ContextUsage。**纯映射**，不认识 omp 类型：

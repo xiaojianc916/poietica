@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createFakeEngine } from '@poietica/engine-testkit'
 import { AppError } from '@poietica/foundation'
+import { createFakeEngine } from '@poietica/runtime-protocol-testkit'
 import { createTestLogger } from '@poietica/test-kit'
 import type { SettingDescriptor } from '../../contract'
 import { restoreSecretSettings, type SecretSettingsVault } from '../secret-settings'

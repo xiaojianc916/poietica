@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { applyOps, emptyTimeline, type TranscriptFrame, type TranscriptOperation } from '@poietica/transcript'
+import { type AgentEvent, EMPTY_THREAD_STATE, reduceAll, type TranscriptFrame } from '@poietica/agent-model'
 import { LiveProjector, TOOL_INPUT_INTERVAL_MS, TOOL_INPUT_MAX_WAIT_MS, TOOL_INPUT_MIN_GROWTH_BYTES } from '../live'
 import { framesOf, T0 } from './fixtures/live'
 
@@ -21,8 +21,8 @@ function rig() {
   }
 }
 
-function toolFrames(ops: readonly TranscriptOperation[]): Extract<TranscriptFrame, { kind: 'tool' }>[] {
-  return framesOf(applyOps(emptyTimeline(), ops)).filter(
+function toolFrames(events: readonly AgentEvent[]): Extract<TranscriptFrame, { kind: 'tool' }>[] {
+  return framesOf(reduceAll(EMPTY_THREAD_STATE, events)).filter(
     (frame): frame is Extract<TranscriptFrame, { kind: 'tool' }> => frame.kind === 'tool',
   )
 }
@@ -33,7 +33,7 @@ describe('LiveProjector · 参数流式上屏', () => {
     const ops = r.input({ title: 'A' })
     expect(ops).toHaveLength(1)
     expect(ops[0]).toMatchObject({
-      op: 'frame.upsert',
+      type: 'item.started',
       frame: {
         kind: 'tool',
         frameId: 'tool.c1',
@@ -128,14 +128,14 @@ describe('LiveProjector · 参数流式上屏', () => {
   test('I6 参数那一格之后的正文另起一帧', () => {
     const r = rig()
     const ops = [...r.p.textDelta('先说一句'), ...r.input({ html: '<p>' }), ...r.p.textDelta('再说一句')]
-    const frames = framesOf(applyOps(emptyTimeline(), ops))
+    const frames = framesOf(reduceAll(EMPTY_THREAD_STATE, ops))
     expect(frames.map((frame) => frame.kind)).toEqual(['text', 'tool', 'text'])
   })
 
   test('I7 几十 KB 连续 delta：帧数与总字节远小于逐 delta 一帧，轮终 settleInputs 带最新完整 args', () => {
     const r = rig()
     const chunk = 'x'.repeat(512)
-    const ops: TranscriptOperation[] = []
+    const ops: AgentEvent[] = []
     const totalDeltas = 200
     let html = ''
     let naiveBytes = 0
@@ -149,12 +149,14 @@ describe('LiveProjector · 参数流式上屏', () => {
     const latest = { html }
     ops.push(...r.p.turnEnd('cancelled', null))
 
-    const emitted = ops.filter((op) => op.op === 'frame.upsert' && op.frame.kind === 'tool')
-    const sentBytes = emitted.reduce(
-      (sum, op) =>
-        sum + (op.op === 'frame.upsert' && op.frame.kind === 'tool' ? JSON.stringify(op.frame.input).length : 0),
-      0,
+    const emitted = ops.filter(
+      (
+        event,
+      ): event is Extract<AgentEvent, { type: 'item.started' }> & {
+        readonly frame: Extract<TranscriptFrame, { kind: 'tool' }>
+      } => event.type === 'item.started' && event.frame.kind === 'tool',
     )
+    const sentBytes = emitted.reduce((sum, event) => sum + JSON.stringify(event.frame.input).length, 0)
     expect(html.length).toBeGreaterThanOrEqual(TOOL_INPUT_MIN_GROWTH_BYTES * 6)
     /* 200 条 delta 至少要按 250ms 时间窗合并成 O(时间) 帧，而不是 O(delta) 帧 */
     expect(emitted.length).toBeLessThanOrEqual(Math.ceil(totalDeltas / 8) + 1)

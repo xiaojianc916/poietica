@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { applyOps, emptyTimeline, type TimelineState, type TranscriptTurn } from '@poietica/transcript'
+import {
+  type AgentEvent,
+  EMPTY_THREAD_STATE,
+  materialize,
+  reduceAll,
+  type ThreadState,
+  type TranscriptTurn,
+} from '@poietica/agent-model'
 import type { LiveProjector } from '../live'
 import { projector } from './fixtures/live'
 
@@ -9,21 +16,23 @@ import { projector } from './fixtures/live'
  * 流式增量只让正在流的那一段换新对象，已落定的段引用不变（投影层按段身份复用，diff 面板才不闪）。
  */
 
-const turnOf = (state: TimelineState): TranscriptTurn => {
-  const turn = state.items.find((item): item is TranscriptTurn => item.kind === 'turn')
+const turnOf = (state: ThreadState): TranscriptTurn => {
+  const turn = materialize(state).items.find((item): item is TranscriptTurn => item.kind === 'turn')
   if (turn === undefined) throw new Error('没有轮')
   return turn
 }
 
 /** 每段装了哪些帧号 */
-const layout = (state: TimelineState): string[][] =>
+const layout = (state: ThreadState): string[][] =>
   turnOf(state).steps.map((step) => step.frames.map((frame) => frame.frameId))
 
-/** 一条助手消息开始（omp 的 message_start）：只挪指针、不产出 op，这里交回空表好摊进同一串 */
-const message = (p: LiveProjector): [] => {
+/** 一条助手消息开始（omp 的 message_start）：只挪指针、不产出事件，这里交回空表好摊进同一串 */
+const message = (p: LiveProjector): AgentEvent[] => {
   p.assistantMessageStart()
   return []
 }
+
+const fold = (events: readonly AgentEvent[]): ThreadState => reduceAll(EMPTY_THREAD_STATE, events)
 
 const edit = (p: LiveProjector, id: string) => [
   ...p.toolStart({ toolCallId: id, toolName: 'edit', args: { path: 'a.ts' } }),
@@ -33,7 +42,7 @@ const edit = (p: LiveProjector, id: string) => [
 describe('LiveProjector 的切段', () => {
   test('一条消息一段起；正文之后的工具另起一段，紧挨着的几次调用同段；下一条消息再起一段', () => {
     const p = projector()
-    const state = applyOps(emptyTimeline(), [
+    const state = fold([
       ...p.userTurn({ text: '改一下' }),
       ...message(p),
       ...p.thinkingDelta('先看看', 0),
@@ -50,7 +59,7 @@ describe('LiveProjector 的切段', () => {
 
   test('一块都不上屏的消息不占段，段号不跳', () => {
     const p = projector()
-    const state = applyOps(emptyTimeline(), [
+    const state = fold([
       ...p.userTurn({ text: 'q' }),
       ...message(p),
       ...p.textDelta('一', 0),
@@ -64,7 +73,7 @@ describe('LiveProjector 的切段', () => {
 
   test('参数先流的工具：开跑与收尾都写回参数占住的那一段，屏幕上只有一张卡片', () => {
     const p = projector()
-    const state = applyOps(emptyTimeline(), [
+    const state = fold([
       ...p.userTurn({ text: 'q' }),
       ...message(p),
       ...p.textDelta('画个界面', 0),
@@ -77,7 +86,7 @@ describe('LiveProjector 的切段', () => {
 
   test('工具在下一条消息开始之后才收尾：仍写回它开跑的那一段', () => {
     const p = projector()
-    const state = applyOps(emptyTimeline(), [
+    const state = fold([
       ...p.userTurn({ text: 'q' }),
       ...message(p),
       ...p.textDelta('后台跑着', 0),
@@ -92,7 +101,7 @@ describe('LiveProjector 的切段', () => {
 
   test('插话自占一段，之后的产出另起一段', () => {
     const p = projector()
-    const state = applyOps(emptyTimeline(), [
+    const state = fold([
       ...p.userTurn({ text: 'q' }),
       ...message(p),
       ...p.textDelta('先做', 0),
@@ -106,7 +115,7 @@ describe('LiveProjector 的切段', () => {
 
   test('思考流式：已落定的段保持同一个对象（投影层据此复用，工具卡片不重算）', () => {
     const p = projector()
-    let state = applyOps(emptyTimeline(), [
+    let state = fold([
       ...p.userTurn({ text: 'q' }),
       ...message(p),
       ...p.textDelta('我去改', 0),
@@ -114,11 +123,13 @@ describe('LiveProjector 的切段', () => {
       ...message(p),
       ...p.thinkingDelta('想', 0),
     ])
-    const [first, tools] = turnOf(state).steps
+    const committedTurn = (next: ThreadState) =>
+      next.committed.items.find((item): item is TranscriptTurn => item.kind === 'turn')
+    const [first, tools] = committedTurn(state)?.steps ?? []
 
     for (const chunk of ['一', '想', '再', '改']) {
-      state = applyOps(state, p.thinkingDelta(chunk, 0))
-      const steps = turnOf(state).steps
+      state = reduceAll(state, p.thinkingDelta(chunk, 0))
+      const steps = committedTurn(state)?.steps ?? []
       expect(steps[0]).toBe(first)
       expect(steps[1]).toBe(tools)
     }

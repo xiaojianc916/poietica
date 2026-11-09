@@ -1,13 +1,14 @@
-import type { AgentEngine, EngineSession, ModelRef, Posture } from '@poietica/engine'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, type Clock, createId, type Logger, mapLimited } from '@poietica/foundation'
+import type { EngineSession, ModelRef, Posture } from '@poietica/runtime-protocol'
 import type { Thread, TurnState } from '../contract/entities'
 import { conversationErrors } from '../contract/errors'
 import { pendingInteractionOf } from './pending-interaction'
 import type { ReclaimRepository } from './reclaim-repository'
 import type { ThreadRow, ThreadsRepository } from './repository'
 import { threadOf } from './repository'
+import type { ConversationRuntime } from './runtime'
 import type { TimelineHub } from './timeline-hub'
 import { deriveTitle, forkTitleOf, LEAKED_MARKUP_PREFIX, normalizeTitle, PENDING_TITLE } from './title'
 
@@ -24,7 +25,7 @@ export interface ThreadServiceDeps {
   readonly reclaim: ReclaimRepository
   /** 本模块库的同步事务（组合根注入 `db.transaction`） */
   readonly transaction: <T>(fn: () => T) => T
-  readonly engine: AgentEngine
+  readonly runtime: ConversationRuntime
   readonly workspaces: WorkspacesService
   readonly attachments: AttachmentsService
   readonly hub: TimelineHub
@@ -126,7 +127,7 @@ export class ThreadService {
     const next = normalizeTitle(title)
     const live = this.d.peekSession(id)
     if (live !== undefined) await live.rename(next)
-    else if (row.sessionFile !== null) await this.d.engine.sessionFiles.rename(row.sessionFile, next)
+    else if (row.sessionFile !== null) await this.d.runtime.sessionFiles.rename(row.sessionFile, next)
     /*
      * 改名不是活动：**不碰 updatedAt**。侧栏那格「N 分钟前」与排序读的都是它，
      * 改个名字就让对话跳到「现在」是把元数据编辑当成了对话活动（产品负责人
@@ -213,7 +214,7 @@ export class ThreadService {
   }
 
   /** 会话池问路：这一条线程的 cwd、会话文件、姿态、初始模型（describe） */
-  describe(threadId: string): import('@poietica/engine').OpenSessionSpec {
+  describe(threadId: string): import('@poietica/runtime-protocol').OpenSessionSpec {
     const row = this.requireRow(threadId)
     const ws = this.d.workspaces.requireUsable(row.workspaceId)
     return {
@@ -288,7 +289,7 @@ export class ThreadService {
     }
     /* 分叉的名字一并写进 omp 的新会话（P4）：行里的标题只是它的投影 */
     const forkTitle = normalizeTitle(title ?? forkTitleOf(row.title))
-    const forked = await this.d.engine.sessionFiles.fork(row.sessionFile, keepTurns, forkTitle)
+    const forked = await this.d.runtime.sessionFiles.fork(row.sessionFile, keepTurns, forkTitle)
     const now = this.d.clock.now()
     const next: ThreadRow = {
       ...row,
@@ -327,12 +328,12 @@ export class ThreadService {
       throw new AppError(conversationErrors.thread_empty, '对话还没有任何内容')
     }
     if (format === 'html') {
-      await this.d.engine.sessionFiles.exportHtml(row.sessionFile, targetPath)
+      await this.d.runtime.sessionFiles.exportHtml(row.sessionFile, targetPath)
       return { path: targetPath }
     }
     /* 模块取用与正文导出互不相干：一起发出去，别让一次模块加载排在导出后面。 */
     const [markdown, { writeFileAtomic }] = await Promise.all([
-      this.d.engine.sessionFiles.exportMarkdown(row.sessionFile),
+      this.d.runtime.sessionFiles.exportMarkdown(row.sessionFile),
       import('@poietica/fs-kit'),
     ])
     await writeFileAtomic(targetPath, markdown)
@@ -348,7 +349,7 @@ export class ThreadService {
     if (row.sessionFile === null) {
       throw new AppError(conversationErrors.thread_empty, '对话还没有任何内容')
     }
-    return await this.d.engine.sessionFiles.share(row.sessionFile)
+    return await this.d.runtime.sessionFiles.share(row.sessionFile)
   }
 
   /** 工作区被移除：该工作区的每个线程都走一遍 delete 的清理（运行中的先取消） */
@@ -396,7 +397,7 @@ export class ThreadService {
   /** 物理回收一份会话文件：成功出队；失败记账、留给下次启动重试，**不抛** —— 线程在用户看来已经删完了 */
   private async reclaimFile(sessionFile: string): Promise<boolean> {
     try {
-      await this.d.engine.sessionFiles.delete(sessionFile)
+      await this.d.runtime.sessionFiles.delete(sessionFile)
       this.d.reclaim.done(sessionFile)
       return true
     } catch (error) {
@@ -429,7 +430,7 @@ export class ThreadService {
       .filter((bound) => !this.d.isOpening(bound.id) && this.d.peekSession(bound.id) === undefined)
     const checked = await mapLimited(candidates, 4, async (bound) => {
       try {
-        return { bound, exists: await this.d.engine.sessionFiles.exists(bound.sessionFile) }
+        return { bound, exists: await this.d.runtime.sessionFiles.exists(bound.sessionFile) }
       } catch (error) {
         /* 读不了（权限 / 盘符没挂上）不等于不存在：不动它 */
         this.d.logger.warn('session file check failed', { threadId: bound.id, error: String(error) })

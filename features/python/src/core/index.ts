@@ -78,17 +78,17 @@ export default defineCoreModule({
       const plan = onReadyPlan({
         marker,
         exeExists: await Bun.file(exe).exists(),
-        interpreter: await ctx.engine.settings.getPythonInterpreter().catch(() => null),
+        interpreter: await ctx.agentRuntime.settings.getPythonInterpreter().catch(() => null),
         pythonDir,
       })
 
       if (plan.ready && plan.exePath !== null) {
         setStatus(statusOf('ready', null, null, plan.exePath))
-        await ctx.engine.settings.setPythonInterpreter(plan.exePath)
+        await ctx.agentRuntime.settings.setPythonInterpreter(plan.exePath)
         return
       }
       setStatus(statusOf('absent'))
-      if (plan.clearInterpreter) await ctx.engine.settings.setPythonInterpreter(null)
+      if (plan.clearInterpreter) await ctx.agentRuntime.settings.setPythonInterpreter(null)
     })
 
     /** 上次没删干净的暂存 / 旧目录：启动时清掉（失败只记 warn，不挡启动）。 */
@@ -134,7 +134,7 @@ export default defineCoreModule({
         await installer.install()
         const exe = path.join(pythonDir, 'python.exe')
         setStatus(statusOf('ready', null, null, exe))
-        await ctx.engine.settings.setPythonInterpreter(exe)
+        await ctx.agentRuntime.settings.setPythonInterpreter(exe)
       } catch (e) {
         /* 失败原因只从 AppError 的错误码取（铁律 5）：installer 抛什么就报什么，别的异常一律归 download_failed。 */
         const code = e instanceof AppError ? e.code : pythonErrors.download_failed
@@ -150,7 +150,7 @@ export default defineCoreModule({
         throw new AppError(pythonErrors.busy, '正在安装 Python，请稍候')
       }
 
-      await ctx.engine.settings.setPythonInterpreter(null)
+      await ctx.agentRuntime.settings.setPythonInterpreter(null)
       try {
         await rm(pythonDir, { recursive: true, force: true })
       } catch {}

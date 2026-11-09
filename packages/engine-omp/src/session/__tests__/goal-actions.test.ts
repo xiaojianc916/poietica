@@ -3,8 +3,13 @@ import { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
 import { GoalRuntime } from '@oh-my-pi/pi-coding-agent/goals/runtime'
 import type { GoalModeState } from '@oh-my-pi/pi-coding-agent/goals/state'
 import type { RpcGoalSession } from '@oh-my-pi/pi-coding-agent/modes/rpc/rpc-goal'
-import { EngineErrorCode, type EngineSession, type EngineSessionEvent, type OpenSessionSpec } from '@poietica/engine'
 import { type AppError, noopLogger, SystemErrorCode } from '@poietica/foundation'
+import {
+  EngineErrorCode,
+  type EngineSession,
+  type EngineSessionEvent,
+  type OpenSessionSpec,
+} from '@poietica/runtime-protocol'
 import { hashMediaRef } from '../../projector/media'
 import { overrideSetting } from '../../settings-access'
 import { createGoalHost, type GoalHost } from '../goal-host'

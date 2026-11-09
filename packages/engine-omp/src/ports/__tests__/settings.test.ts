@@ -112,7 +112,7 @@ describe('SettingsPort', () => {
 
   test('catalog 的每一条都过 zod（SettingDescriptor）', async () => {
     const { port } = makePort()
-    const { SettingDescriptor } = await import('@poietica/engine')
+    const { SettingDescriptor } = await import('@poietica/runtime-protocol')
     for (const entry of await port.catalog()) {
       expect(SettingDescriptor.safeParse(entry).success).toBe(true)
     }

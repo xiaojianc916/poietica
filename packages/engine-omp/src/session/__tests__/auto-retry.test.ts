@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { EngineSessionEvent } from '@poietica/engine'
-import { applyOps, emptyTimeline, type RetryNotice, retryNoticeOf } from '@poietica/transcript'
+import { EMPTY_THREAD_STATE, materialize, type RetryNotice, reduceAll, retryNoticeOf } from '@poietica/agent-model'
+import type { EngineSessionEvent } from '@poietica/runtime-protocol'
 import { fakeOmpSession } from '../../projector/__tests__/fixtures/omp-session'
 
 /*
@@ -18,8 +18,8 @@ interface RetryCell {
 }
 
 function retryCellsOf(events: readonly EngineSessionEvent[]): RetryCell[] {
-  const ops = events.flatMap((event) => (event.type === 'timeline' ? event.ops : []))
-  const state = applyOps(emptyTimeline(), ops)
+  const timeline = events.flatMap((event) => (event.type === 'timeline' ? event.events : []))
+  const state = materialize(reduceAll(EMPTY_THREAD_STATE, timeline))
   const out: RetryCell[] = []
   for (const item of state.items) {
     if (item.kind !== 'turn') continue

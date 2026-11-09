@@ -1,4 +1,4 @@
-import type { InteractionAnswer } from '@poietica/engine'
+import type { InteractionAnswer } from '@poietica/runtime-protocol'
 import type { InteractionDraft } from './broker'
 
 /*

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { Controls } from '@poietica/engine'
+import type { Controls } from '@poietica/runtime-protocol'
 import { POSTURE_TO_CONTROL, postureOfControl, sessionConfigControlsOf } from '../session/configuration/control-shapes'
 import { permissionPosturesOf } from '../shared/model/permission-posture'
 

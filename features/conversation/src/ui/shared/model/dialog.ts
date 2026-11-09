@@ -1,4 +1,4 @@
-import type { InteractionAnswer } from '@poietica/engine'
+import type { InteractionAnswer } from '@poietica/runtime-protocol'
 
 /*
  * 三类单问（Q1-E）：扩展与工具经 omp 的 `ctx.ui` 发来的「是否 / 单选 / 一句话」。

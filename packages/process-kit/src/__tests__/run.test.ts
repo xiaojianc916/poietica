@@ -27,12 +27,13 @@ describe('run', () => {
     expect(result.stdout).toBe('abc')
   })
 
-  test('超时：杀整棵进程树并在 1 秒内抛 RunError(timeout)', async () => {
+  test('超时：杀整棵进程树并在有界时间内抛 RunError(timeout)', async () => {
     const started = Date.now()
     const error = await run(NODE, ['-e', 'setTimeout(() => {}, 60000)'], { timeoutMs: 300 }).catch((e: unknown) => e)
     expect(error).toBeInstanceOf(RunError)
     expect((error as RunError).reason).toBe('timeout')
-    expect(Date.now() - started).toBeLessThan(1000)
+    /* Windows 的 taskkill 在系统繁忙时会花上一秒以上；这里只钉「不会挂住」，不赌具体时钟。 */
+    expect(Date.now() - started).toBeLessThan(5000)
   })
 
   test('中止：抛 RunError(aborted)', async () => {

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { parseRelayToken } from '@poietica/engine'
+import { parseRelayToken } from '@poietica/runtime-protocol'
 import { ensureRelayToken, prepareRelayToken, RELAY_TOKEN_FILE_ENV } from '../relay-token'
 
 const dirs: string[] = []

@@ -15,7 +15,7 @@ omp（Oh My Pi）经引擎端口接入，随包发布，与用户机器上的全
                           ▲ 插入                 ▲ 插入                      ▲ 插入
 ┌─────────── UI 进程 ───────────┐ ┌────────── Host 进程 ──────────┐ ┌────────── Core 进程 ──────────┐
 │ ui-kernel（贡献点、服务）     │ │ host-kernel（模块、RpcHub）    │ │ core-kernel（模块、迁移、服务）│
-│ workbench（外壳，只渲染贡献） │◄┤ CoreSupervisor（看护 Core）   ├►│ engine 端口 ◄── engine-omp 适配 │
+│ workbench（外壳，只渲染贡献） │◄┤ CoreSupervisor（看护 Core）   ├►│ runtime-protocol ◄─ engine-omp │
 │ design-system                 │ │ Electron                      │ │ omp SDK（随包、隔离）           │
 └───────────────────────────────┘ └───────────────────────────────┘ └────────────────────────────────┘
         IPC 'poietica:rpc'（JSON-RPC 2.0）          stdio（\x1e 帧，JSON-RPC 2.0）
@@ -25,7 +25,7 @@ omp（Oh My Pi）经引擎端口接入，随包发布，与用户机器上的全
 
 1. **一个功能只在一个地方**：新增或删除一个功能 = 增删 `features/<x>/` 一个目录，再在应用清单里增删各一行。
 2. **外壳不认识功能**：workbench 与三个内核里不出现任何具体功能的名字，只渲染与调度「贡献」。
-3. **业务不认识 omp**：除 `packages/engine-omp/**` 外，全仓任何地方都不 import `@oh-my-pi/*`。
+3. **业务不认识 omp**：除 `packages/runtime-protocol-omp/**` 外，全仓任何地方都不 import `@oh-my-pi/*`。
 4. **运行时由类型系统把关**：每个包、每个子入口按运行时继承 tsconfig 预设；在 UI 代码里写 `import fs from 'node:fs'`，类型检查直接失败。
 5. **每份事实只存一处**：对话内容只在 omp 会话文件里；其余数据各有唯一主人（§6）。
 
@@ -36,7 +36,7 @@ L5  汇总与外壳   protocol · workbench · apps/core · apps/desktop
 L4  功能         features/*（18 个垂直功能包）
 L3  内核与适配   core-kernel · host-kernel · ui-kernel · design-system · engine-omp · engine-testkit
 L2  运行时工具   runtime-layout · process-kit · fs-kit · logging · storage-sqlite · git · test-kit
-L1  契约与模型   contract-kit · rpc · transcript · engine
+L1  契约与模型   contract-kit · rpc · agent-model · omp-types · runtime-protocol · stream-kit
 L0  基础         foundation
 ```
 
@@ -57,8 +57,8 @@ L0  基础         foundation
 
 | 子入口     | 运行时        | 可以 import                                                                                                      |
 | ---------- | ------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `contract` | neutral       | `contract-kit`、`foundation`、`transcript`（仅 conversation）、zod、**其它功能的 `contract`**                    |
-| `core-api` | neutral       | 本功能 `contract`、`foundation`、`engine`（类型）、`@poietica/core-kernel/events`                                |
+| `contract` | neutral       | `contract-kit`、`foundation`、`agent-model`（仅 conversation）、zod、**其它功能的 `contract`**                   |
+| `core-api` | neutral       | 本功能 `contract`、`foundation`、`runtime-protocol`（类型）、`@poietica/core-kernel/events`                      |
 | `core`     | bun           | 本功能 `contract` / `core-api`、L0–L3 的 bun/node/neutral 包、**依赖功能的 `contract` / `core-api`**             |
 | `host`     | electron-main | 本功能 `contract`、`host-kernel`、L0–L2 的 node/neutral 包、electron、**依赖功能的 `contract`**                  |
 | `ui-api`   | dom           | 本功能 `contract`、`ui-kernel`、`design-system`、react                                                           |
@@ -67,7 +67,7 @@ L0  基础         foundation
 任何子入口都不得 import 其它功能的 `core` / `host` / `ui`。
 
 `ui` / `ui-api` 表里的「可以 import」只列业务协作入口；L0–L1 的 neutral 包（`foundation`、`contract-kit`、`rpc`、
-`transcript`、`engine`）按层级同样可用，不重复展开。系统能力仍按原表走 `platform` 契约或内核服务。
+`agent-model`、`runtime-protocol`）按层级同样可用，不重复展开。系统能力仍按原表走 `platform` 契约或内核服务。
 
 功能之间还有**方向**：`tooling/depcruise/feature-tiers.json` 把 L4 分成五级——0 平台（platform）、1 基础状态
 （preferences、workspaces）、2 能力（attachments、models）、3 主干（conversation）、4 插件（其余）。产品代码只能依赖
@@ -151,7 +151,7 @@ UI 功能的注册项按功能持有：`setup` 中途失败时立即逆序释放
 
 - **方法名**：`<命名空间>.<动作>`，例如 `threads.create`。
 - **owner**：`core` 或 `host`，决定 RpcHub 把请求发给谁。
-- **通知名**：与命名空间同规则，例如 `timeline.ops`。
+- **通知名**：与命名空间同规则，例如 `timeline.events`。
 - **错误码**：`<契约 id>.<snake_case>`，由功能自己的 `defineErrors` 定义；系统级错误码是 `kernel.*`。
 - **协议版本**：`packages/protocol/src/version.ts` 的 `PROTOCOL_VERSION`。**任何契约形状变化都要提升它**
   并跑 `bun run protocol:snapshot`。它只用来发现「安装损坏」或「忘了重建 Core」——
@@ -162,8 +162,11 @@ UI 功能的注册项按功能持有：`setup` 中途失败时立即逆序释放
 
 ## 6. 引擎端口与 omp 隔离
 
-业务只认识 `@poietica/engine` 的接口；`@poietica/engine-omp` 是唯一实现，也是全仓唯一
+业务只认识 `@poietica/runtime-protocol` 的接口；omp 的公开类型经 `@poietica/omp-types` 只读导出。`@poietica/runtime-protocol-omp` 是唯一实现，也是全仓唯一
 import `@oh-my-pi/*` 的地方（`apps/core/scripts` 的构建脚本是唯一例外）。
+
+工具调用的入参/产出也在 `omp-types` 里按工具名各有其形（`OmpToolInput<N>` / `OmpToolDetails<N>`）：时间线的每格卡片拿到的是收口好的载荷，
+不再按字段名探测 `unknown`；认不出的工具只有 generic 兜底那一档。
 
 隔离的三条硬要求：
 
@@ -176,16 +179,17 @@ omp 的版本锁在根 `package.json` 的 catalog（四个 `@oh-my-pi/*` 同一�
 
 ## 7. 数据与存储
 
-| 数据                                 | 唯一主人      | 落点                                                                                                     |
-| ------------------------------------ | ------------- | -------------------------------------------------------------------------------------------------------- |
-| 对话内容                             | omp           | `omp/agent/sessions/*.jsonl`                                                                             |
-| 线程/工作区/附件/自动化/用量的元数据 | 各功能的 core | `core/poietica.db`（SQLite）                                                                             |
-| 附件内容                             | attachments   | `attachments/<sha 前两位>/<sha>`                                                                         |
-| 用户偏好 / 布局记忆 / 快捷键         | preferences   | `preferences.json` / `ui-state.json` / `keymap.json`                                                     |
-| 窗口位置                             | platform      | `window-state.json`                                                                                      |
-| 内置 Python                          | python        | `tools/python/`                                                                                          |
-| 内置浏览器                           | browser       | `session/Partitions/persist:poietica-browser`                                                            |
-| 日志                                 | Host / Core   | `logs/main.log` / `logs/core.log`（各只有一个写者：Host 写 main，Core 自己写 core；stderr 只留意外输出） |
+| 数据                                             | 唯一主人      | 落点                                                                                                     |
+| ------------------------------------------------ | ------------- | -------------------------------------------------------------------------------------------------------- |
+| 对话内容                                         | omp           | `omp/agent/sessions/*.jsonl`                                                                             |
+| 线程/工作区/附件/自动化/用量的元数据             | 各功能的 core | `core/poietica.db`（SQLite）                                                                             |
+| 产品记录（运行、交互、策略、检查点、用量、中断） | journal       | `core/poietica.db` 的 `journal_events`（按 `(thread_id, agent_id, seq)` 追加）                           |
+| 附件内容                                         | attachments   | `attachments/<sha 前两位>/<sha>`                                                                         |
+| 用户偏好 / 布局记忆 / 快捷键                     | preferences   | `preferences.json` / `ui-state.json` / `keymap.json`                                                     |
+| 窗口位置                                         | platform      | `window-state.json`                                                                                      |
+| 内置 Python                                      | python        | `tools/python/`                                                                                          |
+| 内置浏览器                                       | browser       | `session/Partitions/persist:poietica-browser`                                                            |
+| 日志                                             | Host / Core   | `logs/main.log` / `logs/core.log`（各只有一个写者：Host 写 main，Core 自己写 core；stderr 只留意外输出） |
 
 规则：数据路径只来自 `DataLayout`；SQL 只写在功能的 `core/repository.ts`，表名以功能 id
 （`-` 换 `_`）为前缀，内核启动时校验。JSON 文件统一走 `@poietica/fs-kit` 的
@@ -193,13 +197,13 @@ omp 的版本锁在根 `package.json` 的 catalog（四个 `@oh-my-pi/*` 同一�
 
 ## 8. 测试策略
 
-| 层     | 位置                                                                         | 说明                                                      |
-| ------ | ---------------------------------------------------------------------------- | --------------------------------------------------------- |
-| 单元   | `packages/*/src/**/__tests__`、`features/*/src/**/__tests__`                 | 纯函数与不依赖内核的类                                    |
-| 内核级 | 同上，`@poietica/core-kernel/testing` 的 `createCoreHarness`                 | 只装被测模块及其依赖的真实内核 + FakeEngine               |
-| 一致性 | `@poietica/engine-testkit`                                                   | 同一套用例分别跑 FakeEngine 与 OmpEngine，保证替身可信    |
-| 隔离   | `packages/engine-omp/src/__tests__/isolation.test.ts` + `bun run core:probe` | 进程级自检与假用户目录零写入                              |
-| 端到端 | `bun run dev`（真机）                                                        | 界面流程；发布前另有安装包冒烟（`bun run desktop:smoke`） |
+| 层     | 位置                                                                                   | 说明                                                      |
+| ------ | -------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| 单元   | `packages/*/src/**/__tests__`、`features/*/src/**/__tests__`                           | 纯函数与不依赖内核的类                                    |
+| 内核级 | 同上，`@poietica/core-kernel/testing` 的 `createCoreHarness`                           | 只装被测模块及其依赖的真实内核 + FakeEngine               |
+| 一致性 | `@poietica/runtime-protocol-testkit`                                                   | 同一套用例分别跑 FakeEngine 与 OmpEngine，保证替身可信    |
+| 隔离   | `packages/runtime-protocol-omp/src/__tests__/isolation.test.ts` + `bun run core:probe` | 进程级自检与假用户目录零写入                              |
+| 端到端 | `bun run dev`（真机）                                                                  | 界面流程；发布前另有安装包冒烟（`bun run desktop:smoke`） |
 
 **不测外观**：颜色、圆角、边框、间距、字号这类「长什么样」的事实归样式表，单测不钉 —— 它们改一次就要连带改一次断言，而断言红了也不代表界面坏了；样式表被整体改坏由真机（`bun run dev`）与 `check:ticker` 这类布局检查发现。测试只钉**行为与语义**：什么触发了什么、数据往返、错误分类、无障碍属性、几何不变量。
 

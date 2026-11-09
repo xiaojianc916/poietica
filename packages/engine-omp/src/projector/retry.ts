@@ -1,4 +1,4 @@
-import type { RetryNotice, RetryNoticeState } from '@poietica/transcript'
+import type { RetryNotice, RetryNoticeState } from '@poietica/agent-model'
 
 /*
  * 自动重试那一格的文字（omp 的 auto_retry_start / auto_retry_end）。报错原文照抄给展开那一面看，

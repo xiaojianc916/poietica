@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { applyOps, emptyTimeline, pageFromState, type TranscriptOperation } from '@poietica/transcript'
+import { type AgentEvent, EMPTY_THREAD_STATE, reduceAll, snapshotOf } from '@poietica/agent-model'
 import { wireTextOf } from '../../session/prompt'
 import { projectHistoryPage } from '../history'
 import { FILE_MEDIA_TYPE } from '../live'
@@ -21,9 +21,9 @@ function sent(text: string, at: number) {
   return { role: 'user', timestamp: T0 + at, content: wireTextOf({ text, files: FILES }) }
 }
 
-function turnOf(ops: readonly TranscriptOperation[]) {
-  const op = ops.find((entry) => entry.op === 'turn.upsert')
-  return op?.op === 'turn.upsert' ? op.turn : undefined
+function turnOf(events: readonly AgentEvent[]) {
+  const event = events.find((entry) => entry.type === 'run.started')
+  return event?.type === 'run.started' ? event.run : undefined
 }
 
 describe('历史分页：文件从投递正文读回来', () => {
@@ -80,23 +80,23 @@ describe('历史分页：文件从投递正文读回来', () => {
 describe('LiveProjector：文件条目', () => {
   test('userTurn 带 files：条目只有名字，轮头挂号；openTurnAttachments 只留图', () => {
     const p = projector()
-    const ops = p.userTurn({ text: '看看', files: [{ attachmentId: 'f#0', name: 'div.md' }] })
-    const page = pageFromState(applyOps(emptyTimeline(), ops))
+    const events = p.userTurn({ text: '看看', files: [{ attachmentId: 'f#0', name: 'div.md' }] })
+    const page = snapshotOf(reduceAll(EMPTY_THREAD_STATE, events))
 
     expect(page.attachments).toEqual([{ attachmentId: 'f#0', mediaType: FILE_MEDIA_TYPE, name: 'div.md' }])
-    expect(turnOf(ops)?.attachmentIds).toEqual(['f#0'])
+    expect(turnOf(events)?.attachmentIds).toEqual(['f#0'])
     expect(p.openTurnAttachments).toEqual([])
   })
 
   test('插话带文件：条目先到，插话帧挂上号', () => {
     const p = projector()
     p.userTurn({ text: 'q' })
-    const ops = p.steeredFrame('再看这个', [], [{ attachmentId: 's#f0', name: 'a.md' }])
-    const frame = ops.find((op) => op.op === 'frame.upsert')
+    const events = p.steeredFrame('再看这个', [], [{ attachmentId: 's#f0', name: 'a.md' }])
+    const frame = events.find((event) => event.type === 'item.started')
 
-    expect(ops[0]?.op).toBe('attachment.upsert')
-    expect(frame?.op === 'frame.upsert' && frame.frame.kind === 'text' ? frame.frame.attachmentIds : undefined).toEqual(
-      ['s#f0'],
-    )
+    expect(events[0]?.type).toBe('attachment.added')
+    expect(
+      frame?.type === 'item.started' && frame.frame.kind === 'text' ? frame.frame.attachmentIds : undefined,
+    ).toEqual(['s#f0'])
   })
 })

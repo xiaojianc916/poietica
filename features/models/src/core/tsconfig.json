@@ -6,10 +6,10 @@
       "path": "../../../../packages/core-kernel"
     },
     {
-      "path": "../../../../packages/engine"
+      "path": "../../../../packages/foundation"
     },
     {
-      "path": "../../../../packages/foundation"
+      "path": "../../../../packages/runtime-protocol"
     },
     {
       "path": "../../../secrets/src/contract"

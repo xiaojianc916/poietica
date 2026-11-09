@@ -1,4 +1,4 @@
-import { ModelRef, Posture } from '@poietica/engine'
+import { ModelRef, Posture } from '@poietica/runtime-protocol'
 import { z } from 'zod'
 
 export const Schedule = z.object({

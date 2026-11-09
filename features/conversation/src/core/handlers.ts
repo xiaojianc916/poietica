@@ -3,6 +3,7 @@ import { AppError } from '@poietica/foundation'
 import type { conversationContract } from '../contract'
 import { MAIN_AGENT_ID } from '../contract/entities'
 import type { ConversationCore } from './conversation'
+import type { SideTopicHub } from './side-topic-hub'
 import type { TimelineHub } from './timeline-hub'
 
 type Ctx = CoreModuleContext<typeof conversationContract>
@@ -10,7 +11,7 @@ type Ctx = CoreModuleContext<typeof conversationContract>
 import { wireCatchUp, wirePage, wireSnapshot } from './wire'
 
 /** 一页里出现过的 turn 号：提交行的 `started` 判据（在这一页里就不用再画提交行）。 */
-function turnIdsOf(page: import('@poietica/transcript').TranscriptPage): ReadonlySet<string> {
+function turnIdsOf(page: import('@poietica/agent-model').TranscriptPage): ReadonlySet<string> {
   const ids = new Set<string>()
   for (const item of page.items) {
     if (item.kind === 'turn') ids.add(item.turnId)
@@ -19,7 +20,7 @@ function turnIdsOf(page: import('@poietica/transcript').TranscriptPage): Readonl
 }
 
 /** 契约方法 → 服务调用（每个 handler 一行） */
-export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: TimelineHub): void {
+export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: TimelineHub, sideHub: SideTopicHub): void {
   /* 三份服务直接调（R-08-7 撤掉了门面上的纯转发）：这里只认它们各自的公开方法 */
   const { threads, turns, submissions } = core
 
@@ -127,6 +128,10 @@ export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: Timeline
   }))
   ctx.rpc.handle('side.cancel', ({ threadId, topicId }) => ({ cancelled: turns.cancelSide(threadId, topicId) }))
   ctx.rpc.handle('side.list', async ({ threadId }) => ({ topics: [...(await turns.sideTopics(threadId))] }))
+  ctx.rpc.handle('side.catchUp', ({ threadId, topicId, epoch, sinceSeq }) => {
+    const result = sideHub.catchUp(threadId, topicId, epoch, sinceSeq)
+    return { ...result, batches: [...result.batches] }
+  })
 
   ctx.rpc.handle('controls.draft', (p) => turns.draftControls(p))
   ctx.rpc.handle('controls.setDraft', async (p) => {

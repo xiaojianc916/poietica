@@ -9,5 +9,5 @@ export interface RowSpan {
 export function rowAtAnchor<Span extends RowSpan>(spans: readonly Span[], anchor: number): Span | null {
   const found = lastAtOrBefore(spans, (span) => span.start, anchor)
 
-  return spans[found < 0 ? 0 : found] ?? null
+  return spans[Math.max(found, 0)] ?? null
 }

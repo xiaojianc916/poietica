@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { SubmitInput } from '@poietica/engine'
 import { AppError } from '@poietica/foundation'
+import type { SubmitInput } from '@poietica/runtime-protocol'
 import {
   type ExpandSkillOptions,
   expandSkillMessage,

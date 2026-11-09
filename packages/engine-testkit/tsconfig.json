@@ -3,13 +3,13 @@
   "include": ["src"],
   "references": [
     {
-      "path": "../engine"
+      "path": "../agent-model"
     },
     {
       "path": "../foundation"
     },
     {
-      "path": "../transcript"
+      "path": "../runtime-protocol"
     }
   ]
 }

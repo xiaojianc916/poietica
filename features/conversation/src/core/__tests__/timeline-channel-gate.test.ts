@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
+import type { AgentEvent, TranscriptFrame } from '@poietica/agent-model'
 import { fakeClock } from '@poietica/test-kit'
-import type { TranscriptOperation } from '@poietica/transcript'
 import { BATCH_WINDOW_MS, RING_MAX_CHARS, TimelineChannel, TOOL_UPDATE_INTERVAL_MS } from '../timeline-channel'
 
 /*
@@ -10,40 +10,74 @@ import { BATCH_WINDOW_MS, RING_MAX_CHARS, TimelineChannel, TOOL_UPDATE_INTERVAL_
  * 但能证明终态会作废压着的中间结果）；K2、K5、K6、K8 是正确性护栏，旧代码上也过。
  */
 describe('P-05 通道压缩与节流', () => {
-  type Batch = { epoch: number; seq: number; ops: readonly TranscriptOperation[] }
+  type Batch = { epoch: number; seq: number; events: readonly AgentEvent[] }
+  const AT = '2026-01-01T00:00:00.000Z'
   const TURN = 't1'
   const STEP = 't1:s0'
-  const append = (offset: number, text: string): TranscriptOperation => ({
-    op: 'append',
-    target: { type: 'frame', turnId: TURN, stepId: STEP, frameId: 'text' },
+  const delta = (offset: number, text: string): AgentEvent => ({
+    type: 'item.delta',
+    durability: 'ephemeral',
+    schema: 1,
+    at: AT,
+    turnId: TURN,
+    stepId: STEP,
+    frameId: 'text',
+    channel: 'text',
     offset,
     text,
   })
-  const tool = (frameId: string, state: 'running' | 'done', output: string): TranscriptOperation =>
-    ({
-      op: 'frame.upsert',
-      turnId: TURN,
-      stepId: STEP,
-      frame: { kind: 'tool', frameId, toolCallId: frameId, name: 'bash', state, output },
-    }) as TranscriptOperation
-  const outputOf = (op: TranscriptOperation | undefined): unknown =>
-    op?.op === 'frame.upsert' && op.frame.kind === 'tool' ? op.frame.output : undefined
+  const toolFrame = (frameId: string, state: 'running' | 'done', output: string): TranscriptFrame => ({
+    kind: 'tool',
+    frameId,
+    toolCallId: frameId,
+    name: 'bash',
+    state,
+    output,
+  })
+  /* 运行中 = item.started；终态 = item.completed（与 projector 一致） */
+  const tool = (frameId: string, state: 'running' | 'done', output: string): AgentEvent =>
+    state === 'running'
+      ? {
+          type: 'item.started',
+          durability: 'committed',
+          schema: 1,
+          at: AT,
+          turnId: TURN,
+          stepId: STEP,
+          frame: toolFrame(frameId, state, output),
+        }
+      : {
+          type: 'item.completed',
+          durability: 'committed',
+          schema: 1,
+          at: AT,
+          turnId: TURN,
+          stepId: STEP,
+          frame: toolFrame(frameId, state, output),
+        }
+  const itemEventOf = (event: AgentEvent | undefined) =>
+    event?.type === 'item.started' || event?.type === 'item.completed' ? event : undefined
+  const frameOf = (event: AgentEvent | undefined) => itemEventOf(event)?.frame
+  const outputOf = (event: AgentEvent | undefined): unknown => {
+    const frame = frameOf(event)
+    return frame?.kind === 'tool' ? frame.output : undefined
+  }
   const toolOps = (batches: readonly Batch[], frameId: string) =>
-    batches.flatMap((batch) => batch.ops).filter((op) => op.op === 'frame.upsert' && op.frame.frameId === frameId)
+    batches.flatMap((batch) => batch.events).filter((event) => frameOf(event)?.frameId === frameId)
 
   function open() {
     const clock = fakeClock()
     const batches: Batch[] = []
-    const channel = new TimelineChannel(1, () => 2, clock, { ops: (p) => batches.push(p), reset: () => undefined })
+    const channel = new TimelineChannel(1, () => 2, clock, { events: (p) => batches.push(p), reset: () => undefined })
     return { clock, batches, channel }
   }
 
   test('K1 一个窗口里 30 个 token：批内只剩 1 条 append', () => {
     const { clock, batches, channel } = open()
-    for (let at = 0; at < 30; at += 1) channel.push([append(at, 'x')])
+    for (let at = 0; at < 30; at += 1) channel.push([delta(at, 'x')])
     clock.advance(BATCH_WINDOW_MS)
     expect(batches.length).toBe(1)
-    expect(batches[0]?.ops).toEqual([append(0, 'x'.repeat(30))])
+    expect(batches[0]?.events).toEqual([delta(0, 'x'.repeat(30))])
     channel.dispose()
   })
 
@@ -93,7 +127,7 @@ describe('P-05 通道压缩与节流', () => {
     const at = channel.position()
     const caught = channel.catchUp(at.epoch, 0)
     expect(caught.complete).toBe(true)
-    expect(outputOf(caught.batches.at(-1)?.ops.at(-1))).toBe('partial')
+    expect(outputOf(caught.batches.at(-1)?.events.at(-1))).toBe('partial')
     channel.dispose()
   })
 
@@ -124,10 +158,16 @@ describe('P-05 通道压缩与节流', () => {
     const { clock, batches, channel } = open()
     channel.push([tool('A', 'running', '')])
     clock.advance(BATCH_WINDOW_MS)
-    const remove = { op: 'items.remove', ids: [TURN] } as TranscriptOperation
+    const remove: AgentEvent = {
+      type: 'item.removed',
+      durability: 'committed',
+      schema: 1,
+      at: AT,
+      ids: [TURN],
+    }
     channel.push([tool('A', 'running', 'partial'), remove])
     clock.advance(BATCH_WINDOW_MS)
-    expect(batches.at(-1)?.ops.map((op) => op.op)).toEqual(['frame.upsert', 'items.remove'])
+    expect(batches.at(-1)?.events.map((event) => event.type)).toEqual(['item.started', 'item.removed'])
     channel.dispose()
   })
 })

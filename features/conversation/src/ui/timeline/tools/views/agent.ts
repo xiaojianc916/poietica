@@ -1,21 +1,6 @@
+import type { OmpTodoItem, OmpTodoPhase, OmpToolInput } from '@poietica/omp-types'
 import type { Handler } from '../view-kit'
-import {
-  bag,
-  code,
-  failOr,
-  get,
-  join,
-  list,
-  NONE,
-  numb,
-  oneLine,
-  pick,
-  prose,
-  proseSaid,
-  saidText,
-  strings,
-  view,
-} from '../view-kit'
+import { code, failOr, given, join, listOf, NONE, oneLine, prose, proseSaid, saidText, view } from '../view-kit'
 
 export const TODO_OPS: Readonly<Record<string, string>> = {
   append: '追加任务',
@@ -38,29 +23,26 @@ export const TASK_MARKS: Readonly<Record<string, string>> = {
 }
 
 // omp 清单分段、四档状态（比协议多一档「丢弃」），自己拼 GFM 任务清单。
-export function taskLine(task: unknown): string {
-  const content = pick(task, 'content') ?? ''
-  const status = pick(task, 'status') ?? 'pending'
-  const box = status === 'completed' ? '- [x]' : status === 'abandoned' ? '- [~]' : '- [ ]'
-  const blocker = status === 'blocked' ? pick(task, 'blocker') : undefined
-  const note = blocker === undefined ? (TASK_MARKS[status] ?? '') : `（阻塞：${blocker}）`
+function taskLine(task: OmpTodoItem): string {
+  const box = task.status === 'completed' ? '- [x]' : task.status === 'abandoned' ? '- [~]' : '- [ ]'
+  const note =
+    task.status === 'blocked' && task.blocker !== undefined
+      ? `（阻塞：${task.blocker}）`
+      : (TASK_MARKS[task.status] ?? '')
 
-  return `${box} ${content}${note}`
+  return `${box} ${task.content}${note}`
 }
 
-export function checklistOf(phases: readonly unknown[]): string {
+function checklistOf(phases: readonly OmpTodoPhase[]): string {
   const lines: string[] = []
   const many = phases.length > 1
 
   for (const entry of phases) {
-    const name = pick(entry, 'name')
-    const tasks = list(entry, 'tasks')
-
-    if (many && name !== undefined && tasks.length > 0) {
-      lines.push(lines.length === 0 ? `**${name}**` : `\n**${name}**`)
+    if (many && entry.name !== '' && entry.tasks.length > 0) {
+      lines.push(lines.length === 0 ? `**${entry.name}**` : `\n**${entry.name}**`)
     }
 
-    for (const task of tasks) {
+    for (const task of entry.tasks) {
       lines.push(taskLine(task))
     }
   }
@@ -69,29 +51,29 @@ export function checklistOf(phases: readonly unknown[]): string {
 }
 
 // init 给分段的 list，append 给平铺的 items；归一成同一种形后只有一条画法。
-export function argPhases(input: unknown): readonly unknown[] {
-  const items = list(input, 'items')
+function argPhases(input: OmpToolInput<'todo'> | undefined): readonly OmpTodoPhase[] {
+  const items = input?.items ?? []
 
   if (items.length > 0) {
     return [
       {
-        name: pick(input, 'phase') ?? '',
+        name: input?.phase ?? '',
         tasks: items.map((content) => ({ content, status: 'pending' })),
       },
     ]
   }
 
-  return list(input, 'list').map((entry) => ({
-    name: pick(entry, 'phase') ?? '',
-    tasks: list(entry, 'items').map((content) => ({ content, status: 'pending' })),
+  return (input?.list ?? []).map((entry) => ({
+    name: entry.phase ?? '',
+    tasks: (entry.items ?? []).map((content) => ({ content, status: 'pending' as const })),
   }))
 }
 
-export const todoView: Handler = (ctx) => {
-  const op = pick(ctx.input, 'op') ?? 'view'
-  const task = pick(ctx.input, 'task') ?? pick(ctx.input, 'phase') ?? ''
+export const todoView: Handler<'todo'> = (ctx) => {
+  const op = given(ctx.input?.op) ?? 'view'
+  const task = given(ctx.input?.task) ?? ctx.input?.phase ?? ''
   // 产出的 phases 是落定后的清单（正本）；还没有产出时才照入参画。
-  const board = checklistOf(list(ctx.details, 'phases'))
+  const board = checklistOf(ctx.details?.phases ?? [])
   const drawn = board === '' ? checklistOf(argPhases(ctx.input)) : board
   const landed = board !== ''
   const head = TODO_OPS[op] ?? op
@@ -106,18 +88,16 @@ export const todoView: Handler = (ctx) => {
   )
 }
 
-export const askView: Handler = (ctx) => {
-  const questions = list(ctx.input, 'questions')
-  const first = bag(questions[0])
-  const question = pick(first, 'question') ?? ''
-  const options = list(first, 'options')
+export const askView: Handler<'ask'> = (ctx) => {
+  const questions = ctx.input?.questions ?? []
+  const first = questions[0]
+  const question = first?.question ?? ''
+  const options = first?.options ?? []
   const body = options
-    .map((entry, index) => {
-      const label = pick(entry, 'label') ?? ''
-      const note = pick(entry, 'description')
-
-      return `${String(index + 1)}. ${label}${note === undefined ? '' : ` —— ${note}`}`
-    })
+    .map(
+      (entry, index) =>
+        `${String(index + 1)}. ${entry.label}${entry.description === undefined ? '' : ` —— ${entry.description}`}`,
+    )
     .join('\n')
   const multiple = questions.length > 1 ? `${String(questions.length)} 个问题` : undefined
 
@@ -130,25 +110,21 @@ export const askView: Handler = (ctx) => {
   )
 }
 
-export const taskView: Handler = (ctx) => {
-  const single = pick(ctx.input, 'task') ?? ''
-  const batch = list(ctx.input, 'tasks')
-  const named = pick(ctx.input, 'name')
-  const agent = pick(ctx.input, 'agent') ?? 'task'
+export const taskView: Handler<'task'> = (ctx) => {
+  const single = ctx.input?.task ?? ''
+  const batch = ctx.input?.tasks ?? []
+  const named = given(ctx.input?.name)
+  const agent = given(ctx.input?.agent) ?? 'task'
   const descriptions = batch
-    .map((entry) => pick(entry, 'description') ?? pick(entry, 'task'))
+    .map((entry) => given(entry.description) ?? given(entry.task))
     .filter((entry): entry is string => entry !== undefined)
   const body =
     batch.length === 0
       ? single
       : batch
-          .map((entry, index) => {
-            const label = pick(entry, 'name') ?? `#${String(index + 1)}`
-
-            return `## ${label}\n\n${pick(entry, 'task') ?? ''}`
-          })
+          .map((entry, index) => `## ${given(entry.name) ?? `#${String(index + 1)}`}\n\n${entry.task ?? ''}`)
           .join('\n\n')
-  const shared = pick(ctx.input, 'context')
+  const shared = given(ctx.input?.context)
   const subject =
     batch.length > 1
       ? `${String(batch.length)} 个子代理`
@@ -166,10 +142,10 @@ export const taskView: Handler = (ctx) => {
   )
 }
 
-export const yieldView: Handler = (ctx) => {
-  const kinds = strings(ctx.input, 'type')
-  const error = pick(ctx.input, 'error')
-  const data = get(ctx.input, 'data')
+export const yieldView: Handler<'yield'> = (ctx) => {
+  const kinds = listOf(ctx.input?.type)
+  const error = given(ctx.input?.error)
+  const data = ctx.input?.data
 
   return view(
     'other',
@@ -180,8 +156,8 @@ export const yieldView: Handler = (ctx) => {
   )
 }
 
-export const thinkView: Handler = (ctx) =>
-  view('other', oneLine(pick(ctx.input, 'thoughts') ?? '内心独白'), '', NONE, NONE)
+export const thinkView: Handler<'think'> = (ctx) =>
+  view('other', oneLine(ctx.input?.thoughts ?? '内心独白'), '', NONE, NONE)
 
 export const GOAL_OPS: Readonly<Record<string, string>> = {
   complete: '完成目标',
@@ -191,10 +167,10 @@ export const GOAL_OPS: Readonly<Record<string, string>> = {
   resume: '继续目标',
 }
 
-export const goalView: Handler = (ctx) => {
-  const op = pick(ctx.input, 'op') ?? 'get'
-  const objective = pick(ctx.input, 'objective') ?? ''
-  const budget = numb(ctx.input, 'token_budget')
+export const goalView: Handler<'goal'> = (ctx) => {
+  const op = given(ctx.input?.op) ?? 'get'
+  const objective = ctx.input?.objective ?? ''
+  const budget = ctx.input?.token_budget
   const head = GOAL_OPS[op] ?? op
 
   return view(
@@ -206,8 +182,8 @@ export const goalView: Handler = (ctx) => {
   )
 }
 
-export const checkpointView: Handler = (ctx) => {
-  const goal = pick(ctx.input, 'goal') ?? ''
+export const checkpointView: Handler<'checkpoint'> = (ctx) => {
+  const goal = ctx.input?.goal ?? ''
 
   return view(
     'other',
@@ -218,8 +194,8 @@ export const checkpointView: Handler = (ctx) => {
   )
 }
 
-export const rewindView: Handler = (ctx) => {
-  const report = pick(ctx.input, 'report') ?? ''
+export const rewindView: Handler<'rewind'> = (ctx) => {
+  const report = ctx.input?.report ?? ''
 
   return view(
     'other',
@@ -230,15 +206,16 @@ export const rewindView: Handler = (ctx) => {
   )
 }
 
-export const contextNotesView: Handler = (ctx) => {
-  const body = get(ctx.input, 'text')
+export const contextNotesView: Handler<'context_notes'> = (ctx) => {
+  const body = ctx.input?.text
 
   return body === undefined
     ? view('other', '查看上下文笔记', '', NONE, failOr(ctx, saidText(ctx)), 'result')
-    : view('other', '更新上下文笔记', '', [prose(typeof body === 'string' ? body : '')], failOr(ctx, saidText(ctx)))
+    : view('other', '更新上下文笔记', '', [prose(body)], failOr(ctx, saidText(ctx)))
 }
 
-export const newContextView: Handler = (ctx) =>
+export const newContextView: Handler<'new_context'> = (ctx) =>
   view('other', '开启新上下文', '', NONE, failOr(ctx, saidText(ctx)), 'result')
 
-export const waitView: Handler = (ctx) => view('other', '等待后台结果', '', NONE, failOr(ctx, saidText(ctx)), 'result')
+export const waitView: Handler<'wait'> = (ctx) =>
+  view('other', '等待后台结果', '', NONE, failOr(ctx, saidText(ctx)), 'result')

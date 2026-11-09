@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { TranscriptOperation } from '@poietica/transcript'
+import type { AgentEvent } from '@poietica/agent-model'
 import type { QueueView } from '../../../contract'
 import type { ConversationApi } from '../../api'
 import type { TranscriptSignal } from '../../shared/model/transcript'
@@ -101,14 +101,14 @@ describe('会话端口的按号撤回（R-01 §5.3）', () => {
  * 副本的「历史游标不倒走」不变式必然抛错。
  */
 function fakeTimelineApi() {
-  let ops:
-    | ((p: { threadId: string; agentId: string; epoch: number; seq: number; ops: TranscriptOperation[] }) => void)
+  let events:
+    | ((p: { threadId: string; agentId: string; epoch: number; seq: number; events: readonly AgentEvent[] }) => void)
     | null = null
   let reset: ((p: { threadId: string; agentId: string; epoch: number }) => void) | null = null
   const pages: string[] = []
   const api = {
-    onTimelineOps: (l: NonNullable<typeof ops>) => {
-      ops = l
+    onTimelineEvents: (l: NonNullable<typeof events>) => {
+      events = l
       return { dispose: () => undefined }
     },
     onTimelineReset: (l: NonNullable<typeof reset>) => {
@@ -134,59 +134,59 @@ function fakeTimelineApi() {
   return {
     api,
     pages,
-    emitOps: (p: { agentId: string; epoch: number; seq: number; ops: TranscriptOperation[] }) =>
-      ops?.({ threadId: 'th', ...p }),
+    emitEvents: (p: { agentId: string; epoch: number; seq: number; events: readonly AgentEvent[] }) =>
+      events?.({ threadId: 'th', ...p }),
     emitReset: (p: { agentId: string; epoch: number }) => reset?.({ threadId: 'th', ...p }),
   }
 }
 
 describe('会话端口的 epoch + seq 位置（R-04 §3.3）', () => {
   test('R-04 S2 epoch 变化：交回 reset，而不是把新进程的 seq=1 当增量', () => {
-    const { api, emitOps } = fakeTimelineApi()
+    const { api, emitEvents } = fakeTimelineApi()
     const port = createSessionPort({ api, threadId: 'th' })
     const signals: TranscriptSignal[] = []
     port.transcript.subscribeTranscript((s) => signals.push(s))
 
-    emitOps({ agentId: 'main', epoch: 7, seq: 5, ops: [] })
-    emitOps({ agentId: 'main', epoch: 9, seq: 1, ops: [] })
+    emitEvents({ agentId: 'main', epoch: 7, seq: 5, events: [] })
+    emitEvents({ agentId: 'main', epoch: 9, seq: 1, events: [] })
 
     expect(signals.map((s) => [s.kind, 'seq' in s ? s.seq : undefined])).toEqual([
-      ['ops', 5],
+      ['events', 5],
       ['reset', undefined],
     ])
   })
 
   test('R-04 S2b 同一 epoch 内照常交增量（换代判据不误伤）', () => {
-    const { api, emitOps } = fakeTimelineApi()
+    const { api, emitEvents } = fakeTimelineApi()
     const port = createSessionPort({ api, threadId: 'th' })
     const signals: TranscriptSignal[] = []
     port.transcript.subscribeTranscript((s) => signals.push(s))
 
-    emitOps({ agentId: 'main', epoch: 7, seq: 5, ops: [] })
-    emitOps({ agentId: 'main', epoch: 7, seq: 6, ops: [] })
+    emitEvents({ agentId: 'main', epoch: 7, seq: 5, events: [] })
+    emitEvents({ agentId: 'main', epoch: 7, seq: 6, events: [] })
 
-    expect(signals.map((s) => s.kind)).toEqual(['ops', 'ops'])
+    expect(signals.map((s) => s.kind)).toEqual(['events', 'events'])
   })
 
   test('R-04 S2c reset 通知把位置换到新 epoch 的水位 0', () => {
-    const { api, emitOps, emitReset } = fakeTimelineApi()
+    const { api, emitEvents, emitReset } = fakeTimelineApi()
     const port = createSessionPort({ api, threadId: 'th' })
     const signals: TranscriptSignal[] = []
     port.transcript.subscribeTranscript((s) => signals.push(s))
 
-    emitOps({ agentId: 'main', epoch: 7, seq: 5, ops: [] })
+    emitEvents({ agentId: 'main', epoch: 7, seq: 5, events: [] })
     emitReset({ agentId: 'main', epoch: 9 })
     /* reset 之后同代的增量正常交出去（seq=1 是新水位的第一批，不是重复）。 */
-    emitOps({ agentId: 'main', epoch: 9, seq: 1, ops: [] })
+    emitEvents({ agentId: 'main', epoch: 9, seq: 1, events: [] })
 
-    expect(signals.map((s) => s.kind)).toEqual(['ops', 'reset', 'ops'])
+    expect(signals.map((s) => s.kind)).toEqual(['events', 'reset', 'events'])
   })
 
   test('R-04 S3 旧页带真实 seq（不是 epoch）', async () => {
-    const { api, emitOps, pages } = fakeTimelineApi()
+    const { api, emitEvents, pages } = fakeTimelineApi()
     const port = createSessionPort({ api, threadId: 'th' })
     port.transcript.subscribeTranscript(() => undefined)
-    emitOps({ agentId: 'main', epoch: 7, seq: 40, ops: [] })
+    emitEvents({ agentId: 'main', epoch: 7, seq: 40, events: [] })
 
     const older = await port.transcript.readTranscript('th', 'main', 'turnX')
 

@@ -1,4 +1,3 @@
-import { invariant } from '@poietica/foundation'
 import type {
   AgentTranscriptSnapshot,
   ApprovalInteraction,
@@ -15,8 +14,9 @@ import type {
   TranscriptTodo,
   TranscriptTurn,
   TurnOrigin,
-} from '@poietica/transcript'
-import { compactionMarkerPayload, retryNoticeOf } from '@poietica/transcript'
+} from '@poietica/agent-model'
+import { compactionMarkerPayload, retryNoticeOf } from '@poietica/agent-model'
+import { invariant } from '@poietica/foundation'
 import { mediaAssetUrl } from '../../../contract'
 import type { DialogRequest } from '../../shared/model/dialog'
 import type { QuestionChoice, QuestionItem } from '../../shared/model/question'

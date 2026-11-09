@@ -12,6 +12,9 @@
       "path": "../../../../packages/process-kit"
     },
     {
+      "path": "../../../../packages/stream-kit"
+    },
+    {
       "path": "../contract"
     }
   ]

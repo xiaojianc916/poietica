@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { SlashCommand } from '@poietica/engine'
+import type { SlashCommand } from '@poietica/runtime-protocol'
 import {
   type CommandChoice,
   type ComposerCommand,

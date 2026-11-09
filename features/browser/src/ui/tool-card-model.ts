@@ -10,6 +10,18 @@ export interface BrowserStep {
   readonly said: string // 原样的 detail，给人看
 }
 
+import type {
+  OmpEvalDetails,
+  OmpEvalStatusEvent,
+  OmpEvalToolInput,
+  OmpToolContentBlock,
+  OmpToolInputOf,
+  OmpToolOutputOf,
+} from '@poietica/omp-types'
+
+type EvalBlock = OmpToolContentBlock & { readonly content?: OmpToolContentBlock }
+type EvalOutput = OmpToolOutputOf | null
+
 export interface BrowserCallModel {
   readonly steps: readonly BrowserStep[]
   readonly code: string | null
@@ -23,47 +35,18 @@ const TEXT_CAP = 4000
 const IMAGE_ALT = '浏览器截图'
 const DEFAULT_MIME = 'image/png'
 
-function bag(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
+function statusEventsOf(details: OmpEvalDetails | undefined): readonly OmpEvalStatusEvent[] {
+  return [...(details?.statusEvents ?? []), ...(details?.cells ?? []).flatMap((cell) => cell.statusEvents ?? [])]
 }
 
-function pick(value: unknown, key: string): string | null {
-  const raw = bag(value)[key]
-
-  return typeof raw === 'string' ? raw : null
-}
-
-function list(value: unknown, key: string): readonly unknown[] {
-  const raw = bag(value)[key]
-
-  return Array.isArray(raw) ? raw : []
-}
-
-function statusEventsOf(details: unknown): readonly unknown[] {
-  const events = [...list(details, 'statusEvents')]
-
-  for (const cell of list(details, 'cells')) {
-    events.push(...list(cell, 'statusEvents'))
-  }
-
-  return events
-}
-
-function stepsOf(details: unknown): readonly BrowserStep[] {
+function stepsOf(details: OmpEvalDetails | undefined): readonly BrowserStep[] {
   const steps: BrowserStep[] = []
   const seen = new Set<string>()
 
   for (const event of statusEventsOf(details)) {
-    if (pick(event, 'op') !== 'browser') {
-      continue
-    }
-
-    const detail = pick(event, 'detail')
-
-    if (detail === null || detail === '' || seen.has(detail)) {
-      continue
-    }
-
+    if (event.op !== 'browser') continue
+    const detail = typeof event.detail === 'string' ? event.detail : ''
+    if (detail === '' || seen.has(detail)) continue
     seen.add(detail)
     steps.push(parseStep(detail))
   }
@@ -190,54 +173,46 @@ export function parseStep(detail: string): BrowserStep {
 }
 
 /** 真正跑过的代码在产出里（一个 eval 可以带多个 cell）；还没有产出时才照入参画。 */
-function codeOf(args: unknown, details: unknown): { readonly code: string | null; readonly language: 'js' | 'py' } {
-  const cells: string[] = []
-
-  for (const cell of list(details, 'cells')) {
-    const body = pick(cell, 'code')
-
-    if (body !== null && body !== '') {
-      cells.push(body)
-    }
-  }
-
-  const given = pick(args, 'code')
+function codeOf(
+  args: OmpToolInputOf | undefined,
+  details: OmpEvalDetails | undefined,
+): { readonly code: string | null; readonly language: 'js' | 'py' } {
+  const cells = (details?.cells ?? []).flatMap((cell) => (cell.code === '' ? [] : [cell.code]))
+  const evalArgs = args as OmpEvalToolInput | undefined
+  const given = evalArgs?.code ?? ''
 
   return {
     code: cells.length > 0 ? cells.join('\n\n') : given === '' ? null : given,
-    language: pick(args, 'language') === 'py' ? 'py' : 'js',
+    language: evalArgs?.language === 'py' ? 'py' : 'js',
   }
 }
 
-function partsOf(result: unknown): readonly unknown[] {
-  const content = bag(result).content
-
-  return Array.isArray(content) ? content : []
+function partsOf(result: EvalOutput): readonly EvalBlock[] {
+  return typeof result === 'object' && result !== null && Array.isArray(result.content) ? result.content : []
 }
 
-function textOf(result: unknown): string {
-  const joined = partsOf(result)
-    .filter((part) => bag(part).type === 'text')
-    .map((part) => pick(part, 'text') ?? '')
-    .join('\n')
+function textOf(result: EvalOutput): string {
+  const joined =
+    typeof result === 'string'
+      ? result
+      : partsOf(result)
+          .filter((part) => part.type === 'text')
+          .map((part) => part.text ?? '')
+          .join('\n')
 
   return joined.length > TEXT_CAP ? `${joined.slice(0, TEXT_CAP)}…` : joined
 }
 
-function inlineSrcOf(part: unknown): string | null {
-  const record = bag(part)
-  const inner = record.type === 'content' ? bag(record.content) : record
-
-  if (inner.type !== 'image') {
-    return null
-  }
-
-  const data = typeof inner.data === 'string' ? inner.data : null
-
-  return data === null || data === '' ? null : `data:${pick(inner, 'mimeType') ?? DEFAULT_MIME};base64,${data}`
+function inlineSrcOf(part: EvalBlock | NonNullable<OmpEvalDetails['images']>[number]): string | null {
+  const inner = part.type === 'content' && 'content' in part && part.content !== undefined ? part.content : part
+  if (inner.type !== 'image' || typeof inner.data !== 'string' || inner.data === '') return null
+  return `data:${inner.mimeType ?? DEFAULT_MIME};base64,${inner.data}`
 }
 
-function imagesOf(details: unknown, result: unknown): readonly { readonly src: string; readonly alt: string }[] {
+function imagesOf(
+  details: OmpEvalDetails | undefined,
+  result: EvalOutput,
+): readonly { readonly src: string; readonly alt: string }[] {
   const images: { src: string; alt: string }[] = []
   const seen = new Set<string>()
 
@@ -248,15 +223,8 @@ function imagesOf(details: unknown, result: unknown): readonly { readonly src: s
     }
   }
 
-  for (const image of list(details, 'images')) {
-    if (bag(image).type === 'image') {
-      push(inlineSrcOf(image))
-    }
-  }
-
-  for (const part of partsOf(result)) {
-    push(inlineSrcOf(part))
-  }
+  for (const image of details?.images ?? []) push(inlineSrcOf(image))
+  for (const part of partsOf(result)) push(inlineSrcOf(part))
 
   return images
 }
@@ -268,8 +236,13 @@ function firstParagraph(text: string): string | null {
   return head === '' ? null : head
 }
 
-export function browserCallModel(args: unknown, result: unknown, failed: boolean): BrowserCallModel {
-  const details = bag(result).details
+export function browserCallModel(
+  args: OmpToolInputOf | undefined,
+  result: EvalOutput,
+  failed: boolean,
+): BrowserCallModel {
+  const details = (typeof result === 'object' && result !== null ? result.details : undefined) as
+    OmpEvalDetails | undefined
   const { code, language } = codeOf(args, details)
   const text = textOf(result)
   const steps = stepsOf(details)

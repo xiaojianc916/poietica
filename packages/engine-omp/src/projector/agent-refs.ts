@@ -1,4 +1,4 @@
-import type { AgentRef } from '@poietica/transcript'
+import type { AgentRef } from '@poietica/agent-model'
 
 /*
  * 派发工具帧 → 它派出去的子代理（`agentRefs`）。从工具结果的 details 读、不从总线读：

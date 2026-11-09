@@ -33,16 +33,16 @@ describe('taskStateOf', () => {
 
 describe('SubagentLedger', () => {
   test('生命周期帧产出一行 task，agentId 与 taskId 同值', () => {
-    const ops = ledger().lifecycle({ id: 'Anna', status: 'started', description: '查资料' })
-    expect(ops.length).toBe(1)
-    const op = ops[0]
-    expect(op?.op).toBe('task.upsert')
-    if (op?.op !== 'task.upsert') throw new Error('形状不对')
-    expect(op.task.taskId).toBe('Anna')
-    expect(op.task.agentId).toBe('Anna')
-    expect(op.task.state).toBe('running')
-    expect(op.task.description).toBe('查资料')
-    expect(op.task.endedAt).toBeUndefined()
+    const events = ledger().lifecycle({ id: 'Anna', status: 'started', description: '查资料' })
+    expect(events.length).toBe(1)
+    const event = events[0]
+    expect(event?.type).toBe('task.started')
+    if (event?.type !== 'task.started') throw new Error('形状不对')
+    expect(event.task.taskId).toBe('Anna')
+    expect(event.task.agentId).toBe('Anna')
+    expect(event.task.state).toBe('running')
+    expect(event.task.description).toBe('查资料')
+    expect(event.task.endedAt).toBeUndefined()
   })
 
   test('重复的同一帧不产出（去重）', () => {
@@ -95,9 +95,9 @@ describe('SubagentLedger', () => {
 
   test('detached 标志原样带上', () => {
     const l = ledger()
-    const ops = l.lifecycle({ id: 'Anna', status: 'started', detached: true })
-    const op = ops[0]
-    if (op?.op !== 'task.upsert') throw new Error('形状不对')
-    expect(op.task.detached).toBe(true)
+    const events = l.lifecycle({ id: 'Anna', status: 'started', detached: true })
+    const event = events[0]
+    if (event?.type !== 'task.started') throw new Error('形状不对')
+    expect(event.task.detached).toBe(true)
   })
 })

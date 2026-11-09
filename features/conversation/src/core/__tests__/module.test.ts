@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
-import type { ScenarioScript } from '@poietica/engine-testkit'
+import type { AgentEvent } from '@poietica/agent-model'
 import { attachmentsContract } from '@poietica/feature-attachments/contract'
+import { JournalServiceToken } from '@poietica/feature-journal/core-api'
 import { workspacesContract } from '@poietica/feature-workspaces/contract'
 import type { TypedRpcClient } from '@poietica/rpc'
+import type { ScenarioScript } from '@poietica/runtime-protocol-testkit'
 import { tempDir, waitFor } from '@poietica/test-kit'
 import { conversationContract } from '../../contract'
 import { BUSY_SCRIPT, harness } from './helpers'
@@ -129,7 +131,7 @@ describe('conversation core 模块', () => {
     await finish()
   })
 
-  test('CV-4 turn.upsert 携带 clientTurnId（每条都带，界面靠它认轮）', async () => {
+  test('CV-4 run.started 携带 clientTurnId（每条都带，界面靠它认轮）', async () => {
     const { api, thread, h, finish } = await started()
     await api.call('turns.submit', {
       threadId: thread.id,
@@ -141,15 +143,19 @@ describe('conversation core 模块', () => {
     })
     await runOneBeat(h)
 
-    const ops = h
-      .notifications(conversationContract, 'timeline.ops')
-      .flatMap((n) => n.ops as readonly { op: string; turn?: { turnId?: string; clientTurnId?: string } }[])
-    const stamped = ops.filter((op) => op.op === 'turn.upsert' && op.turn?.clientTurnId === 'CLIENT-1')
+    const runs = h
+      .notifications(conversationContract, 'timeline.events')
+      .flatMap((n) => n.events)
+      .filter(
+        (event): event is Extract<AgentEvent, { type: 'run.started' | 'run.queued' }> =>
+          event.type === 'run.started' || event.type === 'run.queued',
+      )
+    const stamped = runs.filter((event) => event.run.clientTurnId === 'CLIENT-1')
     expect(stamped.length).toBeGreaterThan(0)
     /* 同一 turn 的后续更新也带同一个号：收尾那条会把整条 turn 换掉，缺了界面就判不出真轮。 */
-    const turnId = stamped[0]!.turn!.turnId
-    const onTurn = ops.filter((op) => op.op === 'turn.upsert' && op.turn?.turnId === turnId)
-    expect(onTurn.every((op) => op.turn?.clientTurnId === 'CLIENT-1')).toBe(true)
+    const turnId = stamped[0]!.run.turnId
+    const onTurn = runs.filter((event) => event.run.turnId === turnId)
+    expect(onTurn.every((event) => event.run.clientTurnId === 'CLIENT-1')).toBe(true)
     await finish()
   })
 
@@ -193,7 +199,7 @@ describe('conversation core 模块', () => {
    * 随后真要写时的那次打开只给这一代发过增量的通道换代 —— 这条只被冷读订阅过的通道不换。
    * 判据不变：这一次订阅不该看到任何 reset，返回的 epoch 与之后的增量一致。
    */
-  test('R-03 T2 冷打开的历史对话：subscribe 不发 reset，epoch 与之后的 ops 一致', async () => {
+  test('R-03 T2 冷打开的历史对话：subscribe 不发 reset，epoch 与之后的 events 一致', async () => {
     const { api, thread, h, finish } = await started()
     await api.call('turns.submit', {
       threadId: thread.id,
@@ -221,9 +227,9 @@ describe('conversation core 模块', () => {
     })
     await runOneBeat(h)
     await h.clock.advanceAsync(20)
-    const ops = h.notifications(conversationContract, 'timeline.ops').filter((n) => n.threadId === forked.id)
-    expect(ops.length).toBeGreaterThan(0)
-    expect(ops.every((n) => n.epoch === snap.epoch)).toBe(true)
+    const events = h.notifications(conversationContract, 'timeline.events').filter((n) => n.threadId === forked.id)
+    expect(events.length).toBeGreaterThan(0)
+    expect(events.every((n) => n.epoch === snap.epoch)).toBe(true)
     await finish()
   })
 
@@ -266,6 +272,110 @@ describe('conversation core 模块', () => {
     await runToIdle(h, api, thread.id)
     expect(engine.opened.length).toBe(opened + 1)
     expect(h.notifications(conversationContract, 'timeline.reset').length).toBe(resetsBefore + 1)
+    await finish()
+  })
+
+  test('P2 断开重连：补发覆盖断线期间的事件，快照不重复', async () => {
+    const { api, thread, h, finish } = await started()
+    await api.call('turns.submit', {
+      threadId: thread.id,
+      clientTurnId: 'L1',
+      text: '第一轮',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'turn',
+    })
+    await runToIdle(h, api, thread.id)
+    const first = await api.call('timeline.subscribe', { threadId: thread.id, agentId: 'main' })
+    await api.call('timeline.unsubscribe', { threadId: thread.id, agentId: 'main' })
+
+    /* 断线期间跑完第二轮：ring buffer 里应该还在，重连先走补发。 */
+    await api.call('turns.submit', {
+      threadId: thread.id,
+      clientTurnId: 'L2',
+      text: '第二轮',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'turn',
+    })
+    await runToIdle(h, api, thread.id)
+    const caught = await api.call('timeline.catchUp', {
+      threadId: thread.id,
+      agentId: 'main',
+      epoch: first.epoch,
+      sinceSeq: first.seq,
+    })
+    expect(caught.complete).toBe(true)
+    expect(caught.latestSeq).toBeGreaterThan(first.seq)
+    expect(caught.batches.map((batch) => batch.seq)).toEqual(
+      Array.from({ length: caught.batches.length }, (_, i) => first.seq + i + 1),
+    )
+
+    const again = await api.call('timeline.subscribe', { threadId: thread.id, agentId: 'main' })
+    const turnIds = again.page.items
+      .filter((item) => item.kind === 'turn')
+      .map((item) => (item.kind === 'turn' ? item.turnId : ''))
+    expect(turnIds).toEqual([...new Set(turnIds)])
+    expect(turnIds.length).toBe(2)
+    await finish()
+  })
+
+  test('P2 Journal 被清空：冷读时从会话文件回填，之后不再依赖文件', async () => {
+    const { api, thread, h, engine, finish } = await started()
+    for (const id of ['R1', 'R2']) {
+      await api.call('turns.submit', {
+        threadId: thread.id,
+        clientTurnId: id,
+        text: `第 ${id} 句`,
+        attachmentIds: [],
+        skills: [],
+        deliverAs: 'turn',
+      })
+      await runToIdle(h, api, thread.id)
+    }
+    await api.call('threads.close', { threadId: thread.id })
+    const journal = h.kernel.services.get(JournalServiceToken)
+    journal.clear(thread.id)
+    expect(journal.latestSeq(thread.id, 'main')).toBe(0)
+
+    const snap = await api.call('timeline.subscribe', { threadId: thread.id, agentId: 'main' })
+    expect(snap.page.items.filter((item) => item.kind === 'turn')).toHaveLength(2)
+    await waitFor(() => journal.latestSeq(thread.id, 'main') > 0)
+
+    engine.sessionFiles.readPage = async () => {
+      throw new Error('会话文件已不可读')
+    }
+    const older = await api.call('timeline.page', { threadId: thread.id, agentId: 'main', beforeTurnId: 't2' })
+    expect(older.items.filter((item) => item.kind === 'turn')).toHaveLength(1)
+    await finish()
+  })
+
+  test('P2 Journal 已落 committed 事件：会话文件没了也能冷读头页与旧页', async () => {
+    const { api, thread, h, engine, finish } = await started()
+    for (const id of ['J1', 'J2']) {
+      await api.call('turns.submit', {
+        threadId: thread.id,
+        clientTurnId: id,
+        text: `第 ${id} 句`,
+        attachmentIds: [],
+        skills: [],
+        deliverAs: 'turn',
+      })
+      await runToIdle(h, api, thread.id)
+    }
+    await api.call('threads.close', { threadId: thread.id })
+    const opened = engine.opened.length
+    /* FakeEngine 的会话文件在内存里；把冷读入口打断，时间线只能由 Journal 折叠出来。 */
+    engine.sessionFiles.readPage = async () => {
+      throw new Error('会话文件已不可读')
+    }
+
+    const snap = await api.call('timeline.subscribe', { threadId: thread.id, agentId: 'main' })
+    expect(snap.page.items.filter((item) => item.kind === 'turn')).toHaveLength(2)
+    expect(snap.page.outline?.map((entry) => entry.prompt)).toEqual(['第 J1 句', '第 J2 句'])
+    const older = await api.call('timeline.page', { threadId: thread.id, agentId: 'main', beforeTurnId: 't2' })
+    expect(older.items.filter((item) => item.kind === 'turn')).toHaveLength(1)
+    expect(engine.opened.length).toBe(opened)
     await finish()
   })
 

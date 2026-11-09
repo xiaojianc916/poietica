@@ -1,3 +1,4 @@
+import { agentEventSchema, transcriptPageSchema } from '@poietica/agent-model'
 import { defineContract, defineMethod, defineNotification } from '@poietica/contract-kit'
 import {
   CommandOutputTone,
@@ -10,8 +11,7 @@ import {
   Posture,
   SideTopic,
   SlashCommand,
-} from '@poietica/engine'
-import { transcriptOperationSchema, transcriptPageSchema } from '@poietica/transcript'
+} from '@poietica/runtime-protocol'
 import { z } from 'zod'
 import { QueueView, SubmissionView, Thread, ThreadInit, TimelineSnapshot, TurnState } from './entities'
 import { conversationErrors } from './errors'
@@ -25,7 +25,7 @@ const empty = z.object({})
 /** 时间线增量批次：epoch 与 seq 的规则见协议说明 */
 const TimelineBatch = z.object({
   seq: z.number().int().positive(),
-  ops: z.array(transcriptOperationSchema),
+  events: z.array(agentEventSchema),
 })
 
 export const conversationContract = defineContract({
@@ -304,6 +304,43 @@ export const conversationContract = defineContract({
       description: '停掉正在答的侧边提问（给了 topicId 只停那个话题的）；没有在答的时 cancelled=false',
     }),
     defineMethod({
+      name: 'side.subscribe',
+      owner: 'host',
+      params: z.object({ threadId: z.string().min(1), topicId: z.string().min(1) }),
+      result: empty,
+      description: '订阅一个侧边话题的增量（Host 按 (threadId, topicId) 路由）',
+    }),
+    defineMethod({
+      name: 'side.unsubscribe',
+      owner: 'host',
+      params: z.object({ threadId: z.string().min(1), topicId: z.string().min(1) }),
+      result: empty,
+      description: '停止订阅一个侧边话题的增量',
+    }),
+    defineMethod({
+      name: 'side.catchUp',
+      owner: 'core',
+      params: z.object({
+        threadId: z.string().min(1),
+        topicId: z.string().min(1),
+        epoch: z.number().int().positive(),
+        sinceSeq: z.number().int().nonnegative(),
+      }),
+      result: z.object({
+        batches: z.array(
+          z.object({
+            seq: z.number().int().positive(),
+            turn: z.number().int().nonnegative(),
+            offset: z.number().int().nonnegative(),
+            delta: z.string(),
+          }),
+        ),
+        latestSeq: z.number().int().nonnegative(),
+        complete: z.boolean(),
+      }),
+      description: '补发断线期间的侧边提问增量',
+    }),
+    defineMethod({
       name: 'side.list',
       owner: 'core',
       params: z.object({ threadId: z.string().min(1) }),
@@ -493,16 +530,16 @@ export const conversationContract = defineContract({
       description: 'omp 丢弃了一条用户输入',
     }),
     defineNotification({
-      name: 'timeline.ops',
+      name: 'timeline.events',
       owner: 'core',
       params: z.object({
         threadId: z.string().min(1),
         agentId: z.string().min(1),
         epoch: z.number().int().positive(),
         seq: z.number().int().positive(),
-        ops: z.array(transcriptOperationSchema),
+        events: z.array(agentEventSchema),
       }),
-      description: '时间线增量',
+      description: '时间线增量（AgentEvent）',
     }),
     defineNotification({
       name: 'timeline.reset',
@@ -587,6 +624,8 @@ export const conversationContract = defineContract({
         turn: z.number().int().nonnegative(),
         offset: z.number().int().nonnegative(),
         delta: z.string(),
+        epoch: z.number().int().positive(),
+        seq: z.number().int().positive(),
       }),
       description: '正在答的侧边提问又流出一截（offset = 这一截之前已有的 UTF-16 码元数）',
     }),

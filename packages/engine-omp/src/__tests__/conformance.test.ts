@@ -2,9 +2,9 @@ import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import '@oh-my-pi/pi-coding-agent/config/all-settings'
-import { runEngineConformance } from '@poietica/engine-testkit'
 import { noopLogger } from '@poietica/foundation'
 import type { DataLayout } from '@poietica/runtime-layout'
+import { runEngineConformance } from '@poietica/runtime-protocol-testkit'
 import { testLayout } from './omp-home'
 
 /**

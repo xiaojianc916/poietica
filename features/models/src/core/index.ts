@@ -11,12 +11,12 @@ export default defineCoreModule({
     const vault = hostApiKeyVault(ctx.host)
     /* 在任何会话打开之前把钥匙交给引擎（ADR-008：Core 不持久化凭据，每次启动从凭据库取回） */
     const adoptKeys = (): Promise<unknown> =>
-      restoreApiKeys({ vault, models: ctx.engine.models, logger: ctx.logger }).catch((e: unknown) => {
+      restoreApiKeys({ vault, models: ctx.agentRuntime.models, logger: ctx.logger }).catch((e: unknown) => {
         ctx.logger.error('api key restore failed', { error: String(e) })
       })
     await adoptKeys()
     const service = createModelsService({
-      models: ctx.engine.models,
+      models: ctx.agentRuntime.models,
       vault,
       logger: ctx.logger,
       emitChanged: () => ctx.rpc.emit('models.changed', {}),
@@ -25,7 +25,7 @@ export default defineCoreModule({
     ctx.rpc.handle('models.providers', async () => ({ providers: await service.providers() }))
     /* 账号登录：流程归 omp（AuthStorage.oauth.login），这里只做回调 ↔ 通知的翻译 */
     const logins = new LoginFlows({
-      models: ctx.engine.models,
+      models: ctx.agentRuntime.models,
       logger: ctx.logger,
       emit: (loginId, event) => ctx.rpc.emit('models.loginEvent', { loginId, event }),
       /* 「浏览器授权换钥匙」那类登录由 omp 把 key 写进 agent.db：登录一结束就搬进凭据库 */
@@ -34,7 +34,7 @@ export default defineCoreModule({
       },
     })
     ctx.disposables.add({ dispose: () => logins.dispose() })
-    ctx.rpc.handle('models.loginProviders', async () => ({ providers: await ctx.engine.models.loginProviders() }))
+    ctx.rpc.handle('models.loginProviders', async () => ({ providers: await ctx.agentRuntime.models.loginProviders() }))
     ctx.rpc.handle('models.startLogin', ({ providerId }) => ({ loginId: logins.start(providerId) }))
     ctx.rpc.handle('models.answerLogin', ({ loginId, promptId, value }) => {
       logins.answer(loginId, promptId, value)
@@ -87,8 +87,8 @@ export default defineCoreModule({
     const changed = (): void => {
       ctx.rpc.emit('models.changed', {})
     }
-    ctx.disposables.add(ctx.engine.models.onDidChange(changed))
+    ctx.disposables.add(ctx.agentRuntime.models.onDidChange(changed))
     // 入口页写穿默认意图时模型页的「默认」标记也要跟着变：默认值变更单独一条事件（不让会话池换代）
-    ctx.disposables.add(ctx.engine.models.onDidChangeDefaults(changed))
+    ctx.disposables.add(ctx.agentRuntime.models.onDidChangeDefaults(changed))
   },
 })

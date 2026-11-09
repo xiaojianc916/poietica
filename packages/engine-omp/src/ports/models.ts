@@ -1,4 +1,5 @@
 import { extractExplicitThinkingSelector, resolveModelRoleValue } from '@oh-my-pi/pi-coding-agent/config/model-resolver'
+import { AppError, Emitter, type Logger, SystemErrorCode } from '@poietica/foundation'
 import type {
   ApiKeyEntry,
   CustomProviderDef,
@@ -11,8 +12,7 @@ import type {
   ModelRoleInfo,
   ModelsPort,
   ProviderInfo,
-} from '@poietica/engine'
-import { AppError, Emitter, type Logger, SystemErrorCode } from '@poietica/foundation'
+} from '@poietica/runtime-protocol'
 import type { z } from 'zod'
 import { toEngineError } from '../errors'
 import { readSetting, type SettingsScope, unsetGlobalSetting, writeGlobalSetting } from '../settings-access'

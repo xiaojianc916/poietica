@@ -1,4 +1,4 @@
-import type { ModelRef, Posture } from '@poietica/engine'
+import type { ModelRef, Posture } from '@poietica/runtime-protocol'
 import { postureOfControl } from './session/configuration/control-shapes'
 import type { SessionConfigControl } from './shared/model/config'
 

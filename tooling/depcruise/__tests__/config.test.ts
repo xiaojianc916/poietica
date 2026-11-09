@@ -74,10 +74,10 @@ describe('depcruise 配置的自检', () => {
     }
   })
 
-  test('omp-confined 规则还在，且例外只有 engine-omp 与 apps/core/scripts', () => {
+  test('omp-confined 规则还在，例外只有 engine-omp、omp-types 与 apps/core/scripts', () => {
     const src = readFileSync(CONFIG, 'utf8')
     expect(src).toContain("name: 'omp-confined'")
-    expect(src).toContain("pathNot: '^(packages/engine-omp/|apps/core/scripts/)'")
+    expect(src).toContain("pathNot: '^(packages/engine-omp/|packages/omp-types/|apps/core/scripts/)'")
   })
 
   /*

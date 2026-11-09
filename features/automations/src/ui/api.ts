@@ -1,9 +1,9 @@
-import type { Controls, ModelRef } from '@poietica/engine'
+import type { TranscriptPage } from '@poietica/agent-model'
 import { conversationContract, MAIN_AGENT_ID, type Thread } from '@poietica/feature-conversation/contract'
 import { platformContract } from '@poietica/feature-platform/contract'
 import type { Logger } from '@poietica/foundation'
 import type { TypedRpcClient } from '@poietica/rpc'
-import type { TranscriptPage } from '@poietica/transcript'
+import type { Controls, ModelRef } from '@poietica/runtime-protocol'
 import type { UiFeatureContext } from '@poietica/ui-kernel'
 import type {
   Automation,

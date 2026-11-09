@@ -53,8 +53,44 @@ export const terminalContract = defineContract({
       owner: 'host',
       params: terminalRef,
       /** endOffset 是本段末尾在累计输出里的位置，UI 靠它裁掉重叠的实时通知（R-08-15）。 */
-      result: z.object({ data: z.string(), endOffset: z.number().int().nonnegative() }),
+      result: z.object({
+        data: z.string(),
+        endOffset: z.number().int().nonnegative(),
+        epoch: z.number().int().positive(),
+        seq: z.number().int().nonnegative(),
+      }),
       description: '最近 256 KB 输出（重放）；endOffset = data 末尾对应的累计输出位置',
+    }),
+    defineMethod({
+      name: 'terminal.subscribe',
+      owner: 'host',
+      params: terminalRef,
+      result: empty,
+      description: '订阅这台终端的输出（Host 按 terminalId 路由，不再全广播）',
+    }),
+    defineMethod({
+      name: 'terminal.unsubscribe',
+      owner: 'host',
+      params: terminalRef,
+      result: empty,
+      description: '停止订阅这台终端的输出',
+    }),
+    defineMethod({
+      name: 'terminal.catchUp',
+      owner: 'host',
+      params: z.object({
+        terminalId: TerminalId,
+        epoch: z.number().int().positive(),
+        sinceSeq: z.number().int().nonnegative(),
+      }),
+      result: z.object({
+        batches: z.array(
+          z.object({ seq: z.number().int().positive(), data: z.string(), offset: z.number().int().nonnegative() }),
+        ),
+        latestSeq: z.number().int().nonnegative(),
+        complete: z.boolean(),
+      }),
+      description: '补发断线期间的终端输出批次',
     }),
   ],
   notifications: [
@@ -62,8 +98,14 @@ export const terminalContract = defineContract({
       name: 'terminal.output',
       owner: 'host',
       /** offset 是本段首个码元在累计输出里的位置，重放与实时输出靠它对齐（R-08-15）。 */
-      params: z.object({ terminalId: TerminalId, data: z.string(), offset: z.number().int().nonnegative() }),
-      description: 'PTY 输出（8ms 合批）',
+      params: z.object({
+        terminalId: TerminalId,
+        data: z.string(),
+        offset: z.number().int().nonnegative(),
+        epoch: z.number().int().positive(),
+        seq: z.number().int().positive(),
+      }),
+      description: 'PTY 输出（8ms 合批，带 stream-kit 的 epoch/seq）',
     }),
     defineNotification({
       name: 'terminal.exited',

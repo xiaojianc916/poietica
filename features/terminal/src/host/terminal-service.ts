@@ -1,10 +1,9 @@
 import { statSync } from 'node:fs'
 import os from 'node:os'
 import { AppError, type Clock, type Logger, systemClock } from '@poietica/foundation'
+import { randomEpochBase, StreamChannel } from '@poietica/stream-kit'
 import { MAX_TERMINALS, REPLAY_BYTES, type TerminalInfo } from '../contract/entities'
 import { terminalErrors } from '../contract/errors'
-import { createOutputBatcher } from './output-batcher'
-import { RingBuffer } from './ring-buffer'
 import { resolveShell, type ShellSpec, terminalEnv } from './shell'
 
 /** 已退出的终端在表里最多留这么久，等 UI 自己来 close（R-08-16）。 */
@@ -23,12 +22,16 @@ export type PtyFactory = (
   opts: { cwd: string; cols: number; rows: number; env: Record<string, string> },
 ) => Pty
 
+interface Chunk {
+  readonly data: string
+  readonly offset: number
+}
+
 interface Entry {
   info: TerminalInfo
   pty: Pty
-  replay: RingBuffer
-  batcher: ReturnType<typeof createOutputBatcher>
-  /** replay 的末尾与输出通知的起点都按它算（R-08-15）。 */
+  channel: StreamChannel<Chunk>
+  /** 累计输出的末尾，输出通知的起点按它算（R-08-15）。 */
   offset: number
   exitedAt: number | null
 }
@@ -36,7 +39,7 @@ interface Entry {
 export interface TerminalServiceDeps {
   readonly spawn: PtyFactory
   readonly logger: Logger
-  readonly emitOutput: (terminalId: string, data: string, offset: number) => void
+  readonly emitOutput: (p: { terminalId: string; data: string; offset: number; epoch: number; seq: number }) => void
   readonly emitExited: (terminalId: string, exitCode: number | null) => void
   readonly env?: NodeJS.ProcessEnv
   readonly killTree?: (pid: number) => Promise<void>
@@ -48,6 +51,7 @@ export function createTerminalService(d: TerminalServiceDeps) {
   const clock = d.clock ?? systemClock
   const entries = new Map<string, Entry>()
   let seq = 0
+  let nextEpoch = randomEpochBase()
   let shellCache: Promise<ShellSpec> | undefined
   const clampSize = (n: number, max: number): number => Math.max(2, Math.min(max, Math.floor(n)))
   const get = (id: string): Entry => {
@@ -74,7 +78,7 @@ export function createTerminalService(d: TerminalServiceDeps) {
         continue
       }
       entries.delete(id)
-      e.batcher.dispose()
+      e.channel.dispose()
       d.logger.info('terminal entry reaped', { terminalId: id })
     }
   }
@@ -100,22 +104,33 @@ export function createTerminalService(d: TerminalServiceDeps) {
         throw new AppError(terminalErrors.spawn_failed, '无法启动终端程序')
       }
       const terminalId = `t${++seq}`
+      const channel = new StreamChannel<Chunk>(nextEpoch++, () => nextEpoch++, clock, {
+        batchWindowMs: 8,
+        sizeOf: (items) => items.reduce((sum, item) => sum + item.data.length, 0),
+        sink: {
+          batch: ({ epoch, seq: batchSeq, items }) => {
+            const data = items.map((item) => item.data).join('')
+            const first = items[0]
+            if (data === '' || first === undefined) return
+            d.emitOutput({ terminalId, data, offset: first.offset, epoch, seq: batchSeq })
+          },
+          reset: () => undefined,
+        },
+      })
       const entry: Entry = {
         info: { terminalId, cwd, shell: shell.file, title: shell.title, exited: false, exitCode: null },
         pty,
-        replay: new RingBuffer(REPLAY_BYTES),
-        batcher: createOutputBatcher((data, offset) => d.emitOutput(terminalId, data, offset)),
+        channel,
         offset: 0,
         exitedAt: null,
       }
       entries.set(terminalId, entry)
       pty.onData((data) => {
-        entry.replay.push(data)
+        entry.channel.push([{ data, offset: entry.offset }])
         entry.offset += data.length
-        entry.batcher.push(data)
       })
       pty.onExit(({ exitCode }) => {
-        entry.batcher.drain()
+        entry.channel.flush()
         entry.info = { ...entry.info, exited: true, exitCode }
         entry.exitedAt = clock.now()
         d.emitExited(terminalId, exitCode)
@@ -134,25 +149,53 @@ export function createTerminalService(d: TerminalServiceDeps) {
     async close(id: string): Promise<void> {
       const e = get(id)
       entries.delete(id)
-      e.batcher.dispose()
+      e.channel.dispose()
       if (!e.info.exited) await killPty(e)
     },
     list(): TerminalInfo[] {
       return [...entries.values()].map((e) => e.info)
     },
-    replay(id: string): { data: string; endOffset: number } {
+    replay(id: string): { data: string; endOffset: number; epoch: number; seq: number } {
       const e = get(id)
-      return { data: e.replay.read(), endOffset: e.offset }
+      e.channel.flush()
+      const { epoch, seq: latest } = e.channel.position()
+      const batches = e.channel.catchUp(epoch, 0).batches
+      const data = clipReplay(batches.flatMap((batch) => batch.items.map((item) => item.data)).join(''), REPLAY_BYTES)
+      return { data, endOffset: e.offset, epoch, seq: latest }
+    },
+    catchUp(id: string, epoch: number, sinceSeq: number) {
+      const e = get(id)
+      const result = e.channel.catchUp(epoch, sinceSeq)
+      return {
+        batches: result.batches.map((batch) => {
+          const first = batch.items[0]
+          return {
+            seq: batch.seq,
+            data: batch.items.map((item) => item.data).join(''),
+            offset: first?.offset ?? 0,
+          }
+        }),
+        latestSeq: result.latestSeq,
+        complete: result.complete,
+      }
     },
     async disposeAll(): Promise<void> {
       const all = [...entries.values()]
       entries.clear()
       await Promise.all(
         all.map(async (e) => {
-          e.batcher.dispose()
+          e.channel.dispose()
           if (!e.info.exited) await killPty(e)
         }),
       )
     },
   }
+}
+
+/** 只保留最近 limit 个码元；切点尽量落在换行后，避免重放从半截 ANSI/宽字符开始。 */
+function clipReplay(text: string, limit: number): string {
+  if (text.length <= limit) return text
+  const cut = text.length - limit
+  const brk = text.indexOf('\n', cut)
+  return text.slice(brk === -1 ? cut : brk + 1)
 }

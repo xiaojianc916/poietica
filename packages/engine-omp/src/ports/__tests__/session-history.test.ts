@@ -3,9 +3,9 @@ import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { SessionManager } from '@oh-my-pi/pi-coding-agent/session/session-manager'
-import { EngineErrorCode } from '@poietica/engine'
+import type { TranscriptPage } from '@poietica/agent-model'
 import { isAppError, noopLogger } from '@poietica/foundation'
-import type { TranscriptPage } from '@poietica/transcript'
+import { EngineErrorCode } from '@poietica/runtime-protocol'
 import { hashMediaRef } from '../../projector/media'
 import { SessionHistoryReader } from '../session-history'
 

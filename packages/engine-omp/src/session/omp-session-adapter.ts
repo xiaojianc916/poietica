@@ -9,6 +9,7 @@ import {
   TASK_SUBAGENT_LIFECYCLE_CHANNEL,
   TASK_SUBAGENT_PROGRESS_CHANNEL,
 } from '@oh-my-pi/pi-tui/overlays/session-observer-registry'
+import { AppError, type Logger, SystemErrorCode, systemClock } from '@poietica/foundation'
 import {
   type ContextUsage,
   EngineErrorCode,
@@ -17,8 +18,7 @@ import {
   type OpenSessionSpec,
   type SessionGoalSnapshot,
   type SubmitInput,
-} from '@poietica/engine'
-import { AppError, type Logger, SystemErrorCode, systemClock } from '@poietica/foundation'
+} from '@poietica/runtime-protocol'
 import { InteractionBroker } from '../interactions/broker'
 import { planInteraction, planOutcomeOf } from '../interactions/plan'
 import { createUiContext } from '../interactions/ui-context'
@@ -1036,7 +1036,7 @@ function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void
       break
     case 'message_start': {
       /* 助手消息一开始就计数：历史那条路按同一个口径数（见 frame-ids.ts），两边对同一段话给出同一个号 */
-      if (startedRoleOf(event.message) === 'assistant') projector.assistantMessageStart()
+      if (startedRoleOf(event.message) === 'assistant') session.requestTimeline(projector.assistantMessageStart())
       claimStartedMessage(event.message, session)
       break
     }

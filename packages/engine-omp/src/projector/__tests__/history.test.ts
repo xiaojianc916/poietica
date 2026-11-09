@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { applyOps, emptyTimeline, pageFromState } from '@poietica/transcript'
+import { EMPTY_THREAD_STATE, reduceAll, snapshotOf } from '@poietica/agent-model'
 import { lastTurnOrdinal, projectHistoryPage } from '../history'
 import { LiveProjector } from '../live'
 import { GOAL_CONTINUATION_ORIGIN } from '../origin'
@@ -321,9 +321,7 @@ describe('历史与实时的一致性', () => {
       ...p.textDelta('答案是 42'),
       ...p.turnEnd('completed', null),
     ]
-    const live = projectHistoryPage([], null)
-    void live
-    const livePage = pageFromState(applyOps(emptyTimeline(), liveOps))
+    const livePage = snapshotOf(reduceAll(EMPTY_THREAD_STATE, liveOps))
     const history = projectHistoryPage(
       [
         user('问题', 0),

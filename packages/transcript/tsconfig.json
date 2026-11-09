@@ -1,8 +1,0 @@
-{
-  "extends": "../../tooling/tsconfig/neutral.json",
-  "compilerOptions": {
-    "exactOptionalPropertyTypes": false
-  },
-  "include": ["src"],
-  "references": []
-}

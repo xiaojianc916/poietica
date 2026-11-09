@@ -41,7 +41,7 @@ function mount(toolName: string, result: string): { readonly opened: string[] } 
   const props: ToolCallRendererProps = {
     args: {},
     callId: 'call-1',
-    result: { text: result },
+    result: { content: [{ type: 'text', text: result }] },
     status: 'succeeded',
     threadId: 't1',
     toolName,

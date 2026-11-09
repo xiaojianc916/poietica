@@ -1,3 +1,5 @@
+import type { AgentEvent, TranscriptPage } from '@poietica/agent-model'
+import type { TypedRpcClient } from '@poietica/rpc'
 import type {
   CommandOutputTone,
   ContextUsage,
@@ -8,9 +10,7 @@ import type {
   Posture,
   SideTopic,
   SlashCommand,
-} from '@poietica/engine'
-import type { TypedRpcClient } from '@poietica/rpc'
-import type { TranscriptOperation, TranscriptPage } from '@poietica/transcript'
+} from '@poietica/runtime-protocol'
 import type { UiFeatureContext } from '@poietica/ui-kernel'
 import { conversationContract } from '../contract'
 import type { QueueView, SubmissionView, Thread, TimelineSnapshot, TurnState } from '../contract/entities'
@@ -85,7 +85,7 @@ export function createConversationApi(ctx: UiFeatureContext) {
       agentId: string,
       epoch: number,
       sinceSeq: number,
-    ): Promise<{ batches: { seq: number; ops: TranscriptOperation[] }[]; latestSeq: number; complete: boolean }> =>
+    ): Promise<{ batches: { seq: number; events: AgentEvent[] }[]; latestSeq: number; complete: boolean }> =>
       rpc.call('timeline.catchUp', { threadId, agentId, epoch, sinceSeq }),
     getQueue: (threadId: string): Promise<QueueView> => rpc.call('queue.get', { threadId }),
     withdraw: (threadId: string, itemId: string): Promise<QueueView> =>
@@ -113,6 +113,10 @@ export function createConversationApi(ctx: UiFeatureContext) {
       (await rpc.call('side.cancel', { threadId, topicId })).cancelled,
     listSide: async (threadId: string): Promise<readonly SideTopic[]> =>
       (await rpc.call('side.list', { threadId })).topics,
+    subscribeSide: (threadId: string, topicId: string): Promise<void> =>
+      rpc.call('side.subscribe', { threadId, topicId }).then(() => undefined),
+    unsubscribeSide: (threadId: string, topicId: string): Promise<void> =>
+      rpc.call('side.unsubscribe', { threadId, topicId }).then(() => undefined),
     /** 入口那一格（还没有对话）的**草稿**控件表：带上还没落账的本地草稿、只读、不开会话；改默认走 setDraftDefaults。 */
     getDraftControls: (draft: {
       readonly model: ModelRef | null
@@ -169,9 +173,9 @@ export function createConversationApi(ctx: UiFeatureContext) {
     onTurnState: (l: (s: TurnState) => void) => rpc.on('turns.state', l),
     onTurnDropped: (l: (p: { threadId: string; clientTurnId: string | null; text: string }) => void) =>
       rpc.on('turns.dropped', l),
-    onTimelineOps: (
-      l: (p: { threadId: string; agentId: string; epoch: number; seq: number; ops: TranscriptOperation[] }) => void,
-    ) => rpc.on('timeline.ops', l),
+    onTimelineEvents: (
+      l: (p: { threadId: string; agentId: string; epoch: number; seq: number; events: AgentEvent[] }) => void,
+    ) => rpc.on('timeline.events', l),
     onTimelineReset: (l: (p: { threadId: string; agentId: string; epoch: number }) => void) =>
       rpc.on('timeline.reset', l),
     onQueueChanged: (l: (p: { threadId: string; queue: QueueView }) => void) => rpc.on('queue.changed', l),

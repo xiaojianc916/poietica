@@ -24,6 +24,8 @@ interface FakeApi extends TerminalApi {
   readonly exits: Array<(p: { terminalId: string; exitCode: number | null }) => void>
   restored: readonly TerminalInfo[]
   replayData: { data: string; endOffset: number }
+  subscribe(terminalId: string): Promise<void>
+  unsubscribe(terminalId: string): Promise<void>
   listGate: Promise<void> | null
   replayGate: Promise<void> | null
   replayError: Error | null
@@ -48,6 +50,12 @@ function fakeApi(): FakeApi {
     listGate: null,
     replayGate: null,
     replayError: null,
+    async subscribe(terminalId) {
+      calls.push(`subscribe:${terminalId}`)
+    },
+    async unsubscribe(terminalId) {
+      calls.push(`unsubscribe:${terminalId}`)
+    },
     async open(o) {
       calls.push(`open:${String(o.cwd)}:${o.cols}x${o.rows}`)
       const next = info(`t${opened.length + 1}`)
@@ -192,7 +200,7 @@ describe('terminal runtime：重载恢复（list + replay）', () => {
     const runtime = makeRuntime(api)
 
     await runtime.restore()
-    expect(api.calls).toEqual(['list', 'replay:t1', 'replay:t2'])
+    expect(api.calls).toEqual(['list', 'subscribe:t1', 'replay:t1', 'subscribe:t2', 'replay:t2'])
     expect(runtime.count()).toBe(2)
     expect(runtime.store.getState().terminals.map((t) => t.info?.terminalId)).toEqual(['t1', 't2'])
     expect(runtime.store.getState().activeId).toBe(runtime.store.getState().terminals[0]!.id)

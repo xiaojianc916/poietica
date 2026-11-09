@@ -1,7 +1,9 @@
 import type { Ctx, Handler, OmpToolView } from '../view-kit'
-import { code, dot, failOr, get, join, list, NONE, oneLine, pick, prose, saidText, view } from '../view-kit'
+import { code, dot, failOr, given, join, NONE, oneLine, prose, saidText, view } from '../view-kit'
 
 export const EVAL_LANGS: Readonly<Record<string, string>> = { js: 'javascript', py: 'python' }
+
+type EvalCtx = Ctx<'eval' | 'js' | 'python' | 'notebook'>
 
 /*
  * `browser`/`computer` 是注入 eval 内核的 prelude 作用域对象，不是顶层工具；模型写 `browser.open(...)` 等调用，每次都在产出里留一条 details.statusEvents。
@@ -13,21 +15,18 @@ export const PRELUDE_NAMES: Readonly<Record<string, string>> = {
 }
 
 /** 这次 eval 调过的 prelude 名（原始 op，不是给人看的那句）。 */
-export function preludeOpsOf(ctx: Ctx): readonly string[] {
+export function preludeOpsOf(ctx: EvalCtx): readonly string[] {
   /* 去重与成员判断共用一份 Set；最后才摊回数组，保留事件出现次序。 */
   const ops = new Set<string>()
   /* 事件既可能挂在整次调用上，也可能挂在产生它的那个 cell 上。 */
-  const events = [...list(ctx.details, 'statusEvents')]
-
-  for (const cell of list(ctx.details, 'cells')) {
-    events.push(...list(cell, 'statusEvents'))
-  }
+  const events = [
+    ...(ctx.details?.statusEvents ?? []),
+    ...(ctx.details?.cells ?? []).flatMap((cell) => cell.statusEvents ?? []),
+  ]
 
   for (const event of events) {
-    const op = pick(event, 'op')
-
-    if (op !== undefined && PRELUDE_NAMES[op] !== undefined) {
-      ops.add(op)
+    if (PRELUDE_NAMES[event.op] !== undefined) {
+      ops.add(event.op)
     }
   }
 
@@ -35,23 +34,22 @@ export function preludeOpsOf(ctx: Ctx): readonly string[] {
 }
 
 /** 这次 eval 调了哪些 prelude，各做了什么。 */
-export function preludesOf(ctx: Ctx): readonly string[] {
+export function preludesOf(ctx: EvalCtx): readonly string[] {
   const said: string[] = []
-  const events = [...list(ctx.details, 'statusEvents')]
-
-  for (const cell of list(ctx.details, 'cells')) {
-    events.push(...list(cell, 'statusEvents'))
-  }
+  const events = [
+    ...(ctx.details?.statusEvents ?? []),
+    ...(ctx.details?.cells ?? []).flatMap((cell) => cell.statusEvents ?? []),
+  ]
 
   for (const event of events) {
-    const op = pick(event, 'op')
-    const label = op === undefined ? undefined : PRELUDE_NAMES[op]
+    const label = PRELUDE_NAMES[event.op]
 
     if (label === undefined) {
       continue
     }
 
-    const detail = pick(event, 'detail')
+    /* statusEvents 的额外格子没有逐格声明（omp 的索引签名），只认给人看的那一串字符。 */
+    const detail = typeof event.detail === 'string' && event.detail !== '' ? event.detail : undefined
 
     said.push(join(label, detail) || label)
   }
@@ -70,24 +68,24 @@ export function guessedPreludeOf(code: string): string | null {
   return BROWSER_CALL.test(code) && !COMPUTER_CALL.test(code) ? 'browser' : null
 }
 
-export const evalView: Handler = (ctx) => evalCall(ctx, pick(ctx.input, 'language') ?? 'js')
+export const evalView: Handler<'eval'> = (ctx) => evalCall(ctx, given(ctx.input?.language) ?? 'js')
 
 /* 官方视图表把 js/python/notebook 指到同一渲染器，入参没 language 时按别名来，而非一律落回 JavaScript。 */
 export const evalAlias =
-  (language: string): Handler =>
+  (language: string): Handler<'eval' | 'js' | 'python' | 'notebook'> =>
   (ctx) =>
-    evalCall(ctx, pick(ctx.input, 'language') ?? language)
+    evalCall(ctx, given(ctx.input?.language) ?? language)
 
-export function evalCall(ctx: Ctx, language: string): OmpToolView {
+export function evalCall(ctx: EvalCtx, language: string): OmpToolView {
   const named = language === 'py' ? 'Python' : 'JavaScript'
-  const body = pick(ctx.input, 'code') ?? ''
-  const title = pick(ctx.input, 'title')
-  const cells = list(ctx.details, 'cells')
+  const body = ctx.input?.code ?? ''
+  const title = given(ctx.input?.title)
+  const cells = ctx.details?.cells ?? []
   // 后端自己的 cells 才是真正跑过的那几段。
   const request =
     cells.length === 0
       ? [code(body, EVAL_LANGS[language] ?? '')]
-      : cells.map((entry) => code(pick(entry, 'code') ?? '', EVAL_LANGS[language] ?? ''))
+      : cells.map((entry) => code(entry.code, EVAL_LANGS[language] ?? ''))
   /* 调了 prelude 就报那件事，否则退回「运行 JavaScript」：两者都报会把一次浏览器动作说成脚本运行。 */
   const preludes = preludesOf(ctx)
   const head = preludes.length > 0 ? preludes.join('；') : dot(`运行 ${named}`, title ?? oneLine(body))
@@ -96,7 +94,7 @@ export function evalCall(ctx: Ctx, language: string): OmpToolView {
    * 还没有状态事件时按代码预判一次，否则这一行会在运行中途换一张卡片。
    */
   const ops = preludeOpsOf(ctx)
-  const running = ops.length === 1 ? (ops[0] as string) : ops.length === 0 ? guessedPreludeOf(body) : null
+  const running = ops.length === 1 ? (ops[0] ?? null) : ops.length === 0 ? guessedPreludeOf(body) : null
 
   return {
     ...view('execute', head, preludes[0] ?? title ?? oneLine(body), request, failOr(ctx, saidText(ctx))),
@@ -112,16 +110,14 @@ export const BROWSER_ACTIONS: Readonly<Record<string, string>> = {
   tabs: '列出标签页',
 }
 
-export const browserView: Handler = (ctx) => {
-  const action = pick(ctx.input, 'action') ?? ''
-  const name = pick(ctx.input, 'name') ?? 'main'
-  const url = pick(ctx.input, 'url') ?? pick(ctx.details, 'url')
-  const chain = get(ctx.input, 'chain')
+export const browserView: Handler<'browser' | 'puppeteer'> = (ctx) => {
+  const action = ctx.input?.action ?? ''
+  const name = given(ctx.input?.name) ?? 'main'
+  const url = given(ctx.input?.url) ?? given(ctx.details?.url)
+  const chain = ctx.input?.chain
   const script =
-    pick(ctx.input, 'code') ??
-    pick(ctx.input, 'fn') ??
-    (chain === undefined ? undefined : JSON.stringify(chain, null, 2))
-  const shots = list(ctx.details, 'screenshots').length
+    given(ctx.input?.code) ?? given(ctx.input?.fn) ?? (chain === undefined ? undefined : JSON.stringify(chain, null, 2))
+  const shots = ctx.details?.screenshots?.length ?? 0
   const place = url === undefined ? name : url
   const head = BROWSER_ACTIONS[action] ?? action
 
@@ -141,14 +137,12 @@ export const COMPUTER_ACTIONS: Readonly<Record<string, string>> = {
   run: '执行脚本',
 }
 
-export const computerView: Handler = (ctx) => {
-  const action = pick(ctx.input, 'action') ?? ''
-  const chain = get(ctx.input, 'chain')
+export const computerView: Handler<'computer'> = (ctx) => {
+  const action = ctx.input?.action ?? ''
+  const chain = ctx.input?.chain
   const script =
-    pick(ctx.input, 'code') ??
-    pick(ctx.input, 'fn') ??
-    (chain === undefined ? undefined : JSON.stringify(chain, null, 2))
-  const shots = list(ctx.details, 'screenshots').length
+    given(ctx.input?.code) ?? given(ctx.input?.fn) ?? (chain === undefined ? undefined : JSON.stringify(chain, null, 2))
+  const shots = ctx.details?.screenshots?.length ?? 0
   const head = COMPUTER_ACTIONS[action] ?? action
 
   return view(

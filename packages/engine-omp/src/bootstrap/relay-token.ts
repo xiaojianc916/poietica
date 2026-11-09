@@ -1,11 +1,11 @@
 import { randomBytes } from 'node:crypto'
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { parseRelayToken } from '@poietica/engine'
 import type { DataLayout } from '@poietica/runtime-layout'
+import { parseRelayToken } from '@poietica/runtime-protocol'
 
 /*
- * browser relay 的 `/ext` 口令（线上契约见 @poietica/engine 的 browser-relay.ts）：
+ * browser relay 的 `/ext` 口令（线上契约见 @poietica/runtime-protocol 的 browser-relay.ts）：
  * Core 生成、每个数据根一份放在 DataLayout.relayTokenFile，Host 连 /ext 时读同一个文件。
  * 进程环境里只放文件路径、不放口令本身 —— 环境会一路传给 agent 跑的 shell 命令，路径在 `env`
  * 输出里无害，口令出现在对话记录里就泄露了。按数据根持久化、不轮换：broker 可能比这一代 Core

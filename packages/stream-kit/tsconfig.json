@@ -1,0 +1,9 @@
+{
+  "extends": "../../tooling/tsconfig/neutral.json",
+  "include": ["src"],
+  "references": [
+    {
+      "path": "../foundation"
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-import type { UsageSample } from '@poietica/engine'
+import type { UsageSample } from '@poietica/runtime-protocol'
 import type { ModuleDatabase } from '@poietica/storage-sqlite'
 
 export function localDay(at: number): string {

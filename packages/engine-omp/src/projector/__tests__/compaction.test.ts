@@ -1,7 +1,15 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { applyOps, emptyTimeline, pageFromState, type TranscriptItem } from '@poietica/transcript'
+import {
+  type AgentEvent,
+  EMPTY_THREAD_STATE,
+  materialize,
+  reduceAll,
+  snapshotOf,
+  type ThreadState,
+  type TranscriptItem,
+} from '@poietica/agent-model'
 import { SUPERSEDED_SUMMARY } from '../compaction'
 import { LiveProjector } from '../live'
 
@@ -19,12 +27,21 @@ function projector(): LiveProjector {
 
 type CompactionRow = Extract<TranscriptItem, { kind: 'marker' }>
 
-/** 把一串 marker op 落到时间线上，返回压缩标记那几行（类型谓词把联合收窄到 marker） */
-function compactionRows(ops: ReturnType<LiveProjector['marker']>[]) {
-  const state = applyOps(emptyTimeline(), ops.flat())
+type CompactedEvent = Extract<AgentEvent, { type: 'context.compacted' | 'marker.raised' }>
+
+const fold = (events: readonly AgentEvent[]): ThreadState => reduceAll(EMPTY_THREAD_STATE, events)
+
+const compactedEvents = (events: readonly AgentEvent[]): CompactedEvent[] =>
+  events.filter((event): event is CompactedEvent => event.type === 'context.compacted')
+
+/** 把一串 marker 事件落到时间线上，返回压缩标记那几行（类型谓词把联合收窄到 marker） */
+function compactionRows(events: readonly (readonly AgentEvent[])[]) {
+  const state = fold(events.flat())
   return {
     state,
-    rows: state.items.filter((item): item is CompactionRow => item.kind === 'marker' && item.marker === 'compaction'),
+    rows: materialize(state).items.filter(
+      (item): item is CompactionRow => item.kind === 'marker' && item.marker === 'compaction',
+    ),
   }
 }
 
@@ -83,15 +100,12 @@ describe('压缩标记（legacy compaction-events.test.ts）', () => {
 
   test('标记不绑轮：没有开轮也落得下痕迹', () => {
     const p = projector()
-    const state = applyOps(
-      emptyTimeline(),
-      p.marker({ markerId: 'compaction-1', marker: 'compaction', payload: { state: 'completed' } }),
-    )
-    expect(state.items.filter((item) => item.kind === 'marker')).toHaveLength(1)
+    const state = fold(p.marker({ markerId: 'compaction-1', marker: 'compaction', payload: { state: 'completed' } }))
+    expect(materialize(state).items.filter((item) => item.kind === 'marker')).toHaveLength(1)
   })
 
   test('适配器：开门与关门共用同一个号；收口不整页重取，并重报一次上下文占用（审查 R-21-2）', async () => {
-    const { fakeOmpSession, opsOf } = await import('./fixtures/omp-session')
+    const { fakeOmpSession, eventsOf } = await import('./fixtures/omp-session')
     const fake = await fakeOmpSession()
     fake.feed({ type: 'auto_compaction_start', reason: 'threshold', action: 'context-full' })
     fake.feed({
@@ -101,12 +115,12 @@ describe('压缩标记（legacy compaction-events.test.ts）', () => {
       aborted: false,
     })
 
-    const markers = opsOf(fake.events).filter((op) => op.op === 'marker.upsert')
+    const markers = eventsOf(fake.events).filter((event): event is CompactedEvent => event.type === 'context.compacted')
     expect(markers).toHaveLength(2)
     // 换号就会在屏幕上多出一行：两次事件必须落在同一个 markerId 上
-    const ids = markers.map((op) => (op.item as { markerId: string }).markerId)
+    const ids = markers.map((event) => event.item.markerId)
     expect(ids[0]).toBe(ids[1])
-    const payloads = markers.map((op) => (op.item as { payload?: Record<string, unknown> }).payload)
+    const payloads = markers.map((event) => event.item.payload)
     expect(payloads[0]).toMatchObject({ state: 'running', reason: 'threshold', action: 'context-full' })
     // 没有显示经过可读时退回事件里的 result：token 数照样带上
     expect(payloads[1]).toMatchObject({ state: 'completed', tokensBefore: 120_000, summary: '摘要' })
@@ -119,7 +133,7 @@ describe('压缩标记（legacy compaction-events.test.ts）', () => {
   })
 
   test('适配器：收口的 token 数以 omp 刚落盘的那条摘要为准（tokensAfter 只在条目上）', async () => {
-    const { fakeOmpSession, opsOf } = await import('./fixtures/omp-session')
+    const { fakeOmpSession, eventsOf } = await import('./fixtures/omp-session')
     const transcript: Record<string, unknown>[] = [
       { role: 'user', timestamp: T0, content: '问' },
       { role: 'assistant', timestamp: T0 + 1, content: [{ type: 'text', text: '答' }] },
@@ -142,10 +156,10 @@ describe('压缩标记（legacy compaction-events.test.ts）', () => {
       willRetry: false,
     })
 
-    const last = opsOf(fake.events)
-      .filter((op) => op.op === 'marker.upsert')
-      .at(-1) as { item: { payload: Record<string, unknown> } }
-    expect(last.item.payload).toMatchObject({
+    const last = eventsOf(fake.events)
+      .filter((event): event is CompactedEvent => event.type === 'context.compacted')
+      .at(-1)
+    expect(last?.item.payload).toMatchObject({
       state: 'completed',
       tokensBefore: 120_000,
       tokensAfter: 18_000,
@@ -154,7 +168,7 @@ describe('压缩标记（legacy compaction-events.test.ts）', () => {
   })
 
   test('适配器：被中止的压缩报 cancelled 并带上错误文案', async () => {
-    const { fakeOmpSession, opsOf } = await import('./fixtures/omp-session')
+    const { fakeOmpSession, eventsOf } = await import('./fixtures/omp-session')
     const fake = await fakeOmpSession()
     fake.feed({ type: 'auto_compaction_start', reason: 'overflow', action: 'context-full' })
     fake.feed({
@@ -165,15 +179,15 @@ describe('压缩标记（legacy compaction-events.test.ts）', () => {
       errorMessage: 'boom',
     })
 
-    const payloads = opsOf(fake.events)
-      .filter((op) => op.op === 'marker.upsert')
-      .map((op) => (op.item as { payload?: Record<string, unknown> }).payload)
+    const payloads = eventsOf(fake.events)
+      .filter((event): event is CompactedEvent => event.type === 'context.compacted')
+      .map((event) => event.item.payload)
     expect(payloads[1]).toMatchObject({ state: 'cancelled', error: 'boom' })
     expect(fake.events.some((event) => event.type === 'timelineReset')).toBe(false)
   })
 
   test('适配器：omp 报错（没中止）是 failed，不是 cancelled；换一种方式再压另起一行', async () => {
-    const { fakeOmpSession, opsOf } = await import('./fixtures/omp-session')
+    const { fakeOmpSession, eventsOf } = await import('./fixtures/omp-session')
     const fake = await fakeOmpSession()
     fake.feed({ type: 'auto_compaction_start', reason: 'threshold', action: 'handoff' })
     fake.feed({
@@ -193,9 +207,12 @@ describe('压缩标记（legacy compaction-events.test.ts）', () => {
       willRetry: false,
     })
 
-    const markers = opsOf(fake.events)
-      .filter((op) => op.op === 'marker.upsert')
-      .map((op) => op.item as { markerId: string; payload: Record<string, unknown> })
+    const markers = eventsOf(fake.events)
+      .filter((event): event is CompactedEvent => event.type === 'context.compacted')
+      .map((event) => ({
+        markerId: event.item.markerId,
+        payload: event.item.payload as Record<string, unknown>,
+      }))
     expect(markers.map((marker) => marker.payload.state)).toEqual(['running', 'failed', 'running', 'completed'])
     expect(markers[1]?.payload).toMatchObject({ error: 'Auto-handoff returned no document' })
     // 同一轮里两次压缩：两行，不是后一次盖掉前一次
@@ -203,7 +220,7 @@ describe('压缩标记（legacy compaction-events.test.ts）', () => {
   })
 
   test('适配器：跳过的压缩（没有可压的）撤掉开门那一格，不留一行「完成」', async () => {
-    const { fakeOmpSession, opsOf } = await import('./fixtures/omp-session')
+    const { fakeOmpSession, eventsOf } = await import('./fixtures/omp-session')
     const fake = await fakeOmpSession()
     fake.feed({ type: 'auto_compaction_start', reason: 'idle', action: 'context-full' })
     fake.feed({
@@ -215,11 +232,12 @@ describe('压缩标记（legacy compaction-events.test.ts）', () => {
       skipped: true,
     })
 
-    const ops = opsOf(fake.events)
-    const opened = ops.find((op) => op.op === 'marker.upsert') as { item: { markerId: string } }
-    const state = applyOps(emptyTimeline(), ops as unknown as Parameters<typeof applyOps>[1])
-    expect(ops.at(-1)).toEqual({ op: 'items.remove', ids: [opened.item.markerId] })
-    expect(state.items.filter((item) => item.kind === 'marker')).toHaveLength(0)
+    const events = eventsOf(fake.events)
+    const opened = compactedEvents(events)[0]
+    if (opened === undefined) throw new Error('没有开门那一格')
+    const state = fold(events)
+    expect(events.at(-1)).toMatchObject({ type: 'item.removed', ids: [opened.item.markerId] })
+    expect(materialize(state).items.filter((item) => item.kind === 'marker')).toHaveLength(0)
   })
 
   test('适配器：分页与落座读显示经过，不读压缩后的模型上下文（审查 R-21-1）', async () => {
@@ -250,12 +268,9 @@ describe('压缩标记（legacy compaction-events.test.ts）', () => {
 
   test('标记带上自己的时刻，且不碰时间线以外的东西', () => {
     const p = projector()
-    const state = applyOps(
-      emptyTimeline(),
-      p.marker({ markerId: 'compaction-1', marker: 'compaction', payload: { state: 'completed' } }),
-    )
-    expect(state.items[0]).toMatchObject({ at: new Date(T0).toISOString() })
-    expect(pageFromState(state).meta).toEqual({})
+    const state = fold(p.marker({ markerId: 'compaction-1', marker: 'compaction', payload: { state: 'completed' } }))
+    expect(materialize(state).items[0]).toMatchObject({ at: new Date(T0).toISOString() })
+    expect(snapshotOf(state).meta).toEqual({})
   })
 })
 

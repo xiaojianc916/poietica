@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'bun:test'
+import type { OmpEvalStatusEvent, OmpEvalToolInput, OmpToolOutputOf } from '@poietica/omp-types'
 import { browserCallModel, parseStep } from '../tool-card-model'
 
 /* 卡片的数据层。浏览器在 omp 18.5 里是 eval 的 prelude，产出形状是
  * { content: [...], details: { statusEvents, cells[].statusEvents, images } }，入参是 { language, code, title }。
  * 纯函数不挂 React：形状有二十来种，走渲染去验证要多写十倍断言，还分不清是解析错了还是画错了。 */
 
-const evalArgs = (over: Record<string, unknown> = {}): unknown => ({
+const evalArgs = (over: Partial<OmpEvalToolInput> = {}): OmpEvalToolInput => ({
   language: 'js',
   code: 'await browser.open({ url: "https://a.com" })',
   ...over,
@@ -58,10 +59,11 @@ describe('parseStep：上游那句 detail → 一步', () => {
 })
 
 describe('browserCallModel：步骤', () => {
-  const withEvents = (events: readonly unknown[], cells: readonly unknown[] = []): unknown => ({
-    content: [{ type: 'text', text: 'ok' }],
-    details: { statusEvents: events, cells },
-  })
+  const withEvents = (events: readonly OmpEvalStatusEvent[], cells: readonly unknown[] = []): OmpToolOutputOf =>
+    ({
+      content: [{ type: 'text', text: 'ok' }],
+      details: { statusEvents: events, cells },
+    }) as OmpToolOutputOf
 
   test('details.statusEvents 与每个 cells[i].statusEvents 都收', () => {
     const model = browserCallModel(
@@ -175,7 +177,7 @@ describe('browserCallModel：截图', () => {
 })
 
 describe('browserCallModel：正文、错误与末次地址', () => {
-  const textResult = (text: string): unknown => ({ content: [{ type: 'text', text }] })
+  const textResult = (text: string): OmpToolOutputOf => ({ content: [{ type: 'text', text }] })
 
   test('正文是 text 块拼接，超过 4000 字截断并加省略号', () => {
     expect(browserCallModel(evalArgs(), textResult('ok'), false).text).toBe('ok')

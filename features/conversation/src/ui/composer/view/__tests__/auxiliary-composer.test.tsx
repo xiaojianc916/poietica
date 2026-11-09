@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import type { SideTopic, SideTurn } from '@poietica/engine'
+import type { SideTopic, SideTurn } from '@poietica/runtime-protocol'
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { createSideStore, type SideApi } from '../../side-store'
 import { AuxiliaryComposer, sideTopicGroups, sideTopicMeta } from '../auxiliary-composer'

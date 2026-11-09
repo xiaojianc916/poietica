@@ -1,12 +1,13 @@
 import { describe, expect, test } from 'bun:test'
-import type { ContextUsage, Controls } from '@poietica/engine'
-import { createFakeEngine, type FakeEngine } from '@poietica/engine-testkit'
 import { createId, systemClock } from '@poietica/foundation'
+import type { ContextUsage, Controls } from '@poietica/runtime-protocol'
+import { createFakeEngine, type FakeEngine } from '@poietica/runtime-protocol-testkit'
 import { openDatabase } from '@poietica/storage-sqlite'
 import { createTestLogger, tempDir, waitFor } from '@poietica/test-kit'
 import { ConversationCore } from '../conversation'
 import { migrations } from '../migrations'
 import { TimelineHub } from '../timeline-hub'
+import { fakeJournal } from './fake-journal'
 
 /*
  * 性能方案 P4：看对话不开会话。时间线的冷读在 P1（timeline-channel 的用例）；这里钉住其余四个读 ——
@@ -33,8 +34,9 @@ async function makeCore(options: { readonly contextUsage?: ContextUsage } = {}) 
   const states: { threadId: string; state: string }[] = []
   const core = new ConversationCore({
     db: moduleDb,
-    engine,
-    hub: new TimelineHub({ clock, emitOps: () => undefined, emitReset: () => undefined }),
+    journal: fakeJournal(),
+    runtime: engine,
+    hub: new TimelineHub({ clock, emitEvents: () => undefined, emitReset: () => undefined }),
     workspaces: {
       requireUsable: () => ({ id: 'ws1', path: dir.path, name: 'ws' }),
     } as never,

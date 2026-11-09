@@ -1,4 +1,4 @@
-import type { ModelRef } from '@poietica/engine'
+import type { ModelRef } from '@poietica/runtime-protocol'
 import type { OmpModelRegistry, OmpModel as OmpModelShape } from '../omp-context'
 
 /** omp 的 enabledModels：可用模型白名单（config/model-settings.ts 的 cfgEnabledModels）。 */

@@ -88,8 +88,8 @@ module.exports = {
       name: 'omp-confined',
       severity: 'error',
       comment:
-        '只有 engine-omp 可以 import @oh-my-pi/*（apps/core/scripts 的构建脚本需要 omp 包内的构建插件与 natives 包，是唯一例外）',
-      from: { pathNot: '^(packages/engine-omp/|apps/core/scripts/)' },
+        '只有 engine-omp 可以 import omp 的实现；omp-types 只能重导出类型（apps/core/scripts 的构建脚本需要 omp 包内的构建插件与 natives 包，是唯一例外）',
+      from: { pathNot: '^(packages/engine-omp/|packages/omp-types/|apps/core/scripts/)' },
       to: { path: `${NM}@oh-my-pi/` },
     },
     {
@@ -273,13 +273,13 @@ module.exports = {
       name: 'contract-pure',
       severity: 'error',
       comment:
-        'contract / core-api 只能依赖 contract-kit、foundation、transcript、engine、core-kernel/events、zod 与功能 contract',
+        'contract / core-api 只能依赖 contract-kit、foundation、agent-model、runtime-protocol、core-kernel/events、zod 与功能 contract',
       from: { path: '^features/([^/]+)/src/(contract|core-api)/', pathNot: TEST },
       to: {
         pathNot: [
           '^features/$1/src/(contract|core-api)/',
           '^features/[^/]+/src/contract/',
-          '^packages/(contract-kit|foundation|transcript|engine)/',
+          '^packages/(contract-kit|foundation|agent-model|runtime-protocol)/',
           '^packages/core-kernel/src/events-def\\.ts$',
           `${NM}zod/`,
         ],
@@ -296,7 +296,7 @@ module.exports = {
       severity: 'error',
       comment: '渲染进程与 neutral 包不得依赖 Node core 模块（测试与构建脚本除外）',
       from: {
-        path: '^(apps/desktop/src/renderer/|features/[^/]+/src/(ui|ui-api|contract|core-api)/|packages/(foundation|contract-kit|rpc|transcript|engine|ui-kernel|design-system|workbench|protocol)/)',
+        path: '^(apps/desktop/src/renderer/|features/[^/]+/src/(ui|ui-api|contract|core-api)/|packages/(foundation|contract-kit|rpc|agent-model|omp-types|runtime-protocol|stream-kit|ui-kernel|design-system|workbench|protocol)/)',
         pathNot: `(${TEST}|/scripts/)`,
       },
       to: { dependencyTypes: ['core'] },

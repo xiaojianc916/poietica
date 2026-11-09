@@ -1,4 +1,4 @@
-import type { TranscriptTurn } from '@poietica/transcript'
+import type { TranscriptTurn } from '@poietica/agent-model'
 
 export type TurnOrigin = TranscriptTurn['origin']
 

@@ -1,7 +1,7 @@
 import './styles.css'
 import { withViewTransition } from '@poietica/design-system'
-import { engineErrorMessages } from '@poietica/engine'
 import { appContract } from '@poietica/protocol'
+import { engineErrorMessages } from '@poietica/runtime-protocol'
 import { createUiKernel, KernelProvider } from '@poietica/ui-kernel'
 import { Workbench, workbenchFeature } from '@poietica/workbench'
 import { createRoot } from 'react-dom/client'

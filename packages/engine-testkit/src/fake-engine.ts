@@ -1,4 +1,24 @@
 import {
+  type AgentEvent,
+  EMPTY_THREAD_STATE,
+  frameId,
+  type OmpToolInputOf,
+  reduceAll,
+  snapshotOf,
+  stepId,
+  type TranscriptPage,
+  turnId,
+} from '@poietica/agent-model'
+import {
+  AppError,
+  type Clock,
+  createId,
+  Emitter,
+  SystemErrorCode,
+  systemClock,
+  toDisposable,
+} from '@poietica/foundation'
+import {
   type AgentEngine,
   type ApiKeyEntry,
   type Capabilities,
@@ -33,30 +53,11 @@ import {
   type SubmitInput,
   type TurnContextBlock,
   type UsageSample,
-} from '@poietica/engine'
-import {
-  AppError,
-  type Clock,
-  createId,
-  Emitter,
-  SystemErrorCode,
-  systemClock,
-  toDisposable,
-} from '@poietica/foundation'
-import {
-  applyOps,
-  emptyTimeline,
-  frameId,
-  pageFromState,
-  stepId,
-  type TranscriptOperation,
-  type TranscriptPage,
-  turnId,
-} from '@poietica/transcript'
+} from '@poietica/runtime-protocol'
 import type { z } from 'zod'
 import { defaultScript, type ScenarioScript, type ScenarioStep } from './scenario'
 
-// 这些 schema 与推导类型同名（值来自 @poietica/engine），在本文件里一律走推导类型
+// 这些 schema 与推导类型同名（值来自 @poietica/runtime-protocol），在本文件里一律走推导类型
 type CapabilitiesValue = z.infer<typeof Capabilities>
 type ProviderInfoValue = z.infer<typeof ProviderInfo>
 type ModelInfoValue = z.infer<typeof ModelInfo>
@@ -133,7 +134,7 @@ function needsApproval(posture: Posture, approval: EngineToolSpec['approval']): 
 }
 
 /** 会话文件的账本：dispose 后重开同一个文件要能读回同样的内容（C-REOPEN） */
-type SessionLedger = Map<string, TranscriptOperation[]>
+type SessionLedger = Map<string, AgentEvent[]>
 
 /** 侧边话题的账本（omp 存在会话的 artifacts 目录里）：按会话文件分账，重开、分叉、删除都跟着会话文件走 */
 type SideLedger = Map<string, SideTopic[]>
@@ -159,9 +160,9 @@ function newestFirst(topics: readonly SideTopic[]): SideTopic[] {
  * 一份 ops 账 → 一页时间线。活会话的 page() 与端口的冷读 readPage() 都从这里出：替身里两条路天然同一页。
  * 替身不派子代理：认不出的通道号按端口约定交空页，不抛。
  */
-function pageOfOps(ops: readonly TranscriptOperation[], agentId: string, beforeTurnId: string | null): TranscriptPage {
-  if (agentId !== 'main') return pageFromState(emptyTimeline())
-  const page = pageFromState(applyOps(emptyTimeline(), ops))
+function pageOfEvents(events: readonly AgentEvent[], agentId: string, beforeTurnId: string | null): TranscriptPage {
+  if (agentId !== 'main') return snapshotOf(EMPTY_THREAD_STATE)
+  const page = snapshotOf(reduceAll(EMPTY_THREAD_STATE, events))
   if (beforeTurnId === null) return page
   const limit = Number(beforeTurnId.slice(1))
   return { ...page, items: page.items.filter((item) => item.kind !== 'turn' || item.ordinal < limit) }
@@ -183,7 +184,7 @@ class FakeSession implements EngineSession {
     ref: string | undefined
   }[] = []
   private readonly modes: QueueSnapshot['modes'] = { steer: 'all', followUp: 'all' }
-  private ops: TranscriptOperation[]
+  private events: AgentEvent[]
   private current: SessionState = 'idle'
   private posture: Posture
   private model: ModelRef | null
@@ -216,11 +217,11 @@ class FakeSession implements EngineSession {
     },
   ) {
     this.sessionFile = o.spec.sessionFile ?? `fake-${createId()}.jsonl`
-    this.ops = [...(o.store.get(this.sessionFile) ?? [])]
+    this.events = [...(o.store.get(this.sessionFile) ?? [])]
     this.posture = o.spec.posture
     this.model = o.spec.model
     this.thinking = o.spec.thinking
-    this.turnCount = this.ops.filter((op) => op.op === 'turn.upsert').length
+    this.turnCount = this.events.filter((event) => event.type === 'run.started').length
     /* 与 omp 重开历史同一条规矩：上一个进程还在答的那一问记成 interrupted（BtwHistoryStore 的 recover） */
     const topics = o.sides.get(this.sessionFile)
     if (topics !== undefined) {
@@ -292,11 +293,11 @@ class FakeSession implements EngineSession {
     this.emit({ type: 'state', state: next, error })
   }
 
-  private push(operations: readonly TranscriptOperation[]): void {
-    if (operations.length === 0) return
-    this.ops.push(...operations)
-    this.o.store.set(this.sessionFile, this.ops)
-    this.emit({ type: 'timeline', agentId: 'main', ops: operations })
+  private push(events: readonly AgentEvent[]): void {
+    if (events.length === 0) return
+    this.events.push(...events)
+    this.o.store.set(this.sessionFile, this.events)
+    this.emit({ type: 'timeline', agentId: 'main', events })
   }
 
   private assertLive(): void {
@@ -332,10 +333,15 @@ class FakeSession implements EngineSession {
     const turn = turnId(ordinal)
     const userStep = stepId(turn, 1)
     this.step = 1
+    const startedAt = new Date(this.o.clock.now()).toISOString()
     this.push([
       {
-        op: 'turn.upsert',
-        turn: {
+        type: 'run.started',
+        durability: 'committed',
+        schema: 1,
+        at: startedAt,
+        runId: turn,
+        run: {
           kind: 'turn',
           turnId: turn,
           ordinal,
@@ -345,7 +351,11 @@ class FakeSession implements EngineSession {
         },
       },
       {
-        op: 'step.upsert',
+        type: 'step.started',
+        durability: 'committed',
+        schema: 1,
+        at: startedAt,
+        runId: turn,
         turnId: turn,
         step: { kind: 'step', stepId: userStep, turnId: turn, ordinal: 1, state: 'completed' },
       },
@@ -356,12 +366,11 @@ class FakeSession implements EngineSession {
     const steps = this.o.script(input, ordinal - 1)
     // 立即返回：真正的执行在下一拍（C-SUBMIT-RETURNS-EARLY）
     this.o.clock.setTimeout(() => {
-      void this.run(steps, turn, ordinal, input.text)
+      void this.run(steps, turn, ordinal)
     }, 0)
   }
 
-  /** `prompt` 要带到每一次 turn.upsert 上：轮头是整头替换，收尾时漏了它，开轮那句话就从屏幕上消失 */
-  private async run(steps: readonly ScenarioStep[], turn: string, ordinal: number, prompt: string): Promise<void> {
+  private async run(steps: readonly ScenarioStep[], turn: string, ordinal: number): Promise<void> {
     /*
      * 剧本步骤逐条执行、逐条上报：每个 op 的可见顺序就是剧本顺序（时间线依赖它），
      * 而且上一步的 state / step 计数会被下一步读取。并发会改写剧本的含义。
@@ -371,15 +380,13 @@ class FakeSession implements EngineSession {
       if (step.kind === 'fail') {
         this.push([
           {
-            op: 'turn.upsert',
-            turn: {
-              kind: 'turn',
-              turnId: turn,
-              ordinal,
-              state: 'failed',
-              origin: { kind: 'user' },
-              prompt,
-            },
+            type: 'run.completed',
+            durability: 'committed',
+            schema: 1,
+            at: new Date(this.o.clock.now()).toISOString(),
+            runId: turn,
+            outcome: 'failed',
+            error: step.message,
           },
         ])
         this.setState('idle', { code: step.code, message: step.message })
@@ -387,14 +394,18 @@ class FakeSession implements EngineSession {
       }
       /* 一步一步按剧本推进并即时推流：顺序本身就是要复现的时序。 */
       // react-doctor-disable-next-line react-doctor/async-await-in-loop
-      const ops = await this.apply(step, turn, ordinal)
-      this.push(ops)
+      const events = await this.apply(step, turn, ordinal)
+      this.push(events)
     }
     if (this.disposed) return
     this.push([
       {
-        op: 'turn.upsert',
-        turn: { kind: 'turn', turnId: turn, ordinal, state: 'completed', origin: { kind: 'user' }, prompt },
+        type: 'run.completed',
+        durability: 'committed',
+        schema: 1,
+        at: new Date(this.o.clock.now()).toISOString(),
+        runId: turn,
+        outcome: 'completed',
       },
     ])
     this.setState('idle')
@@ -402,7 +413,7 @@ class FakeSession implements EngineSession {
     this.reportContextUsage()
   }
 
-  private async apply(step: ScenarioStep, turn: string, ordinal: number): Promise<TranscriptOperation[]> {
+  private async apply(step: ScenarioStep, turn: string, ordinal: number): Promise<AgentEvent[]> {
     switch (step.kind) {
       case 'text':
       case 'thinking': {
@@ -410,40 +421,76 @@ class FakeSession implements EngineSession {
         if (this.step <= 1) this.step = 2
         const at = stepId(turn, this.step)
         const frame = frameId(at, 1)
-        const out: TranscriptOperation[] = [
+        const now = new Date(this.o.clock.now()).toISOString()
+        const out: AgentEvent[] = [
           {
-            op: 'step.upsert',
+            type: 'step.started',
+            durability: 'committed',
+            schema: 1,
+            at: now,
+            runId: turn,
             turnId: turn,
             step: { kind: 'step', stepId: at, turnId: turn, ordinal: this.step, state: 'running' },
           },
+          {
+            type: 'item.started',
+            durability: 'committed',
+            schema: 1,
+            at: now,
+            runId: turn,
+            turnId: turn,
+            stepId: at,
+            itemId: frame,
+            frame:
+              step.kind === 'text'
+                ? { kind: 'text', frameId: frame, text: '', role: 'assistant' }
+                : { kind: 'thinking', frameId: frame, text: '' },
+          },
         ]
-        out.push({
-          op: 'frame.upsert',
-          turnId: turn,
-          stepId: at,
-          frame:
-            step.kind === 'text'
-              ? { kind: 'text', frameId: frame, text: '', role: 'assistant' }
-              : { kind: 'thinking', frameId: frame, text: '' },
-        })
         // 分两段推送：让上层的增量拼接被真实覆盖
         const half = Math.ceil(step.text.length / 2)
         const head = step.text.slice(0, half)
         const tail = step.text.slice(half)
         out.push({
-          op: 'append',
-          target: { type: 'frame', turnId: turn, stepId: at, frameId: frame },
+          type: 'item.delta',
+          durability: 'ephemeral',
+          schema: 1,
+          at: now,
+          turnId: turn,
+          stepId: at,
+          frameId: frame,
+          channel: step.kind,
           offset: 0,
           text: head,
         })
         if (tail.length > 0) {
           out.push({
-            op: 'append',
-            target: { type: 'frame', turnId: turn, stepId: at, frameId: frame },
+            type: 'item.delta',
+            durability: 'ephemeral',
+            schema: 1,
+            at: now,
+            turnId: turn,
+            stepId: at,
+            frameId: frame,
+            channel: step.kind,
             offset: head.length,
             text: tail,
           })
         }
+        out.push({
+          type: 'item.completed',
+          durability: 'committed',
+          schema: 1,
+          at: now,
+          runId: turn,
+          turnId: turn,
+          stepId: at,
+          itemId: frame,
+          frame:
+            step.kind === 'text'
+              ? { kind: 'text', frameId: frame, text: step.text, role: 'assistant' }
+              : { kind: 'thinking', frameId: frame, text: step.text },
+        })
         return out
       }
       case 'tool':
@@ -463,7 +510,16 @@ class FakeSession implements EngineSession {
         this.outstanding.splice(this.outstanding.indexOf(request), 1)
         this.emit({ type: 'interactionResolved', interactionId: request.id })
         if (!this.disposed) this.setState('running')
-        return [{ op: 'interaction.upsert', interaction: interactionCardOf(request, { answer }) }]
+        return [
+          {
+            type: 'interaction.resolved',
+            durability: 'committed',
+            schema: 1,
+            at: new Date(this.o.clock.now()).toISOString(),
+            itemId: request.id,
+            interaction: interactionCardOf(request, { answer }),
+          },
+        ]
       }
       case 'usage': {
         const usage: UsageSample = { ...step.usage, at: this.o.clock.now() }
@@ -508,7 +564,7 @@ class FakeSession implements EngineSession {
     return answer
   }
 
-  private async runTool(name: string, args: unknown, fallback: string, turn: string): Promise<TranscriptOperation[]> {
+  private async runTool(name: string, args: unknown, fallback: string, turn: string): Promise<AgentEvent[]> {
     this.step++
     const at = stepId(turn, this.step)
     const frame = frameId(at, 1)
@@ -535,23 +591,33 @@ class FakeSession implements EngineSession {
       text = outcome.text
       this.o.toolCalls.push({ sessionKey: this.o.spec.key, name, params, result: text })
     }
+    const now = new Date(this.o.clock.now()).toISOString()
     return [
       {
-        op: 'step.upsert',
+        type: 'step.started',
+        durability: 'committed',
+        schema: 1,
+        at: now,
+        runId: turn,
         turnId: turn,
         step: { kind: 'step', stepId: at, turnId: turn, ordinal: this.step, state: 'running' },
       },
       {
-        op: 'frame.upsert',
+        type: 'item.completed',
+        durability: 'committed',
+        schema: 1,
+        at: now,
+        runId: turn,
         turnId: turn,
         stepId: at,
+        itemId: frame,
         frame: {
           kind: 'tool',
           frameId: frame,
           toolCallId: createId(),
           name,
           state: isError ? 'error' : 'done',
-          input: args,
+          input: args as OmpToolInputOf,
           output: text,
           ...(isError ? { error: text } : {}),
         },
@@ -741,7 +807,7 @@ class FakeSession implements EngineSession {
   }
 
   async page(agentId: string, beforeTurnId: string | null): Promise<TranscriptPage> {
-    return pageOfOps(this.ops, agentId, beforeTurnId)
+    return pageOfEvents(this.events, agentId, beforeTurnId)
   }
 
   /* 替身没有子代理与后台作业：三条都按「不在运行」答，形状与真引擎一致（false / subagent_not_running） */
@@ -803,7 +869,11 @@ class FakeSession implements EngineSession {
     }
     const topic: SideTopic =
       previous === undefined
-        ? { id: `side-${createId()}`, leafId: this.ops.length === 0 ? null : `leaf-${this.turnCount}`, turns: [turn] }
+        ? {
+            id: `side-${createId()}`,
+            leafId: this.events.length === 0 ? null : `leaf-${this.turnCount}`,
+            turns: [turn],
+          }
         : { ...previous, turns: [...previous.turns, turn] }
     this.writeSideTopic(topic)
     const run: SideRun = { topicId: topic.id, turn: topic.turns.length - 1, cancelled: false }
@@ -1062,9 +1132,9 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
       },
       /* 与 FakeSession.page 同一个产地（pageOfOps）：冷读与「重开再 page()」交出同一页，正是端口要的那条一致性 */
       async readPage(file, agentId, beforeTurnId) {
-        const ops = store.get(file)
-        if (ops === undefined) throw new AppError(EngineErrorCode.sessionFileMissing, `会话文件不存在：${file}`)
-        return pageOfOps(ops, agentId, beforeTurnId)
+        const events = store.get(file)
+        if (events === undefined) throw new AppError(EngineErrorCode.sessionFileMissing, `会话文件不存在：${file}`)
+        return pageOfEvents(events, agentId, beforeTurnId)
       },
       /* 与 FakeSession.sideTopics 同一本账、同一条次序：冷读与「重开再问」同一张表 */
       async sideTopics(file) {

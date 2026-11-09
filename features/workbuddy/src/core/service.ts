@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import type { CustomProviderDef, ModelsPort } from '@poietica/engine'
 import { AppError, type Logger } from '@poietica/foundation'
+import type { CustomProviderDef, ModelsPort } from '@poietica/runtime-protocol'
 import {
   type WorkBuddyCheckin as ClientCheckin,
   type WorkBuddyUsage as ClientUsage,

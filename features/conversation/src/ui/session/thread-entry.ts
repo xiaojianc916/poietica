@@ -1,4 +1,4 @@
-import type { ModelRef, Posture } from '@poietica/engine'
+import type { ModelRef, Posture } from '@poietica/runtime-protocol'
 import type { Thread } from '../../contract'
 import type { PreparedThread } from '../timeline'
 import type { SessionRegistry } from './session-registry'

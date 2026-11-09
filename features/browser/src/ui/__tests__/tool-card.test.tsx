@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
+import type { OmpToolInputOf, OmpToolOutputOf } from '@poietica/omp-types'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { BrowserToolCard } from '../tool-card'
 
@@ -22,8 +23,8 @@ const RESULT = {
 
 function mount(
   over: {
-    readonly args?: unknown
-    readonly result?: unknown
+    readonly args?: OmpToolInputOf | null
+    readonly result?: OmpToolOutputOf | null
     readonly status?: 'running' | 'succeeded' | 'failed'
   } = {},
 ) {
@@ -31,7 +32,7 @@ function mount(
 
   render(
     <BrowserToolCard
-      args={over.args === undefined ? ARGS : over.args}
+      args={over.args ?? ARGS}
       callId="call-1"
       /** null 是「还没有产出」的正经取值，不能被兜底吃掉。 */
       result={over.result === undefined ? RESULT : over.result}

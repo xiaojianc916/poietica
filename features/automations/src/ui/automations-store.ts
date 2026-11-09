@@ -1,5 +1,5 @@
-import type { Controls, ModelRef } from '@poietica/engine'
 import { invariant, type Logger } from '@poietica/foundation'
+import type { Controls, ModelRef } from '@poietica/runtime-protocol'
 import { createFeatureStore, type FeatureStore } from '@poietica/ui-kernel'
 import type { Automation, AutomationDraft, AutomationRun, Schedule, ScheduleProblem } from '../contract'
 import type { AutomationsApi } from './api'

@@ -30,6 +30,9 @@
       "path": "../../features/intelligent-ui/src/core"
     },
     {
+      "path": "../../features/journal/src/core"
+    },
+    {
       "path": "../../features/models/src/core"
     },
     {
@@ -52,9 +55,6 @@
     },
     {
       "path": "../../packages/core-kernel"
-    },
-    {
-      "path": "../../packages/engine-omp"
     },
     {
       "path": "../../packages/foundation"

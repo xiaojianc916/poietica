@@ -1,3 +1,6 @@
+import type { AgentEvent } from '@poietica/agent-model'
+import type { JournalService } from '@poietica/feature-journal/core-api'
+import type { Clock } from '@poietica/foundation'
 import type {
   CommandOutputTone,
   ContextUsage,
@@ -7,13 +10,12 @@ import type {
   Posture,
   SideTopic,
   UsageSample,
-} from '@poietica/engine'
-import type { Clock } from '@poietica/foundation'
-import type { TranscriptOperation } from '@poietica/transcript'
+} from '@poietica/runtime-protocol'
 import { MAIN_AGENT_ID, type QueueView, type Thread, type TurnState } from '../contract/entities'
 import { conversationErrors } from '../contract/errors'
 import { snapshotOf } from './controls-snapshot'
 import type { ThreadRow, ThreadsRepository } from './repository'
+import type { SideDelta } from './side-topic-hub'
 import type { TimelineHub } from './timeline-hub'
 
 /**
@@ -34,6 +36,7 @@ interface Runtime {
 export interface EventRouterDeps {
   readonly repo: ThreadsRepository
   readonly hub: TimelineHub
+  readonly journal: JournalService
   /**
    * 「Core 即时回显」的提交服务：路由要在本会话第一个新 turn 上盖 clientTurnId，
    * 并把那条提交推进到 `started`。
@@ -55,7 +58,7 @@ export interface EventRouterDeps {
   readonly emitContextUsage: (p: { threadId: string; usage: ContextUsage | null }) => void
   readonly emitInteractionRequested: (p: {
     threadId: string
-    interaction: import('@poietica/engine').Interaction
+    interaction: import('@poietica/runtime-protocol').Interaction
   }) => void
   readonly emitInteractionResolved: (p: { threadId: string; interactionId: string }) => void
   readonly emitTurnSettled: (p: {
@@ -70,13 +73,7 @@ export interface EventRouterDeps {
   readonly emitFileChanged: (p: { threadId: string } & FileChange) => void
   /** 侧边提问（右坞辅助对话）：原样转成 side.* 通知 —— 它们不进时间线、不碰回合运行时 */
   readonly emitSideTopic: (p: { threadId: string; topic: SideTopic }) => void
-  readonly emitSideDelta: (p: {
-    threadId: string
-    topicId: string
-    turn: number
-    offset: number
-    delta: string
-  }) => void
+  readonly emitSideDelta: (p: SideDelta) => void
   readonly emitSideNotice: (p: { threadId: string; message: string }) => void
 }
 
@@ -117,8 +114,9 @@ export class EventRouter {
          * 只有主对话的轮认领提交号：子代理通道的 turnId 也是 t1、t2……从头数，与主对话撞号；
          * 让它参与认领，子代理开第一轮就会抢走人刚发的那句话的号（提交行收错口、主轮拿不到 clientTurnId）。
          */
-        const ops = event.agentId === MAIN_AGENT_ID ? this.attributeClientTurn(threadId, event.ops) : event.ops
-        this.d.hub.push(threadId, event.agentId, ops)
+        const events = this.d.journal.appendAndStamp(threadId, event.agentId, event.events)
+        const attributed = event.agentId === MAIN_AGENT_ID ? this.attributeClientTurn(threadId, events) : events
+        this.d.hub.push(threadId, event.agentId, attributed)
         break
       }
       case 'timelineReset':
@@ -218,10 +216,10 @@ export class EventRouter {
    * 号从提交服务认领（只有**真的交给 omp 且还没开轮**的那条才有）；同时把那条提交推进
    * 到 `started` 并记下真实 `turnId` —— 界面就是靠这两样判断「真轮到了没」。
    */
-  private attributeClientTurn(threadId: string, ops: readonly TranscriptOperation[]): readonly TranscriptOperation[] {
-    return ops.map((op) => {
-      if (op.op !== 'turn.upsert') return op
-      const turnId = op.turn.turnId
+  private attributeClientTurn(threadId: string, events: readonly AgentEvent[]): readonly AgentEvent[] {
+    return events.map((event) => {
+      if (event.type !== 'run.started' && event.type !== 'run.queued') return event
+      const turnId = event.run.turnId
       /*
        * 认领与 `runtime` 无关：runtime 只在 state 事件 / cancel 时才有，而「Core 即时回显」
        * 之后提交不再经过 router —— 依赖它的存在，号就永远认领不了（实测：提交一直是 pending，
@@ -237,7 +235,7 @@ export class EventRouter {
       /* 每条 upsert 都带上号（实时推送和快照都要写上）：收尾那条会把整条 turn
          换掉，只在首条写号的话界面就判不出「真轮到了没」，提交行会再冒出来一条。 */
       const clientTurnId = this.d.submissions.clientTurnIdOf(threadId, turnId)
-      return clientTurnId === null ? op : { ...op, turn: { ...op.turn, clientTurnId } }
+      return clientTurnId === null ? event : { ...event, run: { ...event.run, clientTurnId } }
     })
   }
 

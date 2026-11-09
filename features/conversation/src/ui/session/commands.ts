@@ -1,4 +1,4 @@
-import type { CommandOutputTone, SlashCommand } from '@poietica/engine'
+import type { CommandOutputTone, SlashCommand } from '@poietica/runtime-protocol'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ConversationApi } from '../api'
 import type { CommandOutputNotice, ThreadCommands } from '../shared/model/commands'

@@ -1,6 +1,11 @@
-import { EngineErrorCode, type EngineSession, type EngineToolSpec, type OpenSessionSpec } from '@poietica/engine'
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
 import type { DataLayout } from '@poietica/runtime-layout'
+import {
+  EngineErrorCode,
+  type EngineSession,
+  type EngineToolSpec,
+  type OpenSessionSpec,
+} from '@poietica/runtime-protocol'
 import type { SettingsScope } from '../settings-access'
 import { createToolsExtension } from '../tools-extension'
 import { allowGoalContinuation } from './goal-host'

@@ -1,5 +1,6 @@
+import type { TranscriptUsage } from '@poietica/agent-model'
 import { formatBytes } from '@poietica/design-system'
-import type { TranscriptUsage } from '@poietica/transcript'
+import type { OmpToolInputOf, OmpToolOutputOf } from '@poietica/omp-types'
 import type { DialogRequest } from '../model/dialog'
 import type { SessionLink } from '../model/link'
 import type { ApprovalDecision, ApprovalScope } from '../model/permission'
@@ -106,8 +107,8 @@ export interface ToolCallTimelineItem extends TimelineEntry {
   readonly content: readonly ToolCallContent[]
   readonly locations: readonly ToolCallLocation[]
   readonly channels: readonly DelegateChannel[]
-  readonly rawInput?: unknown
-  readonly rawOutput?: unknown
+  readonly rawInput?: OmpToolInputOf | undefined
+  readonly rawOutput?: OmpToolOutputOf | undefined
   readonly startedAt: number
   readonly endedAt?: number
 }

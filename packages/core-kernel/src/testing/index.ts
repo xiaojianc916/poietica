@@ -1,7 +1,7 @@
 import { type Contract, composeContracts, type NotificationName, type NotificationParams } from '@poietica/contract-kit'
-import type { AgentEngine } from '@poietica/engine'
 import { createTypedClient, RpcPeer, type TypedRpcClient } from '@poietica/rpc'
 import { transportPair } from '@poietica/rpc/testing'
+import type { AgentEngine } from '@poietica/runtime-protocol'
 import { createTestLogger, type FakeClock, fakeClock, type TempDir, tempDir } from '@poietica/test-kit'
 import { type CoreKernel, createCoreKernel } from '../kernel'
 import type { CoreModule } from '../module'
@@ -9,7 +9,7 @@ import { memoryLayout } from './memory-layout'
 
 export interface CoreHarnessOptions {
   readonly modules: readonly CoreModule[]
-  /** 通常是 @poietica/engine-testkit 的 createFakeEngine()；功能包把 engine-testkit 列在 devDependencies。 */
+  /** 通常是 @poietica/runtime-protocol-testkit 的 createFakeEngine()；功能包把 engine-testkit 列在 devDependencies。 */
   readonly engine: AgentEngine
   readonly hostHandlers?: Readonly<Record<string, (params: unknown) => unknown>>
   /**

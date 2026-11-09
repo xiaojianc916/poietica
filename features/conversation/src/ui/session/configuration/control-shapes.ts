@@ -1,4 +1,4 @@
-import type { ContextUsage, Controls, Posture } from '@poietica/engine'
+import type { ContextUsage, Controls, Posture } from '@poietica/runtime-protocol'
 import type { SessionConfigControl } from '../../shared/model/config'
 import type { SessionGoal } from '../../shared/model/goal'
 import { GOAL_CONTROL_ID, GOAL_DISABLED, GOAL_ENABLED } from '../../shared/model/goal-control'

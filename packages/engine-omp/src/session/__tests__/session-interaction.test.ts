@@ -2,9 +2,9 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import type { AgentEngine, EngineSession, EngineSessionEvent, EngineToolSpec } from '@poietica/engine'
+import { EMPTY_THREAD_STATE, reduceAll, snapshotOf, type TranscriptPage } from '@poietica/agent-model'
 import { noopLogger } from '@poietica/foundation'
-import { applyOps, emptyTimeline, pageFromState, type TranscriptPage } from '@poietica/transcript'
+import type { AgentEngine, EngineSession, EngineSessionEvent, EngineToolSpec } from '@poietica/runtime-protocol'
 import { z } from 'zod'
 import { testLayout } from '../../__tests__/omp-home'
 
@@ -42,9 +42,8 @@ function record(session: EngineSession): Harness {
 }
 
 function pageOf(events: readonly EngineSessionEvent[]): TranscriptPage {
-  let state = emptyTimeline()
-  for (const event of events) if (event.type === 'timeline') state = applyOps(state, event.ops)
-  return pageFromState(state)
+  const timeline = events.flatMap((event) => (event.type === 'timeline' ? event.events : []))
+  return snapshotOf(reduceAll(EMPTY_THREAD_STATE, timeline))
 }
 
 async function open(posterior: 'ask' | 'full-access' = 'ask') {

@@ -9,13 +9,15 @@ export default defineCoreModule({
   async setup(ctx) {
     const vault = hostSecretSettingsVault(ctx.host)
     /* 在任何会话打开之前把凭据类设置注入引擎（ADR-008：Core 不持久化凭据） */
-    await restoreSecretSettings({ vault, settings: ctx.engine.settings, logger: ctx.logger }).catch((e: unknown) => {
-      ctx.logger.error('secret settings restore failed', { error: String(e) })
-    })
+    await restoreSecretSettings({ vault, settings: ctx.agentRuntime.settings, logger: ctx.logger }).catch(
+      (e: unknown) => {
+        ctx.logger.error('secret settings restore failed', { error: String(e) })
+      },
+    )
     const service = createAgentSettingsService({
       vault,
-      settings: ctx.engine.settings,
-      groupOrder: ctx.engine.settings.groupOrder,
+      settings: ctx.agentRuntime.settings,
+      groupOrder: ctx.agentRuntime.settings.groupOrder,
       emitChanged: (paths) => ctx.rpc.emit('agentSettings.changed', { paths: [...paths] }),
     })
 
@@ -26,7 +28,7 @@ export default defineCoreModule({
     ctx.rpc.handle('agentSettings.setCapability', ({ name, enabled }) => service.setCapability(name, enabled))
 
     ctx.disposables.add(
-      ctx.engine.settings.onDidChange((e) => {
+      ctx.agentRuntime.settings.onDidChange((e) => {
         ctx.rpc.emit('agentSettings.changed', { paths: [...e.paths] })
       }),
     )

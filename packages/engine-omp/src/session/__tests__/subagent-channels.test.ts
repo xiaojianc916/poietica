@@ -1,21 +1,32 @@
 import { describe, expect, test } from 'bun:test'
-import { applyOps, emptyTimeline, type TranscriptOperation, type TranscriptTurn } from '@poietica/transcript'
+import {
+  type AgentEvent,
+  EMPTY_THREAD_STATE,
+  materialize,
+  reduceAll,
+  snapshotOf,
+  stateFromSnapshot,
+  type TranscriptTurn,
+} from '@poietica/agent-model'
 import type { OmpMessage } from '../../projector/history'
 import { SubagentChannels } from '../subagent-channels'
 
 function harness(messages: readonly OmpMessage[] = []) {
-  const emitted: { agentId: string; ops: readonly TranscriptOperation[] }[] = []
+  const emitted: { agentId: string; events: readonly AgentEvent[] }[] = []
   const channels = new SubagentChannels({
     now: () => 1_700_000_000_000,
-    emit: (agentId, ops) => emitted.push({ agentId, ops }),
+    emit: (agentId, events) => emitted.push({ agentId, events }),
     readMessages: async (agentId: string) => (agentId === 'Anna' ? messages : []),
     warn: () => undefined,
   })
   const feed = (id: string, event: Record<string, unknown>) => channels.event({ id, event })
   const stateOf = (agentId: string) =>
-    emitted
-      .filter((entry) => entry.agentId === agentId)
-      .reduce((state, entry) => applyOps(state, entry.ops), emptyTimeline())
+    materialize(
+      reduceAll(
+        EMPTY_THREAD_STATE,
+        emitted.filter((entry) => entry.agentId === agentId).flatMap((entry) => entry.events),
+      ),
+    )
   return { channels, emitted, feed, stateOf }
 }
 
@@ -74,11 +85,14 @@ describe('SubagentChannels', () => {
         timestamp: 2,
       } as unknown as OmpMessage,
     ]
-    const { channels, feed } = harness(history)
+    const { channels, feed, emitted } = harness(history)
     feed('Anna', { type: 'message_start', message: { role: 'user', content: '第一件' } })
     feed('Anna', { type: 'agent_end' })
     feed('Anna', { type: 'message_start', message: { role: 'user', content: '第二件' } })
-    const page = await channels.page('Anna', null)
+    /* 封口的轮来自会话文件；开着的那一轮是实时事件叠上去的（Core 的快照就是这么合的） */
+    const historyPage = await channels.page('Anna', null)
+    const live = emitted.flatMap((entry) => entry.events)
+    const page = snapshotOf(reduceAll(stateFromSnapshot(historyPage), live))
     const turns = turnsOf(page.items)
     expect(turns.map((turn) => [turn.turnId, turn.state])).toEqual([
       ['t1', 'completed'],

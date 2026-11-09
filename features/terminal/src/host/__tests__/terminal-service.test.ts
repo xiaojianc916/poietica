@@ -54,7 +54,7 @@ function make(options: { readonly env?: NodeJS.ProcessEnv; readonly killTree?: (
   const logger = createTestLogger()
   const clock = fakeClock()
   const ptys: FakePty[] = []
-  const output: Array<{ terminalId: string; data: string; offset: number }> = []
+  const output: Array<{ terminalId: string; data: string; offset: number; epoch: number; seq: number }> = []
   const exited: Array<{ terminalId: string; exitCode: number | null }> = []
   const spawn: PtyFactory = (shell, o) => {
     const pty = new FakePty(1000 + ptys.length)
@@ -71,7 +71,7 @@ function make(options: { readonly env?: NodeJS.ProcessEnv; readonly killTree?: (
     spawn,
     logger,
     clock,
-    emitOutput: (terminalId, data, offset) => output.push({ terminalId, data, offset }),
+    emitOutput: (p) => output.push(p),
     emitExited: (terminalId, exitCode) => exited.push({ terminalId, exitCode }),
     ...options,
   })
@@ -147,7 +147,9 @@ describe('TM-6: 退出顺序', () => {
       expect(output.length).toBe(0)
 
       ptys[0]!.emitExit(3)
-      expect(output).toEqual([{ terminalId: info.terminalId, data: 'hello', offset: 0 }])
+      expect(output).toEqual([
+        { terminalId: info.terminalId, data: 'hello', offset: 0, epoch: expect.any(Number), seq: 1 },
+      ])
       expect(exited).toEqual([{ terminalId: info.terminalId, exitCode: 3 }])
       expect(service.list().find((t) => t.terminalId === info.terminalId)?.exited).toBe(true)
       expect(service.list().find((t) => t.terminalId === info.terminalId)?.exitCode).toBe(3)
@@ -248,7 +250,9 @@ describe('terminal-service 的其余规则', () => {
       const info = await service.open({ cwd, cols: 80, rows: 24 })
       ptys[0]!.emitData('a')
       ptys[0]!.emitData('b')
-      expect(service.replay(info.terminalId)).toEqual({ data: 'ab', endOffset: 2 })
+      const replay = service.replay(info.terminalId)
+      expect(replay).toMatchObject({ data: 'ab', endOffset: 2, seq: 1 })
+      expect(replay.epoch).toBeGreaterThan(0)
     } finally {
       rmSync(cwd, { recursive: true, force: true })
     }
@@ -303,11 +307,36 @@ describe('R-08-15: 输出序号', () => {
       ptys[0]!.emitData('de')
       ptys[0]!.emitExit(0)
 
-      expect(output).toEqual([{ terminalId: info.terminalId, data: 'abcde', offset: 0 }])
+      expect(output).toEqual([
+        { terminalId: info.terminalId, data: 'abcde', offset: 0, epoch: expect.any(Number), seq: 1 },
+      ])
 
       ptys[0]!.emitData('更多')
       ptys[0]!.emitExit(0)
-      expect(output.at(-1)).toEqual({ terminalId: info.terminalId, data: '更多', offset: 5 })
+      expect(output.at(-1)).toEqual({
+        terminalId: info.terminalId,
+        data: '更多',
+        offset: 5,
+        epoch: output[0]!.epoch,
+        seq: 2,
+      })
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
+
+  test('catchUp 按 stream-kit 的 epoch/seq 补发', async () => {
+    const { service, ptys } = make()
+    const cwd = tempDir()
+    try {
+      const info = await service.open({ cwd, cols: 80, rows: 24 })
+      ptys[0]!.emitData('a')
+      ptys[0]!.emitData('b')
+      const replay = service.replay(info.terminalId)
+      const caught = service.catchUp(info.terminalId, replay.epoch, 0)
+      expect(caught.complete).toBe(true)
+      expect(caught.batches).toEqual([{ seq: 1, data: 'ab', offset: 0 }])
+      expect(service.catchUp(info.terminalId, replay.epoch, 1).batches).toEqual([])
     } finally {
       rmSync(cwd, { recursive: true, force: true })
     }

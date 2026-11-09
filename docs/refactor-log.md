@@ -65,6 +65,27 @@
 
 ## 偏差与裁决
 
+### 2026-11-08 P2 起步：stream-kit、Journal 写入、主题路由
+
+- **stream-kit**：新增 `packages/stream-kit` 的通用 `StreamChannel<T>`（合批、epoch/seq、环形缓冲、补发、coalesce），conversation 的 `TimelineChannel` 改为用它；工具中间结果节流仍留在时间线层。
+- **Journal 写入**：新增 `features/journal`（`journal_events` 表 + 服务令牌）。EventRouter 在广播前用 `appendAndStamp` 给 committed 事件盖 `(threadId, agentId, seq)` 并落库；瞬态事件只盖归属、不落库。当前读取仍走 omp 会话文件，Journal 驱动的快照/重建尚未接上。
+- **主题路由**：Host 的 RpcHub 记录窗口订阅的 `(threadId, agentId)`，时间线增量与 reset 只发给订阅窗口；窗口重载清空订阅。普通通知仍广播。
+- **装配**：journal 加入 Core 模块清单与 feature tier 1；conversation 依赖 journal；测试 harness 补装 journal。
+- **Journal 快照页**：`pageFromJournal` 从 committed 事件折叠头页/旧页；头页生成轮次目录，旧页要求从第 1 轮起完整记录；读取上限 10 万条，追不上水位或记录不完整时回退会话文件。
+- **渐进回填**：旧线程第一次冷读且 Journal 为空时，从 omp 会话文件逐页重建成 committed 事件（`eventsFromPage`，`pagesToPage` 拼回轮序，上限 500 页/约 1 万轮），回填在后台跑，首屏这一次先走会话文件；超限会话留给后续任务。
+- **验证**：`bun run all` 全绿（3328 tests）；新增 stream-kit 4 条、journal 1 条、journal 分页 3 条、Journal-only 冷读 1 条、回填 1 条、事件重建往返 1 条、分页拼回 1 条、断线补发 1 条、终端 catchUp 1 条、侧边 catchUp 1 条、RpcHub 主题路由 1 条、EventRouter 写 Journal 1 条。
+- **协议版本**：终端/侧边流形状变化，`PROTOCOL_VERSION` 57→58，契约快照已重生成。
+
+### 2026-11-08 P1 产品模型与单一规范化
+
+- **包更名**：`packages/transcript` → `packages/agent-model`，新增 AgentEvent 信封/事件目录、`ThreadReducer`（`reduce` / `reduceAllChecked` / `snapshotOf` / `stateFromSnapshot`）。实时与历史两条投影都产出 AgentEvent，`OpenTurnScreen` 与开轮屏对拍删除；开着的一轮由实时 fold 合入整页。
+- **线上形状**：`timeline.ops` → `timeline.events`（协议 57）；UI 的 `TranscriptReplica` 直接消费 ThreadReducer，侧表与快照仍用同一份状态。
+- **端口收敛**：`packages/engine` → `packages/runtime-protocol`（P3 再换 ARP）。Core 模块不再拿完整引擎：`ctx.engine` 删除，改为 `ctx.agentRuntime` 的按能力分组；conversation 另用「会话 + 模型 + 设置」的扁平窄面。
+- **工具载荷**：新增 `packages/omp-types`，按 omp 工具名导出 typed 入参与 details；`ToolCallFrame.input/output` 改为 typed union，工具卡片直接读字段。`tool-payload-parsing` 在 conversation 工具视图与 browser 卡片归零，基线从 237 收到 39（剩余为 extensions / intelligent-ui / ui-kernel 等非工具载荷）。
+- **用户裁决**：WorkBuddy 反代本轮不动，ADR-009 记为暂缓；没有改变它的默认值、装配或存储。
+- **未完成/不做**：P2 的 Journal、stream-kit、主题路由与 UI–Core 直连尚未开始；`timelineReset` 仍用于本地命令改写历史（压缩已不再 reset）。`TranscriptOperation` 仍作为 reducer 内部的 patch 形状，不再上线。
+- **验证**：`bun run all` 全绿（typecheck、format、lint、3313 pass / 1 skip）；`core:build` / `core:probe` 见本轮提交前的最终检查。
+
 ### 2026-11-03 解耦收口（Q54 / store / defaultRoute）
 
 - **Q54 两处跨包类名改写删除**：`browser-panel.css` 的图标↔叉悬浮与减弱动效规则迁到 `packages/workbench/src/auxiliary.css`（节点由 `auxiliary-dock.tsx` 渲染，规则归坞；选择器与声明未变，仍压过 Tailwind 的 `opacity-0` / `pointer-events-none` / `transition-opacity`）。models 的两处深色分段控件改用 design-system `SegmentedControl` 的新 `tone="raised"`：轨道 `#2e2e2e`、滑块 `#424242` 与原来的页内覆盖同值，浅色不设变量；`models-add-modes` / `models-auth__methods` 类及两条 `:root[data-theme='dark'] .segmented-control…` 规则删除。界面侧不再改写 workbench / design-system 的类名。

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { applyOps, emptyTimeline, type TranscriptOperation } from '@poietica/transcript'
+import { applyOps, emptyTimeline, type TranscriptOperation } from '@poietica/agent-model'
 import type { TranscriptPage } from '../../../shared/model/transcript'
 import type { TimelineState } from '../../../shared/timeline/timeline-contract'
 import { createProjectionMemo, projectTranscript } from '../transcript-projector'

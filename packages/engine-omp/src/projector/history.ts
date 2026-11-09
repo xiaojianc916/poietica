@@ -1,18 +1,29 @@
 import {
+  type AgentEvent,
   type AgentRef,
-  applyOps,
-  emptyTimeline,
-  pageFromState,
+  EMPTY_THREAD_STATE,
+  type OmpToolInputOf,
+  type OmpToolOutputOf,
+  reduceAll,
+  snapshotOf,
   stepId,
   type TranscriptAttachment,
-  type TranscriptOperation,
   type TranscriptPage,
   type TurnOutlineEntry,
   turnId,
-} from '@poietica/transcript'
+} from '@poietica/agent-model'
 import { isGoalContinuationMessage, isUserSkillMessage, splitWireText } from '../session/prompt'
 import { agentRefsOf } from './agent-refs'
 import { compactionPayloadOf } from './compaction'
+import {
+  attachmentAdded,
+  compacted,
+  itemCompleted,
+  itemStarted,
+  runCompleted,
+  runStarted,
+  stepCompleted,
+} from './events'
 import { assistantFrameId, extraFrameId, interjectionFrameId } from './frame-ids'
 import { FILE_MEDIA_TYPE } from './live'
 import { hashMediaRef, type MediaRef } from './media'
@@ -137,12 +148,12 @@ export function projectHistoryPage(
       ...compactionOps(entry.turn, entry.compactions),
     ]),
   ]
-  const items = itemsFromOps(ops)
+  const snapshot = snapshotOf(reduceAll(EMPTY_THREAD_STATE, ops))
   return {
-    items,
+    items: snapshot.items,
     tasks: [],
     interactions: [],
-    attachments: attachmentsFrom(ops),
+    attachments: snapshot.attachments,
     todos: [],
     prompts: [],
     meta: {},
@@ -379,36 +390,39 @@ function isVisible(message: OmpMessage): boolean {
  * 落了盘的压缩一定已经做完：这里只有 completed，没有 running（审查 R-21-2：从前按「最新一轮还开着」
  * 把它标成 running，中途压缩之后这一行就永远停在「正在压缩上下文…」）。
  */
-function compactionOps(turn: number, compactions: readonly OmpMessage[]): TranscriptOperation[] {
-  return compactions.map((message, index): TranscriptOperation => ({
-    op: 'marker.upsert',
-    item: {
-      kind: 'marker',
-      markerId: `compaction-${String(turn)}-${String(index + 1)}`,
-      marker: 'compaction',
-      at: stampOf(message),
-      payload: compactionPayloadOf(message),
-    },
-  }))
+function compactionOps(turn: number, compactions: readonly OmpMessage[]): AgentEvent[] {
+  return compactions.map((message, index): AgentEvent => {
+    const at = stampOf(message)
+    return compacted(
+      {
+        kind: 'marker',
+        markerId: `compaction-${String(turn)}-${String(index + 1)}`,
+        marker: 'compaction',
+        at,
+        payload: compactionPayloadOf(message),
+      },
+      at,
+    )
+  })
 }
 
 function turnOps(
   entry: ScreenTurn,
   openTurnAttachments: readonly TranscriptAttachment[],
   mediaRef: MediaRef,
-): TranscriptOperation[] {
+): AgentEvent[] {
   const turn = turnId(entry.turn)
   const attached = [
     ...promptImagesOf(entry, openTurnAttachments, mediaRef),
     ...(entry.prompt === null ? [] : filesOf(entry.prompt, entry.openedAt)),
   ]
   /* 轮头必须带上号（审查 R-19-1）：界面只按轮头的 attachmentIds 找图与文件，只发条目不挂号 = 重开之后它们全部消失。 */
-  const ops: TranscriptOperation[] = [
-    turnOp(
-      entry,
-      attached.map((op) => op.attachment.attachmentId),
-    ),
+  const ops: AgentEvent[] = [
     ...attached,
+    ...turnEvents(
+      entry,
+      attached.map((event) => event.attachment.attachmentId),
+    ),
   ]
   /*
    * 帧号按 omp 的消息身份数（与增量那条路同一个口径，见 frame-ids.ts）：这一轮里第几条助手消息、第几句插话。
@@ -429,7 +443,7 @@ interface StepCursor {
 function emitMessage(
   entry: ScreenTurn,
   message: OmpMessage,
-  ops: TranscriptOperation[],
+  ops: AgentEvent[],
   cursor: StepCursor,
   seen: { assistant: number; extra: number; interjections: number },
   turn: string,
@@ -446,7 +460,7 @@ function emitMessage(
   const done = closedIsoOf(message)
   const blocks = shownBlocksOf(entry, message)
   if (blocks.length === 0) return
-  ops.push(stepOp(turn, cursor.step, 'completed', at, done))
+  ops.push(stepCompleted(turn, stepHeader(turn, cursor.step, 'completed', at, done), done))
   let frame = 0
   for (const block of blocks) {
     if (block.kind === 'tool') {
@@ -454,12 +468,12 @@ function emitMessage(
       if (frame > 0) {
         cursor.step += 1
         frame = 0
-        ops.push(stepOp(turn, cursor.step, 'completed', at, done))
+        ops.push(stepCompleted(turn, stepHeader(turn, cursor.step, 'completed', at, done), done))
       }
-      ops.push(toolOp(turn, cursor.step, block, entry.results.get(block.callId)))
+      ops.push(toolEvent(turn, cursor.step, block, entry.results.get(block.callId), at))
       continue
     }
-    ops.push(frameOp(turn, cursor.step, idOf(block.index), block))
+    ops.push(frameEvent(turn, cursor.step, idOf(block.index), block, at))
     frame += 1
   }
   cursor.step += 1
@@ -491,26 +505,23 @@ function interjectionOps(
   message: OmpMessage,
   id: string,
   mediaRef: MediaRef,
-): TranscriptOperation[] {
+): AgentEvent[] {
   const at = stampOf(message)
   const attached = [...imagesOf(message.content, at, mediaRef), ...filesOf(message, at)]
   const attachmentIds = attached.map((op) => op.attachment.attachmentId)
+  const frame = {
+    kind: 'text' as const,
+    role: 'user' as const,
+    frameId: id,
+    text: promptTextOf(message),
+    origin: { kind: 'user' as const },
+    ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
+  }
   return [
-    stepOp(turn, step, 'completed', at, at),
+    stepCompleted(turn, stepHeader(turn, step, 'completed', at, at), at),
     ...attached,
-    {
-      op: 'frame.upsert',
-      turnId: turn,
-      stepId: stepId(turn, step),
-      frame: {
-        kind: 'text',
-        role: 'user',
-        frameId: id,
-        text: promptTextOf(message),
-        origin: { kind: 'user' },
-        ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
-      },
-    },
+    itemStarted(turn, stepId(turn, step), frame, at),
+    itemCompleted(turn, stepId(turn, step), frame, at),
   ]
 }
 
@@ -525,32 +536,33 @@ function shownBlocksOf(entry: ScreenTurn, message: OmpMessage): readonly ScreenB
 }
 
 /** 只有最后一个段能在跑着的时候留 running：段永远停在进行中，屏幕上那一行就一直转 */
-function markLastStepRunning(ops: TranscriptOperation[], turn: string): TranscriptOperation[] {
-  const at = ops.findLastIndex((op) => op.op === 'step.upsert' && op.turnId === turn)
-  if (at < 0) return ops
-  return ops.map((op, index): TranscriptOperation => {
-    if (index !== at || op.op !== 'step.upsert') return op
-    const { endedAt: _dropped, ...rest } = op.step
-    return { ...op, step: { ...rest, state: 'running' } }
-  })
+function markLastStepRunning(events: AgentEvent[], turn: string): AgentEvent[] {
+  const at = events.findLastIndex(
+    (event) => (event.type === 'step.completed' || event.type === 'step.started') && event.turnId === turn,
+  )
+  const event = at < 0 ? undefined : events[at]
+  if (event === undefined || event.type !== 'step.completed') return events
+  const { endedAt: _dropped, ...step } = event.step
+  return events.map((entry, index): AgentEvent =>
+    index === at ? { ...event, type: 'step.started', step: { ...step, state: 'running' } } : entry,
+  )
 }
 
-function turnOp(entry: ScreenTurn, attachmentIds: readonly string[]): TranscriptOperation {
+function turnEvents(entry: ScreenTurn, attachmentIds: readonly string[]): AgentEvent[] {
   const skills = entry.prompt === null ? [] : skillNamesOf(entry.prompt)
-  return {
-    op: 'turn.upsert',
-    turn: {
-      kind: 'turn',
-      turnId: turnId(entry.turn),
-      ordinal: entry.turn,
-      state: entry.state,
-      origin: originOf(entry, skills),
-      ...(entry.prompt === null ? {} : { prompt: promptTextOf(entry.prompt) }),
-      startedAt: entry.openedAt,
-      ...(entry.endedAt === null ? {} : { endedAt: entry.endedAt }),
-      ...(attachmentIds.length === 0 ? {} : { attachmentIds: [...attachmentIds] }),
-    },
+  const header = {
+    kind: 'turn' as const,
+    turnId: turnId(entry.turn),
+    ordinal: entry.turn,
+    state: 'running' as const,
+    origin: originOf(entry, skills),
+    ...(entry.prompt === null ? {} : { prompt: promptTextOf(entry.prompt) }),
+    startedAt: entry.openedAt,
+    ...(attachmentIds.length === 0 ? {} : { attachmentIds: [...attachmentIds] }),
   }
+  if (entry.endedAt === null) return [runStarted(header, entry.openedAt)]
+  const finished = { ...header, state: entry.state, endedAt: entry.endedAt }
+  return [runStarted(header, entry.openedAt), runCompleted(finished, 'completed', entry.endedAt)]
 }
 
 /** 这一轮的来源：续跑那一轮是 GOAL_CONTINUATION_ORIGIN（与 live 同一个形状），其余都是人话 */
@@ -578,35 +590,25 @@ function detailsField(message: OmpMessage, key: string): unknown {
   return typeof details === 'object' && details !== null ? Reflect.get(details, key) : undefined
 }
 
-function stepOp(
-  turn: string,
-  ordinal: number,
-  state: 'running' | 'completed',
-  startedAt: string,
-  endedAt: string,
-): TranscriptOperation {
-  return {
-    op: 'step.upsert',
-    turnId: turn,
-    step: { kind: 'step', stepId: stepId(turn, ordinal), turnId: turn, ordinal, state, startedAt, endedAt },
-  }
+function stepHeader(turn: string, ordinal: number, state: 'running' | 'completed', startedAt: string, endedAt: string) {
+  return { kind: 'step' as const, stepId: stepId(turn, ordinal), turnId: turn, ordinal, state, startedAt, endedAt }
 }
 
-function frameOp(
+function frameEvent(
   turn: string,
   step: number,
   id: string,
   block: Extract<ScreenBlock, { kind: 'text' | 'thinking' }>,
-): TranscriptOperation {
-  return {
-    op: 'frame.upsert',
-    turnId: turn,
-    stepId: stepId(turn, step),
-    frame:
-      block.kind === 'text'
-        ? { kind: 'text', role: 'assistant', frameId: id, text: block.text }
-        : { kind: 'thinking', frameId: id, text: block.text },
-  }
+  at: string,
+): AgentEvent {
+  return itemCompleted(
+    turn,
+    stepId(turn, step),
+    block.kind === 'text'
+      ? { kind: 'text', role: 'assistant', frameId: id, text: block.text }
+      : { kind: 'thinking', frameId: id, text: block.text },
+    at,
+  )
 }
 
 /** 派发工具帧的子代理（与实时那条路同一个产地 agent-refs.ts，重开前后是同一个入口） */
@@ -616,32 +618,31 @@ function agentRefsField(name: string, details: unknown): { readonly agentRefs?: 
 }
 
 /** 一次工具调用：调用与结果同一帧（同一个 frameId 的两次 upsert）；details 必须带上 */
-function toolOp(
+function toolEvent(
   turn: string,
   step: number,
   block: Extract<ScreenBlock, { kind: 'tool' }>,
   result: ScreenResult | undefined,
-): TranscriptOperation {
-  return {
-    op: 'frame.upsert',
-    turnId: turn,
-    stepId: stepId(turn, step),
-    frame: {
-      kind: 'tool',
-      frameId: `tool.${block.callId}`,
-      toolCallId: block.callId,
-      name: block.name,
-      state: result === undefined ? 'running' : result.isError ? 'error' : 'done',
-      input: block.arguments,
-      ...(result === undefined
-        ? {}
-        : {
-            output: { content: result.content, details: result.details },
-            ...(result.isError ? { error: textOf(result.content) } : {}),
-            ...agentRefsField(block.name, result.details),
-          }),
-    },
+  at: string,
+): AgentEvent {
+  const frame = {
+    kind: 'tool' as const,
+    frameId: `tool.${block.callId}`,
+    toolCallId: block.callId,
+    name: block.name,
+    state: result === undefined ? ('running' as const) : result.isError ? ('error' as const) : ('done' as const),
+    input: block.arguments as OmpToolInputOf,
+    ...(result === undefined
+      ? {}
+      : {
+          output: { content: result.content, details: result.details } as OmpToolOutputOf,
+          ...(result.isError ? { error: textOf(result.content) } : {}),
+          ...agentRefsField(block.name, result.details),
+        }),
   }
+  return result === undefined
+    ? itemStarted(turn, stepId(turn, step), frame, at)
+    : itemCompleted(turn, stepId(turn, step), frame, at)
 }
 
 function contentOf(message: OmpMessage): readonly ScreenBlock[] {
@@ -685,7 +686,7 @@ function textOf(value: unknown): string {
     .join('\n')
 }
 
-type AttachmentUpsert = Extract<TranscriptOperation, { op: 'attachment.upsert' }>
+type AttachmentUpsert = Extract<AgentEvent, { type: 'attachment.added' }>
 
 /**
  * 这一轮开头那句人话的图片条目。还开着的那一轮优先沿用增量那条路发过的那一批（号与像素都相同）；
@@ -699,7 +700,7 @@ function promptImagesOf(
   const fromHistory = imagesOf(entry.prompt === null ? undefined : entry.prompt.content, entry.openedAt, mediaRef)
   if (entry.state !== 'running' || openTurnAttachments.length === 0) return fromHistory
   if (openTurnAttachments.length !== fromHistory.length) return fromHistory
-  return openTurnAttachments.map((attachment) => ({ op: 'attachment.upsert', attachment }))
+  return openTurnAttachments.map((attachment) => attachmentAdded(attachment, entry.openedAt))
 }
 
 /**
@@ -714,14 +715,16 @@ function imagesOf(content: unknown, stamp: string, mediaRef: MediaRef): Attachme
     const block = value as { readonly type?: unknown; readonly data?: unknown; readonly mimeType?: unknown }
     if (block.type !== 'image' || typeof block.data !== 'string' || block.data === '') continue
     const mediaType = typeof block.mimeType === 'string' ? block.mimeType : 'image/png'
-    ops.push({
-      op: 'attachment.upsert',
-      attachment: {
-        attachmentId: `${stamp}#${String(index)}`,
-        mediaType,
-        source: { kind: 'blob', sha256: mediaRef(block as { readonly data: string }) },
-      },
-    })
+    ops.push(
+      attachmentAdded(
+        {
+          attachmentId: `${stamp}#${String(index)}`,
+          mediaType,
+          source: { kind: 'blob', sha256: mediaRef(block as { readonly data: string }) },
+        },
+        stamp,
+      ),
+    )
   }
   return ops
 }
@@ -732,14 +735,16 @@ function imagesOf(content: unknown, stamp: string, mediaRef: MediaRef): Attachme
  */
 function filesOf(message: OmpMessage, stamp: string): AttachmentUpsert[] {
   if (message.role !== 'user') return []
-  return splitWireText(textOf(message.content)).files.map((file, index): AttachmentUpsert => ({
-    op: 'attachment.upsert',
-    attachment: {
-      attachmentId: `${stamp}#f${String(index)}`,
-      mediaType: FILE_MEDIA_TYPE,
-      name: file.name,
-    },
-  }))
+  return splitWireText(textOf(message.content)).files.map((file, index): AttachmentUpsert =>
+    attachmentAdded(
+      {
+        attachmentId: `${stamp}#f${String(index)}`,
+        mediaType: FILE_MEDIA_TYPE,
+        name: file.name,
+      },
+      stamp,
+    ),
+  )
 }
 
 function stampOf(message: OmpMessage): string {
@@ -766,12 +771,4 @@ function laterOf(held: number | null, stamp: number | undefined): number | null 
 function closedIsoOf(message: OmpMessage): string {
   const closed = closedAtOf(message)
   return closed === undefined ? stampOf(message) : new Date(closed).toISOString()
-}
-
-/** 用 transcript 的折叠器把 ops 变成 items：step/frame 的嵌套与覆盖由它负责，这里不写第二份 */
-function itemsFromOps(ops: readonly TranscriptOperation[]): TranscriptPage['items'] {
-  return pageFromState(applyOps(emptyTimeline(), ops)).items
-}
-function attachmentsFrom(ops: readonly TranscriptOperation[]): TranscriptPage['attachments'] {
-  return ops.flatMap((op) => (op.op === 'attachment.upsert' ? [op.attachment] : []))
 }

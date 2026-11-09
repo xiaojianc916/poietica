@@ -1,8 +1,9 @@
 import { type CoreHarness, createCoreHarness } from '@poietica/core-kernel/testing'
-import type { EngineSession, OpenSessionSpec } from '@poietica/engine'
-import { createFakeEngine, type FakeEngine, type ScenarioScript } from '@poietica/engine-testkit'
 import attachments from '@poietica/feature-attachments/core'
+import journal from '@poietica/feature-journal/core'
 import workspaces from '@poietica/feature-workspaces/core'
+import type { EngineSession, OpenSessionSpec } from '@poietica/runtime-protocol'
+import { createFakeEngine, type FakeEngine, type ScenarioScript } from '@poietica/runtime-protocol-testkit'
 import { fakeClock } from '@poietica/test-kit'
 import { conversationContract } from '../../contract'
 import conversation from '../index'
@@ -25,7 +26,7 @@ export async function harness(
     ...(opts.script === undefined ? {} : { script: opts.script }),
     ...(opts.autoTitle === undefined ? {} : { autoTitle: opts.autoTitle }),
   })
-  const h = await createCoreHarness({ modules: [attachments, workspaces, conversation], engine, clock })
+  const h = await createCoreHarness({ modules: [journal, attachments, workspaces, conversation], engine, clock })
   return { h, engine }
 }
 

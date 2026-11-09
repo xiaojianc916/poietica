@@ -1,4 +1,4 @@
-import type { ModelRef } from '@poietica/engine'
+import type { ModelRef } from '@poietica/runtime-protocol'
 import type { ComposerStore } from '../composer'
 
 /*

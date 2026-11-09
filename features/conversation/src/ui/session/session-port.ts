@@ -1,6 +1,6 @@
-import type { InteractionAnswer } from '@poietica/engine'
+import type { AgentEvent } from '@poietica/agent-model'
 import { createId } from '@poietica/foundation'
-import type { TranscriptOperation } from '@poietica/transcript'
+import type { InteractionAnswer } from '@poietica/runtime-protocol'
 import type { QueuedItemView, QueueView } from '../../contract'
 import type { ConversationApi } from '../api'
 import { GOAL_CONTROL_ID, GOAL_ENABLED } from '../shared/model/goal-control'
@@ -73,7 +73,7 @@ export function createSessionPort({ api, threadId, onSubmissions }: SessionPortO
 
   const transcript = {
     subscribeTranscript(listener: (signal: TranscriptSignal) => void): () => void {
-      const offOps = api.onTimelineOps((p) => {
+      const offEvents = api.onTimelineEvents((p) => {
         if (p.threadId !== threadId) return
         const known = positions.get(p.agentId)
         positions.set(p.agentId, { epoch: p.epoch, seq: p.seq })
@@ -83,11 +83,11 @@ export function createSessionPort({ api, threadId, onSubmissions }: SessionPortO
           return
         }
         listener({
-          kind: 'ops',
+          kind: 'events',
           sessionId: p.threadId,
           agentId: p.agentId,
           seq: p.seq,
-          ops: p.ops as readonly TranscriptOperation[],
+          events: p.events as readonly AgentEvent[],
         })
       })
       const offReset = api.onTimelineReset((p) => {
@@ -96,7 +96,7 @@ export function createSessionPort({ api, threadId, onSubmissions }: SessionPortO
         listener({ kind: 'reset', sessionId: p.threadId, agentId: p.agentId, seq: undefined })
       })
       return () => {
-        offOps.dispose()
+        offEvents.dispose()
         offReset.dispose()
       }
     },

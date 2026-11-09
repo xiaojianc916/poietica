@@ -1,5 +1,8 @@
+import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
+import type { JournalService } from '@poietica/feature-journal/core-api'
+import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
+import type { Clock, Logger } from '@poietica/foundation'
 import type {
-  AgentEngine,
   CommandOutputTone,
   ContextUsage,
   Controls,
@@ -7,15 +10,14 @@ import type {
   Interaction,
   SideTopic,
   UsageSample,
-} from '@poietica/engine'
-import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
-import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
-import type { Clock, Logger } from '@poietica/foundation'
+} from '@poietica/runtime-protocol'
 import type { QueueView, Thread, TurnState } from '../contract/entities'
 import { EventRouter } from './event-router'
 import { createReclaimRepository } from './reclaim-repository'
 import { createThreadsRepository } from './repository'
+import type { ConversationRuntime } from './runtime'
 import { SessionPool } from './session-pool'
+import type { SideDelta } from './side-topic-hub'
 import { SubmissionService } from './submission-service'
 import { createSubmissionsRepository } from './submissions-repository'
 import { ThreadService } from './thread-service'
@@ -25,7 +27,8 @@ import { TurnService } from './turn-service'
 
 export interface ConversationCoreDeps {
   readonly db: Parameters<typeof createThreadsRepository>[0]
-  readonly engine: AgentEngine
+  readonly runtime: ConversationRuntime
+  readonly journal: JournalService
   readonly hub: TimelineHub
   readonly workspaces: WorkspacesService
   readonly attachments: AttachmentsService
@@ -49,16 +52,10 @@ export interface ConversationCoreDeps {
   readonly emitCommandOutput: (p: { threadId: string; text: string; tone: CommandOutputTone }) => void
   readonly emitCommandsChanged: (p: { threadId: string }) => void
   /** 工具写了一处文件（引擎写的那一刻报）：Core 事件，账单归 review */
-  readonly emitFileChanged: (p: { threadId: string } & import('@poietica/engine').FileChange) => void
+  readonly emitFileChanged: (p: { threadId: string } & import('@poietica/runtime-protocol').FileChange) => void
   /** 侧边提问（右坞辅助对话）的三条通知：side.topic / side.delta / side.notice */
   readonly emitSideTopic: (p: { threadId: string; topic: SideTopic }) => void
-  readonly emitSideDelta: (p: {
-    threadId: string
-    topicId: string
-    turn: number
-    offset: number
-    delta: string
-  }) => void
+  readonly emitSideDelta: (p: SideDelta) => void
   readonly emitSideNotice: (p: { threadId: string; message: string }) => void
   readonly emitInteractionRequested: (p: { threadId: string; interaction: Interaction }) => void
   readonly emitInteractionResolved: (p: { threadId: string; interactionId: string }) => void
@@ -123,7 +120,7 @@ export class ConversationCore {
       repo,
       reclaim: createReclaimRepository(d.db),
       transaction: (fn) => d.db.transaction(fn),
-      engine: d.engine,
+      runtime: d.runtime,
       workspaces: d.workspaces,
       attachments: d.attachments,
       hub: d.hub,
@@ -145,7 +142,7 @@ export class ConversationCore {
     })
 
     this.pool = new SessionPool({
-      engine: d.engine,
+      runtime: d.runtime,
       clock: d.clock,
       logger: d.logger,
       describe: (threadId) => this.threads.describe(threadId),
@@ -201,6 +198,7 @@ export class ConversationCore {
 
     this.router = new EventRouter({
       repo,
+      journal: d.journal,
       hub: d.hub,
       clock: d.clock,
       submissions: this.submissions,
@@ -232,7 +230,8 @@ export class ConversationCore {
     })
 
     this.turns = new TurnService({
-      engine: d.engine,
+      runtime: d.runtime,
+      journal: d.journal,
       repo,
       pool: this.pool,
       hub: d.hub,

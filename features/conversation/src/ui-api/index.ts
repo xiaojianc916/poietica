@@ -1,4 +1,5 @@
 import { defineServiceToken } from '@poietica/foundation'
+import type { OmpToolInputOf, OmpToolOutputOf } from '@poietica/omp-types'
 import { defineContributionPoint, type IconComponent, type SurfaceComponent } from '@poietica/ui-kernel'
 import type { ComponentType, ReactNode } from 'react'
 import type { Thread } from '../contract'
@@ -105,8 +106,8 @@ export interface ToolCallRendererProps {
   /** 这次工具调用的号：跨重渲、跨虚拟列表回收都不变，贡献卡片靠它认「同一个实例」（状态、量过的高度） */
   readonly callId: string
   readonly toolName: string
-  readonly args: unknown
-  readonly result: unknown | null // 未完成时为 null
+  readonly args: OmpToolInputOf | undefined
+  readonly result: OmpToolOutputOf | null // 未完成时为 null
   readonly status: 'running' | 'succeeded' | 'failed'
   /**
    * 参数还在流（status 仍是 running）：`args` 是到此为止解析出来的那一份，之后还会再长。只有工具声明了

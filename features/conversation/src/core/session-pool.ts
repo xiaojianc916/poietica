@@ -1,4 +1,3 @@
-import type { AgentEngine, EngineSession, EngineSessionEvent, OpenSessionSpec } from '@poietica/engine'
 import {
   AppError,
   type Clock,
@@ -8,13 +7,15 @@ import {
   mapLimited,
   SystemErrorCode,
 } from '@poietica/foundation'
+import type { EngineSession, EngineSessionEvent, OpenSessionSpec } from '@poietica/runtime-protocol'
+import type { ConversationRuntime } from './runtime'
 
 export const MAX_IDLE_SESSIONS = 6
 export const IDLE_TTL_MS = 10 * 60_000
 export const SWEEP_INTERVAL_MS = 60_000
 
 export interface SessionPoolDeps {
-  readonly engine: AgentEngine
+  readonly runtime: ConversationRuntime
   readonly clock: Clock
   readonly logger: Logger
   describe(threadId: string): OpenSessionSpec
@@ -155,7 +156,7 @@ type Slot = OpeningSlot | LiveSlot
     let session: EngineSession
     try {
       // describe() 在第一个 await 之前同步调用；它抛出（行已删、工作区不可用）也删槽位
-      session = await this.d.engine.openSession(this.d.describe(threadId))
+      session = await this.d.runtime.openSession(this.d.describe(threadId))
     } catch (error) {
       this.dropSlot(threadId, opening)
       throw error

@@ -113,6 +113,7 @@ export function createTerminalRuntime(d: TerminalRuntimeDeps): TerminalRuntime {
     openExternal: d.openExternal,
     onError: d.onError,
     onInfo: (id, info) => {
+      void d.api.subscribe(info.terminalId)
       store.setState((s) => ({
         ...s,
         terminals: s.terminals.map((t) => (t.id === id ? { ...t, info } : t)),
@@ -151,6 +152,7 @@ export function createTerminalRuntime(d: TerminalRuntimeDeps): TerminalRuntime {
   /** 先攒输出、再重放、再按 endOffset 放行。返回 false 表示功能已拆掉，整轮恢复该停下。 */
   const adoptOne = async (info: TerminalInfo): Promise<boolean> => {
     replaying.add(info.terminalId)
+    void d.api.subscribe(info.terminalId)
     const session = sessions.adopt(info)
     let replayEndOffset = 0
 
@@ -232,7 +234,9 @@ export function createTerminalRuntime(d: TerminalRuntimeDeps): TerminalRuntime {
     },
     close(id) {
       const next = neighborOf(id)
-      forget(sessions.get(id)?.terminalId() ?? null)
+      const terminalId = sessions.get(id)?.terminalId() ?? null
+      if (terminalId !== null) void d.api.unsubscribe(terminalId)
+      forget(terminalId)
       sessions.dispose(id)
       store.setState((s) => ({
         terminals: s.terminals.filter((t) => t.id !== id),

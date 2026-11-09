@@ -6,7 +6,7 @@ import { createRelayClient, type RelaySocket, type RelayTarget, relayTargetOf } 
 const TOKEN = 'ef'.repeat(32)
 const target = (port: number): RelayTarget => ({ url: `http://127.0.0.1:${String(port)}`, token: TOKEN })
 
-import { DISCARDED_TABS_PROTOCOL_VERSION } from '@poietica/engine'
+import { DISCARDED_TABS_PROTOCOL_VERSION } from '@poietica/runtime-protocol'
 import type { ContentsListener, WebContentsLike } from '../tabs'
 
 /* relay 这一侧的自检：socket 与 clock 都注入，真 Chromium 与真 WebSocket 不参与；钉住 BR-2…BR-7 与 BR-11。 */

@@ -90,9 +90,6 @@
       "path": "../../packages/design-system"
     },
     {
-      "path": "../../packages/engine"
-    },
-    {
       "path": "../../packages/host-kernel"
     },
     {
@@ -100,6 +97,9 @@
     },
     {
       "path": "../../packages/rpc"
+    },
+    {
+      "path": "../../packages/runtime-protocol"
     },
     {
       "path": "../../packages/ui-kernel"

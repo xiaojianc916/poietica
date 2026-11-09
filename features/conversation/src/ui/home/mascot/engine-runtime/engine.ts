@@ -52,7 +52,7 @@ const FALLBACK_ID = '02'
 /* ---------------- 基础工具 ---------------- */
 
 function clamp(v: number, a: number, b: number): number {
-  return v < a ? a : v > b ? b : v
+  return v < a ? a : Math.min(v, b)
 }
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t

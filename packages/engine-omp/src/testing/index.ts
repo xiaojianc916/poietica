@@ -1,8 +1,8 @@
 import type { MockContent, MockResponse } from '@oh-my-pi/pi-ai/providers/mock'
-import type { AgentEngine } from '@poietica/engine'
-import type { ScenarioStep } from '@poietica/engine-testkit'
 import { type Logger, noopLogger } from '@poietica/foundation'
 import type { DataLayout } from '@poietica/runtime-layout'
+import type { AgentEngine } from '@poietica/runtime-protocol'
+import type { ScenarioStep } from '@poietica/runtime-protocol-testkit'
 import { createOmpEngineWith } from '../create-engine'
 import { OMP_VERSION } from '../omp-version'
 

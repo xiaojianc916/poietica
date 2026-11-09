@@ -1,3 +1,4 @@
+import { AppError, type Disposable, type Logger, SystemErrorCode, toDisposable } from '@poietica/foundation'
 import {
   type AgentEngine,
   type BrowserRelayEndpoint,
@@ -12,8 +13,7 @@ import {
   type OpenSessionSpec,
   type Posture,
   type SlashCommand,
-} from '@poietica/engine'
-import { AppError, type Disposable, type Logger, SystemErrorCode, toDisposable } from '@poietica/foundation'
+} from '@poietica/runtime-protocol'
 
 export interface OmpEngineOptions {
   readonly info: EngineInfo

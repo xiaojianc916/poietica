@@ -1,36 +1,44 @@
 import { describe, expect, test } from 'bun:test'
+import type { AgentEvent } from '@poietica/agent-model'
 import { fakeClock } from '@poietica/test-kit'
-import type { TranscriptOperation } from '@poietica/transcript'
 import { BATCH_WINDOW_MS, RING_CAPACITY, TimelineChannel } from '../timeline-channel'
 import { TimelineHub } from '../timeline-hub'
 
-const op = (n: number): TranscriptOperation =>
-  ({ op: 'meta.merge', meta: { activity: 'turn' }, marker: n }) as unknown as TranscriptOperation
+const at = '2026-01-01T00:00:00.000Z'
+
+/** 只是填充用的一条 committed 事件：通道不认识它的载荷，只看类型 */
+const event = (n: number): AgentEvent => ({
+  type: 'agent.updated',
+  durability: 'committed',
+  schema: 1,
+  at,
+  meta: { activity: 'turn', agent: { contextTokens: n } },
+})
 
 describe('CV-9 TimelineChannel', () => {
   test('16ms 合批：同一窗口内 3 次 push 只发 1 条通知', () => {
     const clock = fakeClock()
-    const batches: { epoch: number; seq: number; ops: readonly TranscriptOperation[] }[] = []
+    const batches: { epoch: number; seq: number; events: readonly AgentEvent[] }[] = []
     let epoch = 1
     const channel = new TimelineChannel(1, () => ++epoch, clock, {
-      ops: (p) => batches.push(p),
+      events: (p) => batches.push(p),
       reset: () => undefined,
     })
-    channel.push([op(1)])
-    channel.push([op(2)])
-    channel.push([op(3)])
+    channel.push([event(1)])
+    channel.push([event(2)])
+    channel.push([event(3)])
     expect(batches.length).toBe(0)
     clock.advance(BATCH_WINDOW_MS)
     expect(batches.length).toBe(1)
     expect(batches[0]!.seq).toBe(1)
-    expect(batches[0]!.ops.length).toBe(3)
+    expect(batches[0]!.events.length).toBe(3)
     channel.dispose()
   })
 
   test('push 空数组不排批次', () => {
     const clock = fakeClock()
     const batches: unknown[] = []
-    const channel = new TimelineChannel(1, () => 2, clock, { ops: (p) => batches.push(p), reset: () => undefined })
+    const channel = new TimelineChannel(1, () => 2, clock, { events: (p) => batches.push(p), reset: () => undefined })
     channel.push([])
     clock.advance(BATCH_WINDOW_MS)
     expect(batches.length).toBe(0)
@@ -39,18 +47,18 @@ describe('CV-9 TimelineChannel', () => {
 
   test('position() 先冲刷，返回当前位置', () => {
     const clock = fakeClock()
-    const channel = new TimelineChannel(1, () => 2, clock, { ops: () => undefined, reset: () => undefined })
-    channel.push([op(1)])
+    const channel = new TimelineChannel(1, () => 2, clock, { events: () => undefined, reset: () => undefined })
+    channel.push([event(1)])
     expect(channel.position()).toEqual({ epoch: 1, seq: 1 })
     channel.dispose()
   })
 
   test('catchUp 在缓冲内返回 complete:true，超出返回 complete:false', () => {
     const clock = fakeClock()
-    const channel = new TimelineChannel(1, () => 2, clock, { ops: () => undefined, reset: () => undefined })
-    channel.push([op(1)])
+    const channel = new TimelineChannel(1, () => 2, clock, { events: () => undefined, reset: () => undefined })
+    channel.push([event(1)])
     channel.flush()
-    channel.push([op(2)])
+    channel.push([event(2)])
     channel.flush()
     expect(channel.catchUp(1, 1).complete).toBe(true)
     expect(channel.catchUp(1, 1).batches.map((b) => b.seq)).toEqual([2])
@@ -63,9 +71,9 @@ describe('CV-9 TimelineChannel', () => {
 
   test('环形缓冲超过 RING_CAPACITY 后，太旧的 sinceSeq 判为不完整', () => {
     const clock = fakeClock()
-    const channel = new TimelineChannel(1, () => 2, clock, { ops: () => undefined, reset: () => undefined })
+    const channel = new TimelineChannel(1, () => 2, clock, { events: () => undefined, reset: () => undefined })
     for (let i = 0; i < RING_CAPACITY + 5; i++) {
-      channel.push([op(i)])
+      channel.push([event(i)])
       channel.flush()
     }
     expect(channel.catchUp(1, 0).complete).toBe(false)
@@ -77,10 +85,10 @@ describe('CV-9 TimelineChannel', () => {
     const clock = fakeClock()
     const resets: number[] = []
     const channel = new TimelineChannel(1, () => 7, clock, {
-      ops: () => undefined,
+      events: () => undefined,
       reset: (p) => resets.push(p.epoch),
     })
-    channel.push([op(1)])
+    channel.push([event(1)])
     channel.flush()
     channel.reset()
     expect(resets).toEqual([7])
@@ -97,14 +105,14 @@ describe('CV-9 TimelineChannel', () => {
     const clock = fakeClock()
     const resets: number[] = []
     const channel = new TimelineChannel(1, () => 7, clock, {
-      ops: () => undefined,
+      events: () => undefined,
       reset: (p) => resets.push(p.epoch),
     })
-    channel.push([op(1)])
+    channel.push([event(1)])
     channel.flush()
-    channel.push([op(2)])
+    channel.push([event(2)])
     channel.flush()
-    channel.push([op(3)])
+    channel.push([event(3)])
     channel.flush()
 
     channel.dropHistory()
@@ -121,7 +129,7 @@ describe('CV-9 TimelineChannel', () => {
 describe('TimelineHub', () => {
   test('epoch 是全局递增的，不同通道不重复', () => {
     const clock = fakeClock()
-    const hub = new TimelineHub({ clock, emitOps: () => undefined, emitReset: () => undefined, epochBase: 1 })
+    const hub = new TimelineHub({ clock, emitEvents: () => undefined, emitReset: () => undefined, epochBase: 1 })
     const a = hub.position('t1', 'main')
     const b = hub.position('t2', 'main')
     expect(a.epoch).toBe(1)
@@ -139,7 +147,7 @@ describe('TimelineHub', () => {
     const clock = fakeClock()
     const epochs: number[] = []
     for (let i = 0; i < 20; i += 1) {
-      const hub = new TimelineHub({ clock, emitOps: () => undefined, emitReset: () => undefined })
+      const hub = new TimelineHub({ clock, emitEvents: () => undefined, emitReset: () => undefined })
       epochs.push(hub.position('t1', 'main').epoch)
       hub.dispose()
     }
@@ -148,21 +156,21 @@ describe('TimelineHub', () => {
 
   test('通道不存在时 catchUp 返回 complete:false、latestSeq 0', () => {
     const clock = fakeClock()
-    const hub = new TimelineHub({ clock, emitOps: () => undefined, emitReset: () => undefined, epochBase: 1 })
+    const hub = new TimelineHub({ clock, emitEvents: () => undefined, emitReset: () => undefined, epochBase: 1 })
     expect(hub.catchUp('nope', 'main', 1, 0)).toEqual({ batches: [], latestSeq: 0, complete: false })
     hub.dispose()
   })
 
-  test('op 通知带 threadId 与 agentId；16ms 合批', () => {
+  test('事件通知带 threadId 与 agentId；16ms 合批', () => {
     const clock = fakeClock()
     const seen: { threadId: string; agentId: string; seq: number; count: number }[] = []
     const hub = new TimelineHub({
       clock,
-      emitOps: (p) => seen.push({ threadId: p.threadId, agentId: p.agentId, seq: p.seq, count: p.ops.length }),
+      emitEvents: (p) => seen.push({ threadId: p.threadId, agentId: p.agentId, seq: p.seq, count: p.events.length }),
       emitReset: () => undefined,
       epochBase: 1,
     })
-    hub.push('t1', 'main', [op(1), op(2)])
+    hub.push('t1', 'main', [event(1), event(2)])
     clock.advance(BATCH_WINDOW_MS)
     expect(seen).toEqual([{ threadId: 't1', agentId: 'main', seq: 1, count: 2 }])
     hub.dispose()
@@ -170,7 +178,7 @@ describe('TimelineHub', () => {
 
   test('disposeThread 之后 position 会新建通道（新的 epoch）', () => {
     const clock = fakeClock()
-    const hub = new TimelineHub({ clock, emitOps: () => undefined, emitReset: () => undefined, epochBase: 1 })
+    const hub = new TimelineHub({ clock, emitEvents: () => undefined, emitReset: () => undefined, epochBase: 1 })
     const first = hub.position('t1', 'main')
     hub.disposeThread('t1')
     const second = hub.position('t1', 'main')
@@ -184,15 +192,15 @@ describe('TimelineHub', () => {
     const resets: { threadId: string; agentId: string; epoch: number }[] = []
     const hub = new TimelineHub({
       clock,
-      emitOps: () => undefined,
+      emitEvents: () => undefined,
       emitReset: (p) => resets.push({ threadId: p.threadId, agentId: p.agentId, epoch: p.epoch }),
       epochBase: 1,
     })
     hub.position('t1', 'main')
     hub.position('t1', 'Explorer')
     hub.position('t2', 'main')
-    hub.push('t1', 'main', [op(1)])
-    hub.push('t2', 'main', [op(2)])
+    hub.push('t1', 'main', [event(1)])
+    hub.push('t2', 'main', [event(2)])
     hub.resetAdvanced('t1')
     expect(resets.map((r) => `${r.threadId}/${r.agentId}`)).toEqual(['t1/main'])
     /* 换过代的通道 seq 归零：再打开一次不会再换（只被整页读订阅过） */
@@ -204,10 +212,10 @@ describe('TimelineHub', () => {
   /* R-05 §3.2：hub 的 dropHistory 按线程清补发历史，不动别的线程 */
   test('R-05 dropHistory 只清该线程的缓存', () => {
     const clock = fakeClock()
-    const hub = new TimelineHub({ clock, emitOps: () => undefined, emitReset: () => undefined, epochBase: 1 })
-    hub.push('t1', 'main', [op(1)])
+    const hub = new TimelineHub({ clock, emitEvents: () => undefined, emitReset: () => undefined, epochBase: 1 })
+    hub.push('t1', 'main', [event(1)])
     const t1 = hub.position('t1', 'main')
-    hub.push('t2', 'main', [op(1)])
+    hub.push('t2', 'main', [event(1)])
     const t2 = hub.position('t2', 'main')
     expect(hub.catchUp('t1', 'main', t1.epoch, 0).complete).toBe(true)
     expect(hub.catchUp('t2', 'main', t2.epoch, 0).complete).toBe(true)

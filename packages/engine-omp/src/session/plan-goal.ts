@@ -1,5 +1,5 @@
-import { EngineErrorCode } from '@poietica/engine'
 import { AppError, SystemErrorCode } from '@poietica/foundation'
+import { EngineErrorCode } from '@poietica/runtime-protocol'
 import { type PlanOutcome, planApprovedText, planRejectedText, planRevisionText } from '../interactions/plan'
 import type { SettingsScope } from '../settings-access'
 import { readSetting } from '../settings-access'

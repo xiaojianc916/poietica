@@ -110,6 +110,12 @@
       "path": "features/intelligent-ui/src/ui"
     },
     {
+      "path": "features/journal/src/core"
+    },
+    {
+      "path": "features/journal/src/core-api"
+    },
+    {
       "path": "features/models/src/contract"
     },
     {
@@ -224,6 +230,9 @@
       "path": "features/workspaces/src/ui-api"
     },
     {
+      "path": "packages/agent-model"
+    },
+    {
       "path": "packages/contract-kit"
     },
     {
@@ -231,9 +240,6 @@
     },
     {
       "path": "packages/design-system"
-    },
-    {
-      "path": "packages/engine"
     },
     {
       "path": "packages/engine-omp"
@@ -257,6 +263,9 @@
       "path": "packages/logging"
     },
     {
+      "path": "packages/omp-types"
+    },
+    {
       "path": "packages/process-kit"
     },
     {
@@ -272,13 +281,16 @@
       "path": "packages/runtime-layout"
     },
     {
+      "path": "packages/runtime-protocol"
+    },
+    {
       "path": "packages/storage-sqlite"
     },
     {
-      "path": "packages/test-kit"
+      "path": "packages/stream-kit"
     },
     {
-      "path": "packages/transcript"
+      "path": "packages/test-kit"
     },
     {
       "path": "packages/ui-kernel"

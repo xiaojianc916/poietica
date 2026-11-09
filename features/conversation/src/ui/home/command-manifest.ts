@@ -1,4 +1,4 @@
-import type { SlashCommand } from '@poietica/engine'
+import type { SlashCommand } from '@poietica/runtime-protocol'
 import type { SlashCommandContribution } from '../../ui-api'
 import { PLAN_CONTROL_ID, PLAN_ENABLED } from '../session'
 import {

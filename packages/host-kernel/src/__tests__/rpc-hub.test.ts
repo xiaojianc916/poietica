@@ -48,7 +48,7 @@ const hostContract = defineContract({
 
 const coreContract = defineContract({
   id: 'conversation',
-  namespaces: ['conversation'],
+  namespaces: ['conversation', 'timeline'],
   methods: [
     defineMethod({
       name: 'conversation.list',
@@ -56,6 +56,20 @@ const coreContract = defineContract({
       params: z.object({}),
       result: z.object({ items: z.array(z.string()) }),
       description: '转发给 Core',
+    }),
+    defineMethod({
+      name: 'timeline.subscribe',
+      owner: 'core',
+      params: z.object({ threadId: z.string(), agentId: z.string() }),
+      result: z.object({}),
+      description: '订阅时间线主题',
+    }),
+    defineMethod({
+      name: 'timeline.unsubscribe',
+      owner: 'core',
+      params: z.object({ threadId: z.string(), agentId: z.string() }),
+      result: z.object({}),
+      description: '退订时间线主题',
     }),
     defineMethod({
       name: 'conversation.emitMe',
@@ -71,6 +85,24 @@ const coreContract = defineContract({
       owner: 'core',
       params: z.object({ v: z.number() }),
       description: '来自 Core 的通知',
+    }),
+    defineNotification({
+      name: 'timeline.events',
+      owner: 'core',
+      params: z.object({
+        threadId: z.string(),
+        agentId: z.string(),
+        epoch: z.number(),
+        seq: z.number(),
+        events: z.array(z.unknown()),
+      }),
+      description: '时间线增量',
+    }),
+    defineNotification({
+      name: 'timeline.reset',
+      owner: 'core',
+      params: z.object({ threadId: z.string(), agentId: z.string(), epoch: z.number() }),
+      description: '时间线换代',
     }),
   ],
   errors: defineErrors('conversation', {}),

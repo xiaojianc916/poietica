@@ -1,5 +1,5 @@
-import type { EngineToolSpec } from '@poietica/engine'
 import type { Logger } from '@poietica/foundation'
+import type { EngineToolSpec } from '@poietica/runtime-protocol'
 import { z } from 'zod'
 
 export interface ToolBridgeOptions {

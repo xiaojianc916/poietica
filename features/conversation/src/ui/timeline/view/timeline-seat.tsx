@@ -1,4 +1,4 @@
-import type { TranscriptUsage } from '@poietica/transcript'
+import type { TranscriptUsage } from '@poietica/agent-model'
 import { memo } from 'react'
 import type { TurnChangesView } from '../../../ui-api'
 import type { FeedRow, ToolGroupPlan, TurnSealPlan } from '../presentation'

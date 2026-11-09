@@ -1,8 +1,9 @@
 // 包根只导出生产入口：createOmpEngineWith 与测试缝不给外面。
 // 测试与探针要 mock 模型时走 './testing' 子入口。
-import type { AgentEngine } from '@poietica/engine'
+
 import type { Logger } from '@poietica/foundation'
 import type { DataLayout } from '@poietica/runtime-layout'
+import type { AgentEngine } from '@poietica/runtime-protocol'
 import { prepareRelayToken } from './bootstrap/relay-token'
 import { createOmpEngineWith } from './create-engine'
 import { OMP_VERSION } from './omp-version'

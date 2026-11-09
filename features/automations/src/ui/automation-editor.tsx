@@ -16,7 +16,7 @@ import {
   type WorkspaceChoice,
   WorkspacePicker,
 } from '@poietica/design-system'
-import type { Controls, ModelRef } from '@poietica/engine'
+import type { Controls, ModelRef } from '@poietica/runtime-protocol'
 import { useFeatureStore } from '@poietica/ui-kernel'
 import { ChevronRight, CirclePause, CirclePlay, Ellipsis, Trash } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'

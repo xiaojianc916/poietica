@@ -1,4 +1,4 @@
-import type { CommandOutputTone } from '@poietica/engine'
+import type { CommandOutputTone } from '@poietica/runtime-protocol'
 
 /*
  * omp 内置命令交给宿主的那几句输出（`runtime.output`），折成给人看的中文并定下色调。三种结局：

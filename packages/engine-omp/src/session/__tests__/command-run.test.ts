@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { EngineSessionEvent } from '@poietica/engine'
-import type { TranscriptOperation } from '@poietica/transcript'
+import type { AgentEvent } from '@poietica/agent-model'
+import type { EngineSessionEvent } from '@poietica/runtime-protocol'
 import { OmpSession, type OmpSessionHost } from '../session'
 import type { BuiltinCommandHooks } from '../slash-commands'
 import { hostOf } from './host-fixture'
@@ -13,16 +13,16 @@ import { hostOf } from './host-fixture'
  */
 
 interface Recorded {
-  readonly ops: TranscriptOperation[]
+  readonly events: AgentEvent[]
   readonly outputs: string[]
-  readonly events: EngineSessionEvent[]
+  readonly sessionEvents: EngineSessionEvent[]
 }
 
 function record(session: OmpSession): Recorded {
-  const seen: Recorded = { ops: [], outputs: [], events: [] }
+  const seen: Recorded = { events: [], outputs: [], sessionEvents: [] }
   session.subscribe((event) => {
-    seen.events.push(event)
-    if (event.type === 'timeline') seen.ops.push(...event.ops)
+    seen.sessionEvents.push(event)
+    if (event.type === 'timeline') seen.events.push(...event.events)
     if (event.type === 'commandOutput') seen.outputs.push(event.text)
   })
   return seen
@@ -57,19 +57,19 @@ describe('斜杠命令的呈现', () => {
     const seen = record(session)
 
     await session.runCommand('/compact')
-    const marker = seen.ops.find((op) => op.op === 'marker.upsert')
-    expect(marker?.op === 'marker.upsert' ? marker.item.payload : undefined).toEqual({
+    const marker = seen.events.find((event) => event.type === 'context.compacted')
+    expect(marker?.type === 'context.compacted' ? marker.item.payload : undefined).toEqual({
       state: 'running',
       reason: 'manual',
       action: 'context-full',
     })
     /* 原句没有画成一轮人话 */
-    expect(seen.ops.some((op) => op.op === 'turn.upsert')).toBe(false)
+    expect(seen.events.some((event) => event.type === 'run.started')).toBe(false)
 
     release()
     await settle()
     expect(seen.outputs).toEqual([])
-    expect(seen.events.some((event) => event.type === 'timelineReset')).toBe(true)
+    expect(seen.sessionEvents.some((event) => event.type === 'timelineReset')).toBe(true)
     expect(session.state()).toBe('idle')
   })
 
@@ -82,8 +82,8 @@ describe('斜杠命令的呈现', () => {
 
     await session.runCommand('/handoff')
     await settle()
-    const marker = seen.ops.find((op) => op.op === 'marker.upsert')
-    expect(marker?.op === 'marker.upsert' ? marker.item.payload : undefined).toMatchObject({ action: 'handoff' })
+    const marker = seen.events.find((event) => event.type === 'context.compacted')
+    expect(marker?.type === 'context.compacted' ? marker.item.payload : undefined).toMatchObject({ action: 'handoff' })
     expect(seen.outputs).toEqual(['交接失败：还没有可交接的对话'])
   })
 
@@ -96,8 +96,8 @@ describe('斜杠命令的呈现', () => {
 
     await session.runCommand('/switch')
     await settle()
-    expect(seen.ops.some((op) => op.op === 'turn.upsert')).toBe(true)
-    expect(seen.ops.some((op) => op.op === 'marker.upsert')).toBe(false)
+    expect(seen.events.some((event) => event.type === 'run.started')).toBe(true)
+    expect(seen.events.some((event) => event.type === 'context.compacted')).toBe(false)
     expect(seen.outputs).toEqual(['当前模型：deepseek/deepseek-v4', 'Context window: 1000 tokens'])
   })
 

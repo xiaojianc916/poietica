@@ -1,5 +1,5 @@
 {
-  "name": "@poietica/engine-testkit",
+  "name": "@poietica/runtime-protocol-testkit",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -7,9 +7,9 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@poietica/engine": "workspace:*",
+    "@poietica/runtime-protocol": "workspace:*",
     "@poietica/foundation": "workspace:*",
-    "@poietica/transcript": "workspace:*",
+    "@poietica/agent-model": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

@@ -1,4 +1,4 @@
-import type { TranscriptUsage } from '@poietica/transcript'
+import type { TranscriptUsage } from '@poietica/agent-model'
 import type { ToolCallRenderer } from '../../ui-api'
 import {
   isTerminal,

@@ -1,5 +1,5 @@
-import type { OpenSessionSpec } from '@poietica/engine'
 import { noopLogger } from '@poietica/foundation'
+import type { OpenSessionSpec } from '@poietica/runtime-protocol'
 import { InteractionBroker } from '../../interactions/broker'
 import { LiveProjector } from '../../projector/live'
 import { hashMediaRef } from '../../projector/media'

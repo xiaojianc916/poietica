@@ -1,10 +1,10 @@
 import type { Handler } from '../view-kit'
-import { at, dot, failOr, join, list, NONE, numb, pick, prose, saidText, view } from '../view-kit'
+import { at, dot, failOr, given, join, NONE, prose, saidText, view } from '../view-kit'
 
-export const grepView: Handler = (ctx) => {
-  const pattern = pick(ctx.input, 'pattern') ?? ''
-  const where = pick(ctx.input, 'path') ?? pick(ctx.details, 'searchPath') ?? '.'
-  const count = numb(ctx.details, 'matchCount')
+export const grepView: Handler<'grep' | 'search'> = (ctx) => {
+  const pattern = ctx.input?.pattern ?? ''
+  const where = given(ctx.input?.path) ?? given(ctx.details?.searchPath) ?? '.'
+  const count = ctx.details?.matchCount
 
   return view(
     'search',
@@ -16,9 +16,9 @@ export const grepView: Handler = (ctx) => {
   )
 }
 
-export const astGrepView: Handler = (ctx) => {
-  const pat = pick(ctx.input, 'pat') ?? ''
-  const where = pick(ctx.input, 'path') ?? '.'
+export const astGrepView: Handler<'ast_grep'> = (ctx) => {
+  const pat = ctx.input?.pat ?? ''
+  const where = given(ctx.input?.path) ?? '.'
 
   return view(
     'search',
@@ -30,9 +30,9 @@ export const astGrepView: Handler = (ctx) => {
   )
 }
 
-export const globView: Handler = (ctx) => {
-  const pattern = pick(ctx.input, 'path') ?? ''
-  const count = numb(ctx.details, 'fileCount')
+export const globView: Handler<'glob'> = (ctx) => {
+  const pattern = ctx.input?.path ?? ''
+  const count = ctx.details?.fileCount
 
   return view(
     'search',
@@ -44,10 +44,10 @@ export const globView: Handler = (ctx) => {
   )
 }
 
-export const findView: Handler = (ctx) => {
-  const query = pick(ctx.input, 'query') ?? ''
-  const where = pick(ctx.input, 'path')
-  const hits = list(ctx.details, 'hits').length
+export const findView: Handler<'find'> = (ctx) => {
+  const query = ctx.input?.query ?? ''
+  const where = given(ctx.input?.path)
+  const hits = ctx.details?.hits.length ?? 0
 
   return view(
     'search',
@@ -76,10 +76,10 @@ export const LSP_ACTIONS: Readonly<Record<string, string>> = {
   type_definition: '跳转类型定义',
 }
 
-export const lspView: Handler = (ctx) => {
-  const action = pick(ctx.input, 'action') ?? ''
-  const file = pick(ctx.input, 'file') ?? ''
-  const symbol = pick(ctx.input, 'symbol') ?? pick(ctx.input, 'query') ?? ''
+export const lspView: Handler<'lsp'> = (ctx) => {
+  const action = ctx.input?.action ?? ''
+  const file = ctx.input?.file ?? ''
+  const symbol = given(ctx.input?.symbol) ?? given(ctx.input?.query) ?? ''
   const said = LSP_ACTIONS[action] ?? '语言服务请求'
   const subject = dot(file, symbol)
 
@@ -87,7 +87,7 @@ export const lspView: Handler = (ctx) => {
     'read',
     join(said, subject) || said,
     subject,
-    [prose(join(`${at(file === '' ? '.' : file)} 上${said}`, pick(ctx.details, 'serverName')))],
+    [prose(join(`${at(file === '' ? '.' : file)} 上${said}`, given(ctx.details?.serverName)))],
     failOr(ctx, saidText(ctx)),
     'result',
   )

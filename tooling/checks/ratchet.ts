@@ -111,11 +111,13 @@ export function countFile(source: string, rel: string): Partial<Record<RuleId, n
   const ui = isUiFile(rel)
   const usesViewKit = ui && /from ['"][^'"]*view-kit['"]/.test(source)
   const platformAllowed = PLATFORM_MODULES.some((p) => rel === p || rel.startsWith(`${p}/`))
+  /* omp-types 是唯一的公开类型出口：它按定义要写 omp 的子路径，不算集成层之外的深层 import */
+  const typeBoundary = rel.startsWith('packages/omp-types/')
   let previous = ''
   for (const line of source.split('\n')) {
     const tupleOpened = previous.trim() === '['
     previous = line
-    add('omp-deep-import', countMatches(line, DEEP_OMP))
+    if (!typeBoundary) add('omp-deep-import', countMatches(line, DEEP_OMP))
     if (COMMENT_LINE.test(line)) continue
     if (!DEV_TEXT.test(line)) {
       add('english-ui-text', countEnglish(line, tupleOpened))

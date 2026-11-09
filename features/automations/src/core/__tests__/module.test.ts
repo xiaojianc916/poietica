@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import { createCoreHarness } from '@poietica/core-kernel/testing'
-import { createFakeEngine, type ScenarioScript } from '@poietica/engine-testkit'
 import attachments from '@poietica/feature-attachments/core'
 import { conversationContract } from '@poietica/feature-conversation/contract'
 import conversation from '@poietica/feature-conversation/core'
+import journal from '@poietica/feature-journal/core'
 import { workspacesContract } from '@poietica/feature-workspaces/contract'
 import workspaces from '@poietica/feature-workspaces/core'
+import { createFakeEngine, type ScenarioScript } from '@poietica/runtime-protocol-testkit'
 import { fakeClock, tempDir } from '@poietica/test-kit'
 import { automationsContract } from '../../contract'
 import automations from '../index'
@@ -14,7 +15,7 @@ async function harness(script?: ScenarioScript) {
   const clock = fakeClock()
   const engine = createFakeEngine({ clock, ...(script === undefined ? {} : { script }) })
   const h = await createCoreHarness({
-    modules: [workspaces, attachments, conversation, automations],
+    modules: [journal, workspaces, attachments, conversation, automations],
     engine,
     clock,
   })

@@ -12,7 +12,7 @@ export default defineCoreModule({
     const repository = createWorkBuddyRepository(ctx.db)
     const service = createWorkBuddyService({
       repository,
-      models: ctx.engine.models,
+      models: ctx.agentRuntime.models,
       logger: ctx.logger,
       now: () => ctx.clock.now(),
       emitChanged: () => ctx.rpc.emit('workbuddy.changed', {}),

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { Controls } from '@poietica/engine'
 import { AppError } from '@poietica/foundation'
+import type { Controls } from '@poietica/runtime-protocol'
 import { type GoalActionApi, runGoalAction } from '../status/goal/goal-actions'
 
 /*

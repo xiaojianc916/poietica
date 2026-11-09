@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import {
+  EMPTY_THREAD_STATE,
+  reduceAll,
+  snapshotOf,
+  type ThreadState,
+  type TranscriptFrame,
+  type TranscriptPage,
+} from '@poietica/agent-model'
+import { AppError, type Disposable, SystemErrorCode } from '@poietica/foundation'
+import {
   type AgentEngine,
   EngineErrorCode,
   type EngineSession,
@@ -9,9 +18,7 @@ import {
   latestSideTurn,
   type ModelRef,
   type SideTopic,
-} from '@poietica/engine'
-import { AppError, type Disposable, SystemErrorCode } from '@poietica/foundation'
-import { applyOps, emptyTimeline, pageFromState, type TranscriptPage } from '@poietica/transcript'
+} from '@poietica/runtime-protocol'
 import { z } from 'zod'
 import type { ScenarioStep } from './scenario'
 
@@ -77,31 +84,30 @@ function shape(events: readonly EngineSessionEvent[]): string[] {
   return events.map(describeEvent)
 }
 
-function timelineOps(events: readonly EngineSessionEvent[]): ReturnType<typeof applyOps> {
-  let state = emptyTimeline()
-  for (const event of events) if (event.type === 'timeline') state = applyOps(state, event.ops)
+function timelineState(events: readonly EngineSessionEvent[]): ThreadState {
+  let state = EMPTY_THREAD_STATE
+  for (const event of events) if (event.type === 'timeline') state = reduceAll(state, event.events)
   return state
 }
 
 function timelinePage(events: readonly EngineSessionEvent[]): TranscriptPage {
-  return pageFromState(timelineOps(events))
+  return snapshotOf(timelineState(events))
 }
 
 function allText(page: TranscriptPage): string {
-  const parts: string[] = []
-  for (const item of page.items) {
-    if (item.kind !== 'turn') continue
-    // 开轮那句人话两种引擎都只放在 turn.prompt；插话才是一条带 origin 的用户帧
-    if (item.prompt !== undefined) parts.push(item.prompt)
-    for (const step of item.steps) {
-      for (const frame of step.frames) {
-        if (frame.kind === 'text' || frame.kind === 'thinking') parts.push(frame.text)
-        // 工具产出按 UI 的读法取文本：omp 给的是 { content, details }，content 又是块数组
-        if (frame.kind === 'tool') parts.push(toolTextOf(frame.output))
-      }
-    }
-  }
-  return parts.join('\n')
+  // 开轮那句人话两种引擎都只放在 turn.prompt；插话才是一条带 origin 的用户帧
+  return page.items
+    .flatMap((item) =>
+      item.kind === 'turn' ? [item.prompt ?? '', ...item.steps.flatMap((step) => step.frames.map(frameText))] : [],
+    )
+    .filter((part) => part !== '')
+    .join('\n')
+}
+
+function frameText(frame: TranscriptFrame): string {
+  if (frame.kind === 'text' || frame.kind === 'thinking') return frame.text
+  // 工具产出按 UI 的读法取文本：omp 给的是 { content, details }，content 又是块数组
+  return frame.kind === 'tool' ? toolTextOf(frame.output) : ''
 }
 
 function toolTextOf(output: unknown): string {

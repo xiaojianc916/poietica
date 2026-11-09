@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { EngineSessionEvent } from '@poietica/engine'
-import type { TranscriptOperation } from '@poietica/transcript'
-import { applyOps, emptyTimeline } from '@poietica/transcript'
+import { EMPTY_THREAD_STATE, materialize, reduceAll } from '@poietica/agent-model'
+import type { EngineSessionEvent } from '@poietica/runtime-protocol'
 import { fakeOmpSession } from './fixtures/omp-session'
 
 /*
@@ -19,11 +18,14 @@ function submit(text: string, deliverAs: 'turn' | 'steer' | 'followUp') {
   return { text, images: [], files: [], skills: [], deliverAs }
 }
 
+function foldedItems(events: readonly EngineSessionEvent[]) {
+  const timeline = events.flatMap((event) => (event.type === 'timeline' ? event.events : []))
+  return materialize(reduceAll(EMPTY_THREAD_STATE, timeline)).items
+}
+
 function timelineTexts(events: readonly EngineSessionEvent[]): string[] {
-  const ops = events.flatMap((event) => (event.type === 'timeline' ? event.ops : []))
-  const state = applyOps(emptyTimeline(), ops)
   const texts: string[] = []
-  for (const item of state.items) {
+  for (const item of foldedItems(events)) {
     if (item.kind !== 'turn') continue
     for (const step of item.steps)
       for (const frame of step.frames) {
@@ -34,10 +36,8 @@ function timelineTexts(events: readonly EngineSessionEvent[]): string[] {
 }
 
 function steeringFrameRoles(events: readonly EngineSessionEvent[]): string[] {
-  const ops: TranscriptOperation[] = events.flatMap((event) => (event.type === 'timeline' ? event.ops : []))
-  const state = applyOps(emptyTimeline(), ops)
   const roles: string[] = []
-  for (const item of state.items) {
+  for (const item of foldedItems(events)) {
     if (item.kind !== 'turn') continue
     for (const step of item.steps)
       for (const frame of step.frames) {

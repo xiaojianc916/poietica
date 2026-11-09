@@ -1,7 +1,7 @@
 import type { HostCaller } from '@poietica/core-kernel'
-import type { SettingsPort } from '@poietica/engine'
 import { secretsContract } from '@poietica/feature-secrets/contract'
 import type { Logger } from '@poietica/foundation'
+import type { SettingsPort } from '@poietica/runtime-protocol'
 
 /** 凭据库里 omp 凭据类设置那一格：键 = 设置路径（例如 `hindsight.apiToken`） */
 export const SECRET_SETTINGS_NAMESPACE = 'omp-settings'

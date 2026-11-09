@@ -3,9 +3,9 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
-import type { EngineSession, EngineSessionEvent, OpenSessionSpec, SubmitInput } from '@poietica/engine'
+import { type AgentEvent, EMPTY_THREAD_STATE, materialize, reduceAll } from '@poietica/agent-model'
 import { AppError, noopLogger } from '@poietica/foundation'
-import { applyOps, emptyTimeline, type TranscriptOperation } from '@poietica/transcript'
+import type { EngineSession, EngineSessionEvent, OpenSessionSpec, SubmitInput } from '@poietica/runtime-protocol'
 import { hashMediaRef, sha256Hex } from '../../projector/media'
 import { wrapOmpSession } from '../omp-session-adapter'
 
@@ -210,10 +210,14 @@ function submit(text: string, deliverAs: 'turn' | 'steer' | 'followUp' = 'turn',
   return { text, images: [], files: [], skills: [], deliverAs, ...over } satisfies SubmitInput
 }
 
+/** 事件流里所有 timeline 的 AgentEvent，按到达顺序摊平 */
+function eventsOf(events: readonly EngineSessionEvent[]): readonly AgentEvent[] {
+  return events.flatMap((event) => (event.type === 'timeline' ? event.events : []))
+}
+
 /** 时间线上全部文本帧的 (role, text)，按到达顺序 */
 function textFrames(events: readonly EngineSessionEvent[]): { readonly role: string; readonly text: string }[] {
-  const ops: TranscriptOperation[] = events.flatMap((event) => (event.type === 'timeline' ? event.ops : []))
-  const state = applyOps(emptyTimeline(), ops)
+  const state = materialize(reduceAll(EMPTY_THREAD_STATE, eventsOf(events)))
   const frames: { role: string; text: string }[] = []
   for (const item of state.items) {
     if (item.kind !== 'turn') continue
@@ -262,13 +266,21 @@ describe('排队 / 插话链路（R-01 §5.1）', () => {
     expect(textFrames(f.events).filter((frame) => frame.role === 'user' && frame.text === '看这个文件')).toHaveLength(1)
     expect(textFrames(f.events).some((frame) => frame.text.includes('@C:\\a.txt'))).toBe(false)
     /* 文件随认领一起上屏：帧上挂号、条目带名字 —— 不挂的话模型读得到、气泡上没有那枚记号 */
-    const ops = f.events.flatMap((event) => (event.type === 'timeline' ? event.ops : []))
-    const named = ops.flatMap((op) => (op.op === 'attachment.upsert' ? [op.attachment] : []))
-    const claimed = ops.flatMap((op) =>
-      op.op === 'frame.upsert' && op.frame.kind === 'text' && op.frame.text === '看这个文件' ? [op.frame] : [],
+    const events = eventsOf(f.events)
+    const named = events.flatMap((event) => (event.type === 'attachment.added' ? [event.attachment] : []))
+    const claimed = new Map(
+      events.flatMap((event) =>
+        (event.type === 'item.started' || event.type === 'item.completed') &&
+        event.frame.kind === 'text' &&
+        event.frame.text === '看这个文件'
+          ? [[event.frame.frameId, event.frame] as const]
+          : [],
+      ),
     )
     expect(named.map((attachment) => attachment.name)).toEqual(['a.txt'])
-    expect(claimed.map((frame) => frame.attachmentIds)).toEqual([named.map((attachment) => attachment.attachmentId)])
+    expect([...claimed.values()].map((frame) => frame.kind === 'text' && frame.attachmentIds)).toEqual([
+      named.map((attachment) => attachment.attachmentId),
+    ])
     await f.session.cancel()
   })
 
@@ -276,11 +288,11 @@ describe('排队 / 插话链路（R-01 §5.1）', () => {
     const f = await fixture()
     await f.session.submit(submit('看这个文件', 'turn', { files: [{ path: 'C:\\a.txt', name: 'a.txt' }] }))
 
-    const ops = f.events.flatMap((event) => (event.type === 'timeline' ? event.ops : []))
-    const named = ops.flatMap((op) => (op.op === 'attachment.upsert' ? [op.attachment] : []))
-    const turn = ops.find((op) => op.op === 'turn.upsert')
+    const events = eventsOf(f.events)
+    const named = events.flatMap((event) => (event.type === 'attachment.added' ? [event.attachment] : []))
+    const turn = events.find((event) => event.type === 'run.started')
     expect(named.map((attachment) => attachment.name)).toEqual(['a.txt'])
-    expect(turn?.op === 'turn.upsert' ? [turn.turn.prompt, turn.turn.attachmentIds] : undefined).toEqual([
+    expect(turn?.type === 'run.started' ? [turn.run.prompt, turn.run.attachmentIds] : undefined).toEqual([
       '看这个文件',
       named.map((attachment) => attachment.attachmentId),
     ])
@@ -478,10 +490,10 @@ describe('排队 / 插话链路（R-01 §5.1）', () => {
     await Bun.sleep(10)
 
     expect(f.imageReads.count).toBe(2)
-    /* 两张图各一条 attachment.upsert，且 userTurn 引用的号与它们一一对应 */
-    const ops = f.events.flatMap((event) => (event.type === 'timeline' ? event.ops : []))
-    const upserts = ops.flatMap((op) => (op.op === 'attachment.upsert' ? [op.attachment] : []))
-    const turns = ops.flatMap((op) => (op.op === 'turn.upsert' ? [op.turn] : []))
+    /* 两张图各一条 attachment.added，且 userTurn 引用的号与它们一一对应 */
+    const events = eventsOf(f.events)
+    const upserts = events.flatMap((event) => (event.type === 'attachment.added' ? [event.attachment] : []))
+    const turns = events.flatMap((event) => (event.type === 'run.started' ? [event.run] : []))
     expect(upserts).toHaveLength(2)
     expect(upserts.map((attachment) => attachment.source)).toEqual([
       { kind: 'blob', sha256: ABC_SHA },
@@ -504,21 +516,28 @@ describe('排队 / 插话链路（R-01 §5.1）', () => {
     expect(queued).toHaveLength(1)
     expect(Object.keys(queued[0]!).sort()).toEqual(['createdAt', 'deliverAs', 'id', 'text'])
 
-    const before = f.events.flatMap((event) => (event.type === 'timeline' ? event.ops : [])).length
+    const before = eventsOf(f.events).length
     f.followUp.splice(0, f.followUp.length)
     f.syncQueue()
     f.messageStart({ role: 'user', content: '看这张图', timestamp: NOW + 1 })
 
-    const ops = f.events.flatMap((event) => (event.type === 'timeline' ? event.ops : [])).slice(before)
-    const upsertAt = ops.findIndex((op) => op.op === 'attachment.upsert')
-    const frameAt = ops.findIndex(
-      (op) => op.op === 'frame.upsert' && op.frame.kind === 'text' && op.frame.text === '看这张图',
+    const events = eventsOf(f.events).slice(before)
+    const upsertAt = events.findIndex((event) => event.type === 'attachment.added')
+    const frameAt = events.findIndex(
+      (event) =>
+        (event.type === 'item.started' || event.type === 'item.completed') &&
+        event.frame.kind === 'text' &&
+        event.frame.text === '看这张图',
     )
     expect(upsertAt).toBeGreaterThanOrEqual(0)
     expect(frameAt).toBeGreaterThan(upsertAt)
-    const upsert = ops[upsertAt]
-    const frame = ops[frameAt]
-    if (upsert?.op !== 'attachment.upsert' || frame?.op !== 'frame.upsert' || frame.frame.kind !== 'text')
+    const upsert = events[upsertAt]
+    const frame = events[frameAt]
+    if (
+      upsert?.type !== 'attachment.added' ||
+      (frame?.type !== 'item.started' && frame?.type !== 'item.completed') ||
+      frame.frame.kind !== 'text'
+    )
       throw new Error('unreachable')
     expect(upsert.attachment.source).toEqual({ kind: 'blob', sha256: ABC_SHA })
     expect(frame.frame.attachmentIds).toEqual([upsert.attachment.attachmentId])
@@ -646,7 +665,7 @@ describe('纯图插话', () => {
     const f = await fixture()
     await f.session.submit(submit('打底'))
     await f.session.submit(submit('', 'steer', { images: [IMAGE], ref: 'c1' }))
-    const before = f.events.flatMap((event) => (event.type === 'timeline' ? event.ops : [])).length
+    const before = eventsOf(f.events).length
 
     f.steering.length = 0
     f.syncQueue()
@@ -659,14 +678,23 @@ describe('纯图插话', () => {
       timestamp: NOW + 1,
     })
 
-    const ops = f.events.flatMap((event) => (event.type === 'timeline' ? event.ops : [])).slice(before)
-    const upserts = ops.flatMap((op) => (op.op === 'attachment.upsert' ? [op.attachment] : []))
-    const frames = ops.flatMap((op) =>
-      op.op === 'frame.upsert' && op.frame.kind === 'text' && op.frame.role === 'user' ? [op.frame] : [],
+    const events = eventsOf(f.events).slice(before)
+    const upserts = events.flatMap((event) => (event.type === 'attachment.added' ? [event.attachment] : []))
+    const frames = new Map(
+      events.flatMap((event) =>
+        (event.type === 'item.started' || event.type === 'item.completed') &&
+        event.frame.kind === 'text' &&
+        event.frame.role === 'user'
+          ? [[event.frame.frameId, event.frame] as const]
+          : [],
+      ),
     )
     expect(upserts.map((attachment) => attachment.source)).toEqual([{ kind: 'blob', sha256: ABC_SHA }])
-    expect(frames).toHaveLength(1)
-    expect(frames[0]?.attachmentIds).toEqual(upserts.map((attachment) => attachment.attachmentId))
+    expect(frames.size).toBe(1)
+    const frame = [...frames.values()][0]
+    expect(frame?.kind === 'text' ? frame.attachmentIds : undefined).toEqual(
+      upserts.map((attachment) => attachment.attachmentId),
+    )
     expect(settled(f.events)).toEqual([['c1', 'delivered']])
     await f.session.cancel()
   })
@@ -692,15 +720,23 @@ describe('纯图插话', () => {
     /* 本轮自己的 prompt 先到：它不是插话 */
     f.messageStart({ role: 'user', content: [{ type: 'text', text: '' }, image], timestamp: NOW + 1 })
     await f.session.submit(submit('', 'steer', { images: [IMAGE], ref: 'c1' }))
-    const before = f.events.flatMap((event) => (event.type === 'timeline' ? event.ops : [])).length
+    const before = eventsOf(f.events).length
 
     f.steering.length = 0
     f.syncQueue()
     f.messageStart({ role: 'user', content: [{ type: 'text', text: '' }, image], timestamp: NOW + 2 })
 
-    const ops = f.events.flatMap((event) => (event.type === 'timeline' ? event.ops : [])).slice(before)
-    const frames = ops.filter((op) => op.op === 'frame.upsert' && op.frame.kind === 'text' && op.frame.role === 'user')
-    expect(frames).toHaveLength(1)
+    const events = eventsOf(f.events).slice(before)
+    const frames = new Set(
+      events.flatMap((event) =>
+        (event.type === 'item.started' || event.type === 'item.completed') &&
+        event.frame.kind === 'text' &&
+        event.frame.role === 'user'
+          ? [event.frame.frameId]
+          : [],
+      ),
+    )
+    expect(frames.size).toBe(1)
     await f.session.cancel()
   })
 })

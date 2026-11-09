@@ -1,3 +1,4 @@
+import type { AgentEvent } from '@poietica/agent-model'
 import {
   type AgentRef,
   type CompactionMarkerPayload,
@@ -5,16 +6,32 @@ import {
   compactionReasonSchema,
   type FrameId,
   frameId,
+  type OmpToolInputOf,
+  type OmpToolOutputOf,
   RETRY_NOTICE_SOURCE,
   type RetryNotice,
   type StepId,
   stepId,
   type TranscriptAttachment,
-  type TranscriptOperation,
   type TurnId,
   turnId,
-} from '@poietica/transcript'
+} from '@poietica/agent-model'
 import { agentRefsOf } from './agent-refs'
+import {
+  agentUpdated,
+  attachmentAdded,
+  compacted,
+  itemCompleted,
+  itemDelta,
+  itemStarted,
+  itemsRemoved,
+  markerRaised,
+  noticeRaised,
+  runCompleted,
+  runStarted,
+  stepCompleted,
+  stepStarted,
+} from './events'
 import { assistantFrameId, interjectionFrameId } from './frame-ids'
 import { GOAL_CONTINUATION_ORIGIN, type TurnOrigin, userOrigin } from './origin'
 import { retryEndState, retryErrorText, retryMessageOf } from './retry'
@@ -184,6 +201,11 @@ export class LiveProjector {
   private streaming: Streaming | null = null
   /** 最近流过的那一帧（封口之后也留着）：同一块被打断后接着流时接回它，见 #stream */
   private lastStream: Streaming | null = null
+  /** 还没提交终态的正文 / 思维链帧：轮终时带完整正文各发一条 item.completed */
+  private readonly openFrames = new Map<
+    string,
+    { readonly step: string; readonly kind: 'text' | 'thinking'; text: string }
+  >()
   private readonly tools = new Map<string, string>()
   /** 每次调用落在哪一段（toolCallId →）：之后的 update / end 必须写回同一段，帧键含段号，写错段就是两张卡片 */
   private readonly toolSteps = new Map<string, StepId>()
@@ -245,8 +267,8 @@ export class LiveProjector {
    * 一张图片的附件条目（每张图片先 attachmentOp 再 userTurn）。
    * 像素用 url 源直接给（data URL）：omp 读会话时已经把 blob 换成内联 base64，界面直接画得出来。
    */
-  attachmentOp(input: ImageAttachmentInput): TranscriptOperation[] {
-    return [{ op: 'attachment.upsert', attachment: attachmentOf(input) }]
+  attachmentOp(input: ImageAttachmentInput): AgentEvent[] {
+    return [attachmentAdded(attachmentOf(input), this.now())]
   }
 
   /**
@@ -261,7 +283,7 @@ export class LiveProjector {
     readonly files?: readonly FileAttachmentInput[]
     readonly promptId?: string
     readonly skills?: readonly string[]
-  }): TranscriptOperation[] {
+  }): AgentEvent[] {
     const pictures = (input.images ?? []).map(attachmentOf)
     const attachments = [...pictures, ...(input.files ?? []).map(fileAttachmentOf)]
     const attachmentIds =
@@ -277,10 +299,9 @@ export class LiveProjector {
     /* 只留图：历史分页按张数对号沿用的是图（`promptImagesOf`），文件在那条路上另起号。 */
     this.turnAttachments = pictures
     return [
-      ...attachments.map((attachment): TranscriptOperation => ({ op: 'attachment.upsert', attachment })),
-      {
-        op: 'turn.upsert',
-        turn: {
+      ...attachments.map((attachment): AgentEvent => attachmentAdded(attachment, at)),
+      runStarted(
+        {
           kind: 'turn',
           turnId: turn,
           ordinal,
@@ -291,12 +312,13 @@ export class LiveProjector {
           ...(input.promptId === undefined ? {} : { triggerPromptId: input.promptId }),
           ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
         },
-      },
-      {
-        op: 'step.upsert',
-        turnId: turn,
-        step: { kind: 'step', stepId: stepId(turn, 0), turnId: turn, ordinal: 0, state: 'running', startedAt: at },
-      },
+        at,
+      ),
+      stepStarted(
+        turn,
+        { kind: 'step', stepId: stepId(turn, 0), turnId: turn, ordinal: 0, state: 'running', startedAt: at },
+        at,
+      ),
     ]
   }
 
@@ -304,7 +326,7 @@ export class LiveProjector {
    * 目标续跑开的一轮（审查 R-11）：omp 的控制器塞进来的是一条 display:false 的续跑提示，
    * 它不是人说的话 —— 轮头不带 prompt、不画用户气泡；段从 0 号起，第一帧就是模型自己的输出。
    */
-  goalContinuationTurn(): TranscriptOperation[] {
+  goalContinuationTurn(): AgentEvent[] {
     const { ordinal, turn, at } = this.openTurn({
       origin: GOAL_CONTINUATION_ORIGIN,
       prompt: undefined,
@@ -312,22 +334,15 @@ export class LiveProjector {
       attachmentIds: [],
     })
     return [
-      {
-        op: 'turn.upsert',
-        turn: {
-          kind: 'turn',
-          turnId: turn,
-          ordinal,
-          state: 'running',
-          origin: GOAL_CONTINUATION_ORIGIN,
-          startedAt: at,
-        },
-      },
-      {
-        op: 'step.upsert',
-        turnId: turn,
-        step: { kind: 'step', stepId: stepId(turn, 0), turnId: turn, ordinal: 0, state: 'running', startedAt: at },
-      },
+      runStarted(
+        { kind: 'turn', turnId: turn, ordinal, state: 'running', origin: GOAL_CONTINUATION_ORIGIN, startedAt: at },
+        at,
+      ),
+      stepStarted(
+        turn,
+        { kind: 'step', stepId: stepId(turn, 0), turnId: turn, ordinal: 0, state: 'running', startedAt: at },
+        at,
+      ),
     ]
   }
 
@@ -347,6 +362,7 @@ export class LiveProjector {
     this.block = -1
     this.interjections = 0
     this.lastStream = null
+    this.openFrames.clear()
     this.turnOpen = true
     this.stepOpen = true
     this.stepStartedAt = at
@@ -376,35 +392,34 @@ export class LiveProjector {
     text: string,
     images: readonly ImageAttachmentInput[] = [],
     files: readonly FileAttachmentInput[] = [],
-  ): TranscriptOperation[] {
+  ): AgentEvent[] {
     if (!this.turnOpen) return this.userTurn({ text, images, files })
     const attachments = [...images.map(attachmentOf), ...files.map(fileAttachmentOf)]
     const attachmentIds = attachments.map((attachment) => attachment.attachmentId)
+    const sealed = this.sealStream()
     this.streaming = null
     const turn = turnId(this.turn)
     /* 插话自占一段：前后都是助手的产出 */
-    const opened = this.stepUsed ? this.advanceStep() : []
+    const opened = [...sealed, ...(this.stepUsed ? this.advanceStep() : [])]
     const step = stepId(turn, this.step)
     this.stepUsed = true
     this.stepSealed = true
     this.interjections += 1
     const id = interjectionFrameId(turn, this.interjections)
+    const at = this.now()
+    const frame = {
+      kind: 'text' as const,
+      role: 'user' as const,
+      frameId: id,
+      text,
+      origin: { kind: 'user' as const },
+      ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
+    }
     return [
       ...opened,
-      ...attachments.map((attachment): TranscriptOperation => ({ op: 'attachment.upsert', attachment })),
-      {
-        op: 'frame.upsert',
-        turnId: turn,
-        stepId: step,
-        frame: {
-          kind: 'text',
-          role: 'user',
-          frameId: id,
-          text,
-          origin: { kind: 'user' },
-          ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
-        },
-      },
+      ...attachments.map((attachment): AgentEvent => attachmentAdded(attachment, at)),
+      itemStarted(turn, step, frame, at),
+      itemCompleted(turn, step, frame, at),
     ]
   }
 
@@ -412,20 +427,22 @@ export class LiveProjector {
    * 一条助手消息开始（omp 的 `message_start`，role:assistant）：这一轮的助手消息序号进一，正在流的帧封口。
    * 历史那条路按同一个口径数（`turnOps` 里每条 role:assistant 的消息进一），两边对同一段话给出同一个号。
    */
-  assistantMessageStart(): void {
-    if (!this.turnOpen) return
+  assistantMessageStart(): AgentEvent[] {
+    if (!this.turnOpen) return []
+    const sealed = this.sealStream()
     this.message += 1
     this.block = -1
     this.streaming = null
     /* 新的一条消息从新的一段开始；真开段要等它第一块上屏（一块都不上屏的消息不占段，与历史那条路一致） */
     if (this.stepUsed) this.stepSealed = true
     this.streamFrames = 0
+    return sealed
   }
 
   /**
    * 收掉当前段、开下一段。只由放帧的地方按 stepSealed / streamFrames 的口径调用，其余地方不得自己挪段号。
    */
-  private advanceStep(): TranscriptOperation[] {
+  private advanceStep(): AgentEvent[] {
     const turn = turnId(this.turn)
     const at = this.now()
     const closed = this.closeStepOp('completed', at)
@@ -436,10 +453,9 @@ export class LiveProjector {
     this.streamFrames = 0
     return [
       closed,
-      {
-        op: 'step.upsert',
-        turnId: turn,
-        step: {
+      stepStarted(
+        turn,
+        {
           kind: 'step',
           stepId: stepId(turn, this.step),
           turnId: turn,
@@ -447,17 +463,17 @@ export class LiveProjector {
           state: 'running',
           startedAt: at,
         },
-      },
+        at,
+      ),
     ]
   }
 
   /** 收掉当前段的那一条 op：开段时刻原样带回（step.upsert 整头替换），切段与轮终共用这一份 */
-  private closeStepOp(state: 'completed' | 'failed' | 'interrupted', at: string): TranscriptOperation {
+  private closeStepOp(state: 'completed' | 'failed' | 'interrupted', at: string): AgentEvent {
     const turn = turnId(this.turn)
-    return {
-      op: 'step.upsert',
-      turnId: turn,
-      step: {
+    return stepCompleted(
+      turn,
+      {
         kind: 'step',
         stepId: stepId(turn, this.step),
         turnId: turn,
@@ -466,11 +482,12 @@ export class LiveProjector {
         ...(this.stepStartedAt === '' ? {} : { startedAt: this.stepStartedAt }),
         endedAt: at,
       },
-    }
+      at,
+    )
   }
 
   /** 放一帧正文 / 思维链之前：段封了就先开新段 */
-  private placeStream(): TranscriptOperation[] {
+  private placeStream(): AgentEvent[] {
     const opened = this.stepSealed ? this.advanceStep() : []
     this.stepUsed = true
     this.streamFrames += 1
@@ -478,7 +495,7 @@ export class LiveProjector {
   }
 
   /** 放一次工具调用之前：段封了、或这一段里工具前面已经有正文 / 思维链，就先开新段 */
-  private placeTool(toolCallId: string): TranscriptOperation[] {
+  private placeTool(toolCallId: string): AgentEvent[] {
     const opened = this.stepSealed || this.streamFrames > 0 ? this.advanceStep() : []
     this.stepUsed = true
     this.streamFrames = 0
@@ -492,20 +509,23 @@ export class LiveProjector {
   }
 
   /** `contentIndex` = omp 流式事件里块在这条助手消息 content 里的下标；号由它派生（见 frame-ids.ts） */
-  textDelta(delta: string, contentIndex?: number): TranscriptOperation[] {
+  textDelta(delta: string, contentIndex?: number): AgentEvent[] {
     return this.stream('text', delta, contentIndex)
   }
 
-  thinkingDelta(delta: string, contentIndex?: number): TranscriptOperation[] {
+  thinkingDelta(delta: string, contentIndex?: number): AgentEvent[] {
     return this.stream('thinking', delta, contentIndex)
   }
 
-  private stream(kind: 'text' | 'thinking', delta: string, contentIndex: number | undefined): TranscriptOperation[] {
+  private stream(kind: 'text' | 'thinking', delta: string, contentIndex: number | undefined): AgentEvent[] {
     if (!this.turnOpen) return []
     const turn = turnId(this.turn)
     const open = this.streaming
     if (open !== null && open.kind === kind && (contentIndex === undefined || open.block === contentIndex)) {
-      return [appendOp(turn, open.step, open.id, open.emitted, delta), ...this.advance(open, delta)]
+      return [
+        appendOp(turn, open.step, open.id, open.kind, open.emitted, delta, this.now()),
+        ...this.advance(open, delta),
+      ]
     }
     const block = contentIndex ?? this.block + 1
     this.block = Math.max(this.block, block)
@@ -514,15 +534,19 @@ export class LiveProjector {
     const last = this.lastStream
     if (last !== null && last.id === id && last.kind === kind) {
       const resumed: Streaming = { ...last, since: 0 }
-      return [appendOp(turn, resumed.step, id, resumed.emitted, delta), ...this.advance(resumed, delta)]
+      return [
+        appendOp(turn, resumed.step, id, resumed.kind, resumed.emitted, delta, this.now()),
+        ...this.advance(resumed, delta),
+      ]
     }
     const opened = this.placeStream()
     const step = stepId(turn, this.step)
     const created: Streaming = { id, kind, block, step, emitted: 0, since: 0 }
+    this.openFrames.set(id, { step, kind, text: '' })
     return [
       ...opened,
-      streamStartOp(turn, step, kind, id),
-      appendOp(turn, step, id, 0, delta),
+      streamStartOp(turn, step, kind, id, this.now()),
+      appendOp(turn, step, id, kind, 0, delta, this.now()),
       ...this.advance(created, delta),
     ]
   }
@@ -532,17 +556,18 @@ export class LiveProjector {
    * since 是「这一档相位从哪一刻开始」而不是「这一帧是什么时候」：进入 streaming 时取一次就冻结，
    * 于是同一相位的每个增量算出来逐字相同，下游 applyMetaMerge 的引用比对能判成没变。
    */
-  private advance(open: Streaming, delta: string): TranscriptOperation[] {
+  private advance(open: Streaming, delta: string): AgentEvent[] {
     const emitted = open.emitted + delta.length
+    const frame = this.openFrames.get(open.id)
+    if (frame !== undefined) frame.text += delta
     const opened = open.since === 0
     const since = opened ? this.o.now() : open.since
     this.streaming = { ...open, emitted, since }
     this.lastStream = this.streaming
     if (!opened) return []
     return [
-      {
-        op: 'meta.merge',
-        meta: {
+      agentUpdated(
+        {
           activity: 'turn',
           agent: {
             phase: {
@@ -555,7 +580,8 @@ export class LiveProjector {
             },
           },
         },
-      },
+        this.now(),
+      ),
     ]
   }
 
@@ -567,7 +593,7 @@ export class LiveProjector {
    * 先只记下最新一份，等增长够或距上次发出满 TOOL_INPUT_MAX_WAIT_MS 再发。入参没变的不发；`final`（参数写完）
    * 只去重、不受时间与体积门限约束。跳过的最新那份留给轮终 settleInputs 收口；toolStart 之后的迟到增量一律不理。
    */
-  toolInput(call: ToolInputEvent): TranscriptOperation[] {
+  toolInput(call: ToolInputEvent): AgentEvent[] {
     if (!this.turnOpen || this.tools.has(call.toolCallId)) return []
     const at = this.o.now()
     const held = this.inputs.get(call.toolCallId)
@@ -587,8 +613,9 @@ export class LiveProjector {
       return []
     }
     /* 与 toolStart 同一个规矩：工具那一格之后的正文另起一帧 */
+    const sealed = this.sealStream()
     this.streaming = null
-    const opened = held === undefined ? this.placeTool(call.toolCallId) : []
+    const opened = [...sealed, ...(held === undefined ? this.placeTool(call.toolCallId) : [])]
     const turn = held?.turnId ?? turnId(this.turn)
     const step = held?.stepId ?? this.toolStepOf(call.toolCallId)
     const pending: PendingInput = {
@@ -625,29 +652,29 @@ export class LiveProjector {
     return current.bytes - pending.sentBytes < TOOL_INPUT_MIN_GROWTH_BYTES
   }
 
-  private pendingInputOp(toolCallId: string, pending: PendingInput, streaming: boolean): TranscriptOperation {
-    return {
-      op: 'frame.upsert',
-      turnId: pending.turnId,
-      stepId: pending.stepId,
-      frame: {
+  private pendingInputOp(toolCallId: string, pending: PendingInput, streaming: boolean): AgentEvent {
+    return itemStarted(
+      pending.turnId,
+      pending.stepId,
+      {
         kind: 'tool',
         frameId: pending.frameId,
         toolCallId,
         name: pending.toolName,
         state: 'running',
-        input: pending.args,
+        input: pending.args as OmpToolInputOf,
         ...(streaming ? { inputPending: true as const } : {}),
       },
-    }
+      this.now(),
+    )
   }
 
   /**
    * 轮终时参数还没流完、工具也没开始跑的那几格（中途取消、服务商断流）：去掉 `inputPending`，按最新那份入参
    * 收成普通的 running —— 与历史投影对「有调用、没结果」的工具给出的样子一致，重开对话前后屏幕不变。
    */
-  private settleInputs(): TranscriptOperation[] {
-    const ops: TranscriptOperation[] = []
+  private settleInputs(): AgentEvent[] {
+    const ops: AgentEvent[] = []
     for (const [toolCallId, pending] of this.inputs) {
       if (!this.tools.has(toolCallId)) ops.push(this.pendingInputOp(toolCallId, pending, false))
     }
@@ -661,14 +688,15 @@ export class LiveProjector {
     readonly toolName: string
     readonly args: unknown
     readonly intent?: string
-  }): TranscriptOperation[] {
+  }): AgentEvent[] {
     if (!this.turnOpen) return []
+    const sealed = this.sealStream()
     this.streaming = null
     const turn = turnId(this.turn)
     const id = `tool.${call.toolCallId}`
     /* 参数流过的那一格就是这一格（同号同段整格替换，去掉 inputPending），不再另占一段 */
     const streamed = this.inputs.has(call.toolCallId) || this.toolSteps.has(call.toolCallId)
-    const opened = streamed ? [] : this.placeTool(call.toolCallId)
+    const opened = [...sealed, ...(streamed ? [] : this.placeTool(call.toolCallId))]
     const step = this.toolStepOf(call.toolCallId)
     this.inputs.delete(call.toolCallId)
     this.tools.set(call.toolCallId, id)
@@ -676,20 +704,20 @@ export class LiveProjector {
     if (call.intent !== undefined && call.intent !== '') this.intents.set(call.toolCallId, call.intent)
     return [
       ...opened,
-      {
-        op: 'frame.upsert',
-        turnId: turn,
-        stepId: step,
-        frame: {
+      itemStarted(
+        turn,
+        step,
+        {
           kind: 'tool',
           frameId: id,
           toolCallId: call.toolCallId,
           name: call.toolName,
           state: 'running',
-          input: call.args,
+          input: call.args as OmpToolInputOf,
           ...(call.intent === undefined || call.intent === '' ? {} : { intent: call.intent }),
         },
-      },
+        this.now(),
+      ),
     ]
   }
 
@@ -698,7 +726,7 @@ export class LiveProjector {
     readonly toolCallId: string
     readonly toolName: string
     readonly partial: unknown
-  }): TranscriptOperation[] {
+  }): AgentEvent[] {
     if (!this.turnOpen) return []
     const turn = turnId(this.turn)
     const step = this.toolStepOf(call.toolCallId)
@@ -706,22 +734,22 @@ export class LiveProjector {
     const args = this.args.get(call.toolCallId)
     const intent = this.intents.get(call.toolCallId)
     return [
-      {
-        op: 'frame.upsert',
-        turnId: turn,
-        stepId: step,
-        frame: {
+      itemStarted(
+        turn,
+        step,
+        {
           kind: 'tool',
           frameId: id,
           toolCallId: call.toolCallId,
           name: call.toolName,
           state: 'running',
-          ...(args === undefined ? {} : { input: args }),
+          ...(args === undefined ? {} : { input: args as OmpToolInputOf }),
           ...(intent === undefined ? {} : { intent }),
-          output: call.partial,
+          output: call.partial as OmpToolOutputOf,
           ...refsOf(call.toolName, call.partial),
         },
-      },
+        this.now(),
+      ),
     ]
   }
 
@@ -731,7 +759,7 @@ export class LiveProjector {
     readonly toolName: string
     readonly result: unknown
     readonly isError?: boolean
-  }): TranscriptOperation[] {
+  }): AgentEvent[] {
     if (!this.turnOpen) return []
     const turn = turnId(this.turn)
     const step = this.toolStepOf(call.toolCallId)
@@ -740,23 +768,23 @@ export class LiveProjector {
     const args = this.args.get(call.toolCallId)
     const intent = this.intents.get(call.toolCallId)
     return [
-      {
-        op: 'frame.upsert',
-        turnId: turn,
-        stepId: step,
-        frame: {
+      itemCompleted(
+        turn,
+        step,
+        {
           kind: 'tool',
           frameId: id,
           toolCallId: call.toolCallId,
           name: call.toolName,
           state: failed ? 'error' : 'done',
-          ...(args === undefined ? {} : { input: args }),
+          ...(args === undefined ? {} : { input: args as OmpToolInputOf }),
           ...(intent === undefined ? {} : { intent }),
-          output: call.result,
+          output: call.result as OmpToolOutputOf,
           ...(failed ? { error: textOf(call.result) } : {}),
           ...refsOf(call.toolName, call.result),
         },
-      },
+        this.now(),
+      ),
     ]
   }
 
@@ -765,46 +793,93 @@ export class LiveProjector {
     outcome: 'completed' | 'cancelled' | 'failed',
     message: string | null,
     usage?: { readonly input: number; readonly output: number; readonly cacheRead: number },
-  ): TranscriptOperation[] {
+  ): AgentEvent[] {
     if (!this.turnOpen) return []
     const turn = turnId(this.turn)
     const at = this.now()
     /* omp 每次重试过程都会收口；万一没收（进程被打断之类），轮终替它收，不留一格永远在转的「正在重试」 */
-    const ops: TranscriptOperation[] = this.closeRetry(outcome)
-    ops.push(...this.settleInputs())
+    const ops: AgentEvent[] = [
+      ...this.closeRetry(outcome),
+      ...this.completeOpenFrames(turn, at),
+      ...this.settleInputs(),
+    ]
     if (this.stepOpen) {
       ops.push(
         this.closeStepOp(outcome === 'failed' ? 'failed' : outcome === 'cancelled' ? 'interrupted' : 'completed', at),
       )
     }
-    ops.push({
-      op: 'turn.upsert',
-      turn: {
-        kind: 'turn',
-        turnId: turn,
-        ordinal: this.turn,
-        state: outcome === 'failed' ? 'failed' : outcome === 'cancelled' ? 'cancelled' : 'completed',
-        origin: this.origin,
-        ...(this.prompt === undefined ? {} : { prompt: this.prompt }),
-        startedAt: this.startedAt,
-        endedAt: at,
-        ...(this.promptId === undefined ? {} : { triggerPromptId: this.promptId }),
-        ...(this.attachmentIds.length > 0 ? { attachmentIds: this.attachmentIds } : {}),
-        ...(message === null ? {} : { error: message }),
-        ...(usage === undefined
-          ? {}
-          : {
-              usage: {
-                inputTokens: usage.input,
-                outputTokens: usage.output,
-                cachedTokens: usage.cacheRead,
-              },
-            }),
-      },
-    })
-    ops.push({ op: 'meta.merge', meta: { activity: 'idle' } })
+    ops.push(
+      runCompleted(
+        {
+          kind: 'turn',
+          turnId: turn,
+          ordinal: this.turn,
+          state: outcome === 'failed' ? 'failed' : outcome === 'cancelled' ? 'cancelled' : 'completed',
+          origin: this.origin,
+          ...(this.prompt === undefined ? {} : { prompt: this.prompt }),
+          startedAt: this.startedAt,
+          endedAt: at,
+          ...(this.promptId === undefined ? {} : { triggerPromptId: this.promptId }),
+          ...(this.attachmentIds.length > 0 ? { attachmentIds: this.attachmentIds } : {}),
+          ...(message === null ? {} : { error: message }),
+          ...(usage === undefined
+            ? {}
+            : {
+                usage: {
+                  inputTokens: usage.input,
+                  outputTokens: usage.output,
+                  cachedTokens: usage.cacheRead,
+                },
+              }),
+        },
+        outcome,
+        at,
+      ),
+    )
+    ops.push(agentUpdated({ activity: 'idle' }, at))
     this.abandonTurn()
     return ops
+  }
+
+  /**
+   * 封掉正在流的正文 / 思维链：把已累加的那一份提交为 item.completed，覆盖层随即清空。
+   * 这样被工具或插话打断的帧不会一直挂着同文覆盖层，下游的步骤身份得以稳定。
+   */
+  private sealStream(): AgentEvent[] {
+    const open = this.streaming
+    if (open === null) return []
+    this.streaming = null
+    const frame = this.openFrames.get(open.id)
+    if (frame === undefined) return []
+    return [
+      itemCompleted(
+        turnId(this.turn),
+        frame.step,
+        open.kind === 'text'
+          ? { kind: 'text', role: 'assistant', frameId: open.id, text: frame.text }
+          : { kind: 'thinking', frameId: open.id, text: frame.text },
+        this.now(),
+      ),
+    ]
+  }
+
+  /** 轮终把还没提交终态的正文 / 思维链各落一条 item.completed；正文取本地累加的那一份 */
+  private completeOpenFrames(turn: string, at: string): AgentEvent[] {
+    const events: AgentEvent[] = []
+    for (const [frameId, open] of this.openFrames) {
+      events.push(
+        itemCompleted(
+          turn,
+          open.step,
+          open.kind === 'text'
+            ? { kind: 'text', role: 'assistant', frameId, text: open.text }
+            : { kind: 'thinking', frameId, text: open.text },
+          at,
+        ),
+      )
+    }
+    this.openFrames.clear()
+    return events
   }
 
   /**
@@ -818,12 +893,12 @@ export class LiveProjector {
     readonly toolName: string
     /** null = 还没结束（start / update 失败）；true / false = 结束且是否出错 */
     readonly ended: boolean | null
-  }): TranscriptOperation[] {
+  }): AgentEvent[] {
     if (!this.turnOpen) return []
     const turn = turnId(this.turn)
     const known = this.tools.get(call.toolCallId)
     const id = known ?? `tool.${call.toolCallId}`
-    let opened: TranscriptOperation[] = []
+    let opened: AgentEvent[] = []
     if (known === undefined) {
       // start 失败：照 toolStart 的规矩先封掉正在流的正文，再登记这一格（参数流过的那一格沿用它的段）
       this.streaming = null
@@ -835,25 +910,19 @@ export class LiveProjector {
     }
     const step = this.toolStepOf(call.toolCallId)
     const args = this.args.get(call.toolCallId)
-    const state = call.ended === null ? 'running' : call.ended ? 'error' : 'done'
-    return [
-      ...opened,
-      {
-        op: 'frame.upsert',
-        turnId: turn,
-        stepId: step,
-        frame: {
-          kind: 'tool',
-          frameId: id,
-          toolCallId: call.toolCallId,
-          name: call.toolName,
-          state,
-          ...(args === undefined ? {} : { input: args }),
-          output: { content: [{ type: 'text', text: TOOL_FALLBACK_TEXT }] },
-          ...(state === 'error' ? { error: TOOL_FALLBACK_TEXT } : {}),
-        },
-      },
-    ]
+    const state: 'running' | 'done' | 'error' = call.ended === null ? 'running' : call.ended ? 'error' : 'done'
+    const frame = {
+      kind: 'tool' as const,
+      frameId: id,
+      toolCallId: call.toolCallId,
+      name: call.toolName,
+      state,
+      ...(args === undefined ? {} : { input: args as OmpToolInputOf }),
+      output: { content: [{ type: 'text', text: TOOL_FALLBACK_TEXT }] },
+      ...(state === 'error' ? { error: TOOL_FALLBACK_TEXT } : {}),
+    }
+    const at = this.now()
+    return [...opened, state === 'running' ? itemStarted(turn, step, frame, at) : itemCompleted(turn, step, frame, at)]
   }
 
   /**
@@ -871,6 +940,7 @@ export class LiveProjector {
     this.stepSealed = false
     this.streamFrames = 0
     this.streaming = null
+    this.openFrames.clear()
     this.tools.clear()
     this.toolSteps.clear()
     this.args.clear()
@@ -880,25 +950,19 @@ export class LiveProjector {
   }
 
   /** 一个上屏的提示帧（只有 warning / error；info 不上屏，见 R-09）：掉在当前 step 里，掉在哪就是哪 */
-  notice(level: 'error' | 'warning', message: string, source?: string): TranscriptOperation[] {
+  notice(level: 'error' | 'warning', message: string, source?: string): AgentEvent[] {
     if (!this.turnOpen) return []
     const turn = turnId(this.turn)
     const step = stepId(turn, this.step)
     const id = frameId(step, this.frame)
     this.frame += 1
     return [
-      {
-        op: 'frame.upsert',
-        turnId: turn,
-        stepId: step,
-        frame: {
-          kind: 'notice',
-          frameId: id,
-          level,
-          message,
-          ...(source === undefined ? {} : { source }),
-        },
-      },
+      noticeRaised(
+        turn,
+        step,
+        { kind: 'notice', frameId: id, level, message, ...(source === undefined ? {} : { source }) },
+        this.now(),
+      ),
     ]
   }
 
@@ -906,11 +970,7 @@ export class LiveProjector {
    * omp 开始一次自动重试（auto_retry_start，在退避等待之前发）。同一次重试过程只占一格：
    * 次数原地往上走（「正在重试 1/5」→「2/5」），触发这次重试的那条报错按先后记下，展开那一面列出。
    */
-  retryStart(input: {
-    readonly attempt: number
-    readonly maxAttempts: number
-    readonly error: string
-  }): TranscriptOperation[] {
+  retryStart(input: { readonly attempt: number; readonly maxAttempts: number; readonly error: string }): AgentEvent[] {
     if (!this.turnOpen) return []
     const slot = this.retrySlot ?? this.openRetrySlot()
     const errors = input.error.trim() === '' ? slot.notice.errors : [...slot.notice.errors, retryErrorText(input.error)]
@@ -924,11 +984,7 @@ export class LiveProjector {
    * 这次重试过程收口（auto_retry_end）：成功、次数用完、被人停下，都落回同一格。
    * 失败时 finalError 是最后那次请求的报错（它没有再触发一次 start），接在列表末尾。
    */
-  retryEnd(input: {
-    readonly success: boolean
-    readonly attempt: number
-    readonly finalError: string
-  }): TranscriptOperation[] {
+  retryEnd(input: { readonly success: boolean; readonly attempt: number; readonly finalError: string }): AgentEvent[] {
     if (!this.turnOpen) return []
     /* 没见过开头：成功就不必说；失败另开一格兜住（omp 有几条路不经 start 直接收口） */
     if (this.retrySlot === null && input.success) return []
@@ -943,7 +999,7 @@ export class LiveProjector {
     return this.writeRetry({ ...slot, notice: { state, attempt, maxAttempts, errors } }, false)
   }
 
-  private closeRetry(outcome: 'completed' | 'cancelled' | 'failed'): TranscriptOperation[] {
+  private closeRetry(outcome: 'completed' | 'cancelled' | 'failed'): AgentEvent[] {
     const slot = this.retrySlot
     if (slot === null) return []
     const state = outcome === 'completed' ? 'recovered' : outcome === 'cancelled' ? 'cancelled' : 'failed'
@@ -965,15 +1021,14 @@ export class LiveProjector {
   }
 
   /** 按同一个 frameId 改写那一格；open = 这次重试过程还没收口 */
-  private writeRetry(slot: RetrySlot, open: boolean): TranscriptOperation[] {
+  private writeRetry(slot: RetrySlot, open: boolean): AgentEvent[] {
     this.retrySlot = open ? slot : null
     const { notice } = slot
     return [
-      {
-        op: 'frame.upsert',
-        turnId: slot.turnId,
-        stepId: slot.stepId,
-        frame: {
+      noticeRaised(
+        slot.turnId,
+        slot.stepId,
+        {
           kind: 'notice',
           frameId: slot.frameId,
           level: notice.state === 'failed' ? 'error' : 'warning',
@@ -981,7 +1036,8 @@ export class LiveProjector {
           source: RETRY_NOTICE_SOURCE,
           detail: { retry: notice },
         },
-      },
+        this.now(),
+      ),
     ]
   }
 
@@ -991,7 +1047,7 @@ export class LiveProjector {
    * 号不按轮号铸：同一轮里可以压好几次（overflow 重试、换一种方式再压），按轮号铸会让后一次盖掉前一次；
    * 也不与历史那条路的号（compaction-<轮>-<次>）同名 —— 整页重取时增量这几格会被整份换掉，不必对号。
    */
-  compactionStart(input: { readonly reason?: unknown; readonly action?: unknown }): TranscriptOperation[] {
+  compactionStart(input: { readonly reason?: unknown; readonly action?: unknown }): AgentEvent[] {
     const markerId = this.nextCompactionId()
     const at = this.now()
     this.compactionOpen = { id: markerId, at }
@@ -1013,10 +1069,10 @@ export class LiveProjector {
    * 关门：载荷由 compactionEndPayload 算好交进来；null（这次其实没压）就撤掉开门那一格。
    * 没见过开门（订阅晚于开门）也照样落一格：关门那一刻的结果比「什么都不说」强。
    */
-  compactionEnd(payload: CompactionMarkerPayload | null): TranscriptOperation[] {
+  compactionEnd(payload: CompactionMarkerPayload | null): AgentEvent[] {
     const open = this.compactionOpen ?? { id: this.nextCompactionId(), at: this.now() }
     this.compactionOpen = null
-    if (payload === null) return [{ op: 'items.remove', ids: [open.id] }]
+    if (payload === null) return [itemsRemoved([open.id], this.now())]
     /* 同一格只换状态与用量；时刻留在开门处，收口不能把它挪到后续工具调用下面。 */
     return this.marker({ markerId: open.id, marker: 'compaction', payload, at: open.at })
   }
@@ -1032,19 +1088,15 @@ export class LiveProjector {
     readonly marker: string
     readonly payload?: unknown
     readonly at?: string
-  }): TranscriptOperation[] {
-    return [
-      {
-        op: 'marker.upsert',
-        item: {
-          kind: 'marker',
-          markerId: input.markerId,
-          marker: input.marker,
-          at: input.at ?? this.now(),
-          ...(input.payload === undefined ? {} : { payload: input.payload }),
-        },
-      },
-    ]
+  }): AgentEvent[] {
+    const item = {
+      kind: 'marker' as const,
+      markerId: input.markerId,
+      marker: input.marker,
+      at: input.at ?? this.now(),
+      ...(input.payload === undefined ? {} : { payload: input.payload }),
+    }
+    return [input.marker === 'compaction' ? compacted(item, item.at) : markerRaised(item, item.at)]
   }
 }
 
@@ -1063,18 +1115,25 @@ function textOf(value: unknown): string {
     .join('\n')
 }
 
-function streamStartOp(turn: string, step: string, kind: 'text' | 'thinking', id: string): TranscriptOperation {
-  return {
-    op: 'frame.upsert',
-    turnId: turn,
-    stepId: step,
-    frame:
-      kind === 'text'
-        ? { kind: 'text', role: 'assistant', frameId: id, text: '' }
-        : { kind: 'thinking', frameId: id, text: '' },
-  }
+function streamStartOp(turn: string, step: string, kind: 'text' | 'thinking', id: string, at: string): AgentEvent {
+  return itemStarted(
+    turn,
+    step,
+    kind === 'text'
+      ? { kind: 'text', role: 'assistant', frameId: id, text: '' }
+      : { kind: 'thinking', frameId: id, text: '' },
+    at,
+  )
 }
 
-function appendOp(turn: string, step: string, id: string, offset: number, chunk: string): TranscriptOperation {
-  return { op: 'append', target: { type: 'frame', turnId: turn, stepId: step, frameId: id }, offset, text: chunk }
+function appendOp(
+  turn: string,
+  step: string,
+  id: string,
+  kind: 'text' | 'thinking',
+  offset: number,
+  chunk: string,
+  at: string,
+): AgentEvent {
+  return itemDelta(turn, step, id, kind, at, chunk, offset)
 }

@@ -1,4 +1,4 @@
-import { captureLaunchEnv, dispatchProcessMode } from '@poietica/engine-omp/bootstrap'
+import { captureLaunchEnv, dispatchProcessMode } from '@poietica/runtime-protocol-omp/bootstrap'
 
 /**
  * 顶层致命错误的最后通道：日志系统可能还没有建立，先按 Core 的 stderr JSONL 约定写一条 fatal 记录，

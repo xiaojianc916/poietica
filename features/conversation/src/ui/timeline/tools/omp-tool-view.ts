@@ -1,5 +1,13 @@
+import type {
+  OmpToolDetails,
+  OmpToolInput,
+  OmpToolInputOf,
+  OmpToolName,
+  OmpToolOutput,
+  OmpToolOutputOf,
+} from '@poietica/omp-types'
 import type { Handler, OmpToolView } from './view-kit'
-import { bag, detailsOf, get, imagesOf, NONE, pick, registerViewLookup, textOf } from './view-kit'
+import { NONE, outputDetails, outputImages, outputText, registerViewLookup } from './view-kit'
 import {
   askView,
   checkpointView,
@@ -25,8 +33,6 @@ import {
   intelligentUiGuideView,
   learnView,
   manageSkillView,
-  mcpServerOf,
-  mcpToolOf,
   mcpView,
   memoryEditView,
   recallView,
@@ -46,8 +52,15 @@ import { astGrepView, findView, globView, grepView, lspView } from './views/sear
 /*
  * omp 工具调用的因地制宜视图：按工具名查标准答案，认不出的交回空视图由调用方兜底。产出优先于入参（edit/read 的真实内容在产出 details 里）。
  * 小工具在 view-kit，各工具族的视图按 files / search / eval / agent / integrations 分家，这里只留注册表与出口。
+ *
+ * 表里每个名字都是 omp 真的会报出来的那一个：内建与隐藏工具（builtin-names.ts，search 是 grep 的历史别名）、
+ * 官方视图表登记的别名（apply_patch / puppeteer / js / python / notebook，老会话存着的名字要认得）、
+ * eval 的 prelude（browser / computer）、omp 注册的 CustomTool（generate_image / tts / vibe_*）、
+ * 以及 xd:// 设备（report_issue / resolve / reject / propose，经 write 委派到达）。
+ *
+ * 每一格的值是按名字对齐的 `Handler<名字>`：处理器里的入参与 details 都是那个工具的类型，字段直接读。
  */
-const HANDLERS: Readonly<Record<string, Handler>> = {
+const HANDLERS: { readonly [N in OmpToolName]?: Handler<N> } = {
   apply_patch: editView,
   ask: askView,
   ast_edit: astEditView,
@@ -120,40 +133,23 @@ const EMPTY: OmpToolView = {
 }
 
 /*
+ * 按名字取处理器：表在编译期按名字逐格对齐（见 HANDLERS），运行时只剩名字这一条线索。
+ * 载荷的类型收窄也只有这一处 —— 形状由 omp 的 tool schema 保证，界面不再逐字段猜。
+ */
+function handlerOf(name: string): Handler | undefined {
+  return HANDLERS[name as OmpToolName] as Handler | undefined
+}
+
+/*
  * 默认用 omp 自带的 intent（由模型写，比按参数猜得准）；两类压过它 —— 与 omp 官方优先级一致：命令与脚本那一行该是命令本身。
  * 没写 intent 的老会话退回按参数算的那句。
  */
-const INTENT_OVERRIDDEN: ReadonlySet<string> = new Set(['bash', 'eval', 'js', 'python', 'notebook'])
-
-/*
- * 首选 omp 自己盖的章（details.meta.source.type === 'internal'），它是跑完之后的事实；调用还在飞的时候没有产出，退回入参 path 上的 scheme。
- * 只看传输工具：别的工具名字已经说清楚了，不该被地址改写。
- */
-function schemeOf(tool: string, input: unknown, output: unknown): string {
-  const lower = tool.toLowerCase()
-
-  if (lower !== 'read' && lower !== 'write') {
-    return ''
-  }
-
-  const source = bag(get(detailsOf(output), 'meta'))?.source
-
-  if (get(source, 'type') === 'internal') {
-    return schemeFrom(pick(source, 'value'))
-  }
-
-  return schemeFrom(pick(input, 'path'))
-}
-
-/** 不是内部 URL（http、盘符路径）就是空串。 */
-function schemeFrom(value: string | undefined): string {
-  if (value === undefined) {
-    return ''
-  }
-
-  const cut = value.indexOf('://')
-
-  return cut <= 0 ? '' : value.slice(0, cut).toLowerCase()
+const INTENT_OVERRIDDEN: Readonly<Record<string, true>> = {
+  bash: true,
+  eval: true,
+  js: true,
+  notebook: true,
+  python: true,
 }
 
 /** 这次调用最终印在折叠行上的那一句话。 */
@@ -162,39 +158,46 @@ function headlineOf(name: string, derived: string, intent: string | undefined): 
     return derived
   }
 
-  return INTENT_OVERRIDDEN.has(name.toLowerCase()) && derived !== '' ? derived : intent
+  return INTENT_OVERRIDDEN[name.toLowerCase()] === true && derived !== '' ? derived : intent
 }
 
 export function ompToolView(
   name: string,
-  input: unknown,
-  output: unknown,
+  input: OmpToolInputOf | undefined,
+  output: OmpToolOutputOf | null | undefined,
   error?: string,
   intent?: string,
 ): OmpToolView {
-  const handler = HANDLERS[name.toLowerCase()]
+  const seen = output ?? undefined
+  const details = outputDetails(seen)
+  const handler = handlerOf(name)
   const base =
     handler === undefined
       ? name.startsWith('mcp__')
-        ? mcpView(name, input, mcpServerOf(output), mcpToolOf(output))
+        ? mcpView(name, input, details)
         : EMPTY
-      : handler({ details: detailsOf(output), error, input, output, said: textOf(output) })
+      : handler({
+          input: input as OmpToolInput<OmpToolName> | undefined,
+          details: details as OmpToolDetails<OmpToolName> | undefined,
+          output: (typeof seen === 'string' ? {} : (seen ?? {})) as OmpToolOutput<OmpToolName>,
+          said: outputText(seen),
+          error,
+        })
 
   if (!base.known) {
     /* 画不出来不等于不知道是谁在跑：委派过的设备名要留给字形那一格。 */
     return base.invokedTool === '' ? EMPTY : { ...EMPTY, invokedTool: base.invokedTool }
   }
 
-  const shots = imagesOf(output)
+  const shots = outputImages(seen)
   // background 由产出自己说（details.async），与处理器无关，在这里统一补。
-  const background = bag(get(detailsOf(output), 'async')) !== undefined
+  const background = details?.async !== undefined
 
   return {
     ...base,
     background,
     /* 委派过的那一次由 writeView 填了被调工具的名字，这里只给没填的那些补。 */
     invokedTool: base.invokedTool === '' ? name : base.invokedTool,
-    scheme: schemeOf(base.invokedTool === '' ? name : base.invokedTool, input, output),
     headline: headlineOf(name, base.headline, intent),
     ...(shots.length === 0 ? {} : { response: [...base.response, ...shots] }),
   }

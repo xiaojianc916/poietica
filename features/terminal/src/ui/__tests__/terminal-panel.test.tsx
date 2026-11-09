@@ -44,6 +44,12 @@ function fakeApi(): TerminalApi & { readonly closed: string[]; restored: readonl
     async replay() {
       return { data: '', endOffset: 0 }
     },
+    async subscribe() {
+      return undefined
+    },
+    async unsubscribe() {
+      return undefined
+    },
     onOutput() {
       return { dispose: () => undefined }
     },

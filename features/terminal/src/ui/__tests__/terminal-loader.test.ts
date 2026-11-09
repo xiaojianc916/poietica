@@ -43,6 +43,8 @@ function fakeApi(restored: readonly TerminalInfo[] = []) {
       calls.push(`replay:${terminalId}`)
       return { data: '', endOffset: 0 }
     },
+    subscribe: async () => undefined,
+    unsubscribe: async () => undefined,
     onOutput: () => ({ dispose: () => undefined }),
     onExited: () => ({ dispose: () => undefined }),
   }

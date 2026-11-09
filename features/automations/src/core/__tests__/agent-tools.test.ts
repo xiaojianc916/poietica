@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { Controls, EngineToolContext, EngineToolSpec, ModelRef } from '@poietica/engine'
 import { AppError } from '@poietica/foundation'
+import type { Controls, EngineToolContext, EngineToolSpec, ModelRef } from '@poietica/runtime-protocol'
 import { registerAgentTools } from '../agent-tools'
 import { buildCore, fullDraft, stubWorkspaces, testWorkspace } from './helpers'
 
@@ -34,7 +34,7 @@ function rig() {
     service: core.service,
     conversation: core.conversation,
     workspaces: core.workspaces,
-    engine: { draftControls: async (init) => controlsOf(init?.model) },
+    agentRuntime: { draftControls: async (init) => controlsOf(init?.model) },
     clock: core.clock,
     localTimeZone: () => 'Asia/Shanghai',
   })

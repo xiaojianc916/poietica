@@ -1,7 +1,7 @@
+import type { AgentEvent, TranscriptPage } from '@poietica/agent-model'
 import type { NotificationParams, ResultOf } from '@poietica/contract-kit'
-import type { TranscriptOperation, TranscriptPage } from '@poietica/transcript'
 import type { conversationContract } from '../contract'
-import type { TimelineOpsNotice, TimelineResetNotice } from './timeline-hub'
+import type { TimelineEventsNotice, TimelineResetNotice } from './timeline-hub'
 
 /*
  * 线上形状与内存形状之间唯一的转换点。
@@ -10,14 +10,14 @@ import type { TimelineOpsNotice, TimelineResetNotice } from './timeline-hub'
  * 两者说的是同一样东西，字段一个不改。这里只做一次编译期收窄，运行时零成本 —— subscribe 的严格
  * 模式会在收端用 zod 重新解析，形状不对会立刻报出来。
  */
-type OpsParams = NotificationParams<typeof conversationContract, 'timeline.ops'>
+type EventsParams = NotificationParams<typeof conversationContract, 'timeline.events'>
 type ResetParams = NotificationParams<typeof conversationContract, 'timeline.reset'>
 type PageResult = ResultOf<typeof conversationContract, 'timeline.page'>
 type CatchUpResult = ResultOf<typeof conversationContract, 'timeline.catchUp'>
 type SnapshotResult = ResultOf<typeof conversationContract, 'timeline.subscribe'>
 
-export function wireOpsNotice(p: TimelineOpsNotice): OpsParams {
-  return p as unknown as OpsParams
+export function wireEventsNotice(p: TimelineEventsNotice): EventsParams {
+  return p as unknown as EventsParams
 }
 
 export function wireResetNotice(p: TimelineResetNotice): ResetParams {
@@ -38,7 +38,7 @@ export function wireSnapshot(
 }
 
 export function wireCatchUp(r: {
-  batches: { seq: number; ops: readonly TranscriptOperation[] }[]
+  batches: { seq: number; events: readonly AgentEvent[] }[]
   latestSeq: number
   complete: boolean
 }): CatchUpResult {

@@ -5,7 +5,7 @@
  * 「跳过」（没有可压的、没有模型）不是一次压缩：那一格直接撤掉，不留一行「完成」骗人。
  */
 
-import type { CompactionMarkerPayload } from '@poietica/transcript'
+import type { CompactionMarkerPayload } from '@poietica/agent-model'
 
 /**
  * omp 知识 #20：显示经过里，被后一次压缩取代的那份摘要换成了这句占位（session-context.ts 的

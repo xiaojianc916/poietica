@@ -1,29 +1,29 @@
-import { InvariantError, invariant } from '@poietica/foundation'
 import {
+  type AgentEvent,
   type TranscriptPage as AgentTranscriptSnapshot,
-  applyOps,
-  emptyTimeline,
-  pageFromState,
+  EMPTY_THREAD_STATE,
   prependOlder,
-  type TimelineState,
-  TranscriptGapError,
-  type TranscriptOperation,
-} from '@poietica/transcript'
+  reduceAllChecked,
+  snapshotOf,
+  stateFromSnapshot,
+  type ThreadState,
+} from '@poietica/agent-model'
+import { InvariantError, invariant } from '@poietica/foundation'
 
-/* 只需两件事：按 agent 存一份状态、按 op 推进并报告缺口 —— 用 @poietica/transcript 的 applyOps 就地实现。 */
+/* 只需两件事：按 agent 存一份状态、按事件推进并报告缺口 —— 用 @poietica/agent-model 的 ThreadReducer 就地实现。 */
 interface ReduceResult {
-  readonly accepted: readonly TranscriptOperation[]
+  readonly accepted: readonly AgentEvent[]
   readonly gap?: { readonly expected: number; readonly got: number }
 }
 
 class AgentReducer {
-  #state: TimelineState | null = null
+  #state: ThreadState | null = null
   /*
    * 轮次目录不进索引状态（TimelineState 只管条目），由整读那一刻的快照定：头页 reset 带来新的一份（或带来缺席，
    * 即引擎不给目录），往前翻页走 prependOlder，它保留当前页的目录。增量 op 不碰它 —— 新的轮在已加载的条目里。
    */
   #outline: AgentTranscriptSnapshot['outline'] = undefined
-  #page: { readonly state: TimelineState; readonly page: AgentTranscriptSnapshot } | null = null
+  #page: { readonly state: ThreadState; readonly page: AgentTranscriptSnapshot } | null = null
 
   snapshot(): AgentTranscriptSnapshot {
     if (this.#state === null) {
@@ -31,7 +31,7 @@ class AgentReducer {
     }
     /* 同一份状态交同一个页对象：下游按引用判「没变」，每次现拼会让投影与目录的缓存全部落空。 */
     if (this.#page?.state !== this.#state) {
-      const page = pageFromState(this.#state)
+      const page = snapshotOf(this.#state)
       this.#page = {
         state: this.#state,
         page: this.#outline === undefined ? page : { ...page, outline: this.#outline },
@@ -40,24 +40,19 @@ class AgentReducer {
     return this.#page.page
   }
 
-  receive(operations: readonly TranscriptOperation[]): ReduceResult {
-    if (operations.length === 0) return { accepted: [] }
-    try {
-      this.#state = applyOps(this.#state ?? emptyTimeline(), operations)
-      for (const operation of operations) {
-        if (operation.op === 'reset') {
-          this.#outline = operation.snapshot.outline
-          this.#page = null
-        }
-      }
-      return { accepted: operations }
-    } catch (error) {
-      if (error instanceof TranscriptGapError) {
-        /* #state 没被赋值 —— 调用方（#apply）依赖这一点，不做回滚 */
-        return { accepted: [], gap: { expected: error.expected, got: error.got } }
-      }
-      throw error
-    }
+  receive(events: readonly AgentEvent[]): ReduceResult {
+    if (events.length === 0) return { accepted: [] }
+    const result = reduceAllChecked(this.#state ?? EMPTY_THREAD_STATE, events)
+    if (result.gap !== undefined) return { accepted: [], gap: result.gap }
+    this.#state = result.state
+    this.#page = null
+    return { accepted: events }
+  }
+
+  install(page: AgentTranscriptSnapshot): void {
+    this.#state = stateFromSnapshot(page)
+    this.#outline = page.outline
+    this.#page = null
   }
 }
 
@@ -115,9 +110,9 @@ type Publish = (agentId: string, snapshot: AgentTranscriptSnapshot) => void
 function foldCatchUp(
   caught: TranscriptCatchUp,
   from: number,
-): { complete: boolean; cursor: number; operations: TranscriptOperation[] } {
+): { complete: boolean; cursor: number; operations: AgentEvent[] } {
   let cursor = from
-  const operations: TranscriptOperation[] = []
+  const operations: AgentEvent[] = []
   let complete = caught.complete
   if (complete) {
     for (const batch of caught.batches) {
@@ -131,7 +126,7 @@ function foldCatchUp(
         complete = false
         break
       }
-      operations.push(...batch.ops)
+      operations.push(...batch.events)
       cursor = batch.seq
     }
   }
@@ -306,7 +301,7 @@ export class TranscriptReplica {
     return work
   }
 
-  async #advance(signal: Extract<TranscriptSignal, { kind: 'ops' }>, feed: Feed): Promise<void> {
+  async #advance(signal: Extract<TranscriptSignal, { kind: 'events' }>, feed: Feed): Promise<void> {
     if (!Number.isSafeInteger(signal.seq) || signal.seq < 0) {
       invariant(false, 'Transcript event has an invalid sequence.')
     }
@@ -326,7 +321,7 @@ export class TranscriptReplica {
       await this.#head(signal.agentId, feed, signal.seq)
       return
     }
-    if (!this.#apply(signal.agentId, feed, signal.seq, signal.ops)) {
+    if (!this.#apply(signal.agentId, feed, signal.seq, signal.events)) {
       await this.#head(signal.agentId, feed, signal.seq)
     }
   }
@@ -367,7 +362,7 @@ export class TranscriptReplica {
     }
   }
 
-  #apply(agentId: string, feed: Feed, seq: number, operations: readonly TranscriptOperation[]): boolean {
+  #apply(agentId: string, feed: Feed, seq: number, operations: readonly AgentEvent[]): boolean {
     if (operations.length === 0) {
       feed.seq = seq
       return true
@@ -474,10 +469,7 @@ export class TranscriptReplica {
     }
     const reducer = this.#transcript.ensureAgent(page.agentId)
     const snapshot = prepend ? prependOlder(reducer.snapshot(), page) : page
-    const applied = reducer.receive([{ op: 'reset', agentId: page.agentId, snapshot }])
-    if (applied.gap !== undefined) {
-      invariant(false, 'Official transcript reducer rejected a reset.')
-    }
+    reducer.install(snapshot)
     if (!prepend) {
       feed.seq = page.seq
       feed.valid = true

@@ -1,4 +1,4 @@
-import type { Posture } from '@poietica/engine'
+import type { Posture } from '@poietica/runtime-protocol'
 import { overrideSetting, readSetting, type SettingsScope } from '../settings-access'
 
 /**

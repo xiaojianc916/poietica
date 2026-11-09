@@ -1,4 +1,4 @@
-import { latestSideTurn, type SideTopic } from '@poietica/engine'
+import { latestSideTurn, type SideTopic } from '@poietica/runtime-protocol'
 import { createFeatureStore, type FeatureStore } from '@poietica/ui-kernel'
 import type { ConversationApi } from '../api'
 
@@ -38,7 +38,11 @@ export interface SideState {
   readonly byThread: Readonly<Record<string, SideThread>>
 }
 
-export type SideApi = Pick<ConversationApi, 'askSide' | 'cancelSide' | 'listSide'>
+export type SideApi = Pick<ConversationApi, 'askSide' | 'cancelSide' | 'listSide'> & {
+  /** 主题路由登记；测试替身可以不提供。 */
+  readonly subscribeSide?: (threadId: string, topicId: string) => Promise<void>
+  readonly unsubscribeSide?: (threadId: string, topicId: string) => Promise<void>
+}
 
 export interface SideDelta {
   readonly topicId: string
@@ -106,6 +110,18 @@ export function createSideStore(api: SideApi): SideStore {
   const inflight = new Map<string, Promise<void>>()
   /** 删掉的对话：还在路上的读表应答与通知不能把它的账写回来（对话号不复用） */
   const dropped = new Set<string>()
+  const subscribed = new Map<string, Set<string>>()
+
+  const subscribe = (threadId: string, topicId: string): void => {
+    const topics = subscribed.get(threadId) ?? new Set<string>()
+    if (topics.has(topicId)) return
+    topics.add(topicId)
+    subscribed.set(threadId, topics)
+    void api.subscribeSide?.(threadId, topicId).catch(() => undefined)
+  }
+  const subscribeAll = (threadId: string, topics: readonly SideTopic[]): void => {
+    for (const topic of topics) subscribe(threadId, topic.id)
+  }
 
   const of = (threadId: string): SideThread => store.getState().byThread[threadId] ?? EMPTY_SIDE_THREAD
   const patch = (threadId: string, change: (thread: SideThread) => SideThread): void => {
@@ -130,6 +146,7 @@ export function createSideStore(api: SideApi): SideStore {
     try {
       const topics = await api.listSide(threadId)
       patch(threadId, (thread) => ({ ...thread, loaded: true, topics: merge(thread.topics, topics) }))
+      subscribeAll(threadId, topics)
     } catch (cause) {
       patch(threadId, (thread) => ({ ...thread, loaded: true, error: messageOf(cause) }))
     }

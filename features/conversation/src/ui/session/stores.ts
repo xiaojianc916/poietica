@@ -1,5 +1,5 @@
-import type { Controls, ModelRef, Posture } from '@poietica/engine'
 import { createId } from '@poietica/foundation'
+import type { Controls, ModelRef, Posture } from '@poietica/runtime-protocol'
 import type { ConversationApi } from '../api'
 import { type ComposerStore, createComposerStore, projectDocument } from '../composer'
 import {

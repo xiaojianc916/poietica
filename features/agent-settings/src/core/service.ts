@@ -1,5 +1,5 @@
-import type { SettingsPort } from '@poietica/engine'
 import { AppError } from '@poietica/foundation'
+import type { SettingsPort } from '@poietica/runtime-protocol'
 import type { Capabilities, SettingDescriptor, SettingGroup } from '../contract'
 import { agentSettingsErrors } from '../contract/errors'
 import type { SecretSettingsVault } from './secret-settings'

@@ -1,6 +1,6 @@
 import { workerHostEntry } from '@oh-my-pi/pi-utils/worker-host'
-import type { MediaGcResult } from '@poietica/engine'
 import { AppError, SystemErrorCode } from '@poietica/foundation'
+import type { MediaGcResult } from '@poietica/runtime-protocol'
 import { MAINTENANCE_MODE } from '../bootstrap/maintenance'
 
 /** 一次全量标记最多跑多久：会话文件再多也不该超过这个量级；超时 Bun 杀掉子进程，下次启动再来 */

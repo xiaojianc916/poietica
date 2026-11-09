@@ -1,16 +1,16 @@
 import path from 'node:path'
 import { createCoreKernel } from '@poietica/core-kernel'
-import {
-  installStdoutGuard,
-  type LaunchEnv,
-  prepareIsolation,
-  runIsolationSelfCheck,
-} from '@poietica/engine-omp/bootstrap'
 import { systemClock } from '@poietica/foundation'
 import { createLogger, jsonlFileSink } from '@poietica/logging'
 import { appContract, PROTOCOL_VERSION } from '@poietica/protocol'
 import { createStdioTransport } from '@poietica/rpc/stdio'
 import { CORE_EXIT_CODES, dataLayout, parseCoreArgs } from '@poietica/runtime-layout'
+import {
+  installStdoutGuard,
+  type LaunchEnv,
+  prepareIsolation,
+  runIsolationSelfCheck,
+} from '@poietica/runtime-protocol-omp/bootstrap'
 import { coreModules, retiredCoreModules } from './modules'
 import { CORE_VERSION } from './version'
 
@@ -76,7 +76,7 @@ async function createRealEngine(
   layout: Parameters<typeof createCoreKernel>[0]['layout'],
   logger: Parameters<typeof createCoreKernel>[0]['logger'],
 ) {
-  const { createOmpEngine } = await import('@poietica/engine-omp')
+  const { createOmpEngine } = await import('@poietica/runtime-protocol-omp')
   // browser relay 的端口与口令由引擎自己备（写口令文件路径进本进程环境），所以必须在上面的 scrubInjected 之后
   // appVersion 必给；engineVersion 由 engine-omp 自己定（生产编译期注入，源码运行读随包那份 omp 的 package.json）。
   // 两个都不能缺：engine.info.version 会成为 core.ready 载荷与 diagnostics.core 的 engineVersion，
@@ -96,7 +96,7 @@ async function createProbeEngine(
   if (process.env.POIETICA_PROBE_BUILD !== '1') {
     throw new Error('--probe-mock-model 只能用于探针版')
   }
-  const { createOmpEngineForTest } = await import('@poietica/engine-omp/testing')
+  const { createOmpEngineForTest } = await import('@poietica/runtime-protocol-omp/testing')
   const handle = await createOmpEngineForTest({ layout, logger: logger.child({ module: 'engine' }) })
   return handle.engine
 }

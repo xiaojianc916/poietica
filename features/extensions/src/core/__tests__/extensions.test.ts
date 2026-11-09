@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { createCoreHarness } from '@poietica/core-kernel/testing'
-import { createFakeEngine } from '@poietica/engine-testkit'
 import workspaces from '@poietica/feature-workspaces/core'
 import { AppError, SystemErrorCode } from '@poietica/foundation'
+import { createFakeEngine } from '@poietica/runtime-protocol-testkit'
 import { extensionsContract } from '../../contract'
 import extensions from '../index'
 

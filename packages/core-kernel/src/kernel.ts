@@ -1,6 +1,5 @@
 import { existsSync } from 'node:fs'
 import type { AppContract } from '@poietica/contract-kit'
-import type { AgentEngine } from '@poietica/engine'
 import {
   AppError,
   type Clock,
@@ -14,6 +13,7 @@ import {
 } from '@poietica/foundation'
 import { type InboundContext, Router, RpcPeer, type Transport } from '@poietica/rpc'
 import { CORE_SHUTDOWN_BUDGET_MS, type DataLayout } from '@poietica/runtime-layout'
+import type { AgentEngine, RuntimeServices } from '@poietica/runtime-protocol'
 import {
   backupDatabase,
   type Database,
@@ -72,6 +72,25 @@ const SHUTDOWN_HOOK_TIMEOUT_MS = 5_000
  */
 const STARTUP_ABORT_WAIT_MS = 3_000
 const INFLIGHT_DRAIN_MS = 1_500
+/** 把完整引擎折成按能力分组的门面；内核只在这里碰完整对象，模块拿到的是窄组。 */
+function createRuntimeServices(engine: AgentEngine): RuntimeServices {
+  return {
+    info: engine.info,
+    sessions: {
+      openSession: (spec) => engine.openSession(spec),
+      sessionFiles: engine.sessionFiles,
+      draftControls: (init) => engine.draftControls(init),
+      commandCatalog: (cwd, options) => engine.commandCatalog(cwd, options),
+    },
+    models: engine.models,
+    settings: engine.settings,
+    skills: engine.skills,
+    mcp: engine.mcp,
+    plugins: engine.plugins,
+    browser: { relay: () => engine.browserRelay() },
+  }
+}
+
 /** engine.dispose 的时间下限：即使前面把预算花光了也要给它。 */
 const ENGINE_DISPOSE_FLOOR_MS = 1_000
 const DEFAULT_BACKUP_KEEP = 3
@@ -224,7 +243,7 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
         clock: opts.clock,
         layout: opts.layout,
         db: db.forModule(m.id),
-        engine: opts.engine,
+        agentRuntime: createRuntimeServices(opts.engine),
         rpc: createCoreRpcBinding(m.contract, { moduleId: m.id, router, peer: getPeer, strict: opts.strict }),
         host: createHostCaller({ peer: getPeer }),
         services: registry.scoped(m.id, m.dependsOn ?? []),

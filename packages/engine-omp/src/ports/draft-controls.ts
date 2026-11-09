@@ -1,4 +1,4 @@
-import type { Controls, ModelRef, Posture } from '@poietica/engine'
+import type { Controls, ModelRef, Posture } from '@poietica/runtime-protocol'
 import { availabilityOf } from '../session/plan-goal'
 import { readSetting, type SettingsScope } from '../settings-access'
 import type { OmpModelLike, RegistryPort } from './model-helpers'

@@ -1,6 +1,6 @@
 import type { BtwHistoryRecord, BtwHistoryTurn } from '@oh-my-pi/pi-coding-agent/session/btw-history'
-import { EngineErrorCode, type EngineSessionEvent, type SideTopic, type SideTurn } from '@poietica/engine'
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
+import { EngineErrorCode, type EngineSessionEvent, type SideTopic, type SideTurn } from '@poietica/runtime-protocol'
 import { describeError } from './event-faults'
 
 /**

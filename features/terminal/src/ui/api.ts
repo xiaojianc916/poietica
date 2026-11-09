@@ -16,6 +16,10 @@ export function createTerminalApi(ctx: UiFeatureContext) {
     list: (): Promise<readonly TerminalInfo[]> => rpc.call('terminal.list', {}).then((r) => r.terminals),
     replay: (terminalId: string): Promise<{ data: string; endOffset: number }> =>
       rpc.call('terminal.replay', { terminalId }),
+    subscribe: (terminalId: string): Promise<void> =>
+      rpc.call('terminal.subscribe', { terminalId }).then(() => undefined),
+    unsubscribe: (terminalId: string): Promise<void> =>
+      rpc.call('terminal.unsubscribe', { terminalId }).then(() => undefined),
     onOutput: (listener: (p: { terminalId: string; data: string; offset: number }) => void) =>
       rpc.on('terminal.output', listener),
     onExited: (listener: (p: { terminalId: string; exitCode: number | null }) => void) =>

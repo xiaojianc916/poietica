@@ -1,6 +1,6 @@
 import { type CoreEvent, defineCoreEvent } from '@poietica/core-kernel/events'
-import type { ModelRef, Posture, UsageSample } from '@poietica/engine'
 import { type Disposable, defineServiceToken } from '@poietica/foundation'
+import type { ModelRef, Posture, UsageSample } from '@poietica/runtime-protocol'
 import type { Thread } from '../contract'
 
 export interface ConversationService {
@@ -27,7 +27,7 @@ export interface TurnSettled {
 export const turnSettled: CoreEvent<TurnSettled> = defineCoreEvent<TurnSettled>('conversation', 'turnSettled')
 
 /**
- * 这一轮的某个文件被工具写过（引擎在写的那一刻记下前后正文，见 `@poietica/engine` 的 `FileChange`）。
+ * 这一轮的某个文件被工具写过（引擎在写的那一刻记下前后正文，见 `@poietica/runtime-protocol` 的 `FileChange`）。
  *
  * conversation 不存它、不解释它，只把它交出去：**撤销一轮的改动必须有写之前的正文**，而写完之后
  * 工作区里只剩新内容，谁事后去读都拿不回来。文件的账与撤销归 review（它认识工作区与磁盘）。

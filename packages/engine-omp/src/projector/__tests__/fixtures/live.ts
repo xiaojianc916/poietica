@@ -1,4 +1,5 @@
-import type { TimelineState, TranscriptFrame } from '@poietica/transcript'
+import type { ThreadState, TranscriptFrame } from '@poietica/agent-model'
+import { materialize } from '@poietica/agent-model'
 import { LiveProjector } from '../../live'
 
 /** 投影器共用的时钟：所有断言都在同一个时刻上，快照才不会随运行时间变 */
@@ -9,12 +10,12 @@ export const projector = (): LiveProjector => new LiveProjector({ now: () => T0 
 export const iso = (ms: number): string => new Date(ms).toISOString()
 
 /** 一个 step 里的帧，按屏幕顺序摊平（legacy settle() 里那个 turn(id) 读法的展开） */
-export function framesOf(state: TimelineState): readonly TranscriptFrame[] {
-  return state.items.flatMap((item) => (item.kind === 'turn' ? item.steps.flatMap((s) => s.frames) : []))
+export function framesOf(state: ThreadState): readonly TranscriptFrame[] {
+  return materialize(state).items.flatMap((item) => (item.kind === 'turn' ? item.steps.flatMap((s) => s.frames) : []))
 }
 
 /** 三个屏幕读法：助手正文、思维链、工具行（live.test.ts 与 live-legacy.test.ts 共用） */
-export function snapshot(state: TimelineState): { texts: string[]; thoughts: string[]; tools: string[] } {
+export function snapshot(state: ThreadState): { texts: string[]; thoughts: string[]; tools: string[] } {
   const texts: string[] = []
   const thoughts: string[] = []
   const tools: string[] = []

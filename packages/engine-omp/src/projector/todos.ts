@@ -1,4 +1,5 @@
-import type { TranscriptTodoItem as TodoItem, TranscriptOperation, TranscriptTodo } from '@poietica/transcript'
+import type { AgentEvent, TranscriptTodoItem as TodoItem, TranscriptTodo } from '@poietica/agent-model'
+import { todoUpdated } from './events'
 
 /*
  * omp 的待办（todo 工具维护的 TodoPhase[]）→ transcript 的 `todo.upsert`。
@@ -67,14 +68,14 @@ export class TodoMirror {
     return this.last
   }
 
-  sync(phases: unknown): TranscriptOperation[] {
+  sync(phases: unknown): AgentEvent[] {
     const items = todoItemsOf(phases)
     /* 从来没有过待办、此刻也是空表：不发（新会话不必收一条空的 todo.upsert） */
     if (this.last === null && items.length === 0) return []
     if (this.last !== null && sameItems(this.last.items, items)) return []
     const todo: TranscriptTodo = { todoId: OMP_TODO_ID, items, updatedAt: new Date(this.now()).toISOString() }
     this.last = todo
-    return [{ op: 'todo.upsert', todo }]
+    return [todoUpdated(todo, todo.updatedAt ?? new Date(this.now()).toISOString())]
   }
 }
 

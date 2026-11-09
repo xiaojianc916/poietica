@@ -1,6 +1,6 @@
-# @poietica/engine-omp
+# @poietica/runtime-protocol-omp
 
-`@poietica/engine` 端口的生产实现：全仓唯一 import `@oh-my-pi/*` 的地方（`apps/core/scripts` 构建脚本除外）。
+`@poietica/runtime-protocol` 端口的生产实现：全仓唯一 import `@oh-my-pi/*` 的地方（`apps/core/scripts` 构建脚本除外）。
 
 ## 职责
 

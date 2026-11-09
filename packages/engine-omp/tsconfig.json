@@ -3,10 +3,7 @@
   "include": ["src"],
   "references": [
     {
-      "path": "../engine"
-    },
-    {
-      "path": "../engine-testkit"
+      "path": "../agent-model"
     },
     {
       "path": "../foundation"
@@ -18,7 +15,7 @@
       "path": "../runtime-layout"
     },
     {
-      "path": "../transcript"
+      "path": "../runtime-protocol"
     }
   ]
 }

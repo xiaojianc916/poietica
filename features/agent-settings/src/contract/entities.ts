@@ -1,4 +1,7 @@
-import { Capabilities as CapabilitiesSchema, SettingDescriptor as SettingDescriptorSchema } from '@poietica/engine'
+import {
+  Capabilities as CapabilitiesSchema,
+  SettingDescriptor as SettingDescriptorSchema,
+} from '@poietica/runtime-protocol'
 import { z } from 'zod'
 
 export const Capabilities = CapabilitiesSchema

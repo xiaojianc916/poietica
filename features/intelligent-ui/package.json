@@ -27,10 +27,11 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@poietica/engine": "workspace:*",
-    "@poietica/engine-testkit": "workspace:*",
     "@poietica/feature-attachments": "workspace:*",
+    "@poietica/feature-journal": "workspace:*",
     "@poietica/feature-workspaces": "workspace:*",
+    "@poietica/runtime-protocol": "workspace:*",
+    "@poietica/runtime-protocol-testkit": "workspace:*",
     "@poietica/test-kit": "workspace:*",
     "@testing-library/react": "catalog:",
     "@types/bun": "catalog:",

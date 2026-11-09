@@ -140,7 +140,7 @@ export function SkillsSettingsPage({ api }: { readonly api: ExtensionsApi }) {
 
               event.preventDefault()
               const current = filtered.findIndex((skill) => skill.id === focusedKey)
-              const origin = current < 0 ? 0 : current
+              const origin = Math.max(current, 0)
               const delta = event.key === 'ArrowDown' ? 1 : -1
               const next = (origin + delta + filtered.length) % filtered.length
 

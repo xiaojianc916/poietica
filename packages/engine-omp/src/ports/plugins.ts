@@ -11,8 +11,8 @@ import {
   MarketplaceManager,
   parsePluginId,
 } from '@oh-my-pi/pi-coding-agent/extensibility/plugins/marketplace'
-import type { MarketplaceEntry, PluginInfo, PluginsPort } from '@poietica/engine'
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
+import type { MarketplaceEntry, PluginInfo, PluginsPort } from '@poietica/runtime-protocol'
 import type { z } from 'zod'
 import { toEngineError } from '../errors'
 

@@ -2,10 +2,11 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import type { AgentEngine, EngineSession, EngineSessionEvent, EngineToolSpec } from '@poietica/engine'
-import type { ScenarioStep } from '@poietica/engine-testkit'
+import type { TranscriptTurn } from '@poietica/agent-model'
+import { EMPTY_THREAD_STATE, materialize, reduceAll } from '@poietica/agent-model'
 import { noopLogger } from '@poietica/foundation'
-import type { TranscriptOperation } from '@poietica/transcript'
+import type { AgentEngine, EngineSession, EngineSessionEvent, EngineToolSpec } from '@poietica/runtime-protocol'
+import type { ScenarioStep } from '@poietica/runtime-protocol-testkit'
 import { z } from 'zod'
 import { testLayout } from '../../__tests__/omp-home'
 import type { MockEngineHandle } from '../../testing'
@@ -128,16 +129,12 @@ async function open(input?: { rig?: Rig; cwd?: string; sessionFile?: string }): 
   }
 }
 
-type TurnHeader = Extract<TranscriptOperation, { op: 'turn.upsert' }>['turn']
-
-/** 每一轮最后一份轮头（turn.upsert 是整头替换，最后一份就是屏幕上的样子） */
-function turnsOf(events: readonly EngineSessionEvent[]): TurnHeader[] {
-  const turns = new Map<string, TurnHeader>()
-  for (const event of events) {
-    if (event.type !== 'timeline') continue
-    for (const op of event.ops) if (op.op === 'turn.upsert') turns.set(op.turn.turnId, op.turn)
-  }
-  return [...turns.values()]
+/** 每一轮最后一份轮头：把时间线事件折成状态后取轮条目 */
+function turnsOf(events: readonly EngineSessionEvent[]): TranscriptTurn[] {
+  const timeline = events.flatMap((event) => (event.type === 'timeline' ? event.events : []))
+  return materialize(reduceAll(EMPTY_THREAD_STATE, timeline)).items.filter(
+    (item): item is TranscriptTurn => item.kind === 'turn',
+  )
 }
 
 function statesOf(events: readonly EngineSessionEvent[]): string[] {

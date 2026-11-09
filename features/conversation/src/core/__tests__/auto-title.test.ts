@@ -1,12 +1,13 @@
 import { describe, expect, test } from 'bun:test'
-import { createFakeEngine } from '@poietica/engine-testkit'
 import { systemClock } from '@poietica/foundation'
+import { createFakeEngine } from '@poietica/runtime-protocol-testkit'
 import { openDatabase } from '@poietica/storage-sqlite'
 import { createTestLogger, tempDir } from '@poietica/test-kit'
 import { conversationContract } from '../../contract'
 import { ConversationCore } from '../conversation'
 import { migrations } from '../migrations'
 import { TimelineHub } from '../timeline-hub'
+import { fakeJournal } from './fake-journal'
 import { harness } from './helpers'
 
 /*
@@ -136,10 +137,11 @@ test('T5 守卫：旧会话的迟到事件不许改现在的标题（sessionFile
   for (const m of migrations) db.forModule('conversation').exec(m.sql)
   const dir = await tempDir('conv-title-guard-')
   const clock = systemClock
-  const hub = new TimelineHub({ clock, emitOps: () => undefined, emitReset: () => undefined })
+  const hub = new TimelineHub({ clock, emitEvents: () => undefined, emitReset: () => undefined })
   const core = new ConversationCore({
     db: db.forModule('conversation'),
-    engine: createFakeEngine({ clock }),
+    journal: fakeJournal(),
+    runtime: createFakeEngine({ clock }),
     hub,
     workspaces: {
       requireUsable: () => ({ id: 'ws1', path: dir.path, name: 'ws' }),

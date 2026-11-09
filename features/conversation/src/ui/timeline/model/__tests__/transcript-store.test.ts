@@ -41,6 +41,8 @@ const EMPTY_QUEUE: QueuedMessages = {
   interruptMode: 'immediate',
 }
 
+const AT = '2026-10-10T00:00:00.000Z'
+
 /** `active` 是此刻还活着的订阅数（订阅加一、退订减一）—— 第 3、4 条判据量它。 */
 function fakePort(threadId: string) {
   const state = { active: 0, opened: 0, prompts: [] as string[] }
@@ -422,15 +424,19 @@ describe('Core 换代后的重新同步（R-04 §3.6）', () => {
     expect(held.state.reads).toBe(2)
 
     held.emit({
-      kind: 'ops',
+      kind: 'events',
       sessionId: 't1',
       agentId: 'main',
       seq: 1,
-      ops: [
+      events: [
         {
-          op: 'turn.upsert',
-          turn: { kind: 'turn', turnId: 't1', ordinal: 1, state: 'running', origin: { kind: 'other' } },
-        } as never,
+          type: 'run.started',
+          durability: 'committed',
+          schema: 1,
+          at: AT,
+          runId: 't1',
+          run: { kind: 'turn', turnId: 't1', ordinal: 1, state: 'running', origin: { kind: 'other' } },
+        },
       ],
     })
     await Bun.sleep(0)
@@ -653,39 +659,45 @@ describe('进程中途没了那一轮报「已停止」，不报「已完成」'
       openTurn: (): void => {
         /* seq 必须接在初始整读的水位之后（EMPTY_PAGE.seq = 1），否则会被当成重复批丢掉。 */
         listener?.({
-          kind: 'ops',
+          kind: 'events',
           sessionId: threadId,
           agentId: 'main',
           seq: 2,
-          ops: [
+          events: [
             {
-              op: 'turn.upsert',
-              turn: {
+              type: 'run.started',
+              durability: 'committed',
+              schema: 1,
+              at: AT,
+              runId: 't1',
+              run: {
                 kind: 'turn',
                 turnId: 't1',
                 ordinal: 1,
                 state: 'running',
                 origin: { kind: 'user' },
                 prompt: '干活',
-                startedAt: '2026-10-10T00:00:00.000Z',
+                startedAt: AT,
               },
             },
             {
-              op: 'step.upsert',
+              type: 'step.started',
+              durability: 'committed',
+              schema: 1,
+              at: AT,
+              runId: 't1',
               turnId: 't1',
-              step: {
-                kind: 'step',
-                stepId: 't1:s0',
-                turnId: 't1',
-                ordinal: 0,
-                state: 'running',
-                startedAt: '2026-10-10T00:00:00.000Z',
-              },
+              step: { kind: 'step', stepId: 't1:s0', turnId: 't1', ordinal: 0, state: 'running', startedAt: AT },
             },
             {
-              op: 'frame.upsert',
+              type: 'item.completed',
+              durability: 'committed',
+              schema: 1,
+              at: AT,
+              runId: 't1',
               turnId: 't1',
               stepId: 't1:s0',
+              itemId: 't1:s0:t0',
               frame: {
                 kind: 'tool',
                 frameId: 't1:s0:t0',
@@ -697,7 +709,7 @@ describe('进程中途没了那一轮报「已停止」，不报「已完成」'
               },
             },
           ],
-        } as never)
+        })
       },
       fail: (message: string, degraded = false): void => {
         runFailed?.({ threadId, message, degraded })
@@ -795,26 +807,22 @@ describe('进程中途没了那一轮报「已停止」，不报「已完成」'
     await Bun.sleep(0)
     /* agent 已经报过「答完了」，之后本机才把这一轮收掉。 */
     held.emit({
-      kind: 'ops',
+      kind: 'events',
       sessionId: 't1',
       agentId: 'main',
       seq: 3,
-      ops: [
+      events: [
         {
-          op: 'turn.upsert',
-          turn: {
-            kind: 'turn',
-            turnId: 't1',
-            ordinal: 1,
-            state: 'completed',
-            origin: { kind: 'user' },
-            prompt: '干活',
-            startedAt: '2026-10-10T00:00:00.000Z',
-            endedAt: '2026-10-10T00:00:05.000Z',
-          },
+          type: 'run.completed',
+          durability: 'committed',
+          schema: 1,
+          at: AT,
+          runId: 't1',
+          outcome: 'completed',
+          endedAt: '2026-10-10T00:00:05.000Z',
         },
       ],
-    } as never)
+    })
     await Bun.sleep(0)
     expect(store.read('t1').timeline.active.outcome).toBe('completed')
 
@@ -835,14 +843,26 @@ describe('进程中途没了那一轮报「已停止」，不报「已完成」'
     held.fail('Core 断了')
     await Bun.sleep(0)
 
-    /* 再推一条无关的快照：投影会把 timeline 整块重算，本机写的那一格不能被冲掉。 */
+    /* 再推一条无关的帧：投影会把 timeline 整块重算，本机写的那一格不能被冲掉。 */
     held.emit({
-      kind: 'ops',
+      kind: 'events',
       sessionId: 't1',
       agentId: 'main',
       seq: 3,
-      ops: [],
-    } as never)
+      events: [
+        {
+          type: 'item.completed',
+          durability: 'committed',
+          schema: 1,
+          at: AT,
+          runId: 't1',
+          turnId: 't1',
+          stepId: 't1:s0',
+          itemId: 't1:s0:t1',
+          frame: { kind: 'text', frameId: 't1:s0:t1', role: 'assistant', text: '无关的一句' },
+        },
+      ],
+    })
     await Bun.sleep(0)
 
     expect(store.read('t1').timeline.active.outcome).toBe('aborted')
