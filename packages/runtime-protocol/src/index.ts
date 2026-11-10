@@ -5,9 +5,11 @@ export {
   type ArpHelloResult,
   type ArpPingResult,
   type ArpRunSubmitParams,
+  type ArpSessionCallParams,
   type ArpSessionOpenParams,
   type ArpSessionOpenResult,
   type ArpSessionPageParams,
+  type ArpSessionSnapshotResult,
   arpErrors,
   arpEventMethod,
   arpEventParams,
@@ -16,9 +18,11 @@ export {
   arpMethods,
   arpPingResult,
   arpRunSubmitParams,
+  arpSessionCallParams,
   arpSessionOpenParams,
   arpSessionOpenResult,
   arpSessionPageParams,
+  arpSessionSnapshotResult,
 } from './arp'
 export {
   type BrowserRelayEndpoint,

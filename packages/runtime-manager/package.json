@@ -10,7 +10,8 @@
     "@poietica/foundation": "workspace:*",
     "@poietica/process-kit": "workspace:*",
     "@poietica/rpc": "workspace:*",
-    "@poietica/runtime-protocol": "workspace:*"
+    "@poietica/runtime-protocol": "workspace:*",
+    "@poietica/agent-model": "workspace:*"
   },
   "devDependencies": {
     "@poietica/runtime-kernel": "workspace:*",

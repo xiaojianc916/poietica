@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { Controls, Interaction, QueueSnapshot, SessionState } from './values'
 
 /**
  * ARP：Core 与 omp Runtime Worker 之间的内部协议（架构设计 §8）。
@@ -16,6 +17,8 @@ export const arpMethods = {
   sessionOpen: 'session.open',
   sessionClose: 'session.close',
   sessionPage: 'session.page',
+  sessionSnapshot: 'session.snapshot',
+  sessionCall: 'session.call',
   runSubmit: 'run.submit',
   runCancel: 'run.cancel',
 } as const
@@ -85,3 +88,19 @@ export type ArpRunSubmitParams = z.infer<typeof arpRunSubmitParams>
 export const arpEventParams = z.object({ key: z.string().min(1), event: z.unknown() })
 export type ArpEventParams = z.infer<typeof arpEventParams>
 export const arpEventMethod = 'runtime.event'
+
+export const arpSessionSnapshotResult = z.object({
+  state: SessionState,
+  busy: z.boolean(),
+  queue: QueueSnapshot,
+  controls: Controls,
+  interactions: z.array(Interaction),
+})
+export type ArpSessionSnapshotResult = z.infer<typeof arpSessionSnapshotResult>
+
+export const arpSessionCallParams = z.object({
+  key: z.string().min(1),
+  method: z.string().min(1),
+  args: z.array(z.unknown()),
+})
+export type ArpSessionCallParams = z.infer<typeof arpSessionCallParams>

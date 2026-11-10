@@ -714,6 +714,7 @@
       },
       "devDependencies": {
         "@poietica/rpc": "workspace:*",
+        "@poietica/runtime-manager": "workspace:*",
         "@poietica/test-kit": "workspace:*",
         "@types/bun": "catalog:",
       },
@@ -868,6 +869,7 @@
       "name": "@poietica/runtime-manager",
       "version": "0.0.0",
       "dependencies": {
+        "@poietica/agent-model": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/process-kit": "workspace:*",
         "@poietica/rpc": "workspace:*",

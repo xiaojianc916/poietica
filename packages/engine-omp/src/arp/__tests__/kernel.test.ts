@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { RpcPeer } from '@poietica/rpc'
 import { transportPair } from '@poietica/rpc/testing'
 import { createRuntimeKernel } from '@poietica/runtime-kernel'
+import { ArpSession } from '@poietica/runtime-manager'
 import { arpMethods } from '@poietica/runtime-protocol'
 import { createFakeEngine } from '@poietica/runtime-protocol-testkit'
 import { createTestLogger, fakeClock, tempDir } from '@poietica/test-kit'
@@ -55,6 +56,44 @@ describe('omp ARP over runtime-kernel', () => {
     } finally {
       core.dispose()
       await worker.dispose()
+      await dir.dispose()
+    }
+  })
+
+  test('ArpSession 客户端走完整会话方法', async () => {
+    const engine = createFakeEngine()
+    engine.freezeTools()
+    const [workerSide, coreSide] = transportPair()
+    const arp = createArpHandlers({ engine, emit: () => undefined })
+    const kernel = createRuntimeKernel({
+      transport: workerSide,
+      logger: createTestLogger(),
+      info: { runtimeVersion: 'test', engineVersion: 'fake' },
+      handlers: arp.handlers,
+    })
+    const core = new RpcPeer({ name: 'arp-session-core', transport: coreSide, logger: createTestLogger() })
+    const dir = await tempDir('omp-arp-session-')
+    try {
+      const session = await ArpSession.open({
+        spec: {
+          key: 'k',
+          cwd: dir.path,
+          sessionFile: null,
+          posture: 'auto-edit',
+          model: null,
+          thinking: null,
+        },
+        request: (method, params) => core.request(method, params),
+        onError: () => undefined,
+      })
+      expect(session.state()).toBe('idle')
+      expect((await session.page('main', null)).items).toEqual([])
+      expect(session.queue().items).toEqual([])
+      await session.dispose()
+    } finally {
+      core.dispose()
+      kernel.peer.dispose()
+      await arp.dispose()
       await dir.dispose()
     }
   })

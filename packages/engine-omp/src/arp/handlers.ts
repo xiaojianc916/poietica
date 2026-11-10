@@ -4,6 +4,7 @@ import {
   type ArpEventParams,
   arpMethods,
   arpRunSubmitParams,
+  arpSessionCallParams,
   arpSessionOpenParams,
   arpSessionPageParams,
 } from '@poietica/runtime-protocol'
@@ -67,6 +68,31 @@ export function createArpHandlers(d: ArpHandlersDeps): ArpHandlers {
           input.beforeTurnId,
           input.throughTurnId === undefined ? undefined : { throughTurnId: input.throughTurnId },
         )
+      },
+      [arpMethods.sessionSnapshot]: async (params) => {
+        const input = parse(arpSessionOpenParams.pick({ key: true }), params)
+        const held = sessions.get(input.key)
+        if (held === undefined) throw new AppError(SystemErrorCode.notFound, `会话未打开：${input.key}`)
+        return {
+          state: held.session.state(),
+          busy: held.session.isBusy(),
+          queue: held.session.queue(),
+          controls: held.session.controls(),
+          interactions: held.session.interactions(),
+        }
+      },
+      [arpMethods.sessionCall]: async (params) => {
+        const input = parse(arpSessionCallParams, params)
+        if (input.method === 'subscribe' || input.method === 'dispose') {
+          throw new AppError(SystemErrorCode.invalidParams, `session.call 不接受 ${input.method}`)
+        }
+        const held = sessions.get(input.key)
+        if (held === undefined) throw new AppError(SystemErrorCode.notFound, `会话未打开：${input.key}`)
+        const method = Reflect.get(held.session, input.method)
+        if (typeof method !== 'function') {
+          throw new AppError(SystemErrorCode.methodNotFound, `会话方法不存在：${input.method}`)
+        }
+        return (await Reflect.apply(method, held.session, input.args)) ?? {}
       },
       [arpMethods.runSubmit]: async (params) => {
         const input = parse(arpRunSubmitParams, params)
