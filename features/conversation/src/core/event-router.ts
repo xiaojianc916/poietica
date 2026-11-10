@@ -263,6 +263,23 @@ export class EventRouter {
   private onState(threadId: string, state: TurnState['state'], error: { code: string; message: string } | null): void {
     const rt = this.runtimeOf(threadId)
     const previous = rt.state
+    /* Worker 崩溃/重启：把最后一条已开的轮收成 interrupted，Journal 与时间线都留下一条产品记录。 */
+    if (error?.code === 'runtime.worker_exited' && previous === 'running') {
+      const turnId = [...rt.seenTurns].at(-1)
+      if (turnId !== undefined) {
+        const events = this.d.journal.appendAndStamp(threadId, 'main', [
+          {
+            type: 'run.completed',
+            durability: 'committed',
+            schema: 1,
+            at: new Date(this.d.clock.now()).toISOString(),
+            runId: turnId,
+            outcome: 'interrupted',
+          },
+        ])
+        this.d.hub.push(threadId, 'main', events)
+      }
+    }
     rt.state = state
     rt.error = error
     if (state === 'running' && previous !== 'running' && previous !== 'awaiting') rt.startedAt = this.d.clock.now()
