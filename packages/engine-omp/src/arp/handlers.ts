@@ -4,6 +4,11 @@ import {
   type ArpEventParams,
   arpEngineCallParams,
   arpEngineRegisterToolParams,
+  arpLoginAuthParams,
+  arpLoginCancelParams,
+  arpLoginParams,
+  arpLoginProgressParams,
+  arpLoginPromptParams,
   arpMethods,
   arpRunSubmitParams,
   arpSessionCallParams,
@@ -37,6 +42,7 @@ function parse<T>(schema: z.ZodType<T>, params: unknown): T {
 export function createArpHandlers(d: ArpHandlersDeps): ArpHandlers {
   const sessions = new Map<string, { session: EngineSession; dispose: () => void }>()
   const tools = new Map<string, { dispose: () => void }>()
+  const logins = new Map<string, AbortController>()
 
   const close = async (key: string): Promise<void> => {
     const held = sessions.get(key)
@@ -48,6 +54,39 @@ export function createArpHandlers(d: ArpHandlersDeps): ArpHandlers {
 
   return {
     handlers: {
+      [arpMethods.modelsLogin]: async (params) => {
+        const input = parse(arpLoginParams, params)
+        const controller = new AbortController()
+        logins.set(input.loginId, controller)
+        try {
+          return await d.engine.models.login(input.providerId, {
+            onAuth: (info) => {
+              void d.callCore(arpMethods.loginAuth, parse(arpLoginAuthParams, { loginId: input.loginId, info }))
+            },
+            onProgress: (message) => {
+              void d.callCore(
+                arpMethods.loginProgress,
+                parse(arpLoginProgressParams, { loginId: input.loginId, message }),
+              )
+            },
+            onPrompt: async (prompt) => {
+              const result = (await d.callCore(
+                arpMethods.loginPrompt,
+                parse(arpLoginPromptParams, { loginId: input.loginId, prompt }),
+              )) as { value: string }
+              return result.value
+            },
+            signal: controller.signal,
+          })
+        } finally {
+          logins.delete(input.loginId)
+        }
+      },
+      [arpMethods.loginCancel]: (params) => {
+        const input = parse(arpLoginCancelParams, params)
+        logins.get(input.loginId)?.abort()
+        return {}
+      },
       [arpMethods.engineRegisterTool]: (params) => {
         const input = parse(arpEngineRegisterToolParams, params)
         tools.get(input.name)?.dispose()
@@ -185,6 +224,8 @@ export function createArpHandlers(d: ArpHandlersDeps): ArpHandlers {
       },
     },
     async dispose() {
+      for (const login of logins.values()) login.abort()
+      logins.clear()
       for (const tool of tools.values()) tool.dispose()
       tools.clear()
       await Promise.all([...sessions.keys()].map((key) => close(key)))

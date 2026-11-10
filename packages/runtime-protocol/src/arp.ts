@@ -24,6 +24,11 @@ export const arpMethods = {
   engineRegisterTool: 'engine.registerTool',
   engineUnregisterTool: 'engine.unregisterTool',
   toolExecute: 'tool.execute',
+  modelsLogin: 'models.login',
+  loginAuth: 'login.auth',
+  loginProgress: 'login.progress',
+  loginPrompt: 'login.prompt',
+  loginCancel: 'login.cancel',
   runSubmit: 'run.submit',
   runCancel: 'run.cancel',
 } as const
@@ -146,3 +151,28 @@ export const arpToolExecuteParams = z.object({
   sessionKey: z.string(),
 })
 export type ArpToolExecuteParams = z.infer<typeof arpToolExecuteParams>
+
+export const arpLoginParams = z.object({ providerId: z.string().min(1), loginId: z.string().min(1) })
+export type ArpLoginParams = z.infer<typeof arpLoginParams>
+
+export const arpLoginAuthParams = z.object({
+  loginId: z.string().min(1),
+  info: z.object({
+    url: z.string(),
+    launchUrl: z.string().nullable(),
+    code: z.string().nullable(),
+    instructions: z.string().nullable(),
+  }),
+})
+export const arpLoginProgressParams = z.object({ loginId: z.string().min(1), message: z.string() })
+export const arpLoginPromptParams = z.object({
+  loginId: z.string().min(1),
+  prompt: z.object({
+    message: z.string(),
+    placeholder: z.string().nullable(),
+    secret: z.boolean(),
+    allowEmpty: z.boolean(),
+    fallback: z.boolean(),
+  }),
+})
+export const arpLoginCancelParams = z.object({ loginId: z.string().min(1) })

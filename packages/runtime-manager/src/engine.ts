@@ -8,11 +8,15 @@ import type {
   EngineInfo,
   EngineSession,
   EngineToolSpec,
+  LoginIO,
   OpenSessionSpec,
   SlashCommand,
 } from '@poietica/runtime-protocol'
 import {
   arpEngineSnapshotResult,
+  arpLoginAuthParams,
+  arpLoginProgressParams,
+  arpLoginPromptParams,
   arpMethods,
   arpPortEventMethod,
   arpPortEventParams,
@@ -36,6 +40,7 @@ export class ArpEngine implements AgentEngine {
   private disposed = false
   private portSubscription: { dispose(): void } | undefined
   private readonly portListeners = new Map<string, Set<(data: unknown) => void>>()
+  private readonly logins = new Map<string, LoginIO>()
 
   private constructor(
     private readonly runtime: RuntimeProcess,
@@ -54,11 +59,14 @@ export class ArpEngine implements AgentEngine {
     onError?: (error: unknown) => void
   }): Promise<ArpEngine> {
     const tools = new Map<string, EngineToolSpec>()
+    let engineRef: ArpEngine | undefined
     const runtime = new RuntimeProcess({
       launch: o.launch,
       logger: o.logger,
       ...(o.readyTimeoutMs === undefined ? {} : { readyTimeoutMs: o.readyTimeoutMs }),
       onRequest: async (method, params) => {
+        const login = await handleLoginRequest(method, params, () => engineRef?.logins)
+        if (login.handled) return login.value
         if (method === arpMethods.toolExecute) {
           const input = arpToolExecuteParams.parse(params)
           const spec = tools.get(input.name)
@@ -82,6 +90,7 @@ export class ArpEngine implements AgentEngine {
     if (hello === null) throw new AppError(SystemErrorCode.coreUnavailable, 'Runtime Worker 没有 hello')
     const snapshot = arpEngineSnapshotResult.parse(await runtime.request(arpMethods.engineSnapshot, {}))
     const engine = new ArpEngine(runtime, { name: 'omp', version: hello.engineVersion }, snapshot, tools)
+    engineRef = engine
     engine.portSubscription = runtime.onNotification((method, params) => {
       if (method === arpPortEventMethod) engine.onPortEvent(params)
     })
@@ -138,7 +147,13 @@ export class ArpEngine implements AgentEngine {
     return this.port('sessionFiles') as AgentEngine['sessionFiles']
   }
   get models(): AgentEngine['models'] {
-    return this.port('models') as AgentEngine['models']
+    const base = this.port('models') as AgentEngine['models']
+    return new Proxy(base, {
+      get: (target, prop, receiver) =>
+        prop === 'login'
+          ? (providerId: string, io: LoginIO) => this.login(providerId, io)
+          : Reflect.get(target, prop, receiver),
+    })
   }
   get settings(): AgentEngine['settings'] {
     const proxy = this.port('settings') as AgentEngine['settings']
@@ -172,6 +187,23 @@ export class ArpEngine implements AgentEngine {
 
   private call(path: readonly string[], args: readonly unknown[]): Promise<unknown> {
     return this.runtime.request(arpMethods.engineCall, { path, args: cleanArgs(args) })
+  }
+
+  private async login(providerId: string, io: LoginIO): Promise<Awaited<ReturnType<AgentEngine['models']['login']>>> {
+    const loginId = crypto.randomUUID()
+    this.logins.set(loginId, io)
+    const cancel = (): void => {
+      void this.runtime.request(arpMethods.loginCancel, { loginId }).catch(() => undefined)
+    }
+    io.signal.addEventListener('abort', cancel, { once: true })
+    try {
+      return (await this.runtime.request(arpMethods.modelsLogin, { providerId, loginId }, 0)) as Awaited<
+        ReturnType<AgentEngine['models']['login']>
+      >
+    } finally {
+      io.signal.removeEventListener('abort', cancel)
+      this.logins.delete(loginId)
+    }
   }
 
   private onPortEvent(params: unknown): void {
@@ -209,4 +241,28 @@ export class ArpEngine implements AgentEngine {
 
 function cleanArgs(args: readonly unknown[]): unknown[] {
   return args.map((arg) => (typeof arg === 'function' || arg instanceof AbortSignal ? undefined : arg))
+}
+
+async function handleLoginRequest(
+  method: string,
+  params: unknown,
+  logins: () => Map<string, LoginIO> | undefined,
+): Promise<{ handled: boolean; value?: unknown }> {
+  if (method === arpMethods.loginAuth) {
+    const input = arpLoginAuthParams.parse(params)
+    logins()?.get(input.loginId)?.onAuth(input.info)
+    return { handled: true, value: {} }
+  }
+  if (method === arpMethods.loginProgress) {
+    const input = arpLoginProgressParams.parse(params)
+    logins()?.get(input.loginId)?.onProgress(input.message)
+    return { handled: true, value: {} }
+  }
+  if (method === arpMethods.loginPrompt) {
+    const input = arpLoginPromptParams.parse(params)
+    const io = logins()?.get(input.loginId)
+    if (io === undefined) throw new AppError(SystemErrorCode.notFound, '登录会话不存在')
+    return { handled: true, value: { value: await io.onPrompt(input.prompt) } }
+  }
+  return { handled: false }
 }
