@@ -20,6 +20,8 @@
 - `packages/runtime-manager`：`RuntimeProcess` 起子进程、建 stdio 传输、ARP 握手、转发请求、停止/退出检测；测试用真实子进程验证握手、注入方法与崩溃标记 failed。
 - `packages/engine-omp/src/arp`：`createArpHandlers` 把 `session.open/page/close`、`run.submit/cancel` 映射到 AgentEngine；`createOmpRuntimeWorker` 把引擎装成 ARP Worker。测试用 FakeEngine 走通 kernel → ARP → engine。
 - `poietica-core.exe runtime --data-root <路径>`：独立进程建 omp 引擎并挂 ARP；`bun run core:runtime-probe` 真实拉起该进程，完成 hello / session.open / session.page / session.close。
+- Core 默认启用 ARP Runtime；`POIETICA_RUNTIME_ARP=0` 可退回进程内 engine。
+- `bun run core:kill-probe`：强杀 runtime 子进程后 Core 存活，Worker 自动重启并恢复 ArpSession，Thread 可继续冷读（约 2 秒）。
 - Worker 方法由各 Worker 注入 handlers，能力表写进 hello 结果。
 
 ## 待落地

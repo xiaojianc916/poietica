@@ -9,13 +9,15 @@ import path from 'node:path'
 import { RpcPeer } from '@poietica/rpc'
 import { createChildProcessTransport } from '@poietica/rpc/stdio'
 
+const env = { ...process.env }
+delete env.POIETICA_RUNTIME_ARP
 const root = mkdtempSync(path.join(os.tmpdir(), 'poietica-core-arp-'))
 const child = spawn(
   path.resolve('apps/core/dist/poietica-core.exe'),
   ['serve', '--data-root', root, '--log-level', 'error'],
   {
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env, POIETICA_RUNTIME_ARP: '1' },
+    env,
   },
 )
 let stderr = ''

@@ -76,7 +76,7 @@ async function createRealEngine(
   layout: Parameters<typeof createCoreKernel>[0]['layout'],
   logger: Parameters<typeof createCoreKernel>[0]['logger'],
 ) {
-  if (process.env.POIETICA_RUNTIME_ARP === '1') {
+  if (process.env.POIETICA_RUNTIME_ARP !== '0') {
     const { ArpEngine } = await import('@poietica/runtime-manager')
     const bun = path.basename(process.execPath).toLowerCase().startsWith('bun')
     return ArpEngine.connect({

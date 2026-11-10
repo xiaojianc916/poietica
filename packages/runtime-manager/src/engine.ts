@@ -1,5 +1,5 @@
 import type { Disposable, Event } from '@poietica/foundation'
-import { AppError, SystemErrorCode } from '@poietica/foundation'
+import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
 import { jsonValue } from '@poietica/rpc'
 import type {
   AgentEngine,
@@ -50,6 +50,7 @@ export class ArpEngine implements AgentEngine {
     info: EngineInfo,
     snapshot: ReturnType<typeof arpEngineSnapshotResult.parse>,
     private readonly tools: Map<string, EngineToolSpec>,
+    private readonly logger: Logger,
   ) {
     this.info = info
     this.snapshot = snapshot
@@ -98,7 +99,7 @@ export class ArpEngine implements AgentEngine {
     const hello = runtime.hello
     if (hello === null) throw new AppError(SystemErrorCode.coreUnavailable, 'Runtime Worker 没有 hello')
     const snapshot = arpEngineSnapshotResult.parse(await runtime.request(arpMethods.engineSnapshot, {}))
-    const engine = new ArpEngine(runtime, { name: 'omp', version: hello.engineVersion }, snapshot, tools)
+    const engine = new ArpEngine(runtime, { name: 'omp', version: hello.engineVersion }, snapshot, tools, o.logger)
     engineRef = engine
     engine.portSubscription = runtime.onNotification((method, params) => {
       if (method === arpPortEventMethod) engine.onPortEvent(params)
@@ -129,14 +130,7 @@ export class ArpEngine implements AgentEngine {
 
   registerTool(spec: EngineToolSpec): Disposable {
     this.tools.set(spec.name, spec)
-    void this.runtime.request(arpMethods.engineRegisterTool, {
-      name: spec.name,
-      label: spec.label,
-      description: spec.description,
-      parametersJsonSchema: z.toJSONSchema(spec.parameters),
-      approval: spec.approval,
-      ...(spec.streamInput === undefined ? {} : { streamInput: spec.streamInput }),
-    })
+    void this.runtime.request(arpMethods.engineRegisterTool, toolParams(spec))
     return {
       dispose: () => {
         this.tools.delete(spec.name)
@@ -210,6 +204,10 @@ export class ArpEngine implements AgentEngine {
     if (this.recovering || this.specs.size === 0) return
     this.recovering = true
     try {
+      for (const spec of this.tools.values()) {
+        await this.runtime.request(arpMethods.engineRegisterTool, toolParams(spec))
+      }
+      await this.runtime.request(arpMethods.engineCall, { path: ['freezeTools'], args: [] })
       for (const [key, spec] of this.specs) {
         try {
           const fresh = await ArpSession.open({
@@ -220,8 +218,9 @@ export class ArpEngine implements AgentEngine {
           const held = this.sessions.get(key)
           if (held === undefined) this.sessions.set(key, fresh)
           else held.rebind(fresh)
-        } catch {
+        } catch (error) {
           /* 单条恢复失败：保留 interrupted 状态，下一次发言会重新打开。 */
+          this.logger.warn('runtime session recovery failed', { key, error: String(error) })
         }
       }
     } finally {
@@ -305,4 +304,15 @@ async function handleLoginRequest(
     return { handled: true, value: { value: await io.onPrompt(input.prompt) } }
   }
   return { handled: false }
+}
+
+function toolParams(spec: EngineToolSpec): Record<string, unknown> {
+  return {
+    name: spec.name,
+    label: spec.label,
+    description: spec.description,
+    parametersJsonSchema: z.toJSONSchema(spec.parameters),
+    approval: spec.approval,
+    ...(spec.streamInput === undefined ? {} : { streamInput: spec.streamInput }),
+  }
 }
