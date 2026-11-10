@@ -28,6 +28,7 @@
     "@poietica/protocol": "workspace:*",
     "@poietica/rpc": "workspace:*",
     "@poietica/runtime-layout": "workspace:*",
+    "@poietica/runtime-manager": "workspace:*",
     "@poietica/runtime-protocol-omp": "workspace:*",
     "@poietica/storage-sqlite": "workspace:*"
   },

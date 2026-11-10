@@ -1,5 +1,6 @@
 import type { Disposable, Event } from '@poietica/foundation'
 import { AppError, SystemErrorCode } from '@poietica/foundation'
+import { jsonValue } from '@poietica/rpc'
 import type {
   AgentEngine,
   CommandCatalogOptions,
@@ -64,7 +65,8 @@ export class ArpEngine implements AgentEngine {
       launch: o.launch,
       logger: o.logger,
       ...(o.readyTimeoutMs === undefined ? {} : { readyTimeoutMs: o.readyTimeoutMs }),
-      onRequest: async (method, params) => {
+      onRequest: async (method, rawParams) => {
+        const params = jsonValue(rawParams)
         const login = await handleLoginRequest(method, params, () => engineRef?.logins)
         if (login.handled) return login.value
         if (method === arpMethods.toolExecute) {

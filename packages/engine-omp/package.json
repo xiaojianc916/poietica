@@ -20,12 +20,12 @@
     "@poietica/runtime-layout": "workspace:*",
     "@poietica/agent-model": "workspace:*",
     "zod": "catalog:",
-    "@poietica/runtime-kernel": "workspace:*"
+    "@poietica/runtime-kernel": "workspace:*",
+    "@poietica/rpc": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "catalog:",
     "@poietica/test-kit": "workspace:*",
-    "@poietica/rpc": "workspace:*",
     "@poietica/runtime-manager": "workspace:*"
   }
 }

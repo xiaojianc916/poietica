@@ -76,6 +76,17 @@ async function createRealEngine(
   layout: Parameters<typeof createCoreKernel>[0]['layout'],
   logger: Parameters<typeof createCoreKernel>[0]['logger'],
 ) {
+  if (process.env.POIETICA_RUNTIME_ARP === '1') {
+    const { ArpEngine } = await import('@poietica/runtime-manager')
+    const bun = path.basename(process.execPath).toLowerCase().startsWith('bun')
+    return ArpEngine.connect({
+      launch: {
+        command: process.execPath,
+        args: bun ? [process.argv[1]!, 'runtime', '--data-root', layout.root] : ['runtime', '--data-root', layout.root],
+      },
+      logger: logger.child({ module: 'runtime' }),
+    })
+  }
   const { createOmpEngine } = await import('@poietica/runtime-protocol-omp')
   // browser relay 的端口与口令由引擎自己备（写口令文件路径进本进程环境），所以必须在上面的 scrubInjected 之后
   // appVersion 必给；engineVersion 由 engine-omp 自己定（生产编译期注入，源码运行读随包那份 omp 的 package.json）。

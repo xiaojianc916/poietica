@@ -72,6 +72,9 @@
       "path": "../../packages/runtime-layout"
     },
     {
+      "path": "../../packages/runtime-manager"
+    },
+    {
       "path": "../../packages/storage-sqlite"
     }
   ]

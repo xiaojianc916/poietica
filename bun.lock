@@ -51,6 +51,7 @@
         "@poietica/protocol": "workspace:*",
         "@poietica/rpc": "workspace:*",
         "@poietica/runtime-layout": "workspace:*",
+        "@poietica/runtime-manager": "workspace:*",
         "@poietica/runtime-protocol-omp": "workspace:*",
         "@poietica/storage-sqlite": "workspace:*",
       },
@@ -706,6 +707,7 @@
         "@poietica/agent-model": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/fs-kit": "workspace:*",
+        "@poietica/rpc": "workspace:*",
         "@poietica/runtime-kernel": "workspace:*",
         "@poietica/runtime-layout": "workspace:*",
         "@poietica/runtime-protocol": "workspace:*",
@@ -713,7 +715,6 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@poietica/rpc": "workspace:*",
         "@poietica/runtime-manager": "workspace:*",
         "@poietica/test-kit": "workspace:*",
         "@types/bun": "catalog:",

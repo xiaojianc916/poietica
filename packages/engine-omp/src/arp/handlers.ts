@@ -1,4 +1,5 @@
 import { AppError, SystemErrorCode } from '@poietica/foundation'
+import { jsonValue } from '@poietica/rpc'
 import type { AgentEngine, EngineSession } from '@poietica/runtime-protocol'
 import {
   type ArpEventParams,
@@ -70,10 +71,12 @@ export function createArpHandlers(d: ArpHandlersDeps): ArpHandlers {
               )
             },
             onPrompt: async (prompt) => {
-              const result = (await d.callCore(
-                arpMethods.loginPrompt,
-                parse(arpLoginPromptParams, { loginId: input.loginId, prompt }),
-              )) as { value: string }
+              const result = jsonValue(
+                await d.callCore(
+                  arpMethods.loginPrompt,
+                  parse(arpLoginPromptParams, { loginId: input.loginId, prompt }),
+                ),
+              ) as { value: string }
               return result.value
             },
             signal: controller.signal,
@@ -101,12 +104,14 @@ export function createArpHandlers(d: ArpHandlersDeps): ArpHandlers {
           execute: async (toolParams, ctx) => {
             const result = parse(
               z.object({ text: z.string(), details: z.unknown().optional(), isError: z.boolean().optional() }),
-              await d.callCore(arpMethods.toolExecute, {
-                name: input.name,
-                params: toolParams,
-                cwd: ctx.cwd,
-                sessionKey: ctx.sessionKey,
-              }),
+              jsonValue(
+                await d.callCore(arpMethods.toolExecute, {
+                  name: input.name,
+                  params: toolParams,
+                  cwd: ctx.cwd,
+                  sessionKey: ctx.sessionKey,
+                }),
+              ),
             )
             return {
               text: result.text,
