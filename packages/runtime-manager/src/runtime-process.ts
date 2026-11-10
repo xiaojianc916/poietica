@@ -31,6 +31,8 @@ export interface RuntimeProcessOptions {
   readonly heartbeatTimeoutMs?: number
   /** Worker 反向请求（产品工具执行、策略裁决等）。 */
   readonly onRequest?: (method: string, params: unknown, ctx: InboundContext) => Promise<unknown>
+  /** 状态变化（starting/ready/failed/restarting/stopped），用于上层做会话恢复。 */
+  readonly onState?: (status: { state: RuntimeProcessState; error: string | null; attempt: number }) => void
 }
 
 export type RuntimeProcessState = 'idle' | 'starting' | 'ready' | 'restarting' | 'failed' | 'stopped'
@@ -60,6 +62,11 @@ export class RuntimeProcess {
     return { state: this.state, error: this.lastError, attempt: this.attempts }
   }
 
+  private setState(state: RuntimeProcessState): void {
+    this.state = state
+    this.o.onState?.(this.status)
+  }
+
   get hello(): {
     protocolVersion: number
     runtimeVersion: string
@@ -77,7 +84,7 @@ export class RuntimeProcess {
   async start(): Promise<void> {
     if (this.state === 'ready' || this.state === 'starting') return
     this.stopping = false
-    this.state = 'starting'
+    this.setState('starting')
     this.lastError = null
     const spawn = this.o.spawn ?? nodeSpawn
     const child = spawn(this.o.launch.command, [...this.o.launch.args], {
@@ -112,7 +119,7 @@ export class RuntimeProcess {
       if (this.o.autoRestart === true) {
         this.scheduleRestart()
       } else {
-        this.state = 'failed'
+        this.setState('failed')
       }
     })
     try {
@@ -129,12 +136,12 @@ export class RuntimeProcess {
         throw new AppError('runtime.protocol_mismatch', 'Runtime Worker 协议版本不一致')
       }
       this.helloInfo = hello as typeof this.helloInfo
-      this.state = 'ready'
+      this.setState('ready')
       this.readyAt = Date.now()
       this.startHeartbeat()
     } catch (error) {
       this.lastError = error instanceof Error ? error.message : String(error)
-      this.state = 'failed'
+      this.setState('failed')
       await this.stop()
       throw error
     }
@@ -162,7 +169,7 @@ export class RuntimeProcess {
     if (child?.pid !== undefined) await killTree(child.pid).catch(() => undefined)
     this.peer = undefined
     this.child = undefined
-    this.state = 'stopped'
+    this.setState('stopped')
   }
 
   private startHeartbeat(): void {
@@ -179,7 +186,7 @@ export class RuntimeProcess {
           async () => {
             this.lastError = 'Runtime Worker 心跳失败'
             await this.kill()
-            if (this.o.autoRestart !== true) this.state = 'failed'
+            if (this.o.autoRestart !== true) this.setState('failed')
           },
         )
         .finally(() => {
@@ -202,12 +209,12 @@ export class RuntimeProcess {
     this.attempts += 1
     const backoff = this.o.backoffMs ?? [500, 1_000, 2_000, 4_000, 8_000]
     const delay = backoff[Math.min(this.attempts - 1, backoff.length - 1)] ?? 8_000
-    this.state = 'restarting'
+    this.setState('restarting')
     this.restartTimer = setTimeout(() => {
       this.restartTimer = undefined
       void this.start().catch((error: unknown) => {
         this.lastError = error instanceof Error ? error.message : String(error)
-        this.state = 'failed'
+        this.setState('failed')
       })
     }, delay)
   }
@@ -220,7 +227,7 @@ export class RuntimeProcess {
 
   async restart(): Promise<void> {
     await this.stop()
-    this.state = 'idle'
+    this.setState('idle')
     await this.start()
   }
 }

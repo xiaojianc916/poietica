@@ -42,6 +42,8 @@ export class ArpEngine implements AgentEngine {
   private portSubscription: { dispose(): void } | undefined
   private readonly portListeners = new Map<string, Set<(data: unknown) => void>>()
   private readonly logins = new Map<string, LoginIO>()
+  private readonly specs = new Map<string, OpenSessionSpec>()
+  private recovering = false
 
   private constructor(
     private readonly runtime: RuntimeProcess,
@@ -64,7 +66,12 @@ export class ArpEngine implements AgentEngine {
     const runtime = new RuntimeProcess({
       launch: o.launch,
       logger: o.logger,
+      autoRestart: true,
       ...(o.readyTimeoutMs === undefined ? {} : { readyTimeoutMs: o.readyTimeoutMs }),
+      onState: (status) => {
+        if (status.state === 'restarting' || status.state === 'failed') engineRef?.markInterrupted()
+        if (status.state === 'ready') void engineRef?.recoverSessions()
+      },
       onRequest: async (method, rawParams) => {
         const params = jsonValue(rawParams)
         const login = await handleLoginRequest(method, params, () => engineRef?.logins)
@@ -106,6 +113,8 @@ export class ArpEngine implements AgentEngine {
       request: (method, params, timeoutMs) => this.runtime.request(method, params, timeoutMs),
       onError: () => undefined,
     })
+    /* 首次打开的会话文件要记下来：Worker 重启后按同一份文件恢复。 */
+    this.specs.set(spec.key, { ...spec, sessionFile: session.sessionFile })
     this.sessions.set(spec.key, session)
     return session
   }
@@ -178,12 +187,46 @@ export class ArpEngine implements AgentEngine {
     this.disposed = true
     await Promise.all([...this.sessions.values()].map((session) => session.dispose()))
     this.sessions.clear()
+    this.specs.clear()
     this.portSubscription?.dispose()
     await this.runtime.stop()
   }
 
   private call(path: readonly string[], args: readonly unknown[]): Promise<unknown> {
     return this.runtime.request(arpMethods.engineCall, { path, args: cleanArgs(args) })
+  }
+
+  private markInterrupted(): void {
+    for (const session of this.sessions.values()) {
+      session.dispatch({
+        type: 'state',
+        state: 'idle',
+        error: { code: 'runtime.worker_exited', message: '运行时已重启，正在恢复会话' },
+      })
+    }
+  }
+
+  private async recoverSessions(): Promise<void> {
+    if (this.recovering || this.specs.size === 0) return
+    this.recovering = true
+    try {
+      for (const [key, spec] of this.specs) {
+        try {
+          const fresh = await ArpSession.open({
+            spec,
+            request: (method, params, timeoutMs) => this.runtime.request(method, params, timeoutMs),
+            onError: () => undefined,
+          })
+          const held = this.sessions.get(key)
+          if (held === undefined) this.sessions.set(key, fresh)
+          else held.rebind(fresh)
+        } catch {
+          /* 单条恢复失败：保留 interrupted 状态，下一次发言会重新打开。 */
+        }
+      }
+    } finally {
+      this.recovering = false
+    }
   }
 
   private async login(providerId: string, io: LoginIO): Promise<Awaited<ReturnType<AgentEngine['models']['login']>>> {

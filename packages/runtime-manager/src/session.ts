@@ -25,8 +25,8 @@ type Request = (method: string, params: unknown, timeoutMs?: number) => Promise<
  * 与 Worker 里的 EngineSession 一一对应；Core 不需要 import 任何 omp 实现。
  */
 export class ArpSession implements EngineSession {
-  readonly sessionId: string
-  readonly sessionFile: string
+  sessionId: string
+  sessionFile: string
   private stateValue: SessionState
   private busyValue: boolean
   private queueValue: QueueSnapshot
@@ -72,6 +72,22 @@ export class ArpSession implements EngineSession {
   subscribe(listener: (event: EngineSessionEvent) => void): Disposable {
     this.listeners.add(listener)
     return { dispose: () => this.listeners.delete(listener) }
+  }
+
+  /** Worker 重启后把新会话的快照抬进这个客户端对象：调用方手里的引用不变。 */
+  rebind(other: ArpSession): void {
+    this.sessionId = other.sessionId
+    this.sessionFile = other.sessionFile
+    this.stateValue = other.stateValue
+    this.busyValue = other.busyValue
+    this.queueValue = other.queueValue
+    this.controlsValue = other.controlsValue
+    this.interactionsValue = [...other.interactionsValue]
+    this.dispatch({
+      type: 'state',
+      state: this.stateValue,
+      error: null,
+    })
   }
 
   dispatch(event: EngineSessionEvent): void {
