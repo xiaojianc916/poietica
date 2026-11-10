@@ -9,6 +9,7 @@ import { filesContract } from '@poietica/feature-files/contract'
 import { intelligentUiContract } from '@poietica/feature-intelligent-ui/contract'
 import { modelsContract } from '@poietica/feature-models/contract'
 import { platformContract } from '@poietica/feature-platform/contract'
+import { policyContract } from '@poietica/feature-policy/contract'
 import { preferencesContract } from '@poietica/feature-preferences/contract'
 import { pythonContract } from '@poietica/feature-python/contract'
 import { reviewContract } from '@poietica/feature-review/contract'
@@ -25,6 +26,7 @@ import { workspacesContract } from '@poietica/feature-workspaces/contract'
  */
 export const appContract = composeContracts(
   platformContract,
+  policyContract,
   secretsContract,
   preferencesContract,
   workspacesContract,

@@ -39,6 +39,9 @@
       "path": "../../features/platform/src/core"
     },
     {
+      "path": "../../features/policy/src/core"
+    },
+    {
       "path": "../../features/python/src/core"
     },
     {

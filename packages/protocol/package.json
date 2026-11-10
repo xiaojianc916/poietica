@@ -18,6 +18,7 @@
     "@poietica/feature-intelligent-ui": "workspace:*",
     "@poietica/feature-models": "workspace:*",
     "@poietica/feature-platform": "workspace:*",
+    "@poietica/feature-policy": "workspace:*",
     "@poietica/feature-preferences": "workspace:*",
     "@poietica/feature-python": "workspace:*",
     "@poietica/feature-review": "workspace:*",

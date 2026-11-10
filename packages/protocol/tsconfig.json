@@ -33,6 +33,9 @@
       "path": "../../features/platform/src/contract"
     },
     {
+      "path": "../../features/policy/src/contract"
+    },
+    {
       "path": "../../features/preferences/src/contract"
     },
     {

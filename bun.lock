@@ -41,6 +41,7 @@
         "@poietica/feature-journal": "workspace:*",
         "@poietica/feature-models": "workspace:*",
         "@poietica/feature-platform": "workspace:*",
+        "@poietica/feature-policy": "workspace:*",
         "@poietica/feature-python": "workspace:*",
         "@poietica/feature-review": "workspace:*",
         "@poietica/feature-usage": "workspace:*",
@@ -417,6 +418,19 @@
         "@types/node": "catalog:",
         "@types/react": "catalog:",
         "electron": "catalog:",
+      },
+    },
+    "features/policy": {
+      "name": "@poietica/feature-policy",
+      "version": "0.0.0",
+      "dependencies": {
+        "@poietica/contract-kit": "workspace:*",
+        "@poietica/core-kernel": "workspace:*",
+        "@poietica/foundation": "workspace:*",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
       },
     },
     "features/preferences": {
@@ -825,6 +839,7 @@
         "@poietica/feature-intelligent-ui": "workspace:*",
         "@poietica/feature-models": "workspace:*",
         "@poietica/feature-platform": "workspace:*",
+        "@poietica/feature-policy": "workspace:*",
         "@poietica/feature-preferences": "workspace:*",
         "@poietica/feature-python": "workspace:*",
         "@poietica/feature-review": "workspace:*",
@@ -1373,6 +1388,8 @@
     "@poietica/feature-models": ["@poietica/feature-models@workspace:features/models"],
 
     "@poietica/feature-platform": ["@poietica/feature-platform@workspace:features/platform"],
+
+    "@poietica/feature-policy": ["@poietica/feature-policy@workspace:features/policy"],
 
     "@poietica/feature-preferences": ["@poietica/feature-preferences@workspace:features/preferences"],
 

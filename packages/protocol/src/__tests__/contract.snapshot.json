@@ -1,5 +1,5 @@
 {
-  "version": 59,
+  "version": 60,
   "methods": [
     {
       "name": "agentSettings.capabilities",
@@ -12614,6 +12614,128 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "policy.check",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "对一次工具执行做策略裁决（allow / ask / deny）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "preset": {
+            "type": "string",
+            "enum": [
+              "read-only",
+              "ask",
+              "auto-edit",
+              "full-access"
+            ]
+          },
+          "toolName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "context": {
+            "type": "object",
+            "properties": {
+              "workspaceRoot": {
+                "type": "string"
+              },
+              "command": {
+                "type": "string"
+              },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "preset",
+          "toolName"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "ask",
+              "deny"
+            ]
+          },
+          "rule": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "preset": {
+            "type": "string",
+            "enum": [
+              "read-only",
+              "ask",
+              "auto-edit",
+              "full-access"
+            ]
+          },
+          "classification": {
+            "type": "object",
+            "properties": {
+              "category": {
+                "type": "string",
+                "enum": [
+                  "exec",
+                  "code.eval",
+                  "file.write",
+                  "file.read",
+                  "network",
+                  "agent",
+                  "mcp",
+                  "plugin",
+                  "meta",
+                  "product",
+                  "unknown"
+                ]
+              },
+              "risk": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              "checkpoint": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "category",
+              "risk",
+              "checkpoint"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "action",
+          "rule",
+          "reason",
+          "preset",
+          "classification"
+        ],
         "additionalProperties": false
       }
     },
@@ -39682,6 +39804,10 @@
     {
       "code": "platform.url_not_allowed",
       "message": "只能打开 http、https 或 mailto 链接"
+    },
+    {
+      "code": "policy.invalid_context",
+      "message": "策略上下文无效"
     },
     {
       "code": "preferences.keymap_unknown_command",

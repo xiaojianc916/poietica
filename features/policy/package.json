@@ -1,0 +1,20 @@
+{
+  "name": "@poietica/feature-policy",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contract": "./src/contract/index.ts",
+    "./core": "./src/core/index.ts",
+    "./core-api": "./src/core-api/index.ts"
+  },
+  "dependencies": {
+    "@poietica/contract-kit": "workspace:*",
+    "@poietica/core-kernel": "workspace:*",
+    "@poietica/foundation": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  }
+}

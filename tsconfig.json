@@ -140,6 +140,15 @@
       "path": "features/platform/src/ui-api"
     },
     {
+      "path": "features/policy/src/contract"
+    },
+    {
+      "path": "features/policy/src/core"
+    },
+    {
+      "path": "features/policy/src/core-api"
+    },
+    {
       "path": "features/preferences/src/contract"
     },
     {
