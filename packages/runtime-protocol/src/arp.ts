@@ -19,6 +19,8 @@ export const arpMethods = {
   sessionPage: 'session.page',
   sessionSnapshot: 'session.snapshot',
   sessionCall: 'session.call',
+  engineCall: 'engine.call',
+  engineSnapshot: 'engine.snapshot',
   runSubmit: 'run.submit',
   runCancel: 'run.cancel',
 } as const
@@ -104,3 +106,15 @@ export const arpSessionCallParams = z.object({
   args: z.array(z.unknown()),
 })
 export type ArpSessionCallParams = z.infer<typeof arpSessionCallParams>
+
+export const arpEngineCallParams = z.object({
+  path: z.array(z.string().min(1)).min(1),
+  args: z.array(z.unknown()),
+})
+export type ArpEngineCallParams = z.infer<typeof arpEngineCallParams>
+
+export const arpEngineSnapshotResult = z.object({
+  groupOrder: z.array(z.string()),
+  browserRelay: z.unknown().nullable(),
+})
+export type ArpEngineSnapshotResult = z.infer<typeof arpEngineSnapshotResult>

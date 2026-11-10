@@ -2,6 +2,7 @@ import { AppError, SystemErrorCode } from '@poietica/foundation'
 import type { AgentEngine, EngineSession } from '@poietica/runtime-protocol'
 import {
   type ArpEventParams,
+  arpEngineCallParams,
   arpMethods,
   arpRunSubmitParams,
   arpSessionCallParams,
@@ -43,6 +44,26 @@ export function createArpHandlers(d: ArpHandlersDeps): ArpHandlers {
 
   return {
     handlers: {
+      [arpMethods.engineSnapshot]: () => ({
+        groupOrder: [...d.engine.settings.groupOrder],
+        browserRelay: d.engine.browserRelay(),
+      }),
+      [arpMethods.engineCall]: async (params) => {
+        const input = parse(arpEngineCallParams, params)
+        let target: unknown = d.engine
+        for (const segment of input.path.slice(0, -1)) {
+          if (typeof target !== 'object' || target === null) {
+            throw new AppError(SystemErrorCode.methodNotFound, `ARP 路径不存在：${input.path.join('.')}`)
+          }
+          target = Reflect.get(target, segment)
+        }
+        const name = input.path.at(-1)!
+        const method = typeof target === 'object' && target !== null ? Reflect.get(target, name) : undefined
+        if (typeof method !== 'function') {
+          throw new AppError(SystemErrorCode.methodNotFound, `ARP 方法不存在：${input.path.join('.')}`)
+        }
+        return (await Reflect.apply(method, target, input.args)) ?? {}
+      },
       [arpMethods.sessionOpen]: async (params) => {
         const input = parse(arpSessionOpenParams, params)
         await close(input.key)

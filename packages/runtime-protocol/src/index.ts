@@ -1,5 +1,7 @@
 export {
   ARP_VERSION,
+  type ArpEngineCallParams,
+  type ArpEngineSnapshotResult,
   type ArpEventParams,
   type ArpHelloParams,
   type ArpHelloResult,
@@ -10,6 +12,8 @@ export {
   type ArpSessionOpenResult,
   type ArpSessionPageParams,
   type ArpSessionSnapshotResult,
+  arpEngineCallParams,
+  arpEngineSnapshotResult,
   arpErrors,
   arpEventMethod,
   arpEventParams,

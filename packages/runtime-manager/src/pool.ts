@@ -1,4 +1,4 @@
-import type { RuntimeProcessState } from './index'
+import type { RuntimeProcessState } from './runtime-process'
 
 /** Worker 的最小管理面；RuntimeProcess 与测试替身都满足。 */
 export interface ManagedRuntime {
