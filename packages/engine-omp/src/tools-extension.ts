@@ -23,7 +23,7 @@ export function createToolsExtension(o: ToolBridgeOptions): void {
       name: spec.name,
       label: spec.label,
       description: spec.description,
-      parameters: z.toJSONSchema(spec.parameters),
+      parameters: spec.parametersJsonSchema ?? z.toJSONSchema(spec.parameters),
       approval: spec.approval,
       loadMode: 'essential',
       execute: async (_toolCallId: string, params: unknown, signal?: AbortSignal) =>
@@ -43,7 +43,10 @@ async function executeTool(
   signal: AbortSignal | undefined,
   o: ToolBridgeOptions,
 ): Promise<{ content: { type: 'text'; text: string }[]; details?: unknown; isError?: boolean }> {
-  const parsed = spec.parameters.safeParse(params)
+  const parsed =
+    spec.parametersJsonSchema === undefined
+      ? spec.parameters.safeParse(params)
+      : ({ success: true as const, data: params } as const)
   if (!parsed.success) {
     return { content: [{ type: 'text', text: `参数无效：${z.prettifyError(parsed.error)}` }], isError: true }
   }

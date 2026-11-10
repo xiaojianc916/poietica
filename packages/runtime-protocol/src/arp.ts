@@ -21,6 +21,9 @@ export const arpMethods = {
   sessionCall: 'session.call',
   engineCall: 'engine.call',
   engineSnapshot: 'engine.snapshot',
+  engineRegisterTool: 'engine.registerTool',
+  engineUnregisterTool: 'engine.unregisterTool',
+  toolExecute: 'tool.execute',
   runSubmit: 'run.submit',
   runCancel: 'run.cancel',
 } as const
@@ -90,6 +93,13 @@ export type ArpRunSubmitParams = z.infer<typeof arpRunSubmitParams>
 export const arpEventParams = z.object({ key: z.string().min(1), event: z.unknown() })
 export type ArpEventParams = z.infer<typeof arpEventParams>
 export const arpEventMethod = 'runtime.event'
+export const arpPortEventMethod = 'runtime.portEvent'
+export const arpPortEventParams = z.object({
+  port: z.string().min(1),
+  event: z.string().min(1),
+  data: z.unknown().optional(),
+})
+export type ArpPortEventParams = z.infer<typeof arpPortEventParams>
 
 export const arpSessionSnapshotResult = z.object({
   state: SessionState,
@@ -118,3 +128,21 @@ export const arpEngineSnapshotResult = z.object({
   browserRelay: z.unknown().nullable(),
 })
 export type ArpEngineSnapshotResult = z.infer<typeof arpEngineSnapshotResult>
+
+export const arpEngineRegisterToolParams = z.object({
+  name: z.string().min(1),
+  label: z.string().min(1),
+  description: z.string(),
+  parametersJsonSchema: z.unknown(),
+  approval: z.enum(['read', 'write', 'exec']),
+  streamInput: z.boolean().optional(),
+})
+export type ArpEngineRegisterToolParams = z.infer<typeof arpEngineRegisterToolParams>
+
+export const arpToolExecuteParams = z.object({
+  name: z.string().min(1),
+  params: z.unknown(),
+  cwd: z.string(),
+  sessionKey: z.string(),
+})
+export type ArpToolExecuteParams = z.infer<typeof arpToolExecuteParams>

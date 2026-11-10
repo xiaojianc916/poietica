@@ -9,7 +9,7 @@ describe('omp ARP handlers', () => {
     const engine = createFakeEngine()
     engine.freezeTools()
     const events: unknown[] = []
-    const arp = createArpHandlers({ engine, emit: (p) => events.push(p) })
+    const arp = createArpHandlers({ engine, callCore: async () => ({}), emit: (p) => events.push(p) })
     const dir = await tempDir('omp-arp-')
     try {
       const opened = (await arp.handlers[arpMethods.sessionOpen]!({

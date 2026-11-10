@@ -16,6 +16,8 @@ export interface EngineToolSpec<P extends z.ZodType = z.ZodType> {
   readonly label: string
   readonly description: string // 给模型看的英文描述
   readonly parameters: P // zod；engine-omp 负责转换为 omp 需要的 JSON Schema
+  /** ARP 工具桥用：Core 侧已转好的 JSON Schema；给了就不再从 zod 现转、参数校验交给 omp。 */
+  readonly parametersJsonSchema?: unknown
   readonly approval: 'read' | 'write' | 'exec' // 决定在 ask / auto-edit 姿态下是否需要用户批准
   /**
    * 参数还在流的时候就上屏：模型写参数期间，时间线上先出一格 `inputPending` 的工具帧，入参按节流

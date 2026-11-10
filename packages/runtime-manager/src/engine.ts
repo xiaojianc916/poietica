@@ -11,7 +11,14 @@ import type {
   OpenSessionSpec,
   SlashCommand,
 } from '@poietica/runtime-protocol'
-import { arpEngineSnapshotResult, arpMethods } from '@poietica/runtime-protocol'
+import {
+  arpEngineSnapshotResult,
+  arpMethods,
+  arpPortEventMethod,
+  arpPortEventParams,
+  arpToolExecuteParams,
+} from '@poietica/runtime-protocol'
+import { z } from 'zod'
 import { type RuntimeLaunch, RuntimeProcess, type RuntimeProcessOptions } from './runtime-process'
 import { ArpSession } from './session'
 
@@ -23,14 +30,18 @@ import { ArpSession } from './session'
 export class ArpEngine implements AgentEngine {
   readonly info: EngineInfo
   private readonly sessions = new Map<string, ArpSession>()
+
   private readonly snapshot: ReturnType<typeof arpEngineSnapshotResult.parse>
   private freeze: Promise<unknown> | undefined
   private disposed = false
+  private portSubscription: { dispose(): void } | undefined
+  private readonly portListeners = new Map<string, Set<(data: unknown) => void>>()
 
   private constructor(
     private readonly runtime: RuntimeProcess,
     info: EngineInfo,
     snapshot: ReturnType<typeof arpEngineSnapshotResult.parse>,
+    private readonly tools: Map<string, EngineToolSpec>,
   ) {
     this.info = info
     this.snapshot = snapshot
@@ -42,16 +53,39 @@ export class ArpEngine implements AgentEngine {
     readyTimeoutMs?: number
     onError?: (error: unknown) => void
   }): Promise<ArpEngine> {
+    const tools = new Map<string, EngineToolSpec>()
     const runtime = new RuntimeProcess({
       launch: o.launch,
       logger: o.logger,
       ...(o.readyTimeoutMs === undefined ? {} : { readyTimeoutMs: o.readyTimeoutMs }),
+      onRequest: async (method, params) => {
+        if (method === arpMethods.toolExecute) {
+          const input = arpToolExecuteParams.parse(params)
+          const spec = tools.get(input.name)
+          if (spec === undefined) throw new AppError(SystemErrorCode.notFound, `未知产品工具：${input.name}`)
+          const result = await spec.execute(input.params as never, {
+            cwd: input.cwd,
+            sessionKey: input.sessionKey,
+            signal: new AbortController().signal,
+          })
+          return {
+            text: result.text,
+            ...(result.details === undefined ? {} : { details: result.details }),
+            ...(result.isError === undefined ? {} : { isError: result.isError }),
+          }
+        }
+        throw new AppError(SystemErrorCode.methodNotFound, `未知 Worker 反向方法 ${method}`)
+      },
     })
     await runtime.start()
     const hello = runtime.hello
     if (hello === null) throw new AppError(SystemErrorCode.coreUnavailable, 'Runtime Worker 没有 hello')
     const snapshot = arpEngineSnapshotResult.parse(await runtime.request(arpMethods.engineSnapshot, {}))
-    return new ArpEngine(runtime, { name: 'omp', version: hello.engineVersion }, snapshot)
+    const engine = new ArpEngine(runtime, { name: 'omp', version: hello.engineVersion }, snapshot, tools)
+    engine.portSubscription = runtime.onNotification((method, params) => {
+      if (method === arpPortEventMethod) engine.onPortEvent(params)
+    })
+    return engine
   }
 
   async openSession(spec: OpenSessionSpec): Promise<EngineSession> {
@@ -73,8 +107,27 @@ export class ArpEngine implements AgentEngine {
     return this.call(['commandCatalog'], [cwd, options]) as Promise<readonly SlashCommand[]>
   }
 
-  registerTool(_spec: EngineToolSpec): Disposable {
-    throw new AppError('runtime.tool_bridge_missing', '产品工具 ARP 桥尚未接入')
+  registerTool(spec: EngineToolSpec): Disposable {
+    this.tools.set(spec.name, spec)
+    void this.call(
+      [arpMethods.engineRegisterTool],
+      [
+        {
+          name: spec.name,
+          label: spec.label,
+          description: spec.description,
+          parametersJsonSchema: z.toJSONSchema(spec.parameters),
+          approval: spec.approval,
+          ...(spec.streamInput === undefined ? {} : { streamInput: spec.streamInput }),
+        },
+      ],
+    )
+    return {
+      dispose: () => {
+        this.tools.delete(spec.name)
+        void this.call([arpMethods.engineUnregisterTool], [{ name: spec.name }])
+      },
+    }
   }
 
   freezeTools(): void {
@@ -113,11 +166,29 @@ export class ArpEngine implements AgentEngine {
     this.disposed = true
     await Promise.all([...this.sessions.values()].map((session) => session.dispose()))
     this.sessions.clear()
+    this.portSubscription?.dispose()
     await this.runtime.stop()
   }
 
   private call(path: readonly string[], args: readonly unknown[]): Promise<unknown> {
     return this.runtime.request(arpMethods.engineCall, { path, args: cleanArgs(args) })
+  }
+
+  private onPortEvent(params: unknown): void {
+    const parsed = arpPortEventParams.safeParse(params)
+    if (!parsed.success) return
+    const key = `${parsed.data.port}:${parsed.data.event}`
+    for (const listener of this.portListeners.get(key) ?? []) listener(parsed.data.data)
+  }
+
+  private portEvent(name: string, event: string): Event<never> {
+    const key = `${name}:${event}`
+    return (listener) => {
+      const listeners = this.portListeners.get(key) ?? new Set<(data: unknown) => void>()
+      listeners.add(listener as (data: unknown) => void)
+      this.portListeners.set(key, listeners)
+      return { dispose: () => listeners.delete(listener as (data: unknown) => void) }
+    }
   }
 
   private port(name: string): object {
@@ -126,10 +197,9 @@ export class ArpEngine implements AgentEngine {
       {
         get: (_target, prop) => {
           if (typeof prop !== 'string') return undefined
-          if (prop.startsWith('onDidChange') || prop === 'onDidChangeStatus') {
-            const event: Event<never> = () => ({ dispose: () => undefined })
-            return event
-          }
+          if (prop === 'onDidChange') return this.portEvent(name, 'change')
+          if (prop === 'onDidChangeDefaults') return this.portEvent(name, 'defaults')
+          if (prop === 'onDidChangeStatus') return this.portEvent(name, 'status')
           return (...args: unknown[]) => this.call([name, prop], args)
         },
       },

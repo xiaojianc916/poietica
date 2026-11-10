@@ -9,7 +9,11 @@ const engine = createFakeEngine()
 engine.freezeTools()
 const logger = createTestLogger()
 let kernel: ReturnType<typeof createRuntimeKernel>
-const arp = createArpHandlers({ engine, emit: (p: ArpEventParams) => kernel.peer.notify('runtime.event', p) })
+const arp = createArpHandlers({
+  engine,
+  callCore: async () => ({}),
+  emit: (p: ArpEventParams) => kernel.peer.notify('runtime.event', p),
+})
 kernel = createRuntimeKernel({
   transport: createStdioTransport({
     input: process.stdin,

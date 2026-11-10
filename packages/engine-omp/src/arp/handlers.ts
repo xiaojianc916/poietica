@@ -3,13 +3,14 @@ import type { AgentEngine, EngineSession } from '@poietica/runtime-protocol'
 import {
   type ArpEventParams,
   arpEngineCallParams,
+  arpEngineRegisterToolParams,
   arpMethods,
   arpRunSubmitParams,
   arpSessionCallParams,
   arpSessionOpenParams,
   arpSessionPageParams,
 } from '@poietica/runtime-protocol'
-import type { z } from 'zod'
+import { z } from 'zod'
 
 /**
  * omp Runtime Worker 的 ARP 方法表：只做「参数校验 → 调 AgentEngine → 交回结果」，
@@ -18,6 +19,8 @@ import type { z } from 'zod'
 export interface ArpHandlersDeps {
   readonly engine: AgentEngine
   readonly emit: (p: ArpEventParams) => void
+  /** Worker → Core 的反向请求；产品工具执行走它。 */
+  readonly callCore: (method: string, params: unknown) => Promise<unknown>
 }
 
 export interface ArpHandlers {
@@ -33,6 +36,7 @@ function parse<T>(schema: z.ZodType<T>, params: unknown): T {
 
 export function createArpHandlers(d: ArpHandlersDeps): ArpHandlers {
   const sessions = new Map<string, { session: EngineSession; dispose: () => void }>()
+  const tools = new Map<string, { dispose: () => void }>()
 
   const close = async (key: string): Promise<void> => {
     const held = sessions.get(key)
@@ -44,6 +48,43 @@ export function createArpHandlers(d: ArpHandlersDeps): ArpHandlers {
 
   return {
     handlers: {
+      [arpMethods.engineRegisterTool]: (params) => {
+        const input = parse(arpEngineRegisterToolParams, params)
+        tools.get(input.name)?.dispose()
+        const disposable = d.engine.registerTool({
+          name: input.name,
+          label: input.label,
+          description: input.description,
+          parameters: z.record(z.string(), z.unknown()),
+          parametersJsonSchema: input.parametersJsonSchema,
+          approval: input.approval,
+          ...(input.streamInput === undefined ? {} : { streamInput: input.streamInput }),
+          execute: async (toolParams, ctx) => {
+            const result = parse(
+              z.object({ text: z.string(), details: z.unknown().optional(), isError: z.boolean().optional() }),
+              await d.callCore(arpMethods.toolExecute, {
+                name: input.name,
+                params: toolParams,
+                cwd: ctx.cwd,
+                sessionKey: ctx.sessionKey,
+              }),
+            )
+            return {
+              text: result.text,
+              ...(result.details === undefined ? {} : { details: result.details }),
+              ...(result.isError === undefined ? {} : { isError: result.isError }),
+            }
+          },
+        })
+        tools.set(input.name, { dispose: () => disposable.dispose() })
+        return {}
+      },
+      [arpMethods.engineUnregisterTool]: (params) => {
+        const input = parse(z.object({ name: z.string().min(1) }), params)
+        tools.get(input.name)?.dispose()
+        tools.delete(input.name)
+        return {}
+      },
       [arpMethods.engineSnapshot]: () => ({
         groupOrder: [...d.engine.settings.groupOrder],
         browserRelay: d.engine.browserRelay(),
@@ -144,6 +185,8 @@ export function createArpHandlers(d: ArpHandlersDeps): ArpHandlers {
       },
     },
     async dispose() {
+      for (const tool of tools.values()) tool.dispose()
+      tools.clear()
       await Promise.all([...sessions.keys()].map((key) => close(key)))
     },
   }

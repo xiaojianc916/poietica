@@ -64,7 +64,7 @@ describe('omp ARP over runtime-kernel', () => {
     const engine = createFakeEngine()
     engine.freezeTools()
     const [workerSide, coreSide] = transportPair()
-    const arp = createArpHandlers({ engine, emit: () => undefined })
+    const arp = createArpHandlers({ engine, callCore: async () => ({}), emit: () => undefined })
     const kernel = createRuntimeKernel({
       transport: workerSide,
       logger: createTestLogger(),
@@ -102,7 +102,7 @@ describe('omp ARP over runtime-kernel', () => {
     const engine = createFakeEngine()
     engine.freezeTools()
     const [workerSide, coreSide] = transportPair()
-    const arp = createArpHandlers({ engine, emit: () => undefined })
+    const arp = createArpHandlers({ engine, callCore: async () => ({}), emit: () => undefined })
     const kernel = createRuntimeKernel({
       transport: workerSide,
       logger: createTestLogger(),

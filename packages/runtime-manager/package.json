@@ -11,7 +11,8 @@
     "@poietica/process-kit": "workspace:*",
     "@poietica/rpc": "workspace:*",
     "@poietica/runtime-protocol": "workspace:*",
-    "@poietica/agent-model": "workspace:*"
+    "@poietica/agent-model": "workspace:*",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@poietica/runtime-kernel": "workspace:*",
