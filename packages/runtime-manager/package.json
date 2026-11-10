@@ -1,0 +1,20 @@
+{
+  "name": "@poietica/runtime-manager",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@poietica/foundation": "workspace:*",
+    "@poietica/process-kit": "workspace:*",
+    "@poietica/rpc": "workspace:*",
+    "@poietica/runtime-protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@poietica/runtime-kernel": "workspace:*",
+    "@poietica/test-kit": "workspace:*",
+    "@types/node": "catalog:"
+  }
+}

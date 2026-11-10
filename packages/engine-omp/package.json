@@ -19,9 +19,12 @@
     "@poietica/fs-kit": "workspace:*",
     "@poietica/runtime-layout": "workspace:*",
     "@poietica/agent-model": "workspace:*",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@poietica/runtime-kernel": "workspace:*"
   },
   "devDependencies": {
-    "@types/bun": "catalog:"
+    "@types/bun": "catalog:",
+    "@poietica/test-kit": "workspace:*",
+    "@poietica/rpc": "workspace:*"
   }
 }

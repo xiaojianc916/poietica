@@ -706,12 +706,15 @@
         "@poietica/agent-model": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/fs-kit": "workspace:*",
+        "@poietica/runtime-kernel": "workspace:*",
         "@poietica/runtime-layout": "workspace:*",
         "@poietica/runtime-protocol": "workspace:*",
         "@poietica/runtime-protocol-testkit": "workspace:*",
         "zod": "catalog:",
       },
       "devDependencies": {
+        "@poietica/rpc": "workspace:*",
+        "@poietica/test-kit": "workspace:*",
         "@types/bun": "catalog:",
       },
     },
@@ -839,6 +842,18 @@
         "zod": "catalog:",
       },
     },
+    "packages/runtime-kernel": {
+      "name": "@poietica/runtime-kernel",
+      "version": "0.0.0",
+      "dependencies": {
+        "@poietica/foundation": "workspace:*",
+        "@poietica/rpc": "workspace:*",
+        "@poietica/runtime-protocol": "workspace:*",
+      },
+      "devDependencies": {
+        "@poietica/test-kit": "workspace:*",
+      },
+    },
     "packages/runtime-layout": {
       "name": "@poietica/runtime-layout",
       "version": "0.0.0",
@@ -846,6 +861,21 @@
         "@poietica/foundation": "workspace:*",
       },
       "devDependencies": {
+        "@types/node": "catalog:",
+      },
+    },
+    "packages/runtime-manager": {
+      "name": "@poietica/runtime-manager",
+      "version": "0.0.0",
+      "dependencies": {
+        "@poietica/foundation": "workspace:*",
+        "@poietica/process-kit": "workspace:*",
+        "@poietica/rpc": "workspace:*",
+        "@poietica/runtime-protocol": "workspace:*",
+      },
+      "devDependencies": {
+        "@poietica/runtime-kernel": "workspace:*",
+        "@poietica/test-kit": "workspace:*",
         "@types/node": "catalog:",
       },
     },
@@ -1375,7 +1405,11 @@
 
     "@poietica/rpc": ["@poietica/rpc@workspace:packages/rpc"],
 
+    "@poietica/runtime-kernel": ["@poietica/runtime-kernel@workspace:packages/runtime-kernel"],
+
     "@poietica/runtime-layout": ["@poietica/runtime-layout@workspace:packages/runtime-layout"],
+
+    "@poietica/runtime-manager": ["@poietica/runtime-manager@workspace:packages/runtime-manager"],
 
     "@poietica/runtime-protocol": ["@poietica/runtime-protocol@workspace:packages/runtime-protocol"],
 

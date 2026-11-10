@@ -1,0 +1,18 @@
+{
+  "extends": "../../tooling/tsconfig/node.json",
+  "include": ["src"],
+  "references": [
+    {
+      "path": "../foundation"
+    },
+    {
+      "path": "../process-kit"
+    },
+    {
+      "path": "../rpc"
+    },
+    {
+      "path": "../runtime-protocol"
+    }
+  ]
+}

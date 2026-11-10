@@ -12,6 +12,12 @@
       "path": "../fs-kit"
     },
     {
+      "path": "../rpc"
+    },
+    {
+      "path": "../runtime-kernel"
+    },
+    {
       "path": "../runtime-layout"
     },
     {

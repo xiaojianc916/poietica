@@ -34,3 +34,7 @@ export async function createOmpEngine(o: CreateOmpEngineOptions): Promise<AgentE
   prepareRelayToken(o.layout)
   return await createOmpEngineWith({ ...o, relayPort, engineVersion: o.engineVersion ?? OMP_VERSION }, null)
 }
+
+export { type ArpHandlers, type ArpHandlersDeps, createArpHandlers } from './arp/handlers'
+
+export { createOmpRuntimeWorker } from './arp/runtime'

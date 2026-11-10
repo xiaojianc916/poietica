@@ -15,3 +15,5 @@ P0 决策根据架构设计 §24.2 制定；「目标」不表示后续阶段已
 | [009](009-workbuddy.md)       | WorkBuddy 去留         | 暂缓：用户决定本轮不动  |
 | 010                           | 工作区与 Checkpoint    | 待后续阶段              |
 | 011–013                       | 后续架构设计决策       | 待后续阶段              |
+
+- [007-runtime.md](007-runtime.md)：omp Runtime 外置与 ARP（实施中）。

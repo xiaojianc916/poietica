@@ -1,0 +1,17 @@
+{
+  "name": "@poietica/runtime-kernel",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@poietica/foundation": "workspace:*",
+    "@poietica/rpc": "workspace:*",
+    "@poietica/runtime-protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@poietica/test-kit": "workspace:*"
+  }
+}

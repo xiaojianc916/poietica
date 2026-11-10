@@ -278,7 +278,13 @@
       "path": "packages/rpc"
     },
     {
+      "path": "packages/runtime-kernel"
+    },
+    {
       "path": "packages/runtime-layout"
+    },
+    {
+      "path": "packages/runtime-manager"
     },
     {
       "path": "packages/runtime-protocol"
