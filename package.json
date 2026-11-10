@@ -110,7 +110,8 @@
     "check:omp-doc:write": "bun run tooling/checks/omp-sdk-doc.ts --write",
     "doctor": "npx react-doctor@latest",
     "check:ratchet": "bun run tooling/checks/ratchet.ts",
-    "core:runtime-probe": "bun run apps/core/scripts/runtime-probe.ts"
+    "core:runtime-probe": "bun run apps/core/scripts/runtime-probe.ts",
+    "core:arp-probe": "bun run apps/core/scripts/arp-probe.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",

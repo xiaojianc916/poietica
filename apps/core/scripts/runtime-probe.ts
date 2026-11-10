@@ -39,6 +39,7 @@ try {
     engineVersion: string
   }
   if (hello.protocolVersion !== 1) throw new Error(`协议版本不一致：${hello.protocolVersion}`)
+  await peer.request('engine.call', { path: ['freezeTools'], args: [] })
   const opened = jsonValue(
     await peer.request('session.open', {
       key: 'probe-thread',

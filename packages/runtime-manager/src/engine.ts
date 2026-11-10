@@ -120,23 +120,18 @@ export class ArpEngine implements AgentEngine {
 
   registerTool(spec: EngineToolSpec): Disposable {
     this.tools.set(spec.name, spec)
-    void this.call(
-      [arpMethods.engineRegisterTool],
-      [
-        {
-          name: spec.name,
-          label: spec.label,
-          description: spec.description,
-          parametersJsonSchema: z.toJSONSchema(spec.parameters),
-          approval: spec.approval,
-          ...(spec.streamInput === undefined ? {} : { streamInput: spec.streamInput }),
-        },
-      ],
-    )
+    void this.runtime.request(arpMethods.engineRegisterTool, {
+      name: spec.name,
+      label: spec.label,
+      description: spec.description,
+      parametersJsonSchema: z.toJSONSchema(spec.parameters),
+      approval: spec.approval,
+      ...(spec.streamInput === undefined ? {} : { streamInput: spec.streamInput }),
+    })
     return {
       dispose: () => {
         this.tools.delete(spec.name)
-        void this.call([arpMethods.engineUnregisterTool], [{ name: spec.name }])
+        void this.runtime.request(arpMethods.engineUnregisterTool, { name: spec.name })
       },
     }
   }

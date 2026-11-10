@@ -13,8 +13,6 @@ export function createOmpRuntimeWorker(o: {
   readonly info: { readonly runtimeVersion: string; readonly engineVersion: string }
   readonly onShutdown?: () => void
 }): { readonly kernel: RuntimeKernel; readonly dispose: () => Promise<void> } {
-  /* Worker 没有 Core 的模块装配期；产品工具经 ARP 注册之前先冻结空表，否则 openSession 会报 tools_frozen。 */
-  o.engine.freezeTools()
   let kernel: ReturnType<typeof createRuntimeKernel>
   const arp = createArpHandlers({
     engine: o.engine,
