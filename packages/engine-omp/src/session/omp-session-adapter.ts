@@ -1023,8 +1023,34 @@ function noticeLevelOf(value: unknown): 'error' | 'warning' | 'info' {
 }
 
 /** 一条事件的翻译：只做事、不管异常，抛出去交给 `handleOmpEvent` 处置。`agent_end` 是收尾类，走 `settleAgentEnd` */
+/**
+ * 已经知道、但不进时间线的 omp 事件。清单之外的才当作「omp 新能力」提示出来（ADR-013）；
+ * 每次升级都要复核这张表，别让新事件静默消失。
+ */
+const KNOWN_OMP_EVENTS: ReadonlySet<string> = new Set([
+  'agent_start',
+  'agent_end',
+  'turn_start',
+  'turn_end',
+  'tool_stream_update',
+  'manual_compaction_start',
+  'manual_compaction_end',
+  'cache_warming_start',
+  'cache_warming_end',
+  'retry_fallback_applied',
+  'retry_fallback_succeeded',
+  'config_warnings_changed',
+  'advisor_cost_changed',
+  'advisor_yielded',
+  'ttsr_triggered',
+  'todo_reminder',
+  'todo_auto_clear',
+  'irc_message',
+])
+
 function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void {
   const { session, projector } = pump
+  const eventType = typeof event.type === 'string' ? event.type : 'unknown'
   switch (event.type) {
     case 'message_update':
       applyMessageUpdate(event, pump)
@@ -1086,6 +1112,9 @@ function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void
       session.requestTimeline(projector.retryEnd(retryEndOf(event)))
       break
     default:
+      if (!KNOWN_OMP_EVENTS.has(eventType)) {
+        session.requestTimeline(projector.notice('warning', `未识别的 omp 事件：${eventType}`, 'omp-upgrade'))
+      }
       break
   }
 }
