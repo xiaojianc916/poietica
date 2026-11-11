@@ -25,6 +25,7 @@ import {
 import { createAgentToolRegistry } from './agent-tools'
 import { createEventHub } from './events'
 import type { CoreDataMode, CoreModule, CoreModuleContext, RetiredCoreModule } from './module'
+import { createOutbox } from './outbox'
 import { createCoreRpcBinding, createHostCaller } from './rpc-binding'
 
 export interface CoreKernelOptions {
@@ -229,6 +230,7 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
     const sorted = sortModules(opts.modules)
     validateModules(sorted)
     db = openStorage(sorted)
+    const outbox = createOutbox(db, { clock: opts.clock, readonly: dataMode.mode === 'readOnly' })
     /*
      * setup 必须按拓扑序逐个完成：依赖方的 setup 会在此时取服务、注册 handler、订阅事件，
      * 上游没装配完就开始下游会把「暂时没有」当成「永远没有」。这不是可以并发的 I/O 批量。
@@ -243,6 +245,7 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
         clock: opts.clock,
         layout: opts.layout,
         db: db.forModule(m.id),
+        outbox,
         agentRuntime: createRuntimeServices(opts.engine),
         rpc: createCoreRpcBinding(m.contract, { moduleId: m.id, router, peer: getPeer, strict: opts.strict }),
         host: createHostCaller({ peer: getPeer }),

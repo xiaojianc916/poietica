@@ -9,5 +9,6 @@ export {
   defineCoreModule,
   type RetiredCoreModule,
 } from './module'
+export { createOutbox, type EnqueueInput, type OutboxRecord, type OutboxService } from './outbox'
 export { type CoreRpcBinding, createCoreRpcBinding, createHostCaller, type HostCaller } from './rpc-binding'
 export { coreStartFailureExitCode } from './start-failure'
