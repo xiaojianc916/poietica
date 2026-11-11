@@ -114,7 +114,8 @@
     "core:arp-probe": "bun run apps/core/scripts/arp-probe.ts",
     "core:kill-probe": "bun run apps/core/scripts/kill-probe.ts",
     "check:omp-upgrade": "bun run tooling/checks/omp-upgrade.ts",
-    "check:omp-upgrade:write": "bun run tooling/checks/omp-upgrade.ts --write"
+    "check:omp-upgrade:write": "bun run tooling/checks/omp-upgrade.ts --write",
+    "core:latency-probe": "bun run apps/core/scripts/latency-probe.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
