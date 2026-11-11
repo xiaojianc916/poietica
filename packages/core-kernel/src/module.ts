@@ -5,6 +5,8 @@ import type { AgentEngine, RuntimeServices } from '@poietica/runtime-protocol'
 import type { Migration, ModuleDatabase } from '@poietica/storage-sqlite'
 import type { AgentToolRegistry } from './agent-tools'
 import type { CoreEventBus } from './events'
+import type { IdempotencyService } from './idempotency'
+import type { KernelJobsService } from './jobs'
 import type { OutboxService } from './outbox'
 import type { CoreRpcBinding, HostCaller } from './rpc-binding'
 
@@ -51,6 +53,8 @@ export interface CoreModuleContext<C extends Contract = Contract> {
   readonly db: ModuleDatabase
   /** Kernel outbox（ADR-011）；跨模块副作用在业务事务里入队。 */
   readonly outbox: OutboxService
+  readonly jobs: KernelJobsService
+  readonly idempotency: IdempotencyService
   /** 按能力收窄的运行时门面；注册 agent 工具走 ctx.agentTools（内核在全部 setup 之后冻结工具表）。 */
   readonly agentRuntime: RuntimeServices
   readonly rpc: CoreRpcBinding<C>
