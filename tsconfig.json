@@ -59,6 +59,18 @@
       "path": "features/browser/src/ui"
     },
     {
+      "path": "features/checkpoints/src/contract"
+    },
+    {
+      "path": "features/checkpoints/src/core"
+    },
+    {
+      "path": "features/checkpoints/src/core-api"
+    },
+    {
+      "path": "features/checkpoints/src/testing"
+    },
+    {
       "path": "features/conversation/src/contract"
     },
     {

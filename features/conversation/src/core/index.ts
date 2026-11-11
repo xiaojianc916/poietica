@@ -1,5 +1,6 @@
 import { defineCoreModule } from '@poietica/core-kernel'
 import { AttachmentsServiceToken } from '@poietica/feature-attachments/core-api'
+import { CheckpointServiceToken } from '@poietica/feature-checkpoints/core-api'
 import { JournalServiceToken } from '@poietica/feature-journal/core-api'
 import { type WorkspaceRemoved, WorkspacesServiceToken, workspaceRemoved } from '@poietica/feature-workspaces/core-api'
 import { conversationContract } from '../contract'
@@ -26,7 +27,7 @@ import { wireEventsNotice, wireResetNotice } from './wire'
 export default defineCoreModule({
   id: 'conversation',
   contract: conversationContract,
-  dependsOn: ['workspaces', 'attachments', 'journal'],
+  dependsOn: ['workspaces', 'attachments', 'journal', 'checkpoints'],
   migrations,
   setup(ctx) {
     const hub = new TimelineHub({
@@ -48,6 +49,7 @@ export default defineCoreModule({
       db: ctx.db,
       runtime: { ...ctx.agentRuntime.sessions, models: ctx.agentRuntime.models, settings: ctx.agentRuntime.settings },
       journal: ctx.services.get(JournalServiceToken),
+      checkpoints: ctx.services.get(CheckpointServiceToken),
       hub,
       workspaces: ctx.services.get(WorkspacesServiceToken),
       attachments,

@@ -18,6 +18,9 @@
       "path": "../../features/browser/src/core"
     },
     {
+      "path": "../../features/checkpoints/src/core"
+    },
+    {
       "path": "../../features/conversation/src/core"
     },
     {

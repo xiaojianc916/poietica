@@ -1,0 +1,22 @@
+{
+  "name": "@poietica/feature-checkpoints",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contract": "./src/contract/index.ts",
+    "./core": "./src/core/index.ts",
+    "./core-api": "./src/core-api/index.ts",
+    "./testing": "./src/testing/index.ts"
+  },
+  "dependencies": {
+    "@poietica/contract-kit": "workspace:*",
+    "@poietica/core-kernel": "workspace:*",
+    "@poietica/foundation": "workspace:*",
+    "@poietica/process-kit": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  }
+}

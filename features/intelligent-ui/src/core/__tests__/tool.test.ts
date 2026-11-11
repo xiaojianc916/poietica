@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { type CoreHarness, createCoreHarness } from '@poietica/core-kernel/testing'
 import attachments from '@poietica/feature-attachments/core'
+import { checkpointsTestModule } from '@poietica/feature-checkpoints/testing'
 import { conversationContract } from '@poietica/feature-conversation/contract'
 import conversation from '@poietica/feature-conversation/core'
 import journal from '@poietica/feature-journal/core'
@@ -160,7 +161,7 @@ describe('intelligent_ui 经真内核', () => {
           : [{ kind: 'text', text: '好的' }],
     })
     const h = await createCoreHarness({
-      modules: [journal, attachments, workspaces, conversation, intelligentUi],
+      modules: [journal, attachments, workspaces, checkpointsTestModule, conversation, intelligentUi],
       engine,
       clock,
     })
@@ -258,7 +259,7 @@ describe('intelligent_ui 经真内核', () => {
     const dir = await tempDir('intelligent-ui-')
     const clock = fakeClock()
     const h = await createCoreHarness({
-      modules: [journal, attachments, workspaces, conversation, intelligentUi],
+      modules: [journal, attachments, workspaces, checkpointsTestModule, conversation, intelligentUi],
       engine: createFakeEngine({ clock }),
       clock,
     })

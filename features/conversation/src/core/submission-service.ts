@@ -1,5 +1,6 @@
 import type { TranscriptPage } from '@poietica/agent-model'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
+import type { CheckpointService } from '@poietica/feature-checkpoints/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, type Clock, type Logger, toAppError } from '@poietica/foundation'
 import type { EngineSession, QueueOutcome, QueueSnapshot } from '@poietica/runtime-protocol'
@@ -19,6 +20,8 @@ import type { CollectedContext } from './turn-context'
 export interface SubmissionServiceDeps {
   readonly repo: SubmissionsRepository
   readonly workspaces: WorkspacesService
+  /** 轮次开始打影子检查点；git 不可用时只记日志，不阻断对话 */
+  readonly checkpoints?: CheckpointService
   readonly attachments: AttachmentsService
   readonly clock: Clock
   readonly logger: Logger
@@ -431,6 +434,7 @@ export class SubmissionService {
     if (deliveredAs === 'turn') this.pendingTurn.set(row.threadId, row.clientTurnId)
 
     const context = this.contextFor(row, deliveredAs)
+    if (deliveredAs === 'turn') await this.checkpointAtTurnStart(row)
     try {
       await session.submit({
         text: row.text,
@@ -459,6 +463,25 @@ export class SubmissionService {
       context?.delivered()
     }
     this.d.emitUserMessage({ threadId: row.threadId, at: this.d.clock.now() })
+  }
+
+  private async checkpointAtTurnStart(row: SubmissionRow): Promise<void> {
+    if (this.d.checkpoints === undefined) return
+    const thread = this.d.requireThread(row.threadId)
+    const workspace = this.d.workspaces.get(thread.workspaceId)
+    if (workspace === null) return
+    try {
+      await this.d.checkpoints.create({
+        workspaceRoot: workspace.path,
+        threadId: row.threadId,
+        label: '轮次开始',
+      })
+    } catch (error) {
+      this.d.logger.warn('检查点失败，本轮仍继续', {
+        threadId: row.threadId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
   }
 
   /** 这一句要带的上下文；排队项的结局可能在 submit 返回之前就到：先登记，settleQueued 才对得上 */

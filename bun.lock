@@ -34,6 +34,7 @@
         "@poietica/feature-attachments": "workspace:*",
         "@poietica/feature-automations": "workspace:*",
         "@poietica/feature-browser": "workspace:*",
+        "@poietica/feature-checkpoints": "workspace:*",
         "@poietica/feature-conversation": "workspace:*",
         "@poietica/feature-extensions": "workspace:*",
         "@poietica/feature-files": "workspace:*",
@@ -187,6 +188,7 @@
       },
       "devDependencies": {
         "@poietica/feature-attachments": "workspace:*",
+        "@poietica/feature-checkpoints": "workspace:*",
         "@poietica/feature-journal": "workspace:*",
         "@poietica/runtime-protocol-testkit": "workspace:*",
         "@poietica/test-kit": "workspace:*",
@@ -224,6 +226,20 @@
         "electron": "catalog:",
       },
     },
+    "features/checkpoints": {
+      "name": "@poietica/feature-checkpoints",
+      "version": "0.0.0",
+      "dependencies": {
+        "@poietica/contract-kit": "workspace:*",
+        "@poietica/core-kernel": "workspace:*",
+        "@poietica/foundation": "workspace:*",
+        "@poietica/process-kit": "workspace:*",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
     "features/conversation": {
       "name": "@poietica/feature-conversation",
       "version": "0.0.0",
@@ -234,6 +250,7 @@
         "@poietica/core-kernel": "workspace:*",
         "@poietica/design-system": "workspace:*",
         "@poietica/feature-attachments": "workspace:*",
+        "@poietica/feature-checkpoints": "workspace:*",
         "@poietica/feature-journal": "workspace:*",
         "@poietica/feature-platform": "workspace:*",
         "@poietica/feature-preferences": "workspace:*",
@@ -344,6 +361,7 @@
       },
       "devDependencies": {
         "@poietica/feature-attachments": "workspace:*",
+        "@poietica/feature-checkpoints": "workspace:*",
         "@poietica/feature-journal": "workspace:*",
         "@poietica/feature-workspaces": "workspace:*",
         "@poietica/runtime-protocol": "workspace:*",
@@ -833,6 +851,7 @@
         "@poietica/feature-attachments": "workspace:*",
         "@poietica/feature-automations": "workspace:*",
         "@poietica/feature-browser": "workspace:*",
+        "@poietica/feature-checkpoints": "workspace:*",
         "@poietica/feature-conversation": "workspace:*",
         "@poietica/feature-extensions": "workspace:*",
         "@poietica/feature-files": "workspace:*",
@@ -1374,6 +1393,8 @@
     "@poietica/feature-automations": ["@poietica/feature-automations@workspace:features/automations"],
 
     "@poietica/feature-browser": ["@poietica/feature-browser@workspace:features/browser"],
+
+    "@poietica/feature-checkpoints": ["@poietica/feature-checkpoints@workspace:features/checkpoints"],
 
     "@poietica/feature-conversation": ["@poietica/feature-conversation@workspace:features/conversation"],
 

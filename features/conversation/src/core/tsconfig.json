@@ -30,6 +30,9 @@
       "path": "../../../attachments/src/core-api"
     },
     {
+      "path": "../../../checkpoints/src/core-api"
+    },
+    {
       "path": "../../../journal/src/core-api"
     },
     {

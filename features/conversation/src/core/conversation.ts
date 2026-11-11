@@ -1,4 +1,5 @@
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
+import type { CheckpointService } from '@poietica/feature-checkpoints/core-api'
 import type { JournalService } from '@poietica/feature-journal/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import type { Clock, Logger } from '@poietica/foundation'
@@ -29,6 +30,7 @@ export interface ConversationCoreDeps {
   readonly db: Parameters<typeof createThreadsRepository>[0]
   readonly runtime: ConversationRuntime
   readonly journal: JournalService
+  readonly checkpoints?: CheckpointService
   readonly hub: TimelineHub
   readonly workspaces: WorkspacesService
   readonly attachments: AttachmentsService
@@ -177,6 +179,7 @@ export class ConversationCore {
     this.submissions = new SubmissionService({
       repo: submissionsRepo,
       workspaces: d.workspaces,
+      ...(d.checkpoints === undefined ? {} : { checkpoints: d.checkpoints }),
       attachments: d.attachments,
       clock: d.clock,
       logger: d.logger,

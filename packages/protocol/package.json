@@ -12,6 +12,7 @@
     "@poietica/feature-attachments": "workspace:*",
     "@poietica/feature-automations": "workspace:*",
     "@poietica/feature-browser": "workspace:*",
+    "@poietica/feature-checkpoints": "workspace:*",
     "@poietica/feature-conversation": "workspace:*",
     "@poietica/feature-extensions": "workspace:*",
     "@poietica/feature-files": "workspace:*",

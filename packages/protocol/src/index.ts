@@ -3,6 +3,7 @@ import { agentSettingsContract } from '@poietica/feature-agent-settings/contract
 import { attachmentsContract } from '@poietica/feature-attachments/contract'
 import { automationsContract } from '@poietica/feature-automations/contract'
 import { browserContract } from '@poietica/feature-browser/contract'
+import { checkpointsContract } from '@poietica/feature-checkpoints/contract'
 import { conversationContract } from '@poietica/feature-conversation/contract'
 import { extensionsContract } from '@poietica/feature-extensions/contract'
 import { filesContract } from '@poietica/feature-files/contract'
@@ -26,6 +27,7 @@ import { workspacesContract } from '@poietica/feature-workspaces/contract'
  */
 export const appContract = composeContracts(
   platformContract,
+  checkpointsContract,
   policyContract,
   secretsContract,
   preferencesContract,

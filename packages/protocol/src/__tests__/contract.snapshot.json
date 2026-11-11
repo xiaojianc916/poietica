@@ -1,5 +1,5 @@
 {
-  "version": 61,
+  "version": 63,
   "methods": [
     {
       "name": "agentSettings.capabilities",
@@ -4203,6 +4203,216 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "checkpoints.create",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "给工作树打一个影子检查点；轮次开始与每次写型工具之后调用",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceRoot": {
+            "type": "string",
+            "minLength": 1
+          },
+          "threadId": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "stepId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspaceRoot"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "workspaceRoot": {
+            "type": "string",
+            "minLength": 1
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "stepId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workspaceRoot",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "checkpoints.diff",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "两个检查点之间的完整 diff（包含 shell 造成的改动）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceRoot": {
+            "type": "string",
+            "minLength": 1
+          },
+          "from": {
+            "type": "string",
+            "minLength": 1
+          },
+          "to": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "workspaceRoot",
+          "from",
+          "to"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "string"
+      }
+    },
+    {
+      "name": "checkpoints.list",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "倒序列出某个工作区的检查点",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceRoot": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          }
+        },
+        "required": [
+          "workspaceRoot"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "workspaceRoot": {
+              "type": "string",
+              "minLength": 1
+            },
+            "createdAt": {
+              "type": "string"
+            },
+            "threadId": {
+              "type": "string"
+            },
+            "runId": {
+              "type": "string"
+            },
+            "stepId": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "workspaceRoot",
+            "createdAt"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "name": "checkpoints.restore",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "把指定路径恢复到某检查点；工作树有手动改动时拒绝",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceRoot": {
+            "type": "string",
+            "minLength": 1
+          },
+          "checkpoint": {
+            "type": "string",
+            "minLength": 1
+          },
+          "paths": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "workspaceRoot",
+          "checkpoint",
+          "paths"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "restored": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "restored"
+        ],
         "additionalProperties": false
       }
     },
@@ -39802,6 +40012,18 @@
     {
       "code": "browser.tab_not_found",
       "message": "标签不存在"
+    },
+    {
+      "code": "checkpoints.conflict",
+      "message": "工作区在检查点之后被手动改过，恢复会覆盖这些改动"
+    },
+    {
+      "code": "checkpoints.git_failed",
+      "message": "影子仓库命令失败"
+    },
+    {
+      "code": "checkpoints.invalid_path",
+      "message": "路径不在工作区之内"
     },
     {
       "code": "conversation.core_restarted",

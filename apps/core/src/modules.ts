@@ -3,6 +3,7 @@ import agentSettings from '@poietica/feature-agent-settings/core'
 import attachments from '@poietica/feature-attachments/core'
 import automations from '@poietica/feature-automations/core'
 import browser from '@poietica/feature-browser/core'
+import checkpoints from '@poietica/feature-checkpoints/core'
 import conversation from '@poietica/feature-conversation/core'
 import extensions from '@poietica/feature-extensions/core'
 import files from '@poietica/feature-files/core'
@@ -23,6 +24,7 @@ import workspaces from '@poietica/feature-workspaces/core'
 export const coreModules: readonly CoreModule[] = [
   platform,
   policy,
+  checkpoints,
   workspaces,
   attachments,
   models,
