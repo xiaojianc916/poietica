@@ -14,3 +14,4 @@ export {
 export { createOutbox, type EnqueueInput, type OutboxRecord, type OutboxService } from './outbox'
 export { type CoreRpcBinding, createCoreRpcBinding, createHostCaller, type HostCaller } from './rpc-binding'
 export { coreStartFailureExitCode } from './start-failure'
+export { createWorkflowService, type WorkflowRecord, type WorkflowService, type WorkflowState } from './workflows'

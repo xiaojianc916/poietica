@@ -9,6 +9,7 @@ import type { IdempotencyService } from './idempotency'
 import type { KernelJobsService } from './jobs'
 import type { OutboxService } from './outbox'
 import type { CoreRpcBinding, HostCaller } from './rpc-binding'
+import type { WorkflowService } from './workflows'
 
 export interface CoreModule<C extends Contract = Contract> {
   /** 等于功能 id（kebab-case）。 */
@@ -55,6 +56,7 @@ export interface CoreModuleContext<C extends Contract = Contract> {
   readonly outbox: OutboxService
   readonly jobs: KernelJobsService
   readonly idempotency: IdempotencyService
+  readonly workflows: WorkflowService
   /** 按能力收窄的运行时门面；注册 agent 工具走 ctx.agentTools（内核在全部 setup 之后冻结工具表）。 */
   readonly agentRuntime: RuntimeServices
   readonly rpc: CoreRpcBinding<C>

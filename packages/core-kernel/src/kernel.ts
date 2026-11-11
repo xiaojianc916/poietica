@@ -29,6 +29,7 @@ import { createKernelJobs } from './jobs'
 import type { CoreDataMode, CoreModule, CoreModuleContext, RetiredCoreModule } from './module'
 import { createOutbox } from './outbox'
 import { createCoreRpcBinding, createHostCaller } from './rpc-binding'
+import { createWorkflowService } from './workflows'
 
 export interface CoreKernelOptions {
   readonly modules: readonly CoreModule[]
@@ -235,6 +236,7 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
     const outbox = createOutbox(db, { clock: opts.clock, readonly: dataMode.mode === 'readOnly' })
     const jobs = createKernelJobs(db, { clock: opts.clock, readonly: dataMode.mode === 'readOnly' })
     const idempotency = createIdempotency(db, { clock: opts.clock, readonly: dataMode.mode === 'readOnly' })
+    const workflows = createWorkflowService(db, { clock: opts.clock, readonly: dataMode.mode === 'readOnly' })
     /*
      * setup 必须按拓扑序逐个完成：依赖方的 setup 会在此时取服务、注册 handler、订阅事件，
      * 上游没装配完就开始下游会把「暂时没有」当成「永远没有」。这不是可以并发的 I/O 批量。
@@ -252,6 +254,7 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
         outbox,
         jobs,
         idempotency,
+        workflows,
         agentRuntime: createRuntimeServices(opts.engine),
         rpc: createCoreRpcBinding(m.contract, { moduleId: m.id, router, peer: getPeer, strict: opts.strict }),
         host: createHostCaller({ peer: getPeer }),
