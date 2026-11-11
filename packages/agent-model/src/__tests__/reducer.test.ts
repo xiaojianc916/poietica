@@ -199,6 +199,19 @@ const todo: CommittedAgentEvent = {
   todo: { todoId: 'todo-1', items: [{ title: '跑测试', status: 'in_progress' }] },
 }
 
+const policyDecided: CommittedAgentEvent = {
+  type: 'policy.decided',
+  durability: 'committed',
+  schema: 1,
+  at,
+  toolName: 'intelligent_ui',
+  category: 'file.write',
+  action: 'allow',
+  rule: 'file.write.workspace',
+  reason: '工作树内写入',
+  preset: 'auto-edit',
+}
+
 const events: AgentEvent[] = [
   runStarted,
   stepStarted,
@@ -215,6 +228,7 @@ const events: AgentEvent[] = [
   taskStarted,
   taskOutput,
   todo,
+  policyDecided,
 ]
 
 const final = () => reduceAll(EMPTY_THREAD_STATE, events)
@@ -287,6 +301,11 @@ describe('ThreadReducer', () => {
     expect(snapshot.interactions).toHaveLength(1)
     expect(snapshot.todos).toHaveLength(1)
     expect(snapshot.items.some((item) => item.kind === 'marker')).toBe(true)
+  })
+
+  test('策略审计事件只做记录，不进入时间线', () => {
+    expect(agentEventSchema.safeParse(policyDecided).success).toBe(true)
+    expect(reduce(EMPTY_THREAD_STATE, policyDecided)).toBe(EMPTY_THREAD_STATE)
   })
 
   test('事件 schema 接受提交与瞬态两类', () => {

@@ -33,6 +33,9 @@
       "path": "../../features/journal/src/core"
     },
     {
+      "path": "../../features/journal/src/core-api"
+    },
+    {
       "path": "../../features/models/src/core"
     },
     {

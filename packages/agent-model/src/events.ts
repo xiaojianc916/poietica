@@ -156,6 +156,15 @@ export type AgentEvent =
       readonly frame: TranscriptFrame
     })
   | (CommittedBase & {
+      readonly type: 'policy.decided'
+      readonly toolName: string
+      readonly category: string
+      readonly action: 'allow' | 'ask' | 'deny'
+      readonly rule: string
+      readonly reason: string
+      readonly preset: string
+    })
+  | (CommittedBase & {
       readonly type: 'usage.recorded'
       readonly sample: {
         readonly model?: string
@@ -332,6 +341,17 @@ export const agentEventSchema = z.discriminatedUnion('type', [
     turnId: z.string(),
     stepId: z.string(),
     frame: noticeFrameSchema,
+  }),
+  z.object({
+    ...envelope,
+    ...committed,
+    type: z.literal('policy.decided'),
+    toolName: z.string(),
+    category: z.string(),
+    action: z.enum(['allow', 'ask', 'deny']),
+    rule: z.string(),
+    reason: z.string(),
+    preset: z.string(),
   }),
   z.object({
     ...envelope,

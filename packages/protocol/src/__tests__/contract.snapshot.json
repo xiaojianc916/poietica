@@ -1,5 +1,5 @@
 {
-  "version": 60,
+  "version": 61,
   "methods": [
     {
       "name": "agentSettings.capabilities",
@@ -22993,6 +22993,95 @@
                           },
                           "type": {
                             "type": "string",
+                            "const": "policy.decided"
+                          },
+                          "toolName": {
+                            "type": "string"
+                          },
+                          "category": {
+                            "type": "string"
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "allow",
+                              "ask",
+                              "deny"
+                            ]
+                          },
+                          "rule": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "preset": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "schema",
+                          "at",
+                          "durability",
+                          "type",
+                          "toolName",
+                          "category",
+                          "action",
+                          "rule",
+                          "reason",
+                          "preset"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "schema": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "at": {
+                            "type": "string"
+                          },
+                          "threadId": {
+                            "type": "string"
+                          },
+                          "agentId": {
+                            "type": "string"
+                          },
+                          "runId": {
+                            "type": "string"
+                          },
+                          "itemId": {
+                            "type": "string"
+                          },
+                          "seq": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "ompRef": {
+                            "type": "object",
+                            "properties": {
+                              "sessionFile": {
+                                "type": "string"
+                              },
+                              "entryId": {
+                                "type": "string"
+                              },
+                              "toolCallId": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "durability": {
+                            "type": "string",
+                            "const": "committed"
+                          },
+                          "type": {
+                            "type": "string",
                             "const": "usage.recorded"
                           },
                           "sample": {
@@ -39041,6 +39130,95 @@
                     "turnId",
                     "stepId",
                     "frame"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "schema": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "threadId": {
+                      "type": "string"
+                    },
+                    "agentId": {
+                      "type": "string"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "itemId": {
+                      "type": "string"
+                    },
+                    "seq": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "ompRef": {
+                      "type": "object",
+                      "properties": {
+                        "sessionFile": {
+                          "type": "string"
+                        },
+                        "entryId": {
+                          "type": "string"
+                        },
+                        "toolCallId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "durability": {
+                      "type": "string",
+                      "const": "committed"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "policy.decided"
+                    },
+                    "toolName": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string"
+                    },
+                    "action": {
+                      "type": "string",
+                      "enum": [
+                        "allow",
+                        "ask",
+                        "deny"
+                      ]
+                    },
+                    "rule": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "preset": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "schema",
+                    "at",
+                    "durability",
+                    "type",
+                    "toolName",
+                    "category",
+                    "action",
+                    "rule",
+                    "reason",
+                    "preset"
                   ],
                   "additionalProperties": false
                 },

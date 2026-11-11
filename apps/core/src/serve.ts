@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { createCoreKernel } from '@poietica/core-kernel'
+import { JournalServiceToken } from '@poietica/feature-journal/core-api'
 import { PolicyServiceToken } from '@poietica/feature-policy/core-api'
 import { systemClock } from '@poietica/foundation'
 import { createLogger, jsonlFileSink } from '@poietica/logging'
@@ -72,19 +73,37 @@ export async function serve(launchEnv: LaunchEnv): Promise<void> {
   await kernel.start() // 9. 迁移 → 模块 setup → freezeTools → onReady → 发 core.ready
   if ('setToolPolicy' in engine) {
     const policy = kernel.services.get(PolicyServiceToken)
+    const journal = kernel.services.get(JournalServiceToken)
     ;(
-      engine as { setToolPolicy(p: (tool: { approval: 'read' | 'write' | 'exec'; cwd: string }) => unknown): void }
-    ).setToolPolicy((tool) =>
-      policy.evaluateClassification(
-        'auto-edit',
+      engine as {
+        setToolPolicy(
+          p: (tool: { name: string; approval: 'read' | 'write' | 'exec'; cwd: string; sessionKey: string }) => unknown,
+        ): void
+      }
+    ).setToolPolicy((tool) => {
+      const classification =
         tool.approval === 'read'
-          ? { category: 'file.read', risk: 'low', checkpoint: false }
+          ? { category: 'file.read' as const, risk: 'low' as const, checkpoint: false }
           : tool.approval === 'write'
-            ? { category: 'file.write', risk: 'medium', checkpoint: true }
-            : { category: 'exec', risk: 'high', checkpoint: true },
-        { workspaceRoot: tool.cwd },
-      ),
-    )
+            ? { category: 'file.write' as const, risk: 'medium' as const, checkpoint: true }
+            : { category: 'exec' as const, risk: 'high' as const, checkpoint: true }
+      const decision = policy.evaluateClassification('auto-edit', classification, { workspaceRoot: tool.cwd })
+      journal.append(tool.sessionKey, 'main', [
+        {
+          schema: 1,
+          at: new Date().toISOString(),
+          durability: 'committed',
+          type: 'policy.decided',
+          toolName: tool.name,
+          category: classification.category,
+          action: decision.action,
+          rule: decision.rule,
+          reason: decision.reason,
+          preset: 'auto-edit',
+        },
+      ])
+      return decision
+    })
   }
   await Bun.write(path.join(layout.coreDir, 'core.pid'), String(process.pid))
 }
