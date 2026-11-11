@@ -156,6 +156,13 @@ export type AgentEvent =
       readonly frame: TranscriptFrame
     })
   | (CommittedBase & {
+      readonly type: 'checkpoint.created'
+      readonly checkpointId: string
+      readonly workspaceRoot: string
+      readonly label?: string
+      readonly reason: 'turn_start' | 'turn_end' | 'step' | 'manual' | 'revert'
+    })
+  | (CommittedBase & {
       readonly type: 'policy.decided'
       readonly toolName: string
       readonly category: string
@@ -341,6 +348,15 @@ export const agentEventSchema = z.discriminatedUnion('type', [
     turnId: z.string(),
     stepId: z.string(),
     frame: noticeFrameSchema,
+  }),
+  z.object({
+    ...envelope,
+    ...committed,
+    type: z.literal('checkpoint.created'),
+    checkpointId: z.string(),
+    workspaceRoot: z.string(),
+    label: z.string().optional(),
+    reason: z.enum(['turn_start', 'turn_end', 'step', 'manual', 'revert']),
   }),
   z.object({
     ...envelope,

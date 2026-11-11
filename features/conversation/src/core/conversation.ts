@@ -180,6 +180,7 @@ export class ConversationCore {
       repo: submissionsRepo,
       workspaces: d.workspaces,
       ...(d.checkpoints === undefined ? {} : { checkpoints: d.checkpoints }),
+      journal: d.journal,
       attachments: d.attachments,
       clock: d.clock,
       logger: d.logger,

@@ -212,6 +212,17 @@ const policyDecided: CommittedAgentEvent = {
   preset: 'auto-edit',
 }
 
+const checkpointCreated: CommittedAgentEvent = {
+  type: 'checkpoint.created',
+  durability: 'committed',
+  schema: 1,
+  at,
+  checkpointId: 'abc123',
+  workspaceRoot: 'D:/work',
+  label: '轮次开始',
+  reason: 'turn_start',
+}
+
 const events: AgentEvent[] = [
   runStarted,
   stepStarted,
@@ -229,6 +240,7 @@ const events: AgentEvent[] = [
   taskOutput,
   todo,
   policyDecided,
+  checkpointCreated,
 ]
 
 const final = () => reduceAll(EMPTY_THREAD_STATE, events)
@@ -301,6 +313,11 @@ describe('ThreadReducer', () => {
     expect(snapshot.interactions).toHaveLength(1)
     expect(snapshot.todos).toHaveLength(1)
     expect(snapshot.items.some((item) => item.kind === 'marker')).toBe(true)
+  })
+
+  test('检查点事件只做记录，不进入时间线', () => {
+    expect(agentEventSchema.safeParse(checkpointCreated).success).toBe(true)
+    expect(reduce(EMPTY_THREAD_STATE, checkpointCreated)).toBe(EMPTY_THREAD_STATE)
   })
 
   test('策略审计事件只做记录，不进入时间线', () => {

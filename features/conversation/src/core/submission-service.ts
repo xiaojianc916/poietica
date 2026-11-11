@@ -1,6 +1,7 @@
 import type { TranscriptPage } from '@poietica/agent-model'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { CheckpointService } from '@poietica/feature-checkpoints/core-api'
+import type { JournalService } from '@poietica/feature-journal/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, type Clock, type Logger, toAppError } from '@poietica/foundation'
 import type { EngineSession, QueueOutcome, QueueSnapshot } from '@poietica/runtime-protocol'
@@ -22,6 +23,7 @@ export interface SubmissionServiceDeps {
   readonly workspaces: WorkspacesService
   /** 轮次开始打影子检查点；git 不可用时只记日志，不阻断对话 */
   readonly checkpoints?: CheckpointService
+  readonly journal?: JournalService
   readonly attachments: AttachmentsService
   readonly clock: Clock
   readonly logger: Logger
@@ -471,11 +473,23 @@ export class SubmissionService {
     const workspace = this.d.workspaces.get(thread.workspaceId)
     if (workspace === null) return
     try {
-      await this.d.checkpoints.create({
+      const checkpoint = await this.d.checkpoints.create({
         workspaceRoot: workspace.path,
         threadId: row.threadId,
         label: '轮次开始',
       })
+      this.d.journal?.append(row.threadId, 'main', [
+        {
+          schema: 1,
+          at: new Date().toISOString(),
+          durability: 'committed',
+          type: 'checkpoint.created',
+          checkpointId: checkpoint.id,
+          workspaceRoot: workspace.path,
+          label: '轮次开始',
+          reason: 'turn_start',
+        },
+      ])
     } catch (error) {
       this.d.logger.warn('检查点失败，本轮仍继续', {
         threadId: row.threadId,
