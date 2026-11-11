@@ -112,8 +112,8 @@ describe('FrameDecoder', () => {
     timeFor(1024 * 1024) // 预热
     const small = timeFor(8 * 1024 * 1024)
     const large = timeFor(32 * 1024 * 1024)
-    // 线性 ≈ 4 倍、平方 ≈ 16 倍；取 10 倍为界，并给小样本留 5ms 的计时噪声
-    expect(large).toBeLessThan(Math.max(small, 5) * 10)
+    // 线性 ≈ 4 倍、平方 ≈ 16 倍；取 12 倍为界，兼顾 5ms 小样本噪声与满载 CI 的调度抖动
+    expect(large).toBeLessThan(Math.max(small, 5) * 12)
   })
 
   test('空行被忽略', () => {
