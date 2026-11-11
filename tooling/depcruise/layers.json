@@ -23,5 +23,7 @@
   "omp-types": 1,
   "stream-kit": 1,
   "runtime-kernel": 2,
-  "runtime-manager": 3
+  "runtime-manager": 3,
+  "diff": 1,
+  "worktree": 2
 }

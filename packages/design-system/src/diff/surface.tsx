@@ -1,8 +1,8 @@
+import type { DiffFile, DiffPiece, DiffRow } from '@poietica/diff'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronDown, ChevronsUpDown, ChevronUp, type LucideIcon } from 'lucide-react'
 import { type CSSProperties, memo, type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '../class-names'
-import type { DiffFile, DiffPiece, DiffRow } from './unified-diff'
 
 import './surface.css'
 

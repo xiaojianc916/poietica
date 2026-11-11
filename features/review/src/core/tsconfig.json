@@ -6,7 +6,7 @@
       "path": "../../../../packages/core-kernel"
     },
     {
-      "path": "../../../../packages/design-system"
+      "path": "../../../../packages/diff"
     },
     {
       "path": "../../../../packages/foundation"

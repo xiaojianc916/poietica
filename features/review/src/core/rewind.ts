@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { computeFile } from '@poietica/design-system/diff'
+import { computeFile } from '@poietica/diff'
 import { AppError, invariant, type Logger, mapLimited } from '@poietica/foundation'
 import type { TurnChanges, TurnChangesEntry, TurnRewindPreview } from '../contract'
 import { reviewErrors } from '../contract/errors'
@@ -55,7 +55,7 @@ export interface TurnRewind {
 /** 核对与回滚都只读/写互不相干的文件：限住同时打开的句柄数，别一次把整轮文件全放出去。 */
 const FILE_CONCURRENCY = 8
 
-/** 行数现算：全仓唯一的差分实现（design-system 的无头管线，不引 React）。 */
+/** 行数现算：全仓唯一的差分实现（diff 包的无头管线，不引 React）。 */
 function statOf(before: string | null, after: string | null): { added: number; removed: number } {
   const stat = computeFile('', before ?? '', after ?? '').stat
 

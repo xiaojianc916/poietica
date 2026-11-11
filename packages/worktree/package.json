@@ -1,0 +1,17 @@
+{
+  "name": "@poietica/worktree",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@poietica/foundation": "workspace:*",
+    "@poietica/git": "workspace:*"
+  },
+  "devDependencies": {
+    "@poietica/process-kit": "workspace:*",
+    "@types/bun": "catalog:"
+  }
+}

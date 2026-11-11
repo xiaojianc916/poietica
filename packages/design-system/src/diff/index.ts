@@ -4,7 +4,7 @@
  * 这一条子路径不引 React、不引样式 —— review 的 worker（derive.worker.ts）在 worker 线程里跑
  * 同一条管线，那里没有 DOM 也没有 React。画的那一半在 `./surface`。
  */
-export { paint } from './syntax'
+
 export {
   basename,
   computeFile,
@@ -17,4 +17,5 @@ export {
   parseUnifiedPatch,
   toDisplayPath,
   wholeFile,
-} from './unified-diff'
+} from '@poietica/diff'
+export { paint } from './syntax'

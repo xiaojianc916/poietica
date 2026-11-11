@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@base-ui/react": "catalog:",
+    "@poietica/diff": "workspace:*",
     "@poietica/foundation": "workspace:*",
     "@streamdown/cjk": "catalog:",
     "@streamdown/code": "catalog:",

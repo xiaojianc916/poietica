@@ -12,7 +12,7 @@ import type { Migration } from '@poietica/storage-sqlite'
  *   （撤销就是删掉），after 为 null 表示这一笔把它删了（撤销就是把 before 写回来）。两者都不能存成
  *   空串：那会把文件写成空文件；
  * - state 记这一轮是否已经撤销过。撤销以轮为单位整批退，所以同轮的每一行一起翻成 reverted；
- *   行数不在表里 —— 加减行数由 before/after 现算（@poietica/design-system/diff 的 computeFile），
+ *   行数不在表里 —— 加减行数由 before/after 现算（@poietica/diff 的 computeFile），
  *   同一轮同一文件改多次时，最初 before 与最终 after 一比就是这一轮真正的增减；
  * - 不挂外键：线程删除走 conversation 的 threadRemoved 事件清账（库里的线程行归 conversation，
  *   本功能不引它的表）。

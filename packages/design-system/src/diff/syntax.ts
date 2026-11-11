@@ -1,5 +1,5 @@
+import type { DiffFile, DiffPiece, DiffRow, DiffRowKind, PieceColor } from '@poietica/diff'
 import type { PaintedLanguage } from './highlighter'
-import type { DiffFile, DiffPiece, DiffRow, DiffRowKind, PieceColor } from './unified-diff'
 
 /*
  * 语法着色。

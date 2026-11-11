@@ -18,3 +18,5 @@ export const workspaceRemoved: CoreEvent<WorkspaceRemoved> = defineCoreEvent<Wor
   'workspaces',
   'workspaceRemoved',
 )
+
+export * from './lease'

@@ -1,8 +1,9 @@
 import fs from 'node:fs'
 import { defineCoreModule } from '@poietica/core-kernel'
 import { workspacesContract } from '../contract'
-import { type WorkspaceRemoved, WorkspacesServiceToken, workspaceRemoved } from '../core-api'
+import { type WorkspaceRemoved, WorkspacesServiceToken, WriteLeaseServiceToken, workspaceRemoved } from '../core-api'
 import { registerHandlers } from './handlers'
+import { createWriteLeaseService } from './lease'
 import { migrations } from './migrations'
 import { createWorkspacesRepository } from './repository'
 import { createWorkspacesService } from './service'
@@ -26,6 +27,7 @@ export default defineCoreModule({
       },
     })
 
+    ctx.services.provide(WriteLeaseServiceToken, createWriteLeaseService({ clock: ctx.clock }))
     registerHandlers(ctx, service)
     ctx.services.provide(WorkspacesServiceToken, {
       get: service.get,

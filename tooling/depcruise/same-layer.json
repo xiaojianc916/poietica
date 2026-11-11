@@ -3,5 +3,6 @@
   "agent-model": ["omp-types"],
   "engine-omp": ["engine-testkit"],
   "git": ["process-kit"],
-  "rpc": ["contract-kit"]
+  "rpc": ["contract-kit"],
+  "worktree": ["git"]
 }

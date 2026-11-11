@@ -12,6 +12,7 @@
     "@poietica/contract-kit": "workspace:*",
     "@poietica/core-kernel": "workspace:*",
     "@poietica/design-system": "workspace:*",
+    "@poietica/diff": "workspace:*",
     "@poietica/feature-conversation": "workspace:*",
     "@poietica/feature-platform": "workspace:*",
     "@poietica/feature-workspaces": "workspace:*",

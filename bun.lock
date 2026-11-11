@@ -503,6 +503,7 @@
         "@poietica/contract-kit": "workspace:*",
         "@poietica/core-kernel": "workspace:*",
         "@poietica/design-system": "workspace:*",
+        "@poietica/diff": "workspace:*",
         "@poietica/feature-conversation": "workspace:*",
         "@poietica/feature-platform": "workspace:*",
         "@poietica/feature-workspaces": "workspace:*",
@@ -704,6 +705,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@base-ui/react": "catalog:",
+        "@poietica/diff": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@streamdown/cjk": "catalog:",
         "@streamdown/code": "catalog:",
@@ -727,6 +729,16 @@
         "@types/react-dom": "catalog:",
         "react": "catalog:",
         "tailwindcss": "catalog:",
+      },
+    },
+    "packages/diff": {
+      "name": "@poietica/diff",
+      "version": "0.0.0",
+      "dependencies": {
+        "diff": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
       },
     },
     "packages/engine-omp": {
@@ -992,6 +1004,18 @@
       "name": "@poietica/workbuddy-client",
       "version": "0.0.0",
       "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
+    "packages/worktree": {
+      "name": "@poietica/worktree",
+      "version": "0.0.0",
+      "dependencies": {
+        "@poietica/foundation": "workspace:*",
+        "@poietica/git": "workspace:*",
+      },
+      "devDependencies": {
+        "@poietica/process-kit": "workspace:*",
         "@types/bun": "catalog:",
       },
     },
@@ -1386,6 +1410,8 @@
 
     "@poietica/desktop": ["@poietica/desktop@workspace:apps/desktop"],
 
+    "@poietica/diff": ["@poietica/diff@workspace:packages/diff"],
+
     "@poietica/feature-agent-settings": ["@poietica/feature-agent-settings@workspace:features/agent-settings"],
 
     "@poietica/feature-attachments": ["@poietica/feature-attachments@workspace:features/attachments"],
@@ -1471,6 +1497,8 @@
     "@poietica/workbench": ["@poietica/workbench@workspace:packages/workbench"],
 
     "@poietica/workbuddy-client": ["@poietica/workbuddy-client@workspace:packages/workbuddy-client"],
+
+    "@poietica/worktree": ["@poietica/worktree@workspace:packages/worktree"],
 
     "@preact/signals-core": ["@preact/signals-core@1.14.5", "", {}, "sha512-vcRv7Ityz5JVmeiVqIluLFzT/PDS/AlhHUpw3/aUWqcVUs6bDGIPXE/6RSC4evBNWYvnniozg5Syfj33al3gkg=="],
 

@@ -263,6 +263,9 @@
       "path": "packages/design-system"
     },
     {
+      "path": "packages/diff"
+    },
+    {
       "path": "packages/engine-omp"
     },
     {
@@ -327,6 +330,9 @@
     },
     {
       "path": "packages/workbuddy-client"
+    },
+    {
+      "path": "packages/worktree"
     },
     {
       "path": "scripts"
