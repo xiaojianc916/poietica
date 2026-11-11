@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { CoreModuleContext } from '@poietica/core-kernel'
 import type { CoreEvent } from '@poietica/core-kernel/events'
+import { CheckpointServiceToken } from '@poietica/feature-checkpoints/core-api'
 import {
   ConversationServiceToken,
   threadRemoved as threadRemovedEvent,
@@ -84,6 +85,14 @@ async function wire(
             list: () => [],
           }
         }
+        if (token === CheckpointServiceToken) {
+          return {
+            create: async () => ({ id: 'c1', workspaceRoot: dir.path, createdAt: '' }),
+            list: async () => [],
+            diff: async () => '',
+            restore: async (input: { paths: string[] }) => ({ restored: input.paths }),
+          }
+        }
         if (token === ConversationServiceToken) {
           return {
             createThread: () => {
@@ -156,7 +165,7 @@ describe('review 模块装配', () => {
   test('migrations 挂在模块上，且只有一条 init；三个方法与通知都在契约里', () => {
     expect(review.migrations).toBe(migrations)
     expect(migrations).toHaveLength(1)
-    expect(review.dependsOn).toEqual(['workspaces', 'conversation'])
+    expect(review.dependsOn).toEqual(['workspaces', 'conversation', 'checkpoints'])
     const names = reviewContract.methods.map((m) => m.name)
     expect(names).toContain('review.turnChanges')
     expect(names).toContain('review.previewTurnRewind')

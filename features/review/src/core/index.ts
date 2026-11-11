@@ -1,4 +1,5 @@
 import { defineCoreModule } from '@poietica/core-kernel'
+import { CheckpointServiceToken } from '@poietica/feature-checkpoints/core-api'
 import { ConversationServiceToken, threadRemoved, turnFileChanged } from '@poietica/feature-conversation/core-api'
 import { type WorkspaceRemoved, WorkspacesServiceToken, workspaceRemoved } from '@poietica/feature-workspaces/core-api'
 import { AppError } from '@poietica/foundation'
@@ -17,11 +18,12 @@ export default defineCoreModule({
   id: 'review',
   contract: reviewContract,
   /* conversation：一轮改过哪些文件是它发出来的（turnFileChanged），线程 → 工作区也从它问。 */
-  dependsOn: ['workspaces', 'conversation'],
+  dependsOn: ['workspaces', 'conversation', 'checkpoints'],
   migrations,
   setup(ctx) {
     const workspaces = ctx.services.get(WorkspacesServiceToken)
     const conversation = ctx.services.get(ConversationServiceToken)
+    const checkpoints = ctx.services.get(CheckpointServiceToken)
     const service: ReviewService = createReviewService({
       gitFor: (cwd) => createGit({ cwd }),
       logger: ctx.logger,
@@ -79,6 +81,9 @@ export default defineCoreModule({
     ctx.rpc.handle('git.createBranch', (p) => service.createBranch(pathOf(p.workspaceId), p.branch, p.from ?? null))
     ctx.rpc.handle('git.review', (p) =>
       service.review(pathOf(p.workspaceId), p.base).then((files) => ({ files: [...files] })),
+    )
+    ctx.rpc.handle('git.checkpointDiff', (p) =>
+      checkpoints.diff({ workspaceRoot: pathOf(p.workspaceId), from: p.from, to: p.to }).then((patch) => ({ patch })),
     )
     ctx.rpc.handle('git.filePatch', (p) =>
       service.filePatch(pathOf(p.workspaceId), p.path, p.base).then((patch) => ({ patch })),

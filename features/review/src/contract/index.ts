@@ -66,6 +66,18 @@ export const reviewContract = defineContract({
       description: '改动清单（带每个文件的加减行数）',
     }),
     defineMethod({
+      name: 'git.checkpointDiff',
+      owner: 'core',
+      params: z.object({
+        workspaceId: z.string().min(1),
+        from: z.string().min(1),
+        to: z.string().min(1),
+      }),
+      result: z.object({ patch: z.string() }),
+      timeoutMs: 60_000,
+      description: '两个影子检查点之间的完整 diff（审查以磁盘真实变化为准）',
+    }),
+    defineMethod({
       name: 'git.filePatch',
       owner: 'core',
       params: z.object({

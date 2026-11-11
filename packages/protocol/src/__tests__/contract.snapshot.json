@@ -1,5 +1,5 @@
 {
-  "version": 64,
+  "version": 65,
   "methods": [
     {
       "name": "agentSettings.capabilities",
@@ -8727,6 +8727,48 @@
         "required": [
           "current",
           "branches"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "git.checkpointDiff",
+      "owner": "core",
+      "timeoutMs": 60000,
+      "description": "两个影子检查点之间的完整 diff（审查以磁盘真实变化为准）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "from": {
+            "type": "string",
+            "minLength": 1
+          },
+          "to": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "workspaceId",
+          "from",
+          "to"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "patch": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "patch"
         ],
         "additionalProperties": false
       }
