@@ -3,10 +3,9 @@ import { existsSync } from 'node:fs'
 import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { CORE_ARTIFACTS } from '../../../apps/core/scripts/artifacts'
 
-// 必需清单只有 apps/core/scripts/artifacts.ts 一个产地。
-const REQUIRED = CORE_ARTIFACTS
+// 与 apps/core/scripts/artifacts.ts 的必需清单保持一致：Core + 独立 Runtime + baseline natives。
+const REQUIRED = ['poietica-core.exe', 'poietica-runtime.exe', 'pi_natives.win32-x64-baseline.node']
 const scripts = path.resolve(import.meta.dir, '../../../apps/core/scripts')
 
 async function verify(
