@@ -421,3 +421,7 @@
 | 多终端                 | 2026-10-20 | 右坞终端改为每条一格标签的多终端，修首开闪 #212121（Suspense 灰块等 xterm 分块，详见上表偏差 R-49）                                                                                                            |
 | 性能方案 P5            | 2026-10-21 | 正文排版（streamdown / remark·rehype / shiki / pele，约 2.4MB）移出首屏入口闭包：`design-system/prose` 改为轻壳、入口页画完后空闲预取，时间线第一次挂载等排版落定；入口守卫加这几条、告警线收到 4.2MB          |
 | 官方能力替换（第四轮） | 2026-10-22 | 手搓 sha256 / fetch 超时 / RPC 守卫 / 去重换官方能力；按实测零引用删 `message-port`、`onceEvent`、`removeSafe`、`PoieticaMark`、`summarize` 与四处转发 re-export；删装饰性步骤编号与复述注释（详见提交说明）   |
+| v2-P0～P1              | 2026-11-09 | ADR-009 WorkBuddy 暂缓；agent-model / omp-types / 单一 normalizer；Core 传 AgentEvent，删 `packages/engine`、`packages/transcript`；UI 走 ThreadReducer                                                        |
+| v2-P2～P3              | 2026-11-09 | Journal / Live Stream / 主题路由；Worker 进程外 ARP，默认 ARP Runtime，杀 Worker 后 Core 存活、Thread 可继续（协议 59 → 60）                                                                                   |
+| v2-P4                  | 2026-11-11 | `features/policy`：工具分类、四档预设、危险命令、未知工具保守询问；产品工具执行前闸门；`policy.decided` 审计写 Journal（协议 60 → 61）                                                                         |
+| v2-P5                  | 2026-11-11 | 影子检查点 create/list/diff/restore、手动改动冲突、恢复再打点；`checkpoint.created` 进 Journal；diff 独立包；隔离 worktree 与写租约能力（协议 61 → 64）                                                        |
