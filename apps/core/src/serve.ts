@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { createCoreKernel } from '@poietica/core-kernel'
+import { PolicyServiceToken } from '@poietica/feature-policy/core-api'
 import { systemClock } from '@poietica/foundation'
 import { createLogger, jsonlFileSink } from '@poietica/logging'
 import { appContract, PROTOCOL_VERSION } from '@poietica/protocol'
@@ -69,6 +70,22 @@ export async function serve(launchEnv: LaunchEnv): Promise<void> {
   // 8. 先挂退出回调再启动：启动途中 Host 断开 / 要求关停时，关停跑完就得退出，不能等 start 返回才挂
   kernel.onExit((code) => process.exit(code)) //    core.shutdown 或 stdin 关闭 → kernel.shutdown → 退出码 0
   await kernel.start() // 9. 迁移 → 模块 setup → freezeTools → onReady → 发 core.ready
+  if ('setToolPolicy' in engine) {
+    const policy = kernel.services.get(PolicyServiceToken)
+    ;(
+      engine as { setToolPolicy(p: (tool: { approval: 'read' | 'write' | 'exec'; cwd: string }) => unknown): void }
+    ).setToolPolicy((tool) =>
+      policy.evaluateClassification(
+        'auto-edit',
+        tool.approval === 'read'
+          ? { category: 'file.read', risk: 'low', checkpoint: false }
+          : tool.approval === 'write'
+            ? { category: 'file.write', risk: 'medium', checkpoint: true }
+            : { category: 'exec', risk: 'high', checkpoint: true },
+        { workspaceRoot: tool.cwd },
+      ),
+    )
+  }
   await Bun.write(path.join(layout.coreDir, 'core.pid'), String(process.pid))
 }
 

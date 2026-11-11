@@ -32,6 +32,19 @@ import { ArpSession } from './session'
  * 会话走 ArpSession；ports 走 engine.call 的通用路径；产品工具的反向执行桥在后续接。
  * 事件订阅（onDidChange）暂为无操作，Worker 侧的变更广播随后补。
  */
+export interface ToolPolicyContext {
+  readonly name: string
+  readonly approval: 'read' | 'write' | 'exec'
+  readonly cwd: string
+  readonly sessionKey: string
+}
+
+export interface ToolPolicyDecision {
+  readonly action: 'allow' | 'ask' | 'deny'
+  readonly rule: string
+  readonly reason: string
+}
+
 export class ArpEngine implements AgentEngine {
   readonly info: EngineInfo
   private readonly sessions = new Map<string, ArpSession>()
@@ -43,6 +56,7 @@ export class ArpEngine implements AgentEngine {
   private readonly portListeners = new Map<string, Set<(data: unknown) => void>>()
   private readonly logins = new Map<string, LoginIO>()
   private readonly specs = new Map<string, OpenSessionSpec>()
+  private toolPolicy: ((tool: ToolPolicyContext) => ToolPolicyDecision | Promise<ToolPolicyDecision>) | undefined
   private recovering = false
 
   private constructor(
@@ -78,19 +92,7 @@ export class ArpEngine implements AgentEngine {
         const login = await handleLoginRequest(method, params, () => engineRef?.logins)
         if (login.handled) return login.value
         if (method === arpMethods.toolExecute) {
-          const input = arpToolExecuteParams.parse(params)
-          const spec = tools.get(input.name)
-          if (spec === undefined) throw new AppError(SystemErrorCode.notFound, `未知产品工具：${input.name}`)
-          const result = await spec.execute(input.params as never, {
-            cwd: input.cwd,
-            sessionKey: input.sessionKey,
-            signal: new AbortController().signal,
-          })
-          return {
-            text: result.text,
-            ...(result.details === undefined ? {} : { details: result.details }),
-            ...(result.isError === undefined ? {} : { isError: result.isError }),
-          }
+          return await engineRef!.executeTool(arpToolExecuteParams.parse(params), tools)
         }
         throw new AppError(SystemErrorCode.methodNotFound, `未知 Worker 反向方法 ${method}`)
       },
@@ -174,6 +176,42 @@ export class ArpEngine implements AgentEngine {
 
   browserRelay(): ReturnType<AgentEngine['browserRelay']> {
     return this.snapshot.browserRelay as ReturnType<AgentEngine['browserRelay']>
+  }
+
+  private async executeTool(
+    input: ReturnType<typeof arpToolExecuteParams.parse>,
+    tools: ReadonlyMap<string, EngineToolSpec>,
+  ): Promise<{ text: string; details?: unknown; isError?: boolean }> {
+    const spec = tools.get(input.name)
+    if (spec === undefined) throw new AppError(SystemErrorCode.notFound, `未知产品工具：${input.name}`)
+    const refusal = await this.toolRefusalFor({
+      name: spec.name,
+      approval: spec.approval,
+      cwd: input.cwd,
+      sessionKey: input.sessionKey,
+    })
+    if (refusal !== undefined) return { text: refusal, isError: true }
+    const result = await spec.execute(input.params as never, {
+      cwd: input.cwd,
+      sessionKey: input.sessionKey,
+      signal: new AbortController().signal,
+    })
+    return {
+      text: result.text,
+      ...(result.details === undefined ? {} : { details: result.details }),
+      ...(result.isError === undefined ? {} : { isError: result.isError }),
+    }
+  }
+
+  private async toolRefusalFor(tool: ToolPolicyContext): Promise<string | undefined> {
+    const decision = await this.toolPolicy?.(tool)
+    if (decision === undefined || decision.action === 'allow') return undefined
+    return `策略${decision.action === 'deny' ? '拒绝' : '要求审批'}：${decision.reason}（${decision.rule}）`
+  }
+
+  /** Core 在策略模块就绪后注入；只拦产品工具，内置 omp 工具仍由 omp 审批。 */
+  setToolPolicy(policy: (tool: ToolPolicyContext) => ToolPolicyDecision | Promise<ToolPolicyDecision>): void {
+    this.toolPolicy = policy
   }
 
   async dispose(): Promise<void> {

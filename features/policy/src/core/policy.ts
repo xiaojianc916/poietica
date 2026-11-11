@@ -50,7 +50,15 @@ export function classifyTool(name: string): ToolClassification {
 }
 
 export function evaluatePolicy(preset: PolicyPreset, toolName: string, context: PolicyContext = {}): PolicyDecision {
-  const classification = classifyTool(toolName)
+  return evaluateClassification(preset, classifyTool(toolName), context)
+}
+
+/** 已知道分类时（产品工具按 spec.approval 映射）直接裁决，不再按名字查表。 */
+export function evaluateClassification(
+  preset: PolicyPreset,
+  classification: ToolClassification,
+  context: PolicyContext = {},
+): PolicyDecision {
   const decision = (action: PolicyAction, rule: string, reason: string): PolicyDecision => ({
     action,
     rule,

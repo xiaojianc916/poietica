@@ -42,6 +42,9 @@
       "path": "../../features/policy/src/core"
     },
     {
+      "path": "../../features/policy/src/core-api"
+    },
+    {
       "path": "../../features/python/src/core"
     },
     {

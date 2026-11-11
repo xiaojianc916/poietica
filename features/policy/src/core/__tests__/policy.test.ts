@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { classifyTool, evaluatePolicy } from '../policy'
+import { classifyTool, evaluateClassification, evaluatePolicy } from '../policy'
 
 describe('policy', () => {
   test('工具分类与第 7 节表一致；未知工具按高风险', () => {
@@ -28,6 +28,20 @@ describe('policy', () => {
       action: 'deny',
       rule: 'command.system_destructive',
     })
+  })
+
+  test('产品工具按 spec.approval 分类裁决，不再按名字查表', () => {
+    expect(evaluateClassification('auto-edit', { category: 'file.read', risk: 'low', checkpoint: false }).action).toBe(
+      'allow',
+    )
+    expect(
+      evaluateClassification(
+        'auto-edit',
+        { category: 'file.write', risk: 'medium', checkpoint: true },
+        { workspaceRoot: '/w' },
+      ).action,
+    ).toBe('allow')
+    expect(evaluateClassification('auto-edit', { category: 'exec', risk: 'high', checkpoint: true }).action).toBe('ask')
   })
 
   test('网络与未知工具保守处理', () => {
