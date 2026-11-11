@@ -58,7 +58,9 @@ try {
   const thread = jsonValue(await peer.request('threads.create', { workspaceId: workspace.id })) as { id: string }
   await peer.request('threads.open', { threadId: thread.id })
   const worker = (await listProcesses()).find(
-    (process) => process.parentPid === child.pid && process.commandLine.includes(' runtime '),
+    (process) =>
+      (process.parentPid === child.pid && process.commandLine.includes('poietica-runtime.exe')) ||
+      process.commandLine.includes(' runtime '),
   )
   if (worker === undefined) throw new Error('找不到 runtime 子进程')
   await killTree(worker.pid)

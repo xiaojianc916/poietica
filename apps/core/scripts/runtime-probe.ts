@@ -9,10 +9,10 @@ import path from 'node:path'
 import { jsonValue, RpcPeer } from '@poietica/rpc'
 import { createChildProcessTransport } from '@poietica/rpc/stdio'
 
-const exe = path.resolve('apps/core/dist/poietica-core.exe')
+const exe = path.resolve('apps/core/dist/poietica-runtime.exe')
 const root = mkdtempSync(path.join(os.tmpdir(), 'poietica-runtime-'))
 const cwd = mkdtempSync(path.join(os.tmpdir(), 'poietica-runtime-cwd-'))
-const child = spawn(exe, ['runtime', '--data-root', root], { stdio: ['pipe', 'pipe', 'pipe'], env: process.env })
+const child = spawn(exe, ['--data-root', root], { stdio: ['pipe', 'pipe', 'pipe'], env: process.env })
 let stderr = ''
 child.stderr.on('data', (chunk) => {
   stderr += String(chunk)

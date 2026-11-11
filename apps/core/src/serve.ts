@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { createCoreKernel } from '@poietica/core-kernel'
 import { JournalServiceToken } from '@poietica/feature-journal/core-api'
@@ -9,14 +10,13 @@ import { createStdioTransport } from '@poietica/rpc/stdio'
 import { CORE_EXIT_CODES, dataLayout, parseCoreArgs } from '@poietica/runtime-layout'
 import {
   installStdoutGuard,
-  type LaunchEnv,
   prepareIsolation,
   runIsolationSelfCheck,
-} from '@poietica/runtime-protocol-omp/bootstrap'
+} from '@poietica/runtime-protocol-omp/bootstrap/core'
 import { coreModules, retiredCoreModules } from './modules'
 import { CORE_VERSION } from './version'
 
-export async function serve(launchEnv: LaunchEnv): Promise<void> {
+export async function serve(): Promise<void> {
   const writeFrame = installStdoutGuard() // 1. 此后 stdout 只允许写帧；杂散输出全部改到 stderr
   let args: ReturnType<typeof parseCoreArgs>
   try {
@@ -29,20 +29,20 @@ export async function serve(launchEnv: LaunchEnv): Promise<void> {
   prepareIsolation(layout) // 4. 再次强制隔离变量；chdir 到 core/cwd（空目录）
   // 5. scrubInjected 内部先导入 pi-utils 触发 .env 加载，随即删除注入的键 + omp 认识的凭据变量
   //    （只返回键名）。本文件不 import 任何 @oh-my-pi/*（03 页 §9 omp-confined）。
-  const scrubbed = await launchEnv.scrubInjected()
+  /* runtime 进程自己在 runtime-entry 里快照并清洗环境；Core 不引 omp 的 .env 加载器。 */
+  const scrubbed: readonly string[] = []
   let logLevel = args.logLevel //    级别可在运行时由 diagnostics.setLogLevel 调整
   //    Core 自己写 logs/core.log（按批落盘、error 当场落盘）：不再把每条日志序列化到 stderr、让 Host 在 Electron
   //    主线程上逐行解析再写一遍。stderr 只剩意外输出，Host 记进 main.log（host-kernel/src/core-output.ts）。
   const coreLog = jsonlFileSink({ file: layout.coreLog })
   process.on('exit', () => coreLog.close())
   const logger = createLogger({ level: () => logLevel, sinks: [coreLog], base: { proc: 'core' } })
-  if (scrubbed.length > 0) logger.info('scrubbed injected env', { keys: scrubbed })
   const check = await runIsolationSelfCheck(layout) // 6. 所有 omp 目录必须在 layout.ompRoot 之下
   if (!check.ok) {
     logger.error('isolation self-check failed', { violations: check.violations })
     process.exit(CORE_EXIT_CODES.isolationViolated) //    退出码 3：Host 不重启，横幅提示
   }
-  const engine = args.probeMockModel ? await createProbeEngine(layout, logger) : await createRealEngine(layout, logger)
+  const engine = await createRealEngine(layout, logger)
   const kernel = createCoreKernel({
     modules: coreModules,
     retiredModules: retiredCoreModules,
@@ -115,35 +115,19 @@ async function createRealEngine(
   if (process.env.POIETICA_RUNTIME_ARP !== '0') {
     const { ArpEngine } = await import('@poietica/runtime-manager')
     const bun = path.basename(process.execPath).toLowerCase().startsWith('bun')
+    const runtimeExe = path.join(path.dirname(process.execPath), ['poietica-runtime', 'exe'].join('.'))
+    const standalone = !bun && existsSync(runtimeExe)
     return ArpEngine.connect({
       launch: {
-        command: process.execPath,
-        args: bun ? [process.argv[1]!, 'runtime', '--data-root', layout.root] : ['runtime', '--data-root', layout.root],
+        command: standalone ? runtimeExe : process.execPath,
+        args: standalone
+          ? ['--data-root', layout.root]
+          : bun
+            ? [process.argv[1]!, 'runtime', '--data-root', layout.root]
+            : ['runtime', '--data-root', layout.root],
       },
       logger: logger.child({ module: 'runtime' }),
     })
   }
-  const { createOmpEngine } = await import('@poietica/runtime-protocol-omp')
-  // browser relay 的端口与口令由引擎自己备（写口令文件路径进本进程环境），所以必须在上面的 scrubInjected 之后
-  // appVersion 必给；engineVersion 由 engine-omp 自己定（生产编译期注入，源码运行读随包那份 omp 的 package.json）。
-  // 两个都不能缺：engine.info.version 会成为 core.ready 载荷与 diagnostics.core 的 engineVersion，
-  // 契约要求它是 string —— undefined 会让 strict 模式下的 diagnostics.core 整个方法失败。
-  return createOmpEngine({ layout, logger: logger.child({ module: 'engine' }), appVersion: CORE_VERSION })
-}
-
-/**
- * 探针版专用：只有编译期注入 POIETICA_PROBE_BUILD="1" 时 args.probeMockModel 才可能为真
- * （正式版遇到 --probe-mock-model 报未知参数、退出码 2）。正式版里这个条件是编译期常量 false，
- * 整个分支连同下面的动态 import 被打包器剔除 —— 正式 exe 里没有任何测试代码。
- */
-async function createProbeEngine(
-  layout: Parameters<typeof createCoreKernel>[0]['layout'],
-  logger: Parameters<typeof createCoreKernel>[0]['logger'],
-) {
-  if (process.env.POIETICA_PROBE_BUILD !== '1') {
-    throw new Error('--probe-mock-model 只能用于探针版')
-  }
-  const { createOmpEngineForTest } = await import('@poietica/runtime-protocol-omp/testing')
-  const handle = await createOmpEngineForTest({ layout, logger: logger.child({ module: 'engine' }) })
-  return handle.engine
+  throw new Error('POIETICA_RUNTIME_ARP=0 已移除：Core 必须连接独立的 runtime 可执行文件')
 }

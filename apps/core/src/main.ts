@@ -1,5 +1,3 @@
-import { captureLaunchEnv, dispatchProcessMode } from '@poietica/runtime-protocol-omp/bootstrap'
-
 /**
  * 顶层致命错误的最后通道：日志系统可能还没有建立，先按 Core 的 stderr JSONL 约定写一条 fatal 记录，
  * 再以退出码退出 —— Host 见到 1 当崩溃退避重启，见到 4 / 5 当确定性失败直接进 failed。
@@ -25,7 +23,6 @@ function fatal(scope: string, error: unknown): void {
   }
 }
 
-const launchEnv = captureLaunchEnv() // ① 第一条语句：快照启动时就有的环境变量键（必须先于任何 omp 模块求值）
 /*
  * 06 页 §2.7：顶层兜底 —— 任何未捕获异常 / 未处理拒绝写一条 fatal 日志（stderr JSONL：
  * 这一刻 core.log 的写入器可能还没建好，Host 把 stderr 记进 main.log），随后退出码 1，
@@ -39,25 +36,15 @@ process.on('unhandledRejection', (error) => {
   fatal('unhandledRejection', error)
   process.exit(1)
 })
-if (process.argv[2] === 'runtime') {
-  const { runRuntimeMode } = await import('./runtime-main')
-  await runRuntimeMode(launchEnv)
-} else {
-  const mode = await dispatchProcessMode() // ② 顶层同步 declareWorkerHostEntry；worker / browser-relay 模式在这里被 omp 接管、gc（维护子进程）跑完即退，都不返回
-  if (mode === 'serve') {
-    // ③ serve 的全部依赖都动态导入，worker 子进程不会加载它们
-    const { serve } = await import('./serve')
-    const { coreStartFailureExitCode } = await import('@poietica/core-kernel')
-    try {
-      await serve(launchEnv)
-    } catch (error) {
-      /*
-       * 06 页 §2.7：start() 抛出的任何错误 → 写一条 fatal 日志 → 进程退出。退出码按错误类型分
-       * （R-08-8）：确定性失败（数据库太新、装配期失败）Host 直接进 failed，不再退避重启后
-       * 报成 crash_loop；其余按崩溃处理，让看护人有机会自愈。
-       */
-      fatal('serve', error)
-      process.exit(coreStartFailureExitCode(error))
-    }
+{
+  // Core 只负责 serve；runtime 模式由独立的 poietica-runtime.exe 承担（P3b）。
+  // ③ serve 的全部依赖都动态导入，启动失败按类型决定退出码。
+  const { serve } = await import('./serve')
+  const { coreStartFailureExitCode } = await import('@poietica/core-kernel')
+  try {
+    await serve()
+  } catch (error) {
+    fatal('serve', error)
+    process.exit(coreStartFailureExitCode(error))
   }
 }

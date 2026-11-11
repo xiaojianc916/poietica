@@ -32,6 +32,7 @@ extraResources:
     to: core
     filter:
       - poietica-core.exe
+      - poietica-runtime.exe
       - pi_natives.*.node
       - core-manifest.json
   - from: resources/icon.ico

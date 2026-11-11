@@ -22,7 +22,8 @@ const ompRoot = path.resolve(
 )
 const ompPkg = JSON.parse(readFileSync(path.join(ompRoot, 'package.json'), 'utf8')) as { version: string }
 
-const exe = path.join(outDir, CORE_ARTIFACTS[0])
+const exe = path.join(outDir, 'poietica-core.exe')
+const runtimeExe = path.join(outDir, 'poietica-runtime.exe')
 
 function createLegacyPiEmptyRegistryPlugin(): unknown {
   return {
@@ -74,38 +75,42 @@ rmSync(outDir, { recursive: true, force: true })
 mkdirSync(outDir, { recursive: true })
 
 const { plugins, docs } = await ompBuildPlugins()
-const result = await Bun.build({
-  entrypoints: [path.join(CORE_DIR, 'src/main.ts')],
-  root: ROOT,
-  compile: {
-    target: 'bun-windows-x64-baseline', // baseline 兼容不支持 AVX2 的旧 CPU
-    outfile: exe,
-    // 编译产物默认会自动加载 cwd 下的这些文件，是隔离漏洞（04 页 §3.3 第 6 条）
-    autoloadDotenv: false,
-    autoloadBunfig: false,
-    autoloadTsconfig: false,
-    autoloadPackageJson: false,
-  },
-  format: 'esm',
-  bytecode: true, // 启动时跳过约 20 MB bundle 的解析
-  minify: { identifiers: false, keepNames: true }, // 保留函数名，错误栈才可读
-  external: ['fastembed', 'onnxruntime-node'], // 与 omp 官方一致：重型可选依赖不打包
-  define: {
-    'process.env.PI_COMPILED': JSON.stringify('true'),
-    'process.env.POIETICA_BUILD_VERSION': JSON.stringify(pkg.version),
-    'process.env.PI_DOCS_EMBED': JSON.stringify(docs),
-    'process.env.POIETICA_PROBE_BUILD': JSON.stringify(probe ? '1' : '0'),
-    // omp 的版本：编译期注入（exe 里没有 node_modules，运行时探不到；见 omp-version.ts 的说明）
-    'process.env.POIETICA_OMP_VERSION': JSON.stringify(ompPkg.version),
-  },
-  plugins: plugins as never,
-  throw: false,
-})
 
-if (!result.success) {
-  for (const log of result.logs) console.error(String(log))
-  process.exit(1)
+async function compile(entrypoint: string, outfile: string, defineProbe: boolean): Promise<void> {
+  const result = await Bun.build({
+    entrypoints: [entrypoint],
+    root: ROOT,
+    compile: {
+      target: 'bun-windows-x64-baseline',
+      outfile,
+      autoloadDotenv: false,
+      autoloadBunfig: false,
+      autoloadTsconfig: false,
+      autoloadPackageJson: false,
+    },
+    format: 'esm',
+    bytecode: true,
+    minify: { identifiers: false, keepNames: true },
+    external: ['fastembed', 'onnxruntime-node'],
+    define: {
+      'process.env.PI_COMPILED': JSON.stringify('true'),
+      'process.env.POIETICA_BUILD_VERSION': JSON.stringify(pkg.version),
+      'process.env.PI_DOCS_EMBED': JSON.stringify(docs),
+      'process.env.POIETICA_PROBE_BUILD': JSON.stringify(defineProbe ? '1' : '0'),
+      'process.env.POIETICA_OMP_VERSION': JSON.stringify(ompPkg.version),
+    },
+    plugins: plugins as never,
+    throw: false,
+  })
+  if (!result.success) {
+    for (const log of result.logs) console.error(String(log))
+    process.exit(1)
+  }
 }
+
+await compile(path.join(CORE_DIR, 'src/main.ts'), exe, probe)
+/* Core 与 Runtime 分开编译：omp 实现只进 runtime，Core 这边不应因动态 import 再拖进来。 */
+await compile(path.join(CORE_DIR, 'src/runtime-entry.ts'), runtimeExe, probe)
 
 // 复制 natives：加载器按 <natives 目录>/<版本>/ → <natives 目录>/ → exe 所在目录 的顺序查找，前两个
 // 目录都在隔离根下而且为空，所以最终加载的一定是随包发布的这一份。natives 包由 @oh-my-pi/pi-natives

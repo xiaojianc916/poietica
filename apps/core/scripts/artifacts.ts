@@ -2,4 +2,5 @@
 export const CORE_NATIVE_ARTIFACTS = ['pi_natives.win32-x64-baseline.node'] as const
 /** 上游 pi-natives-win32-x64 目前只随包发布 baseline；若日后重新带上 modern，则一并复制。 */
 export const CORE_OPTIONAL_NATIVE_ARTIFACTS = ['pi_natives.win32-x64-modern.node'] as const
-export const CORE_ARTIFACTS = ['poietica-core.exe', ...CORE_NATIVE_ARTIFACTS] as const
+export const CORE_RUNTIME_ARTIFACT = 'poietica-runtime.exe'
+export const CORE_ARTIFACTS = ['poietica-core.exe', CORE_RUNTIME_ARTIFACT, ...CORE_NATIVE_ARTIFACTS] as const

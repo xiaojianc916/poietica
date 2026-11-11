@@ -45,6 +45,17 @@ const peer = new RpcPeer({
     if (method === 'core.ready') resolveReady(params)
   },
 })
+async function removeEventually(dir: string): Promise<void> {
+  for (let i = 0; i < 20; i += 1) {
+    try {
+      rmSync(dir, { recursive: true, force: true })
+      return
+    } catch {
+      await Bun.sleep(100)
+    }
+  }
+}
+
 const timer = setTimeout(() => {
   console.error('[arp-probe] core.ready 超时')
   console.error(stderr.trim().slice(-4_000))
@@ -60,5 +71,5 @@ try {
   peer.dispose()
   child.kill()
   await new Promise<void>((resolve) => child.once('exit', () => resolve()))
-  rmSync(root, { recursive: true, force: true })
+  await removeEventually(root)
 }

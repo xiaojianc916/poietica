@@ -12,10 +12,10 @@ import { createChildProcessTransport } from '@poietica/rpc/stdio'
 const PAGE_BUDGET_MS = 100
 const SNAPSHOT_BUDGET_MS = 100
 
-const exe = path.resolve('apps/core/dist/poietica-core.exe')
+const exe = path.resolve('apps/core/dist/poietica-runtime.exe')
 const root = mkdtempSync(path.join(os.tmpdir(), 'poietica-latency-'))
 const cwd = mkdtempSync(path.join(os.tmpdir(), 'poietica-latency-cwd-'))
-const child = spawn(exe, ['runtime', '--data-root', root], { stdio: ['pipe', 'pipe', 'pipe'], env: process.env })
+const child = spawn(exe, ['--data-root', root], { stdio: ['pipe', 'pipe', 'pipe'], env: process.env })
 let stderr = ''
 child.stderr.on('data', (chunk) => {
   stderr += String(chunk)

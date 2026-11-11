@@ -17,7 +17,7 @@ import { CORE_VERSION } from './version'
  */
 export async function runRuntimeMode(launchEnv: LaunchEnv): Promise<never> {
   const writeFrame = installStdoutGuard()
-  const args = process.argv.slice(3)
+  const args = process.argv[2] === 'runtime' ? process.argv.slice(3) : process.argv.slice(2)
   const root = flagValue(args, '--data-root')
   if (root === undefined) {
     process.stderr.write('poietica-core runtime: 缺少 --data-root\n')
