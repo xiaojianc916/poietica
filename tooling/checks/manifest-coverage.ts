@@ -23,7 +23,7 @@ interface Entrypoint {
 }
 
 const ENTRYPOINTS: readonly Entrypoint[] = [
-  { sub: 'core', manifest: 'apps/core/src/modules.ts' },
+  { sub: 'core', manifest: 'apps/core/src/modules.generated.ts' },
   { sub: 'host', manifest: 'apps/desktop/src/main/modules.ts' },
   { sub: 'ui', manifest: 'apps/desktop/src/renderer/features.ts' },
 ]
