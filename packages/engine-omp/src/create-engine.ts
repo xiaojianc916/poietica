@@ -42,19 +42,13 @@ export interface EngineTestSeams {
 
 /** omp 的模块入口：集中在这里动态 import，便于测试替换与阅读创建顺序 */
 async function ompModules() {
-  const [sdk, settings, registry, sessions, capability, mcpManager, mcpToolCache, mcpConfig, executor, agentSession] =
-    await Promise.all([
-      import('@oh-my-pi/pi-coding-agent'),
-      import('@oh-my-pi/pi-coding-agent/config/settings'),
-      import('@oh-my-pi/pi-coding-agent/config/model-registry'),
-      import('@oh-my-pi/pi-coding-agent/session/session-manager'),
-      import('@oh-my-pi/pi-coding-agent/capability'),
-      import('@oh-my-pi/pi-coding-agent/mcp/manager'),
-      import('@oh-my-pi/pi-coding-agent/mcp/tool-cache'),
-      import('@oh-my-pi/pi-coding-agent/mcp/config'),
-      import('@oh-my-pi/pi-coding-agent/task/executor'),
-      import('@oh-my-pi/pi-coding-agent/session/agent-session'),
-    ])
+  const [sdk, capability, mcpManager, mcpToolCache, mcpConfig] = await Promise.all([
+    import('@oh-my-pi/pi-coding-agent'),
+    import('@oh-my-pi/pi-coding-agent/capability'),
+    import('@oh-my-pi/pi-coding-agent/mcp/manager'),
+    import('@oh-my-pi/pi-coding-agent/mcp/tool-cache'),
+    import('@oh-my-pi/pi-coding-agent/mcp/config'),
+  ])
   return {
     // omp 知识 #22：MCP 归工作区，引擎持有 manager、会话借用（session/mcp-workspaces.ts）
     mcp: {
@@ -62,15 +56,15 @@ async function ompModules() {
       MCPToolCache: mcpToolCache.MCPToolCache,
       loadAllMCPConfigs: mcpConfig.loadAllMCPConfigs,
       shouldFilterBrowserMCPForPrelude: mcpConfig.shouldFilterBrowserMCPForPrelude,
-      createMCPProxyTools: executor.createMCPProxyTools,
-      followMCPTools: executor.followMCPTools,
-      turnWaitMs: agentSession.MCP_DISCOVERY_TURN_WAIT_MS,
+      createMCPProxyTools: sdk.createMCPProxyTools,
+      followMCPTools: sdk.followMCPTools,
+      turnWaitMs: sdk.MCP_DISCOVERY_TURN_WAIT_MS,
     },
-    Settings: settings.Settings,
-    ModelRegistry: registry.ModelRegistry,
+    Settings: sdk.Settings,
+    ModelRegistry: sdk.ModelRegistry,
     // discoverAuthStorage 在包根（sdk.d.ts:415），不在 auth-storage 子模块
     discoverAuthStorage: sdk.discoverAuthStorage,
-    SessionManager: sessions.SessionManager,
+    SessionManager: sdk.SessionManager,
     createAgentSession: sdk.createAgentSession,
     // omp 知识 #10：disableProvider 写的是「当前绑定的那个 Settings」，所以必须先 initializeWithSettings
     initializeWithSettings: capability.initializeWithSettings,
@@ -98,7 +92,7 @@ const PRODUCT_DEFAULTS: readonly (readonly [string, unknown])[] = [
 /** 生产入口：包根的 createOmpEngine(opts) 就是它（seams 恒为 null） */
 export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineTestSeams | null): Promise<AgentEngine> {
   // omp 知识 #3
-  const theme = await import('@oh-my-pi/pi-tui/theme')
+  const theme = await import('@oh-my-pi/pi-tui')
   theme.ensureThemeSync()
   const omp = await ompModules()
   const root = await omp.Settings.init()

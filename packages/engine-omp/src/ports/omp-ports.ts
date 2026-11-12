@@ -1,5 +1,4 @@
-import { getOAuthProviders } from '@oh-my-pi/pi-ai/oauth'
-import { getProviderDefinition } from '@oh-my-pi/pi-ai/registry'
+import { getOAuthProviders, getProviderDefinition } from '@oh-my-pi/pi-ai'
 import { resolveModelRoleValue } from '@oh-my-pi/pi-coding-agent/config/model-resolver'
 import {
   formatModelRoleAlias,

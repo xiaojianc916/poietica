@@ -1,5 +1,4 @@
-import type { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
-import { buildSkillPromptMessage } from '@oh-my-pi/pi-coding-agent/extensibility/skills'
+import { buildSkillPromptMessage, type Settings } from '@oh-my-pi/pi-coding-agent'
 import type { LocalProtocolOptions } from '@oh-my-pi/pi-coding-agent/internal-urls/local-protocol'
 import { RpcBtwController } from '@oh-my-pi/pi-coding-agent/modes/rpc/rpc-btw'
 import type { RpcGoalSession } from '@oh-my-pi/pi-coding-agent/modes/rpc/rpc-goal'

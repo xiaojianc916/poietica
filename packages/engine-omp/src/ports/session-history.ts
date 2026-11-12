@@ -1,5 +1,6 @@
 import { stat } from 'node:fs/promises'
 import path from 'node:path'
+import { SessionManager } from '@oh-my-pi/pi-coding-agent'
 import { readRpcSubagentTranscript } from '@oh-my-pi/pi-coding-agent/modes/rpc/rpc-subagents'
 import { deobfuscateSessionContext } from '@oh-my-pi/pi-coding-agent/secrets/message-transform'
 import type { SecretObfuscator } from '@oh-my-pi/pi-coding-agent/secrets/obfuscator'
@@ -7,7 +8,6 @@ import {
   createInterruptedToolResults,
   createInterruptedTurnAbortMessage,
 } from '@oh-my-pi/pi-coding-agent/session/exit-diagnostics'
-import { SessionManager } from '@oh-my-pi/pi-coding-agent/session/session-manager'
 import { getLatestTodoPhasesFromEntries } from '@oh-my-pi/pi-coding-agent/tools/todo'
 import type { TranscriptPage, TranscriptTodo } from '@poietica/agent-model'
 import { AppError, type Logger } from '@poietica/foundation'
