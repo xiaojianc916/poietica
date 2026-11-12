@@ -1,5 +1,5 @@
 import { parentPort } from 'node:worker_threads'
-import { declareWorkerHostEntry, isWorkerHostSelector } from '@oh-my-pi/pi-utils/worker-host'
+import { declareWorkerHostEntry, isWorkerHostSelector } from '@oh-my-pi/pi-utils'
 import { MAINTENANCE_MODE, runMaintenance } from './maintenance'
 import { withRelayToken } from './relay-token'
 import { type EarlyMessagePort, holdEarlyMessages, ompCliSelfDispatches } from './worker-dispatch'

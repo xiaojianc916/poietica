@@ -1,4 +1,4 @@
-import { workerHostEntry } from '@oh-my-pi/pi-utils/worker-host'
+import { workerHostEntry } from '@oh-my-pi/pi-utils'
 import { AppError, SystemErrorCode } from '@poietica/foundation'
 import type { MediaGcResult } from '@poietica/runtime-protocol'
 import { MAINTENANCE_MODE } from '../bootstrap/maintenance'

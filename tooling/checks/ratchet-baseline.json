@@ -1,7 +1,7 @@
 {
   "omp-deep-import": {
     "packages/engine-omp/src/bootstrap/maintenance.ts": 1,
-    "packages/engine-omp/src/bootstrap/process-mode.ts": 3,
+    "packages/engine-omp/src/bootstrap/process-mode.ts": 2,
     "packages/engine-omp/src/bootstrap/self-check.ts": 1,
     "packages/engine-omp/src/browser-relay-conformance.ts": 1,
     "packages/engine-omp/src/create-engine.ts": 5,
@@ -10,7 +10,6 @@
     "packages/engine-omp/src/model-resolve.ts": 1,
     "packages/engine-omp/src/ports/mcp.ts": 3,
     "packages/engine-omp/src/ports/models.ts": 1,
-    "packages/engine-omp/src/ports/omp-gc.ts": 1,
     "packages/engine-omp/src/ports/omp-ports.ts": 4,
     "packages/engine-omp/src/ports/plugins.ts": 3,
     "packages/engine-omp/src/ports/session-files.ts": 7,
