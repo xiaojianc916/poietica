@@ -1,6 +1,6 @@
 import { join } from 'node:path'
+import { TASK_SUBAGENT_EVENT_CHANNEL } from '@oh-my-pi/pi-coding-agent'
 import { RpcSubagentRegistry, readRpcSubagentTranscript } from '@oh-my-pi/pi-coding-agent/modes/rpc/rpc-subagents'
-import { TASK_SUBAGENT_EVENT_CHANNEL } from '@oh-my-pi/pi-coding-agent/task/types'
 import type { AgentEvent, TranscriptPage } from '@poietica/agent-model'
 import { AppError, type Logger } from '@poietica/foundation'
 import { EngineErrorCode } from '@poietica/runtime-protocol'
