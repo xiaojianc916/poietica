@@ -47,7 +47,7 @@ function render(): string {
   const list = features()
   const imports = list.map((f) => `import ${f.variable} from '${f.packageName}/core'`).join('\n')
   const entries = list.map((f) => `  ${f.variable},`).join('\n')
-  const kinds = list.map((f) => `  '${f.id}': '${f.kind}',`).join('\n')
+  const kinds = list.map((f) => `  ${f.id.includes('-') ? `'${f.id}'` : f.id}: '${f.kind}',`).join('\n')
   return `// 由 tooling/assembly/core-modules.ts 生成；不要手改。\n\nimport type { CoreModule, ModuleKind } from '@poietica/core-kernel'\n${imports}\n\nexport const coreModuleKinds = {\n${kinds}\n} as const satisfies Record<string, ModuleKind>\n\nexport const coreModules: readonly CoreModule[] = [\n${entries}\n]\n`
 }
 
