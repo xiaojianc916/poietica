@@ -15,7 +15,7 @@ import path from 'node:path'
 
 const ROOT = path.resolve(import.meta.dir, '../..')
 const FEATURES = path.join(ROOT, 'features')
-const PROTOCOL = path.join(ROOT, 'packages/protocol/src/index.ts')
+const PROTOCOL = path.join(ROOT, 'packages/protocol/src/contracts.generated.ts')
 
 interface Entrypoint {
   readonly sub: 'core' | 'host' | 'ui' | 'contract'
@@ -88,7 +88,7 @@ const contractFeatures = new Set(
 )
 for (const feature of contractFeatures) {
   if (!registered.has(feature))
-    problems.push(`features/${feature}: 有 contract，但没有登记进 packages/protocol/src/index.ts`)
+    problems.push(`features/${feature}: 有 contract，但没有登记进 packages/protocol/src/contracts.generated.ts`)
 }
 for (const feature of registered) {
   if (!contractFeatures.has(feature)) {

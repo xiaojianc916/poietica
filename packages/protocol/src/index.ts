@@ -1,55 +1,10 @@
 import { composeContracts } from '@poietica/contract-kit'
-import { agentSettingsContract } from '@poietica/feature-agent-settings/contract'
-import { attachmentsContract } from '@poietica/feature-attachments/contract'
-import { automationsContract } from '@poietica/feature-automations/contract'
-import { browserContract } from '@poietica/feature-browser/contract'
-import { checkpointsContract } from '@poietica/feature-checkpoints/contract'
-import { conversationContract } from '@poietica/feature-conversation/contract'
-import { extensionsContract } from '@poietica/feature-extensions/contract'
-import { filesContract } from '@poietica/feature-files/contract'
-import { intelligentUiContract } from '@poietica/feature-intelligent-ui/contract'
-import { modelsContract } from '@poietica/feature-models/contract'
-import { platformContract } from '@poietica/feature-platform/contract'
-import { policyContract } from '@poietica/feature-policy/contract'
-import { preferencesContract } from '@poietica/feature-preferences/contract'
-import { pythonContract } from '@poietica/feature-python/contract'
-import { reviewContract } from '@poietica/feature-review/contract'
-import { secretsContract } from '@poietica/feature-secrets/contract'
-import { settingsContract } from '@poietica/feature-settings/contract'
-import { terminalContract } from '@poietica/feature-terminal/contract'
-import { updateContract } from '@poietica/feature-update/contract'
-import { usageContract } from '@poietica/feature-usage/contract'
-import { workbuddyContract } from '@poietica/feature-workbuddy/contract'
-import { workspacesContract } from '@poietica/feature-workspaces/contract'
-
+import { featureContracts } from './contracts.generated'
 /**
  * 全应用契约汇总。以后每加一个功能，就在这里合并它的契约——这是唯一需要修改的地方。
  * systemContract 由 composeContracts 自动并入。
  */
-export const appContract = composeContracts(
-  platformContract,
-  checkpointsContract,
-  policyContract,
-  secretsContract,
-  preferencesContract,
-  workspacesContract,
-  modelsContract,
-  agentSettingsContract,
-  attachmentsContract,
-  conversationContract,
-  extensionsContract,
-  usageContract,
-  pythonContract,
-  reviewContract,
-  settingsContract,
-  filesContract,
-  terminalContract,
-  browserContract,
-  automationsContract,
-  updateContract,
-  intelligentUiContract,
-  workbuddyContract,
-)
+export const appContract = composeContracts(...featureContracts)
 
 export { contractSnapshot } from '@poietica/contract-kit'
 /**
