@@ -1,6 +1,7 @@
 export { type AgentToolRegistry, createAgentToolRegistry } from './agent-tools'
 export { type CoreEvent, type CoreEventBus, createEventHub, defineCoreEvent, type EventHub } from './events'
 export { createIdempotency, type IdempotencyService } from './idempotency'
+export { createJobRunner, type JobHandler, type JobRunner, type JobRunnerOptions } from './job-runner'
 export { createKernelJobs, type JobRecord, type KernelJobsService } from './jobs'
 export { type CoreKernel, type CoreKernelOptions, createCoreKernel } from './kernel'
 export {
