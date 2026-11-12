@@ -24,8 +24,8 @@ interface Entrypoint {
 
 const ENTRYPOINTS: readonly Entrypoint[] = [
   { sub: 'core', manifest: 'apps/core/src/modules.generated.ts' },
-  { sub: 'host', manifest: 'apps/desktop/src/main/modules.ts' },
-  { sub: 'ui', manifest: 'apps/desktop/src/renderer/features.ts' },
+  { sub: 'host', manifest: 'apps/desktop/src/main/modules.generated.ts' },
+  { sub: 'ui', manifest: 'apps/desktop/src/renderer/features.generated.ts' },
 ]
 
 const indexOf = (featureDir: string, sub: string): string | null => {
