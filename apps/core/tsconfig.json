@@ -57,6 +57,12 @@
       "path": "../../features/review/src/core"
     },
     {
+      "path": "../../features/settings/src/core"
+    },
+    {
+      "path": "../../features/settings/src/core-api"
+    },
+    {
       "path": "../../features/usage/src/core"
     },
     {

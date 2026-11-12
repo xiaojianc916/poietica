@@ -3,6 +3,7 @@ import path from 'node:path'
 import { createCoreKernel } from '@poietica/core-kernel'
 import { JournalServiceToken } from '@poietica/feature-journal/core-api'
 import { PolicyServiceToken } from '@poietica/feature-policy/core-api'
+import { SettingsServiceToken } from '@poietica/feature-settings/core-api'
 import { systemClock } from '@poietica/foundation'
 import { createLogger, jsonlFileSink } from '@poietica/logging'
 import { appContract, PROTOCOL_VERSION } from '@poietica/protocol'
@@ -73,6 +74,7 @@ export async function serve(): Promise<void> {
   await kernel.start() // 9. 迁移 → 模块 setup → freezeTools → onReady → 发 core.ready
   if ('setToolPolicy' in engine) {
     const policy = kernel.services.get(PolicyServiceToken)
+    const settings = kernel.services.get(SettingsServiceToken)
     const journal = kernel.services.get(JournalServiceToken)
     ;(
       engine as {
@@ -87,7 +89,8 @@ export async function serve(): Promise<void> {
           : tool.approval === 'write'
             ? { category: 'file.write' as const, risk: 'medium' as const, checkpoint: true }
             : { category: 'exec' as const, risk: 'high' as const, checkpoint: true }
-      const decision = policy.evaluateClassification('auto-edit', classification, { workspaceRoot: tool.cwd })
+      const preset = settings.get('policy.preset').value as 'read-only' | 'ask' | 'auto-edit' | 'full-access'
+      const decision = policy.evaluateClassification(preset, classification, { workspaceRoot: tool.cwd })
       journal.append(tool.sessionKey, 'main', [
         {
           schema: 1,
@@ -99,7 +102,7 @@ export async function serve(): Promise<void> {
           action: decision.action,
           rule: decision.rule,
           reason: decision.reason,
-          preset: 'auto-edit',
+          preset,
         },
       ])
       return decision

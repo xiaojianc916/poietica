@@ -1,0 +1,9 @@
+{
+  "extends": "../../../../tooling/tsconfig/bun.json",
+  "include": ["."],
+  "references": [
+    {
+      "path": "../../../../packages/contract-kit"
+    }
+  ]
+}

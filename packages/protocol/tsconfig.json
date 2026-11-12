@@ -51,6 +51,9 @@
       "path": "../../features/secrets/src/contract"
     },
     {
+      "path": "../../features/settings/src/contract"
+    },
+    {
       "path": "../../features/terminal/src/contract"
     },
     {

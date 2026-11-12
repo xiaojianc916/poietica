@@ -14,6 +14,7 @@ import platform from '@poietica/feature-platform/core'
 import policy from '@poietica/feature-policy/core'
 import python from '@poietica/feature-python/core'
 import review from '@poietica/feature-review/core'
+import settings from '@poietica/feature-settings/core'
 import usage from '@poietica/feature-usage/core'
 import workbuddy from '@poietica/feature-workbuddy/core'
 import workspaces from '@poietica/feature-workspaces/core'
@@ -32,6 +33,7 @@ export const coreModules: readonly CoreModule[] = [
   conversation,
   usage,
   review,
+  settings,
   files,
   extensions,
   python,

@@ -200,6 +200,15 @@
       "path": "features/secrets/src/host"
     },
     {
+      "path": "features/settings/src/contract"
+    },
+    {
+      "path": "features/settings/src/core"
+    },
+    {
+      "path": "features/settings/src/core-api"
+    },
+    {
       "path": "features/terminal/src/contract"
     },
     {

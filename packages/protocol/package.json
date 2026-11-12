@@ -24,6 +24,7 @@
     "@poietica/feature-python": "workspace:*",
     "@poietica/feature-review": "workspace:*",
     "@poietica/feature-secrets": "workspace:*",
+    "@poietica/feature-settings": "workspace:*",
     "@poietica/feature-terminal": "workspace:*",
     "@poietica/feature-update": "workspace:*",
     "@poietica/feature-usage": "workspace:*",

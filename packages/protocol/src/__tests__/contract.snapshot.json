@@ -1,5 +1,5 @@
 {
-  "version": 65,
+  "version": 66,
   "methods": [
     {
       "name": "agentSettings.capabilities",
@@ -14502,6 +14502,269 @@
         "type": "object",
         "properties": {},
         "additionalProperties": false
+      }
+    },
+    {
+      "name": "settings.describe",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "所有已注册设置项与当前生效值/来源",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
+          }
+        }
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "definition": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "boolean",
+                    "string",
+                    "number",
+                    "select",
+                    "json"
+                  ]
+                },
+                "scopes": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "global",
+                      "project",
+                      "thread"
+                    ]
+                  }
+                },
+                "defaultValue": {},
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": [
+                          "string",
+                          "number",
+                          "boolean"
+                        ]
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "value",
+                      "label"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "sensitive": {
+                  "type": "boolean"
+                },
+                "restart": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "key",
+                "label",
+                "type",
+                "scopes",
+                "defaultValue"
+              ],
+              "additionalProperties": false
+            },
+            "value": {},
+            "source": {
+              "type": "string",
+              "enum": [
+                "thread",
+                "project",
+                "global",
+                "default"
+              ]
+            },
+            "configured": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "definition",
+            "value",
+            "source",
+            "configured"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "name": "settings.set",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "写一个设置项；返回写入后的生效视图",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "global",
+              "project",
+              "thread"
+            ]
+          },
+          "scopeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "value": {}
+        },
+        "required": [
+          "key",
+          "scope",
+          "scopeId",
+          "value"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "definition": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "boolean",
+                    "string",
+                    "number",
+                    "select",
+                    "json"
+                  ]
+                },
+                "scopes": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "global",
+                      "project",
+                      "thread"
+                    ]
+                  }
+                },
+                "defaultValue": {},
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": [
+                          "string",
+                          "number",
+                          "boolean"
+                        ]
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "value",
+                      "label"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "sensitive": {
+                  "type": "boolean"
+                },
+                "restart": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "key",
+                "label",
+                "type",
+                "scopes",
+                "defaultValue"
+              ],
+              "additionalProperties": false
+            },
+            "value": {},
+            "source": {
+              "type": "string",
+              "enum": [
+                "thread",
+                "project",
+                "global",
+                "default"
+              ]
+            },
+            "configured": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "definition",
+            "value",
+            "source",
+            "configured"
+          ],
+          "additionalProperties": false
+        }
       }
     },
     {
@@ -40498,6 +40761,22 @@
     {
       "code": "secrets.unavailable",
       "message": "系统的凭据加密不可用，密钥没有保存"
+    },
+    {
+      "code": "settings.duplicate_key",
+      "message": "设置项重复注册"
+    },
+    {
+      "code": "settings.invalid_scope",
+      "message": "该设置项不支持这个作用域"
+    },
+    {
+      "code": "settings.invalid_value",
+      "message": "设置值类型不对"
+    },
+    {
+      "code": "settings.unknown_key",
+      "message": "设置项没有注册"
     },
     {
       "code": "terminal.cwd_not_found",

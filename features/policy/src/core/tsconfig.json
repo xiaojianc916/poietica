@@ -6,6 +6,9 @@
       "path": "../../../../packages/core-kernel"
     },
     {
+      "path": "../../../settings/src/core-api"
+    },
+    {
       "path": "../contract"
     },
     {

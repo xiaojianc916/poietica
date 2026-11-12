@@ -1,0 +1,22 @@
+{
+  "name": "@poietica/feature-settings",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contract": "./src/contract/index.ts",
+    "./core": "./src/core/index.ts",
+    "./core-api": "./src/core-api/index.ts"
+  },
+  "dependencies": {
+    "@poietica/contract-kit": "workspace:*",
+    "@poietica/core-kernel": "workspace:*",
+    "@poietica/foundation": "workspace:*",
+    "@poietica/storage-sqlite": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@poietica/test-kit": "workspace:*",
+    "@types/bun": "catalog:"
+  }
+}

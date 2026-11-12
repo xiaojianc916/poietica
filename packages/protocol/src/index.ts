@@ -15,6 +15,7 @@ import { preferencesContract } from '@poietica/feature-preferences/contract'
 import { pythonContract } from '@poietica/feature-python/contract'
 import { reviewContract } from '@poietica/feature-review/contract'
 import { secretsContract } from '@poietica/feature-secrets/contract'
+import { settingsContract } from '@poietica/feature-settings/contract'
 import { terminalContract } from '@poietica/feature-terminal/contract'
 import { updateContract } from '@poietica/feature-update/contract'
 import { usageContract } from '@poietica/feature-usage/contract'
@@ -40,6 +41,7 @@ export const appContract = composeContracts(
   usageContract,
   pythonContract,
   reviewContract,
+  settingsContract,
   filesContract,
   terminalContract,
   browserContract,
