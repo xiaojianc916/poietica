@@ -21,4 +21,5 @@ export {
 } from './outbox-dispatcher'
 export { type CoreRpcBinding, createCoreRpcBinding, createHostCaller, type HostCaller } from './rpc-binding'
 export { coreStartFailureExitCode } from './start-failure'
+export { type ResumeWorkflowsOptions, resumeWorkflows, type WorkflowHandler } from './workflow-resume'
 export { createWorkflowService, type WorkflowRecord, type WorkflowService, type WorkflowState } from './workflows'
