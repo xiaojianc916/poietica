@@ -39,5 +39,8 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "electron": "catalog:"
+  },
+  "poietica": {
+    "kind": "agent-tool"
   }
 }

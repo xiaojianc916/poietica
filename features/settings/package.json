@@ -18,5 +18,8 @@
   "devDependencies": {
     "@poietica/test-kit": "workspace:*",
     "@types/bun": "catalog:"
+  },
+  "poietica": {
+    "kind": "domain"
   }
 }

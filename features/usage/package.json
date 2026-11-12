@@ -26,5 +26,8 @@
     "@testing-library/react": "catalog:",
     "@types/bun": "catalog:",
     "@types/react": "catalog:"
+  },
+  "poietica": {
+    "kind": "domain"
   }
 }

@@ -15,5 +15,8 @@
   },
   "devDependencies": {
     "@types/bun": "^1.4.4"
+  },
+  "poietica": {
+    "kind": "domain"
   }
 }

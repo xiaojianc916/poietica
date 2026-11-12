@@ -10,6 +10,7 @@ export {
   type CoreModuleContext,
   type CoreRuntimeInfo,
   defineCoreModule,
+  type ModuleKind,
   type RetiredCoreModule,
 } from './module'
 export { createOutbox, type EnqueueInput, type OutboxRecord, type OutboxService } from './outbox'

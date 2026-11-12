@@ -11,9 +11,13 @@ import type { OutboxService } from './outbox'
 import type { CoreRpcBinding, HostCaller } from './rpc-binding'
 import type { WorkflowService } from './workflows'
 
+export type ModuleKind = 'domain' | 'capability' | 'agent-runtime' | 'agent-tool' | 'integration' | 'surface'
+
 export interface CoreModule<C extends Contract = Contract> {
   /** 等于功能 id（kebab-case）。 */
   readonly id: string
+  /** 模块类型（P6）；装配清单里由 features/<id>/package.json 的 poietica.kind 声明。 */
+  readonly kind?: ModuleKind
   readonly contract?: C
   readonly dependsOn?: readonly string[]
   /** 表结构迁移；表名、索引名必须以 `${表前缀}_` 开头（表前缀 = id 中的 '-' 换成 '_'）。 */
