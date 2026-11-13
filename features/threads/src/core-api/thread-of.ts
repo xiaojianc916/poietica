@@ -1,5 +1,5 @@
-import type { ThreadRow } from '@poietica/feature-threads/core-api'
 import type { Thread } from '@poietica/product-model'
+import type { ThreadRow } from './types'
 
 /**
  * 行 → 实体。state 与 pendingInteraction 都由活会话决定（不在池中即 idle / null），

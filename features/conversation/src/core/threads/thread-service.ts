@@ -1,5 +1,14 @@
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { ThreadRow, ThreadsRepository } from '@poietica/feature-threads/core-api'
+import {
+  deriveTitle,
+  forkTitleOf,
+  LEAKED_MARKUP_PREFIX,
+  normalizeTitle,
+  PENDING_TITLE,
+  pendingInteractionOf,
+  threadOf,
+} from '@poietica/feature-threads/core-api'
 import type { TimelineService } from '@poietica/feature-timeline/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, type Clock, createId, type Logger, mapLimited } from '@poietica/foundation'
@@ -7,10 +16,7 @@ import type { EngineSession, ModelRef, Posture } from '@poietica/runtime-protoco
 import type { Thread, TurnState } from '../../contract/entities'
 import { conversationErrors } from '../../contract/errors'
 import type { ConversationRuntime } from '../runtime'
-import { pendingInteractionOf } from './pending-interaction'
 import type { ReclaimRepository } from './reclaim-repository'
-import { threadOf } from './thread-of'
-import { deriveTitle, forkTitleOf, LEAKED_MARKUP_PREFIX, normalizeTitle, PENDING_TITLE } from './title'
 
 /** 附件引用的 ownerKey 拼法：'<功能 id>:<实体>:<id>' */
 export const OWNER_KEY = (threadId: string): string => `conversation:thread:${threadId}`
