@@ -429,3 +429,4 @@
 | v2-P7                  | 2026-11-13 | omp 锁版本、导出/事件差分、未知事件/工具兜底；深层 import 73 处，待上游公开导出                                                                                                                                |
 | v2-P6c                 | 2026-11-13 | conversation 内部按 threads/runs/timeline/composer 分组；timeline 抽为独立 feature（TimelineServiceToken，通知仍归 conversation 契约）                                                                         |
 | v2-P6c 增量            | 2026-11-13 | 产品实体迁至 @poietica/product-model；线程仓储与 ThreadsRepositoryToken 独立成 features/threads（过渡 tablePrefix=conversation）                                                                               |
+| v2-P6c 线程            | 2026-11-13 | ThreadService、回收队列、标题/待答交互/行映射移入 features/threads；晚绑定端口接会话池与事件出口                                                                                                               |
