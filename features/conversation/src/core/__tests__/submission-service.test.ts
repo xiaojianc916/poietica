@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
-import { createSubmissionsRepository } from '@poietica/feature-runs/core'
+import { createSubmissionsRepository, SubmissionService } from '@poietica/feature-runs/core'
 import type { CollectedContext, SubmissionRow, SubmissionsRepository } from '@poietica/feature-runs/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { systemClock } from '@poietica/foundation'
@@ -8,7 +8,6 @@ import type { EngineSession, SubmitInput } from '@poietica/runtime-protocol'
 import { openDatabase } from '@poietica/storage-sqlite'
 import { createTestLogger, waitFor } from '@poietica/test-kit'
 import { migrations } from '../migrations'
-import { SubmissionService } from '../runs/submission-service'
 
 /*
  * R-08-2：`turnId → clientTurnId` 的查询缓存。
@@ -54,12 +53,10 @@ function serviceOf(
     retain: () => undefined,
   } as unknown as AttachmentsService
   const submits: SubmitInput[] = []
-  const service = new SubmissionService({
-    repo,
+  const service = new SubmissionService({ repo, clock: systemClock, logger: createTestLogger() })
+  service.configure({
     workspaces,
     attachments,
-    clock: systemClock,
-    logger: createTestLogger(),
     requireThread: () => ({ id: 't1', workspaceId: 'ws1' }),
     autoTitle: () => undefined,
     markActivity: () => undefined,

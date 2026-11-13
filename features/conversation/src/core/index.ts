@@ -4,7 +4,7 @@ import { CheckpointServiceToken } from '@poietica/feature-checkpoints/core-api'
 import { JournalServiceToken } from '@poietica/feature-journal/core-api'
 import {
   SessionPoolFactoryToken,
-  SubmissionsRepositoryToken,
+  SubmissionServiceToken,
   TurnContextRegistryToken,
 } from '@poietica/feature-runs/core-api'
 import { ThreadsRepositoryToken, ThreadsServiceToken } from '@poietica/feature-threads/core-api'
@@ -49,7 +49,7 @@ export default defineCoreModule({
     const attachments = ctx.services.get(AttachmentsServiceToken)
     const threadsRepository = ctx.services.get(ThreadsRepositoryToken)
     const threadsService = ctx.services.get(ThreadsServiceToken)
-    const submissionsRepo = ctx.services.get(SubmissionsRepositoryToken)
+    const submissionsService = ctx.services.get(SubmissionServiceToken)
     const createSessionPool = ctx.services.get(SessionPoolFactoryToken)
     /* 别的功能（例如 intelligent-ui）往这里登记「下一句顺带告诉模型的事」；交接时由提交服务收一次 */
     const turnContext = ctx.services.get(TurnContextRegistryToken)
@@ -57,7 +57,7 @@ export default defineCoreModule({
       db: ctx.db,
       repo: threadsRepository,
       threads: threadsService,
-      submissionsRepo,
+      submissionsService,
       createSessionPool,
       runtime: { ...ctx.agentRuntime.sessions, models: ctx.agentRuntime.models, settings: ctx.agentRuntime.settings },
       journal: ctx.services.get(JournalServiceToken),

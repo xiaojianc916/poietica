@@ -4,7 +4,7 @@ import type { JournalService } from '@poietica/feature-journal/core-api'
 import type {
   CreateSessionPool,
   SessionPool,
-  SubmissionsRepository,
+  SubmissionService,
   TurnContextRegistry,
 } from '@poietica/feature-runs/core-api'
 import type { ThreadsRepository, ThreadsService } from '@poietica/feature-threads/core-api'
@@ -22,7 +22,6 @@ import type {
 } from '@poietica/runtime-protocol'
 import type { ModuleDatabase } from '@poietica/storage-sqlite'
 import type { QueueView, Thread, TurnState } from '../contract/entities'
-import { SubmissionService } from './runs/submission-service'
 import { TurnService } from './runs/turn-service'
 import type { ConversationRuntime } from './runtime'
 import type { SideDelta } from './side-topic-hub'
@@ -32,8 +31,8 @@ export interface ConversationCoreDeps {
   readonly db: ModuleDatabase
   readonly repo: ThreadsRepository
   readonly threads: ThreadsService
-  readonly submissionsRepo: SubmissionsRepository
   readonly createSessionPool: CreateSessionPool
+  readonly submissionsService: SubmissionService
   readonly runtime: ConversationRuntime
   readonly journal: JournalService
   readonly checkpoints?: CheckpointService
@@ -117,7 +116,6 @@ export class ConversationCore {
 
   constructor(d: ConversationCoreDeps) {
     const repo = d.repo
-    const submissionsRepo = d.submissionsRepo
 
     /*
      * 三份服务互相引用（router 要读线程形状、pool 的 describe 要用 thread-service、
@@ -175,29 +173,21 @@ export class ConversationCore {
      * （router 要认领 clientTurnId、它要 pool 开会话），所以两边都走**惰性引用**：
      * 这里只把 this 上的实例交给 router，调用发生在运行时。
      */
-    const turnContext = d.turnContext
-    this.submissions = new SubmissionService({
-      repo: submissionsRepo,
+    this.submissions = d.submissionsService
+    this.submissions.configure({
       workspaces: d.workspaces,
-      ...(d.checkpoints === undefined ? {} : { checkpoints: d.checkpoints }),
-      journal: d.journal,
       attachments: d.attachments,
-      clock: d.clock,
-      logger: d.logger,
+      ...(d.checkpoints === undefined ? {} : { checkpoints: d.checkpoints }),
+      ...(d.journal === undefined ? {} : { journal: d.journal }),
       requireThread: (threadId) => this.threads.requireRow(threadId),
-      autoTitle: (threadId, text) => {
-        this.threads.autoTitle(threadId, text)
-      },
-      /* 发出去就是活动：侧栏那格相对时间当场改口，不等这一轮跑完 */
-      markActivity: (threadId) => {
-        this.threads.markActivity(threadId)
-      },
+      autoTitle: (threadId, text) => this.threads.autoTitle(threadId, text),
+      markActivity: (threadId) => this.threads.markActivity(threadId),
       emitChanged: d.emitSubmissionChanged,
       emitRemoved: d.emitSubmissionRemoved,
       emitFailed: d.emitSubmissionFailed,
       acquireSession: (threadId) => this.pool.acquire(threadId),
       emitUserMessage: d.emitUserMessage,
-      ...(turnContext === undefined ? {} : { collectContext: (threadId: string) => turnContext.collect(threadId) }),
+      ...(d.turnContext === undefined ? {} : { collectContext: (threadId) => d.turnContext!.collect(threadId) }),
     })
 
     this.router = new EventRouter({

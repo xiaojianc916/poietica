@@ -8,6 +8,7 @@
     "./core-api": "./src/core-api/index.ts"
   },
   "dependencies": {
+    "@poietica/agent-model": "workspace:*",
     "@poietica/core-kernel": "workspace:*",
     "@poietica/foundation": "workspace:*",
     "@poietica/product-model": "workspace:*",

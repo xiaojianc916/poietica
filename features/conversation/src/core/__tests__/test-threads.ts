@@ -1,4 +1,4 @@
-import { createSubmissionsRepository } from '@poietica/feature-runs/core'
+import { createSubmissionsRepository, SubmissionService } from '@poietica/feature-runs/core'
 import { createReclaimRepository, createThreadsRepository, ThreadService } from '@poietica/feature-threads/core'
 import type { Clock } from '@poietica/foundation'
 import type { ModuleDatabase } from '@poietica/storage-sqlite'
@@ -16,3 +16,7 @@ export function createTestThreads(db: ModuleDatabase, clock: Clock): ThreadServi
 }
 
 export const createTestSubmissions = createSubmissionsRepository
+
+export function createTestSubmissionService(db: ModuleDatabase, clock: Clock): SubmissionService {
+  return new SubmissionService({ repo: createSubmissionsRepository(db), clock, logger: createTestLogger() })
+}

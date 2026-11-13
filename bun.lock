@@ -546,6 +546,7 @@
       "name": "@poietica/feature-runs",
       "version": "0.0.0",
       "dependencies": {
+        "@poietica/agent-model": "workspace:*",
         "@poietica/core-kernel": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/product-model": "workspace:*",

@@ -44,7 +44,7 @@ export interface TurnServiceDeps {
   readonly hub: TimelineService
   readonly router: EventRouter
   /** 「Core 即时回显」的提交服务：submit / cancel / retry / discard 都归它。 */
-  readonly submissions: import('./submission-service').SubmissionService
+  readonly submissions: import('@poietica/feature-runs/core-api').SubmissionService
   readonly workspaces: WorkspacesService
   readonly attachments: AttachmentsService
   readonly clock: Clock

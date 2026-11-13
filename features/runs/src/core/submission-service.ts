@@ -1,15 +1,18 @@
 import type { TranscriptPage } from '@poietica/agent-model'
-import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
-import type { CheckpointService } from '@poietica/feature-checkpoints/core-api'
-import type { JournalService } from '@poietica/feature-journal/core-api'
-import type { CollectedContext } from '@poietica/feature-runs/core-api'
-import { type SubmissionRow, type SubmissionsRepository, submissionOf } from '@poietica/feature-runs/core-api'
-import { OWNER_KEY } from '@poietica/feature-threads/core-api'
-import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, type Clock, type Logger, toAppError } from '@poietica/foundation'
-import type { EngineSession, QueueOutcome, QueueSnapshot } from '@poietica/runtime-protocol'
-import type { QueueView, SubmissionView } from '../../contract'
-import { conversationErrors } from '../../contract/errors'
+import type { QueueView, SubmissionView } from '@poietica/product-model'
+import type { QueueOutcome, QueueSnapshot } from '@poietica/runtime-protocol'
+import {
+  type CollectedContext,
+  SubmissionErrorCode,
+  type SubmissionRow,
+  type SubmissionService as SubmissionServiceContract,
+  type SubmissionServicePorts,
+  type SubmissionsRepository,
+  submissionOf,
+} from '../core-api'
+
+const OWNER_KEY = (threadId: string): string => `conversation:thread:${threadId}`
 
 /**
  * 「Core 即时回显」的提交服务。三条规则：
@@ -18,34 +21,10 @@ import { conversationErrors } from '../../contract/errors'
  * 3. 每条提交都有确定结局并存进库（pending → started / queued / failed）。`queued` 不是结局：引擎报回
  *    `queueSettled` 时收口 —— 送达 / 撤回删行，被丢弃改 failed（审查 R-20-1）。
  */
-export interface SubmissionServiceDeps {
+interface SubmissionServiceBaseDeps {
   readonly repo: SubmissionsRepository
-  readonly workspaces: WorkspacesService
-  /** 轮次开始打影子检查点；git 不可用时只记日志，不阻断对话 */
-  readonly checkpoints?: CheckpointService
-  readonly journal?: JournalService
-  readonly attachments: AttachmentsService
   readonly clock: Clock
   readonly logger: Logger
-  readonly requireThread: (threadId: string) => { readonly id: string; readonly workspaceId: string }
-  readonly autoTitle: (threadId: string, text: string) => void
-  /** 这一条线程「刚有人说话」：记活动时刻并推线程行（侧栏那格相对时间读它） */
-  readonly markActivity: (threadId: string) => void
-  readonly emitChanged: (submission: SubmissionView) => void
-  readonly emitRemoved: (p: { threadId: string; clientTurnId: string }) => void
-  /** 「这句话没送达」→ Core 事件（automations 靠它收掉永远运行中的记录，R-06） */
-  readonly emitFailed: (p: {
-    threadId: string
-    clientTurnId: string
-    deliverAs: 'turn' | 'steer' | 'followUp'
-    error: { code: string; message: string }
-  }) => void
-  /** 会话池：冷启动可能要很久，但气泡早就在了。 */
-  readonly acquireSession: (threadId: string) => Promise<EngineSession>
-  /** 用户发出去一句话（准入）→ usage 的日账 */
-  readonly emitUserMessage: (p: { threadId: string; at: number }) => void
-  /** 轮次上下文（别的功能经 TurnContextRegistry 交来）：交接那一刻同步收一次。缺省 = 没有提供方 */
-  readonly collectContext?: (threadId: string) => CollectedContext
 }
 
 /** 同一线程的交接串行：两条提交不会同时在跑 `pool.acquire`。 */
@@ -64,7 +43,8 @@ interface QueuedContext {
   readonly settled: QueueOutcome | null
 }
 
-export class SubmissionService {
+export class SubmissionService implements SubmissionServiceContract {
+  private p!: SubmissionServicePorts
   /** threadId → 还没交给 omp 的提交号（`turn` 方式）。事件路由用它盖 clientTurnId。 */
   private readonly pendingTurn = new Map<string, string>()
   /** 已经交给 omp 的提交号：`turns.cancel` 不把这些人算成「还没交出去」。 */
@@ -81,7 +61,11 @@ export class SubmissionService {
   /** clientTurnId → 排队项随附的上下文，等 `queueSettled` 收口；线程删除时随 `forget` 清掉 */
   private readonly queuedContexts = new Map<string, QueuedContext>()
 
-  constructor(private readonly d: SubmissionServiceDeps) {}
+  constructor(private readonly d: SubmissionServiceBaseDeps) {}
+
+  configure(ports: SubmissionServicePorts): void {
+    this.p = ports
+  }
 
   // ── 提交 ─────────────────────────────────────────────────────────────────
   submit(input: {
@@ -97,9 +81,9 @@ export class SubmissionService {
     if (existing !== null) return submissionOf(existing)
 
     /* 快速检查：只查表，不碰 omp、不读文件。 */
-    const thread = this.d.requireThread(input.threadId)
-    this.d.workspaces.requireUsable(thread.workspaceId)
-    const attachments = this.d.attachments.describe(input.attachmentIds)
+    const thread = this.p.requireThread(input.threadId)
+    this.p.workspaces.requireUsable(thread.workspaceId)
+    const attachments = this.p.attachments.describe(input.attachmentIds)
 
     const at = this.d.clock.now()
     const row: SubmissionRow = {
@@ -124,17 +108,17 @@ export class SubmissionService {
      * 写库到交接之间、以及交接失败的 failed 行，若不在此登记就都没有引用，24 小时回收会连
      * 文件一起删掉，隔天重试永远报 not_found。这一句与 insert 同一同步段，中间不会被回收插进来。
      */
-    this.d.attachments.retain(input.attachmentIds, OWNER_KEY(input.threadId))
+    this.p.attachments.retain(input.attachmentIds, OWNER_KEY(input.threadId))
     const view = submissionOf(row)
-    this.d.emitChanged(view)
+    this.p.emitChanged(view)
 
     /*
      * 活动与标题各写各的：`markActivity` 管 updatedAt（侧栏那格相对时间），`autoTitle` 只管首句标题。
      * 活动**当场**记，不等 `deliver`：交接要开会话（冷启动可能几秒），而人在发出这句话的那一刻
      * 就已经开始看这一行的时间了。
      */
-    this.d.markActivity(input.threadId)
-    if (input.deliverAs === 'turn') this.d.autoTitle(input.threadId, input.text)
+    this.p.markActivity(input.threadId)
+    if (input.deliverAs === 'turn') this.p.autoTitle(input.threadId, input.text)
 
     this.enqueue(input.threadId, () => this.handOver(input.clientTurnId))
     return view
@@ -142,24 +126,24 @@ export class SubmissionService {
 
   retry(clientTurnId: string): SubmissionView {
     const row = this.d.repo.get(clientTurnId)
-    if (row === null) throw new AppError(conversationErrors.thread_not_found, '这条提交不存在')
-    if (row.status !== 'failed') throw new AppError(conversationErrors.thread_busy, '只有失败的提交可以重试')
+    if (row === null) throw new AppError(SubmissionErrorCode.threadNotFound, '这条提交不存在')
+    if (row.status !== 'failed') throw new AppError(SubmissionErrorCode.threadBusy, '只有失败的提交可以重试')
     const next = this.d.repo.update(clientTurnId, { status: 'pending', error: null, turnId: null })
-    if (next === null) throw new AppError(conversationErrors.thread_not_found, '这条提交不存在')
+    if (next === null) throw new AppError(SubmissionErrorCode.threadNotFound, '这条提交不存在')
     const view = submissionOf(next)
-    this.d.emitChanged(view)
+    this.p.emitChanged(view)
     this.enqueue(next.threadId, () => this.handOver(clientTurnId))
     return view
   }
 
   discard(clientTurnId: string): { threadId: string; clientTurnId: string } {
     const row = this.d.repo.get(clientTurnId)
-    if (row === null) throw new AppError(conversationErrors.thread_not_found, '这条提交不存在')
-    if (row.status !== 'failed') throw new AppError(conversationErrors.thread_busy, '只有失败的提交可以删除')
+    if (row === null) throw new AppError(SubmissionErrorCode.threadNotFound, '这条提交不存在')
+    if (row.status !== 'failed') throw new AppError(SubmissionErrorCode.threadBusy, '只有失败的提交可以删除')
     this.dropQueuedContext(clientTurnId, true)
     this.d.repo.delete(clientTurnId)
     /* 别的窗口 / 重开的对话里也画着这一行：只回 RPC 不推事件，那边的气泡与横幅就一直挂着 */
-    this.d.emitRemoved({ threadId: row.threadId, clientTurnId })
+    this.p.emitRemoved({ threadId: row.threadId, clientTurnId })
     return { threadId: row.threadId, clientTurnId }
   }
 
@@ -180,11 +164,11 @@ export class SubmissionService {
     const waiting = row.status === 'queued' || (row.status === 'pending' && this.handed.has(clientTurnId))
     if (!waiting) return
     if (outcome === 'dropped') {
-      this.markFailed(row, { code: conversationErrors.submit_dropped, message: conversationErrors.submit_dropped })
+      this.markFailed(row, { code: SubmissionErrorCode.submitDropped, message: SubmissionErrorCode.submitDropped })
       return
     }
     this.d.repo.delete(clientTurnId)
-    this.d.emitRemoved({ threadId, clientTurnId })
+    this.p.emitRemoved({ threadId, clientTurnId })
   }
 
   // ── 读 ───────────────────────────────────────────────────────────────────
@@ -261,7 +245,7 @@ export class SubmissionService {
     const row = this.d.repo.get(id)
     if (row !== null && row.status === 'pending') {
       const next = this.d.repo.update(id, { status: 'started' })
-      if (next !== null) this.d.emitChanged(submissionOf(next))
+      if (next !== null) this.p.emitChanged(submissionOf(next))
     }
     return id
   }
@@ -274,7 +258,7 @@ export class SubmissionService {
     this.turnIds.set(threadId, cache)
     /* 行不在了（已删）update 就是 null：不必先读一遍 */
     const next = this.d.repo.update(clientTurnId, { status: 'started', turnId })
-    if (next !== null) this.d.emitChanged(submissionOf(next))
+    if (next !== null) this.p.emitChanged(submissionOf(next))
   }
 
   /** `turns.state` 回到 idle 而这一轮没开出来：收成 failed。 */
@@ -295,8 +279,8 @@ export class SubmissionService {
     const row = this.d.repo.get(id)
     if (row === null || row.status !== 'pending') return
     this.markFailed(row, {
-      code: conversationErrors.submit_cancelled,
-      message: conversationErrors.submit_cancelled,
+      code: SubmissionErrorCode.submitCancelled,
+      message: SubmissionErrorCode.submitCancelled,
     })
   }
 
@@ -311,18 +295,18 @@ export class SubmissionService {
   recoverOnStart(): void {
     const at = this.d.clock.now()
     const error = {
-      code: conversationErrors.core_restarted,
-      message: conversationErrors.core_restarted,
+      code: SubmissionErrorCode.coreRestarted,
+      message: SubmissionErrorCode.coreRestarted,
     }
     for (const row of this.d.repo.failUndelivered(error)) {
       /* 重启后这条排队项不可能再送达：残留的上下文先摘掉，已交出的回退一次 */
       this.dropQueuedContext(row.clientTurnId, true)
-      this.d.emitChanged(submissionOf(row))
+      this.p.emitChanged(submissionOf(row))
       /*
        * 仓储已经改过库，这里只补事件：automations 的订阅那时还没建立（拓扑序 conversation 在前），
        * 它自己的 repairOnStartup 会把全部 open run 收成 failed —— 两处各管各的那一半。
        */
-      this.d.emitFailed({
+      this.p.emitFailed({
         threadId: row.threadId,
         clientTurnId: row.clientTurnId,
         deliverAs: row.requestedAs,
@@ -385,7 +369,7 @@ export class SubmissionService {
       if (row.clientTurnId === keep || row.status !== 'failed') continue
       this.dropQueuedContext(row.clientTurnId, true)
       this.d.repo.delete(row.clientTurnId)
-      this.d.emitRemoved({ threadId, clientTurnId: row.clientTurnId })
+      this.p.emitRemoved({ threadId, clientTurnId: row.clientTurnId })
     }
   }
 
@@ -416,9 +400,9 @@ export class SubmissionService {
   /** 交给 omp 的那一段（拆出来只为让复杂度落在闸门内）。 */
   private async deliver(row: SubmissionRow): Promise<void> {
     const ids = row.attachments.map((a) => a.id)
-    const resolved = this.d.attachments.resolve(ids)
+    const resolved = this.p.attachments.resolve(ids)
 
-    const session = await this.d.acquireSession(row.threadId)
+    const session = await this.p.acquireSession(row.threadId)
     /* 等待期间被停止 / 丢弃：不要交出去。 */
     const current = this.d.repo.get(row.clientTurnId)
     if (current === null || current.status !== 'pending') return
@@ -461,21 +445,21 @@ export class SubmissionService {
       /* 开轮成功才算送达 */
       context?.delivered()
     }
-    this.d.emitUserMessage({ threadId: row.threadId, at: this.d.clock.now() })
+    this.p.emitUserMessage({ threadId: row.threadId, at: this.d.clock.now() })
   }
 
   private async checkpointAtTurnStart(row: SubmissionRow): Promise<void> {
-    if (this.d.checkpoints === undefined) return
-    const thread = this.d.requireThread(row.threadId)
-    const workspace = this.d.workspaces.get(thread.workspaceId)
+    if (this.p.checkpoints === undefined) return
+    const thread = this.p.requireThread(row.threadId)
+    const workspace = this.p.workspaces.get(thread.workspaceId)
     if (workspace === null) return
     try {
-      const checkpoint = await this.d.checkpoints.create({
+      const checkpoint = await this.p.checkpoints.create({
         workspaceRoot: workspace.path,
         threadId: row.threadId,
         label: '轮次开始',
       })
-      this.d.journal?.append(row.threadId, 'main', [
+      this.p.journal?.append(row.threadId, 'main', [
         {
           schema: 1,
           at: new Date().toISOString(),
@@ -497,7 +481,7 @@ export class SubmissionService {
 
   /** 这一句要带的上下文；排队项的结局可能在 submit 返回之前就到：先登记，settleQueued 才对得上 */
   private contextFor(row: SubmissionRow, deliveredAs: 'turn' | 'steer' | 'followUp'): CollectedContext | null {
-    const collected = this.d.collectContext?.(row.threadId)
+    const collected = this.p.collectContext?.(row.threadId)
     if (collected === undefined || collected.blocks.length === 0) return null
     if (deliveredAs !== 'turn') {
       this.queuedContexts.set(row.clientTurnId, {
@@ -549,8 +533,8 @@ export class SubmissionService {
     this.dropQueuedContext(row.clientTurnId, true)
     const next = this.d.repo.update(row.clientTurnId, { status: 'failed', error })
     if (next === null) return
-    this.d.emitChanged(submissionOf(next))
-    this.d.emitFailed({
+    this.p.emitChanged(submissionOf(next))
+    this.p.emitFailed({
       threadId: next.threadId,
       clientTurnId: next.clientTurnId,
       deliverAs: next.requestedAs,
@@ -567,6 +551,6 @@ export class SubmissionService {
       status: patch.status,
       ...(patch.error === undefined ? {} : { error: patch.error }),
     })
-    if (next !== null) this.d.emitChanged(submissionOf(next))
+    if (next !== null) this.p.emitChanged(submissionOf(next))
   }
 }

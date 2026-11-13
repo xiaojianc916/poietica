@@ -1,7 +1,13 @@
 import { defineCoreModule } from '@poietica/core-kernel'
-import { SessionPoolFactoryToken, SubmissionsRepositoryToken, TurnContextRegistryToken } from '../core-api'
+import {
+  SessionPoolFactoryToken,
+  SubmissionServiceToken,
+  SubmissionsRepositoryToken,
+  TurnContextRegistryToken,
+} from '../core-api'
 import { createSubmissionsRepository } from './repository'
 import { SessionPool } from './session-pool'
+import { SubmissionService } from './submission-service'
 import { TurnContextHub } from './turn-context'
 
 /**
@@ -14,13 +20,16 @@ export default defineCoreModule({
   id: 'runs',
   tablePrefix: 'conversation',
   setup(ctx) {
-    ctx.services.provide(SubmissionsRepositoryToken, createSubmissionsRepository(ctx.db))
+    const repo = createSubmissionsRepository(ctx.db)
+    ctx.services.provide(SubmissionsRepositoryToken, repo)
+    ctx.services.provide(SubmissionServiceToken, new SubmissionService({ repo, clock: ctx.clock, logger: ctx.logger }))
     ctx.services.provide(SessionPoolFactoryToken, (deps) => new SessionPool(deps))
     ctx.services.provide(TurnContextRegistryToken, new TurnContextHub(ctx.logger))
   },
 })
 
 export { IDLE_TTL_MS, MAX_IDLE_SESSIONS, SessionPool, SWEEP_INTERVAL_MS } from './session-pool'
+export { SubmissionService } from './submission-service'
 export const createSessionPool = (deps: ConstructorParameters<typeof SessionPool>[0]): SessionPool =>
   new SessionPool(deps)
 

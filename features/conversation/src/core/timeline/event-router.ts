@@ -41,7 +41,7 @@ export interface EventRouterDeps {
    * 「Core 即时回显」的提交服务：路由要在本会话第一个新 turn 上盖 clientTurnId，
    * 并把那条提交推进到 `started`。
    */
-  readonly submissions: import('../runs/submission-service').SubmissionService
+  readonly submissions: import('@poietica/feature-runs/core-api').SubmissionService
   readonly clock: Clock
   readonly threads: {
     threadOf(row: ThreadRow): Thread

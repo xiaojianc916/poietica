@@ -3,6 +3,9 @@
   "include": ["."],
   "references": [
     {
+      "path": "../../../../packages/agent-model"
+    },
+    {
       "path": "../../../../packages/core-kernel"
     },
     {
