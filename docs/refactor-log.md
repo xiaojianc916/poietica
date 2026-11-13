@@ -425,3 +425,5 @@
 | v2-P2～P3              | 2026-11-09 | Journal / Live Stream / 主题路由；Worker 进程外 ARP，默认 ARP Runtime，杀 Worker 后 Core 存活、Thread 可继续（协议 59 → 60）                                                                                   |
 | v2-P4                  | 2026-11-11 | `features/policy`：工具分类、四档预设、危险命令、未知工具保守询问；产品工具执行前闸门；`policy.decided` 审计写 Journal（协议 60 → 61）                                                                         |
 | v2-P5                  | 2026-11-11 | 影子检查点 create/list/diff/restore、手动改动冲突、恢复再打点；`checkpoint.created` 进 Journal；diff 独立包；隔离 worktree 与写租约能力（协议 61 → 64）                                                        |
+| v2-P6                  | 2026-11-13 | outbox / jobs / 幂等 / workflows + 分发器 / 启动续跑；统一设置注册表；三进程清单与契约汇总改为目录生成、模块类型声明；conversation 拆分未做                                                                    |
+| v2-P7                  | 2026-11-13 | omp 锁版本、导出/事件差分、未知事件/工具兜底；深层 import 73 处，待上游公开导出                                                                                                                                |
