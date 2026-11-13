@@ -1,4 +1,4 @@
-import type { TurnContextPart, TurnContextProvider } from '@poietica/feature-conversation/core-api'
+import type { TurnContextPart, TurnContextProvider } from '@poietica/feature-runs/core-api'
 import type { StateRow, StatesRepo } from './repo'
 
 /** 一句话最多带几份界面状态：同一轮里改过的界面通常一两个，再多就是界面在乱写 */

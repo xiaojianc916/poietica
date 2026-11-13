@@ -359,6 +359,7 @@
         "@poietica/design-system": "workspace:*",
         "@poietica/feature-conversation": "workspace:*",
         "@poietica/feature-platform": "workspace:*",
+        "@poietica/feature-runs": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/host-kernel": "workspace:*",
         "@poietica/storage-sqlite": "workspace:*",

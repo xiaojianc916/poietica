@@ -2,6 +2,7 @@ import type { TranscriptPage } from '@poietica/agent-model'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { CheckpointService } from '@poietica/feature-checkpoints/core-api'
 import type { JournalService } from '@poietica/feature-journal/core-api'
+import type { CollectedContext } from '@poietica/feature-runs/core-api'
 import { type SubmissionRow, type SubmissionsRepository, submissionOf } from '@poietica/feature-runs/core-api'
 import { OWNER_KEY } from '@poietica/feature-threads/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
@@ -9,7 +10,6 @@ import { AppError, type Clock, type Logger, toAppError } from '@poietica/foundat
 import type { EngineSession, QueueOutcome, QueueSnapshot } from '@poietica/runtime-protocol'
 import type { QueueView, SubmissionView } from '../../contract'
 import { conversationErrors } from '../../contract/errors'
-import type { CollectedContext } from './turn-context'
 
 /**
  * 「Core 即时回显」的提交服务。三条规则：

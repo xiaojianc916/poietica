@@ -2,7 +2,11 @@ import { defineCoreModule } from '@poietica/core-kernel'
 import { AttachmentsServiceToken } from '@poietica/feature-attachments/core-api'
 import { CheckpointServiceToken } from '@poietica/feature-checkpoints/core-api'
 import { JournalServiceToken } from '@poietica/feature-journal/core-api'
-import { SessionPoolFactoryToken, SubmissionsRepositoryToken } from '@poietica/feature-runs/core-api'
+import {
+  SessionPoolFactoryToken,
+  SubmissionsRepositoryToken,
+  TurnContextRegistryToken,
+} from '@poietica/feature-runs/core-api'
 import { ThreadsRepositoryToken, ThreadsServiceToken } from '@poietica/feature-threads/core-api'
 import { TimelineServiceToken } from '@poietica/feature-timeline/core-api'
 import { type WorkspaceRemoved, WorkspacesServiceToken, workspaceRemoved } from '@poietica/feature-workspaces/core-api'
@@ -10,7 +14,6 @@ import { conversationContract } from '../contract'
 import {
   ConversationServiceToken,
   submissionFailed,
-  TurnContextRegistryToken,
   threadRemoved,
   turnFileChanged,
   turnSettled,
@@ -22,7 +25,6 @@ import { conversationService } from './conversation-service'
 import { registerHandlers } from './handlers'
 import { registerImageTool } from './image-tool'
 import { migrations } from './migrations'
-import { TurnContextHub } from './runs/turn-context'
 import { SideTopicHub } from './side-topic-hub'
 import { wireEventsNotice, wireResetNotice } from './wire'
 
@@ -50,7 +52,7 @@ export default defineCoreModule({
     const submissionsRepo = ctx.services.get(SubmissionsRepositoryToken)
     const createSessionPool = ctx.services.get(SessionPoolFactoryToken)
     /* 别的功能（例如 intelligent-ui）往这里登记「下一句顺带告诉模型的事」；交接时由提交服务收一次 */
-    const turnContext = new TurnContextHub(ctx.logger)
+    const turnContext = ctx.services.get(TurnContextRegistryToken)
     const core = new ConversationCore({
       db: ctx.db,
       repo: threadsRepository,
@@ -96,7 +98,6 @@ export default defineCoreModule({
     // R-13：agent 往对话里展示图片的正式入口。工具集在全部 setup 之后冻结，只能在这里注册
     registerImageTool({ tools: ctx.agentTools, attachments })
     ctx.services.provide(ConversationServiceToken, conversationService(core))
-    ctx.services.provide(TurnContextRegistryToken, turnContext)
 
     // 引擎配置变化：会话池换代 —— 空闲的立刻释放；变更时正在跑的会话这一轮结束后释放（R-03）
     const invalidateSessions = (): void => {

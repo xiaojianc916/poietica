@@ -1,17 +1,9 @@
 import { type Disposable, invariant, type Logger, toDisposable } from '@poietica/foundation'
 import type { TurnContextBlock } from '@poietica/runtime-protocol'
-import type { TurnContextPart, TurnContextProvider, TurnContextRegistry } from '../../core-api'
+import type { CollectedContext, TurnContextPart, TurnContextProvider, TurnContextRegistry } from '../core-api'
 
 /** 一块上下文的上限（字符数）：提供方写坏了也撑不爆一轮。超了整块不带，记一条 warn */
 export const TURN_CONTEXT_MAX = 16_384
-
-export interface CollectedContext {
-  readonly blocks: readonly TurnContextBlock[]
-  /** 这一句确实交给了引擎：逐个回调提供方 */
-  delivered(): void
-  /** 交出之后又没送到（排队项被丢弃 / 撤回）：逐个让提供方撤销 `delivered` */
-  undelivered(): void
-}
 
 const NOTHING: CollectedContext = { blocks: [], delivered: () => undefined, undelivered: () => undefined }
 

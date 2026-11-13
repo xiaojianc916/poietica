@@ -1,7 +1,12 @@
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { CheckpointService } from '@poietica/feature-checkpoints/core-api'
 import type { JournalService } from '@poietica/feature-journal/core-api'
-import type { CreateSessionPool, SessionPool, SubmissionsRepository } from '@poietica/feature-runs/core-api'
+import type {
+  CreateSessionPool,
+  SessionPool,
+  SubmissionsRepository,
+  TurnContextRegistry,
+} from '@poietica/feature-runs/core-api'
 import type { ThreadsRepository, ThreadsService } from '@poietica/feature-threads/core-api'
 import type { TimelineService } from '@poietica/feature-timeline/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
@@ -18,7 +23,6 @@ import type {
 import type { ModuleDatabase } from '@poietica/storage-sqlite'
 import type { QueueView, Thread, TurnState } from '../contract/entities'
 import { SubmissionService } from './runs/submission-service'
-import type { TurnContextHub } from './runs/turn-context'
 import { TurnService } from './runs/turn-service'
 import type { ConversationRuntime } from './runtime'
 import type { SideDelta } from './side-topic-hub'
@@ -83,7 +87,7 @@ export interface ConversationCoreDeps {
   readonly emitThreadRemovedEvent: (p: { threadId: string }) => void
   readonly emitUsageSampled: (p: { threadId: string; sample: UsageSample; at: number }) => void
   /** 轮次上下文登记处（index.ts 建一个、同时作为 TurnContextRegistryToken 提供出去）；测试可缺省 */
-  readonly turnContext?: TurnContextHub
+  readonly turnContext?: TurnContextRegistry
   /** 用户发出去一句话（准入）→ usage 的「消息数量」日账（ADR 0039） */
   readonly emitUserMessage: (p: { threadId: string; at: number }) => void
 }

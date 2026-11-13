@@ -1,9 +1,6 @@
 import { defineCoreModule } from '@poietica/core-kernel'
-import {
-  ConversationServiceToken,
-  TurnContextRegistryToken,
-  threadRemoved,
-} from '@poietica/feature-conversation/core-api'
+import { ConversationServiceToken, threadRemoved } from '@poietica/feature-conversation/core-api'
+import { TurnContextRegistryToken } from '@poietica/feature-runs/core-api'
 import { AppError } from '@poietica/foundation'
 import { intelligentUiContract, intelligentUiErrors } from '../contract'
 import { migrations } from './migrations'
@@ -21,7 +18,7 @@ import { registerIntelligentUiTools } from './tool'
 export default defineCoreModule({
   id: 'intelligent-ui',
   contract: intelligentUiContract,
-  dependsOn: ['conversation'],
+  dependsOn: ['conversation', 'runs'],
   migrations,
   setup(ctx) {
     registerIntelligentUiTools({ tools: ctx.agentTools })
