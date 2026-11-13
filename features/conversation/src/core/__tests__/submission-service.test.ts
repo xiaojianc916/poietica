@@ -272,6 +272,30 @@ describe('R-20-1 排队项收口', () => {
     return { ...ctx, submits }
   }
 
+  test('submit 返回时会话事件还没到：不把已送达的一句误判成 dropped', async () => {
+    const submits: SubmitInput[] = []
+    const { service, repo } = serviceOf({
+      session: () => ({
+        ...fakeSession(submits, false),
+        /* ARP 事件可能晚于 submit 响应到达：这一刻 Core 看到的 state 仍是 idle */
+        submit: async (input: SubmitInput) => {
+          submits.push(input)
+        },
+      }),
+    })
+    service.submit({
+      threadId: 't1',
+      clientTurnId: 'c1',
+      text: 'hi',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'turn',
+    })
+    await waitFor(() => submits.length === 1)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(repo.get('c1')).toMatchObject({ status: 'pending', error: null })
+  })
+
   test('忙时发出的一句降级成排队：交给引擎时带上自己的号', async () => {
     const { submits } = await queuedOne()
     expect(submits.map((input) => [input.deliverAs, input.ref])).toEqual([['followUp', 'c1']])

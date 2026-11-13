@@ -126,7 +126,9 @@ export function createCheckpointService(o: CreateCheckpointServiceOptions): Chec
     const meta = checkpointMeta(workspaceRoot, input)
     const repoDir = await ensureRepo(workspaceRoot)
     const shadowRel = path.relative(workspaceRoot, repoDir)
-    const exclude = shadowRel.length > 0 && !shadowRel.startsWith('..') ? [`:(exclude)${shadowRel}/**`] : []
+    /* 跨盘符时 path.relative 返回绝对路径（如 C:\...），不能当成仓库内相对路径传 --exclude */
+    const outsideWorkspace = shadowRel.startsWith('..') || path.isAbsolute(shadowRel)
+    const exclude = shadowRel.length > 0 && !outsideWorkspace ? [`:(exclude)${shadowRel.replaceAll('\\', '/')}/**`] : []
     await shadow(workspaceRoot, ['add', '-A', '--', '.', ...exclude])
     await shadow(workspaceRoot, ['commit', '--allow-empty', '--no-verify', '-m', JSON.stringify(meta)])
     const id = (await shadow(workspaceRoot, ['rev-parse', 'HEAD'])).stdout.trim()

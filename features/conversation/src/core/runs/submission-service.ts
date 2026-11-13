@@ -457,9 +457,6 @@ export class SubmissionService {
       this.handOverQueuedContext(row.clientTurnId)
       /* 结局可能已经先到（送达 → 行已删 / 丢弃 → failed）：只有还停在 pending 才记成 queued */
       if (this.d.repo.get(row.clientTurnId)?.status === 'pending') this.update(row.clientTurnId, { status: 'queued' })
-    } else if (this.pendingTurn.get(row.threadId) === row.clientTurnId && session.state() === 'idle') {
-      /* 引擎收下又丢了（开轮没开起来）：这一句没送达，上下文也不算交出 */
-      throw new AppError(conversationErrors.submit_dropped, conversationErrors.submit_dropped)
     } else {
       /* 开轮成功才算送达 */
       context?.delivered()
