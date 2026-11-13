@@ -17,7 +17,7 @@ import { ConversationCore } from '../conversation'
 import { migrations } from '../migrations'
 import { fakeJournal } from './fake-journal'
 import { deferredOpenEngine } from './helpers'
-import { createTestSubmissionService, createTestThreads } from './test-threads'
+import { createTestSubmissionService, createTestThreads, createTestTurnService } from './test-threads'
 
 /** 直接构造 ConversationCore：注入内存库、假工作区与假附件服务，比装整个内核更快也更聚焦 */
 async function makeCore(
@@ -99,6 +99,7 @@ async function makeCore(
   const core = new ConversationCore({
     db: db.forModule('conversation'),
     submissionsService: createTestSubmissionService(db.forModule('conversation'), systemClock),
+    turnService: createTestTurnService(systemClock),
     createSessionPool,
 
     repo: createThreadsRepository(db.forModule('conversation')),
@@ -312,6 +313,7 @@ describe('conversation core（不经内核的直连测试）', () => {
     const core = new ConversationCore({
       db: db.forModule('conversation'),
       submissionsService: createTestSubmissionService(db.forModule('conversation'), systemClock),
+      turnService: createTestTurnService(systemClock),
       createSessionPool,
 
       repo: createThreadsRepository(db.forModule('conversation')),
@@ -1079,6 +1081,7 @@ describe('conversation core（不经内核的直连测试）', () => {
       const core = new ConversationCore({
         db: moduleDb,
         submissionsService: createTestSubmissionService(moduleDb, systemClock),
+        turnService: createTestTurnService(systemClock),
         createSessionPool,
         repo: createThreadsRepository(moduleDb),
         threads: createTestThreads(moduleDb, systemClock),

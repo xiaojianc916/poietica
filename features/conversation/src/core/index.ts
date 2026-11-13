@@ -6,6 +6,7 @@ import {
   SessionPoolFactoryToken,
   SubmissionServiceToken,
   TurnContextRegistryToken,
+  TurnServiceToken,
 } from '@poietica/feature-runs/core-api'
 import { ThreadsRepositoryToken, ThreadsServiceToken } from '@poietica/feature-threads/core-api'
 import { TimelineServiceToken } from '@poietica/feature-timeline/core-api'
@@ -50,6 +51,7 @@ export default defineCoreModule({
     const threadsRepository = ctx.services.get(ThreadsRepositoryToken)
     const threadsService = ctx.services.get(ThreadsServiceToken)
     const submissionsService = ctx.services.get(SubmissionServiceToken)
+    const turnService = ctx.services.get(TurnServiceToken)
     const createSessionPool = ctx.services.get(SessionPoolFactoryToken)
     /* 别的功能（例如 intelligent-ui）往这里登记「下一句顺带告诉模型的事」；交接时由提交服务收一次 */
     const turnContext = ctx.services.get(TurnContextRegistryToken)
@@ -58,6 +60,7 @@ export default defineCoreModule({
       repo: threadsRepository,
       threads: threadsService,
       submissionsService,
+      turnService,
       createSessionPool,
       runtime: { ...ctx.agentRuntime.sessions, models: ctx.agentRuntime.models, settings: ctx.agentRuntime.settings },
       journal: ctx.services.get(JournalServiceToken),

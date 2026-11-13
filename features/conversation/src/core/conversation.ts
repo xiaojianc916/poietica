@@ -6,8 +6,9 @@ import type {
   SessionPool,
   SubmissionService,
   TurnContextRegistry,
+  TurnService,
 } from '@poietica/feature-runs/core-api'
-import type { ThreadsRepository, ThreadsService } from '@poietica/feature-threads/core-api'
+import type { ThreadRow, ThreadsRepository, ThreadsService } from '@poietica/feature-threads/core-api'
 import type { TimelineService } from '@poietica/feature-timeline/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import type { Clock, Logger } from '@poietica/foundation'
@@ -22,7 +23,6 @@ import type {
 } from '@poietica/runtime-protocol'
 import type { ModuleDatabase } from '@poietica/storage-sqlite'
 import type { QueueView, Thread, TurnState } from '../contract/entities'
-import { TurnService } from './runs/turn-service'
 import type { ConversationRuntime } from './runtime'
 import type { SideDelta } from './side-topic-hub'
 import { EventRouter } from './timeline/event-router'
@@ -33,6 +33,7 @@ export interface ConversationCoreDeps {
   readonly threads: ThreadsService
   readonly createSessionPool: CreateSessionPool
   readonly submissionsService: SubmissionService
+  readonly turnService: TurnService
   readonly runtime: ConversationRuntime
   readonly journal: JournalService
   readonly checkpoints?: CheckpointService
@@ -223,24 +224,24 @@ export class ConversationCore {
       emitUsageSampled: d.emitUsageSampled,
     })
 
-    this.turns = new TurnService({
-      runtime: d.runtime,
+    this.turns = d.turnService
+    this.turns.configure({
+      runtime: {
+        commandCatalog: d.runtime.commandCatalog,
+        draftControls: d.runtime.draftControls,
+        models: d.runtime.models,
+        sessionFiles: d.runtime.sessionFiles,
+      },
       journal: d.journal,
       repo,
       pool: this.pool,
-      hub: d.hub,
       router: this.router,
       submissions: this.submissions,
       workspaces: d.workspaces,
-      attachments: d.attachments,
-      clock: d.clock,
-      logger: d.logger,
-      requireRow: (threadId) => this.threads.requireRow(threadId),
       threads: {
-        threadOf: (row) => this.threads.threadOf(row),
-        setPosture: (threadId, posture) => {
-          this.threads.setPosture(threadId, posture)
-        },
+        requireRow: (threadId) => this.threads.requireRow(threadId),
+        threadOf: (row) => this.threads.threadOf(row as ThreadRow),
+        setPosture: (threadId, posture) => this.threads.setPosture(threadId, posture),
       },
       emitThreadUpdated: d.emitThreadUpdated,
       emitUserMessage: d.emitUserMessage,

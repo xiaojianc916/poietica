@@ -50,3 +50,5 @@ export const SubmissionsRepositoryToken = defineServiceToken<SubmissionsReposito
 export * from './session-pool'
 export * from './submission-service'
 export * from './turn-context'
+
+export * from './turn-service'

@@ -10,7 +10,7 @@ import { createTestLogger, tempDir, waitFor } from '@poietica/test-kit'
 import { ConversationCore } from '../conversation'
 import { migrations } from '../migrations'
 import { fakeJournal } from './fake-journal'
-import { createTestSubmissionService, createTestThreads } from './test-threads'
+import { createTestSubmissionService, createTestThreads, createTestTurnService } from './test-threads'
 
 /*
  * 性能方案 P4：看对话不开会话。时间线的冷读在 P1（timeline-channel 的用例）；这里钉住其余四个读 ——
@@ -38,6 +38,7 @@ async function makeCore(options: { readonly contextUsage?: ContextUsage } = {}) 
   const core = new ConversationCore({
     db: moduleDb,
     submissionsService: createTestSubmissionService(moduleDb, systemClock),
+    turnService: createTestTurnService(systemClock),
     createSessionPool,
     repo: createThreadsRepository(moduleDb),
     threads: createTestThreads(moduleDb, clock),

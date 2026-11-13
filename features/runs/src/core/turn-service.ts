@@ -6,13 +6,9 @@ import {
   type TranscriptPage,
   turnOrdinal,
 } from '@poietica/agent-model'
-import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
-import type { SessionPool } from '@poietica/feature-runs/core-api'
-import type { ThreadsRepository } from '@poietica/feature-threads/core-api'
-import type { TimelineService } from '@poietica/feature-timeline/core-api'
-import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, type Clock, type Logger, SystemErrorCode } from '@poietica/foundation'
-import { controlsFromSnapshot } from '@poietica/product-model'
+import type { QueueView, SubmissionView } from '@poietica/product-model'
+import { controlsFromSnapshot, DEFAULT_POSTURE, type TurnState } from '@poietica/product-model'
 import {
   type Controls,
   EngineErrorCode,
@@ -25,50 +21,33 @@ import {
   type SideTopic,
   type SlashCommand,
 } from '@poietica/runtime-protocol'
-import type { QueueView } from '../../contract'
-import { DEFAULT_POSTURE, type Thread, type TurnState } from '../../contract/entities'
-import { conversationErrors } from '../../contract/errors'
-import type { ConversationRuntime } from '../runtime'
-import type { EventRouter } from '../timeline/event-router'
-import { eventsFromPage, pagesToPage } from '../timeline/journal-rebuild'
+import type { TurnServicePorts } from '../core-api'
+import { TurnErrorCode } from '../core-api'
+import { eventsFromPage, pagesToPage } from './journal-rebuild'
 
 /**
  * 回合服务（07 页 §5C 的 `turn-service.ts`）：submit / cancel / queue / controls / interactions，
  * 以及时间线的三段读（page / subscribe / catchUp 的数据面）。
  */
-export interface TurnServiceDeps {
-  readonly runtime: ConversationRuntime
-  readonly journal: import('@poietica/feature-journal/core-api').JournalService
-  readonly repo: ThreadsRepository
-  readonly pool: SessionPool
-  readonly hub: TimelineService
-  readonly router: EventRouter
-  /** 「Core 即时回显」的提交服务：submit / cancel / retry / discard 都归它。 */
-  readonly submissions: import('@poietica/feature-runs/core-api').SubmissionService
-  readonly workspaces: WorkspacesService
-  readonly attachments: AttachmentsService
+interface TurnServiceBaseDeps {
   readonly clock: Clock
   readonly logger: Logger
-  readonly requireRow: (threadId: string) => import('@poietica/feature-threads/core-api').ThreadRow
-  /** 线程服务：setPostureAction 要同时把线程行改掉；读线程形状走 threadOf */
-  readonly threads: {
-    threadOf(row: import('@poietica/feature-threads/core-api').ThreadRow): Thread
-    setPosture(threadId: string, posture: Posture): void
-  }
-  readonly emitThreadUpdated: (thread: Thread) => void
-  /** 用户发出去一句话（准入）→ usage 的日账（07 页 §5C / ADR 0039） */
-  readonly emitUserMessage: (p: { threadId: string; at: number }) => void
 }
 
 /** 没开着的会话的队列：空，两档模式是每条新会话的起点（与引擎 OmpSession 的初值同一份） */
 const IDLE_QUEUE: QueueSnapshot = { items: [], modes: { steer: 'all', followUp: 'all' } }
 
 export class TurnService {
-  constructor(private readonly d: TurnServiceDeps) {}
+  private p!: TurnServicePorts
+  constructor(private readonly d: TurnServiceBaseDeps) {}
+
+  configure(ports: TurnServicePorts): void {
+    this.p = ports
+  }
 
   // ── 会话池的三个口（供 handlers / 组合根用；读时间线不在这里取会话，见 page）────────────
   peek(threadId: string): EngineSession | undefined {
-    return this.d.pool.peek(threadId)
+    return this.p.pool.peek(threadId)
   }
 
   /**
@@ -76,22 +55,22 @@ export class TurnService {
    * 读（时间线、控件、队列、命令、侧边话题）一律不经过这里，看一眼历史对话不开会话（性能方案 P1 / P4）。
    */
   async open(threadId: string): Promise<void> {
-    this.d.requireRow(threadId)
-    await this.d.pool.acquire(threadId).catch((e: unknown) => {
+    this.p.threads.requireRow(threadId)
+    await this.p.pool.acquire(threadId).catch((e: unknown) => {
       this.d.logger.warn('session prewarm failed', { threadId, error: String(e) })
       return undefined
     })
   }
 
   async close(threadId: string): Promise<void> {
-    const session = this.d.pool.peek(threadId)
+    const session = this.p.pool.peek(threadId)
     if (session === undefined || session.isBusy()) return
-    await this.d.pool.release(threadId)
+    await this.p.pool.release(threadId)
   }
 
   /** 配置变更 → 会话池换代（R-03；调用方同步改名） */
   async invalidateSessions(): Promise<void> {
-    await this.d.pool.invalidate()
+    await this.p.pool.invalidate()
   }
 
   // ── 回合（服务行为表）────────────────────────────────────────────────────
@@ -102,25 +81,25 @@ export class TurnService {
     attachmentIds: readonly string[]
     skills: readonly string[]
     deliverAs: 'turn' | 'steer' | 'followUp'
-  }): Promise<{ submission: import('../../contract').SubmissionView }> {
+  }): Promise<{ submission: SubmissionView }> {
     /*
      * 「Core 即时回显」：这里只存库、推送、回复（几毫秒），打开会话与交给 omp 由
      * SubmissionService 在后台做。忙时不再报 thread_busy —— 交接时自动改成排队。
-     */ return { submission: this.d.submissions.submit(input) }
+     */ return { submission: this.p.submissions.submit(input) }
   }
 
   async cancel(threadId: string): Promise<void> {
     /* 还没交给 omp 的 pending 直接收成 failed / submit_cancelled。 */
-    this.d.submissions.cancelUnhanded(threadId)
-    const session = this.d.pool.peek(threadId)
+    this.p.submissions.cancelUnhanded(threadId)
+    const session = this.p.pool.peek(threadId)
     if (session === undefined) return
-    this.d.router.requestCancel(threadId)
+    this.p.router.requestCancel(threadId)
     await session.cancel()
   }
 
   /** 时间线订阅要画的提交行（线程还没有会话时也要返回）。 */
-  submissionsOf(threadId: string, stamped: ReadonlySet<string>): import('../../contract').SubmissionView[] {
-    return this.d.submissions.viewOfThread(threadId, stamped)
+  submissionsOf(threadId: string, stamped: ReadonlySet<string>): SubmissionView[] {
+    return this.p.submissions.viewOfThread(threadId, stamped)
   }
 
   // ── 时间线（timeline 三段）───────────────────────────────────────────────
@@ -135,21 +114,21 @@ export class TurnService {
     if (this.backfilling.has(key)) return
     this.backfilling.add(key)
     try {
-      const first = await this.d.runtime.sessionFiles.readPage(sessionFile, agentId, null)
+      const first = await this.p.runtime.sessionFiles.readPage(sessionFile, agentId, null)
       const pages = [first]
       let page = first
       /* 往回翻到没有更旧的页；上限 500 页（约 1 万轮），再长就留给后续任务。 */
       while (page.hasMoreOlder === true && pages.length < 500) {
         const oldest = page.items.find((item) => item.kind === 'turn')
         if (oldest === undefined || oldest.kind !== 'turn') break
-        page = await this.d.runtime.sessionFiles.readPage(sessionFile, agentId, oldest.turnId)
+        page = await this.p.runtime.sessionFiles.readPage(sessionFile, agentId, oldest.turnId)
         pages.push(page)
       }
       if (page.hasMoreOlder === true) return
       const full = pagesToPage(pages)
       if (full === null) return
-      if (this.d.journal.latestSeq(threadId, agentId) !== 0) return
-      this.d.journal.appendAndStamp(
+      if (this.p.journal.latestSeq(threadId, agentId) !== 0) return
+      this.p.journal.appendAndStamp(
         threadId,
         agentId,
         eventsFromPage(full, threadId, agentId, new Date(this.d.clock.now()).toISOString()),
@@ -217,21 +196,21 @@ export class TurnService {
     beforeTurnId: string | null,
     options: { readonly throughTurnId: string } | undefined,
   ): Promise<TranscriptPage> {
-    const live = this.d.pool.peek(threadId)
+    const live = this.p.pool.peek(threadId)
     if (live !== undefined) return await live.page(agentId, beforeTurnId, options)
-    const { sessionFile } = this.d.requireRow(threadId)
+    const { sessionFile } = this.p.threads.requireRow(threadId)
     if (sessionFile === null) return this.emptyPage()
     /* 冷读优先用 Journal：它已经按 seq 落好 committed 事件，不必再读/重放会话文件。
        头页与旧页都由 Journal 折叠；记录不完整或截断时回退会话文件。 */
     if (agentId === 'main') {
       /* 旧线程第一次冷读：Journal 还没有记录，先把短会话从会话文件回填一次（长会话留给后台任务）。 */
-      if (this.d.journal.latestSeq(threadId, agentId) === 0) {
+      if (this.p.journal.latestSeq(threadId, agentId) === 0) {
         /* 后台回填：这一次冷读先走会话文件，不让首屏等整个重建。 */
         void this.backfillJournal(threadId, agentId, sessionFile)
       }
-      const latest = this.d.journal.latestSeq(threadId, agentId)
+      const latest = this.p.journal.latestSeq(threadId, agentId)
       if (latest > 0) {
-        const events = this.d.journal.read(threadId, agentId, 0, 100_000)
+        const events = this.p.journal.read(threadId, agentId, 0, 100_000)
         /* 只取了前 10 万条时最后一条追不上水位：最近的一轮可能没读到，交给会话文件。 */
         if (events.at(-1)?.seq === latest) {
           const fromJournal = pageFromJournal(events, beforeTurnId)
@@ -239,7 +218,7 @@ export class TurnService {
         }
       }
     }
-    return await this.d.runtime.sessionFiles.readPage(sessionFile, agentId, beforeTurnId, options)
+    return await this.p.runtime.sessionFiles.readPage(sessionFile, agentId, beforeTurnId, options)
   }
 
   // ── 队列（queue 三方法）──────────────────────────────────────────────────
@@ -248,15 +227,15 @@ export class TurnService {
    * 两档模式也是新会话的起点（引擎每条会话都从 all / all 起，不落盘）—— 与「为这一读打开会话再问」逐字相同。
    */
   async queue(threadId: string): Promise<QueueView> {
-    const live = this.d.pool.peek(threadId)
+    const live = this.p.pool.peek(threadId)
     if (live !== undefined) return this.queueViewOf(threadId, live)
-    this.d.requireRow(threadId)
-    return this.d.submissions.queueViewOf(threadId, IDLE_QUEUE)
+    this.p.threads.requireRow(threadId)
+    return this.p.submissions.queueViewOf(threadId, IDLE_QUEUE)
   }
 
   /** 队列只从这里出去：引擎快照挂上提交行的附件，界面才画得出缩略图（见 SubmissionService.queueViewOf） */
   private queueViewOf(threadId: string, session: EngineSession): QueueView {
-    return this.d.submissions.queueViewOf(threadId, session.queue())
+    return this.p.submissions.queueViewOf(threadId, session.queue())
   }
 
   async withdraw(threadId: string, itemId: string): Promise<QueueView> {
@@ -264,7 +243,7 @@ export class TurnService {
      * 队列只存在于活会话里（peek 不 acquire）：为撤回一条排队项去冷启动一条会话没有意义，
      * 冷启动出来的队列一定是空的。没有活会话就是「队列里没有这一项」。
      */
-    const session = this.d.pool.peek(threadId)
+    const session = this.p.pool.peek(threadId)
     if (session === undefined) throw new AppError(SystemErrorCode.notFound, '队列里没有这一项')
     session.withdraw(itemId)
     return this.queueViewOf(threadId, session)
@@ -276,7 +255,7 @@ export class TurnService {
    * `engine.queue_item_consumed`，这里原样放行。
    */
   async move(threadId: string, itemId: string, deliverAs: 'steer' | 'followUp'): Promise<QueueView> {
-    const session = this.d.pool.peek(threadId)
+    const session = this.p.pool.peek(threadId)
     if (session === undefined) throw new AppError(SystemErrorCode.notFound, '队列里没有这一项')
     await session.moveQueued(itemId, deliverAs)
     return this.queueViewOf(threadId, session)
@@ -288,21 +267,21 @@ export class TurnService {
    * 冷启动出来的会话里它一定已经不在跑了。没有活会话就是「它已经结束了」。
    */
   async cancelSubagent(threadId: string, agentId: string): Promise<boolean> {
-    return (await this.d.pool.peek(threadId)?.cancelSubagent(agentId)) ?? false
+    return (await this.p.pool.peek(threadId)?.cancelSubagent(agentId)) ?? false
   }
 
   async steerSubagent(threadId: string, agentId: string, text: string): Promise<void> {
-    const session = this.d.pool.peek(threadId)
+    const session = this.p.pool.peek(threadId)
     if (session === undefined) throw new AppError(EngineErrorCode.subagentNotRunning, '这个子代理已经结束了')
     await session.steerSubagent(agentId, text)
   }
 
   async cancelBackgroundTask(threadId: string, taskId: string): Promise<boolean> {
-    return (await this.d.pool.peek(threadId)?.cancelBackgroundTask(taskId)) ?? false
+    return (await this.p.pool.peek(threadId)?.cancelBackgroundTask(taskId)) ?? false
   }
 
   async setQueueModes(threadId: string, modes: Partial<QueueSnapshot['modes']>): Promise<QueueView> {
-    const session = await this.d.pool.acquire(threadId)
+    const session = await this.p.pool.acquire(threadId)
     session.setQueueModes(modes)
     return this.queueViewOf(threadId, session)
   }
@@ -316,19 +295,19 @@ export class TurnService {
    * 会话打开时 Core 主动推一次真值（controls.changed），冷读与真值有出入（模型下架被换掉）也只差到那一刻。
    */
   async controls(threadId: string): Promise<Controls> {
-    const live = this.d.pool.peek(threadId)
+    const live = this.p.pool.peek(threadId)
     if (live !== undefined) return live.controls()
-    const row = this.d.requireRow(threadId)
+    const row = this.p.threads.requireRow(threadId)
     if (row.sessionFile === null) {
-      return await this.d.runtime.draftControls({
+      return await this.p.runtime.draftControls({
         model: row.initialModel,
         thinking: row.initialThinking,
         posture: row.posture,
       })
     }
-    const snapshot = this.d.repo.controlsSnapshot(threadId)
-    if (snapshot === null) return (await this.d.pool.acquire(threadId)).controls()
-    const draft = await this.d.runtime.draftControls({
+    const snapshot = this.p.repo.controlsSnapshot(threadId)
+    if (snapshot === null) return (await this.p.pool.acquire(threadId)).controls()
+    const draft = await this.p.runtime.draftControls({
       model: snapshot.model,
       thinking: snapshot.thinking.current,
       posture: row.posture,
@@ -349,7 +328,7 @@ export class TurnService {
     posture: Posture | null
     hidden?: readonly string[] | undefined
   }): Promise<Controls> {
-    return this.d.runtime.draftControls({
+    return this.p.runtime.draftControls({
       model: init.model,
       thinking: init.thinking,
       posture: init.posture ?? DEFAULT_POSTURE,
@@ -370,55 +349,55 @@ export class TurnService {
     const model =
       input.model ??
       (
-        await this.d.runtime.draftControls({
+        await this.p.runtime.draftControls({
           model: null,
           ...(input.hidden === undefined ? {} : { hidden: input.hidden }),
         })
       ).model.current
     if (model === null) throw new AppError(SystemErrorCode.invalidParams, '没有可用的模型，无法写入默认选择')
-    await this.d.runtime.models.setDefaultModel(model, input.thinking)
+    await this.p.runtime.models.setDefaultModel(model, input.thinking)
   }
 
   async setModel(threadId: string, model: ModelRef): Promise<Controls> {
-    const session = await this.d.pool.acquire(threadId)
+    const session = await this.p.pool.acquire(threadId)
     await session.setModel(model)
     return session.controls()
   }
 
   async setThinking(threadId: string, level: string): Promise<Controls> {
-    const session = await this.d.pool.acquire(threadId)
+    const session = await this.p.pool.acquire(threadId)
     session.setThinking(level)
     return session.controls()
   }
 
   /** controls.setPosture 同时更新线程行，保证两边一致 */
   async setPostureAction(threadId: string, posture: Posture): Promise<Controls> {
-    const session = await this.d.pool.acquire(threadId)
+    const session = await this.p.pool.acquire(threadId)
     session.setPosture(posture)
-    this.d.threads.setPosture(threadId, posture)
+    this.p.threads.setPosture(threadId, posture)
     return session.controls()
   }
 
   async setPlanMode(threadId: string, enabled: boolean): Promise<Controls> {
-    const session = await this.d.pool.acquire(threadId)
+    const session = await this.p.pool.acquire(threadId)
     await session.setPlanMode(enabled)
     return session.controls()
   }
 
   async setGoal(threadId: string, goal: string | null): Promise<Controls> {
-    const session = await this.d.pool.acquire(threadId)
+    const session = await this.p.pool.acquire(threadId)
     await session.setGoal(goal)
     return session.controls()
   }
 
   async pauseGoal(threadId: string): Promise<Controls> {
-    const session = await this.d.pool.acquire(threadId)
+    const session = await this.p.pool.acquire(threadId)
     await session.pauseGoal()
     return session.controls()
   }
 
   async resumeGoal(threadId: string): Promise<Controls> {
-    const session = await this.d.pool.acquire(threadId)
+    const session = await this.p.pool.acquire(threadId)
     await session.resumeGoal()
     return session.controls()
   }
@@ -430,21 +409,21 @@ export class TurnService {
    * 会话打开时 Core 发 commands.changed，UI 重读就换成活会话那张。
    */
   async commands(threadId: string): Promise<readonly SlashCommand[]> {
-    const live = this.d.pool.peek(threadId)
+    const live = this.p.pool.peek(threadId)
     if (live !== undefined) return await live.commands()
-    const row = this.d.requireRow(threadId)
-    const cwd = this.d.workspaces.requireUsable(row.workspaceId).path
-    return await this.d.runtime.commandCatalog(cwd, { history: row.sessionFile !== null })
+    const row = this.p.threads.requireRow(threadId)
+    const cwd = this.p.workspaces.requireUsable(row.workspaceId).path
+    return await this.p.runtime.commandCatalog(cwd, { history: row.sessionFile !== null })
   }
 
   /** 入口页的命令表：不开会话，文件命令按工作区目录读（没给工作区就只有内置命令） */
   async commandCatalog(workspaceId: string | undefined): Promise<readonly SlashCommand[]> {
-    const cwd = workspaceId === undefined ? null : this.d.workspaces.requireUsable(workspaceId).path
-    return await this.d.runtime.commandCatalog(cwd)
+    const cwd = workspaceId === undefined ? null : this.p.workspaces.requireUsable(workspaceId).path
+    return await this.p.runtime.commandCatalog(cwd)
   }
 
   async runCommand(threadId: string, text: string): Promise<void> {
-    const session = await this.d.pool.acquire(threadId)
+    const session = await this.p.pool.acquire(threadId)
     await session.runCommand(text)
   }
 
@@ -454,13 +433,13 @@ export class TurnService {
    * 进行中由引擎拒绝（engine.side_busy）；问题的空白已在契约层收掉。
    */
   async askSide(threadId: string, question: string, topicId: string | null): Promise<SideTopic> {
-    const session = await this.d.pool.acquire(threadId)
+    const session = await this.p.pool.acquire(threadId)
     return await session.askSide(question, topicId)
   }
 
   /** 与 cancelSubagent 同一条理由：正在答的侧边提问只活在活会话里，没有活会话就是「没有在答的」。 */
   cancelSide(threadId: string, topicId: string | null): boolean {
-    return this.d.pool.peek(threadId)?.cancelSide(topicId) ?? false
+    return this.p.pool.peek(threadId)?.cancelSide(topicId) ?? false
   }
 
   /**
@@ -468,29 +447,29 @@ export class TurnService {
    * 话题存档（`SessionFilesPort.sideTopics`，与「重开再问」同一张表）。还没落过盘的线程没有话题可读：空表。
    */
   async sideTopics(threadId: string): Promise<readonly SideTopic[]> {
-    const live = this.d.pool.peek(threadId)
+    const live = this.p.pool.peek(threadId)
     if (live !== undefined) return await live.sideTopics()
-    const { sessionFile } = this.d.requireRow(threadId)
+    const { sessionFile } = this.p.threads.requireRow(threadId)
     if (sessionFile === null) return []
-    return await this.d.runtime.sessionFiles.sideTopics(sessionFile)
+    return await this.p.runtime.sessionFiles.sideTopics(sessionFile)
   }
 
   // ── 交互（07 页 §5C 的 interactions 两方法）───────────────────────────────
   interactions(threadId: string): readonly Interaction[] {
-    return this.d.pool.peek(threadId)?.interactions() ?? []
+    return this.p.pool.peek(threadId)?.interactions() ?? []
   }
 
   async respond(threadId: string, interactionId: string, answer: InteractionAnswer): Promise<void> {
-    const session = this.d.pool.peek(threadId)
+    const session = this.p.pool.peek(threadId)
     if (session === undefined) {
-      throw new AppError(conversationErrors.interaction_not_found, '这个请求已经失效')
+      throw new AppError(TurnErrorCode.interactionNotFound, '这个请求已经失效')
     }
     session.respond(interactionId, answer)
   }
 
   // ── 小工具 ────────────────────────────────────────────────────────────────
   stateOf(threadId: string): TurnState['state'] {
-    return this.d.pool.peek(threadId)?.state() ?? 'idle'
+    return this.p.pool.peek(threadId)?.state() ?? 'idle'
   }
 }
 

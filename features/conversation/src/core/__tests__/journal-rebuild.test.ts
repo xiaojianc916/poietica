@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { EMPTY_THREAD_STATE, reduceAll, snapshotOf, type TranscriptPage } from '@poietica/agent-model'
-import { eventsFromPage, pagesToPage } from '../timeline/journal-rebuild'
+import { eventsFromPage, pagesToPage } from '@poietica/feature-runs/core'
 
 const at = '2026-11-08T00:00:00.000Z'
 
