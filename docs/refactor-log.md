@@ -427,3 +427,4 @@
 | v2-P5                  | 2026-11-11 | 影子检查点 create/list/diff/restore、手动改动冲突、恢复再打点；`checkpoint.created` 进 Journal；diff 独立包；隔离 worktree 与写租约能力（协议 61 → 64）                                                        |
 | v2-P6                  | 2026-11-13 | outbox / jobs / 幂等 / workflows + 分发器 / 启动续跑；统一设置注册表；三进程清单与契约汇总改为目录生成、模块类型声明；conversation 拆分未做                                                                    |
 | v2-P7                  | 2026-11-13 | omp 锁版本、导出/事件差分、未知事件/工具兜底；深层 import 73 处，待上游公开导出                                                                                                                                |
+| v2-P6c                 | 2026-11-13 | conversation 内部按 threads/runs/timeline/composer 分组；timeline 抽为独立 feature（TimelineServiceToken，通知仍归 conversation 契约）                                                                         |
