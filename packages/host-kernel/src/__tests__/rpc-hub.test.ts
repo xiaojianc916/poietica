@@ -13,7 +13,7 @@ import { transportPair } from '@poietica/rpc/testing'
 import { createTestLogger } from '@poietica/test-kit'
 import { z } from 'zod'
 import type { CoreStatus, CoreSupervisor } from '../core-supervisor'
-import { type HubWebContents, RpcHub } from '../rpc-hub'
+import { type HubWebContents, missingHostMethods, RpcHub } from '../rpc-hub'
 
 const hostContract = defineContract({
   id: 'platform',
@@ -476,5 +476,34 @@ describe('RpcHub', () => {
       sup.setStatus({ state: 'ready', reason: null, attempt: 0 })
       expect(await hub.coreCaller().call(coreContract, 'conversation.list', {})).toEqual({ items: ['x'] })
     })
+  })
+})
+
+describe('missingHostMethods', () => {
+  test('窗口主题订阅由 RpcHub 直接处理，不算缺实现', () => {
+    const side = defineContract({
+      id: 'side',
+      namespaces: ['side'],
+      methods: [
+        defineMethod({
+          name: 'side.subscribe',
+          owner: 'host',
+          params: z.object({ threadId: z.string(), topicId: z.string() }),
+          result: z.object({}),
+          description: '订阅',
+        }),
+        defineMethod({
+          name: 'side.unimplemented',
+          owner: 'host',
+          params: z.object({}),
+          result: z.object({}),
+          description: '真缺实现',
+        }),
+      ],
+      notifications: [],
+      errors: defineErrors('side', {}),
+    })
+    const app = composeContracts(side)
+    expect(missingHostMethods(app, (name) => name.startsWith('core.'))).toEqual(['side.unimplemented'])
   })
 })

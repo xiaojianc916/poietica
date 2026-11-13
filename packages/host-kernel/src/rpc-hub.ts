@@ -217,6 +217,24 @@ function stringField(value: Record<string, unknown>, key: string): string | null
 }
 
 /** 订阅方法 → 主题键；不是订阅方法交 null。 */
+const TRANSPORT_ONLY_HOST_METHODS = new Set([
+  'terminal.subscribe',
+  'terminal.unsubscribe',
+  'side.subscribe',
+  'side.unsubscribe',
+])
+
+/** 这些 Host 方法由 RpcHub 的窗口主题登记直接处理，不需要模块注册 handler。 */
+export function isTransportOnlyHostMethod(method: string): boolean {
+  return TRANSPORT_ONLY_HOST_METHODS.has(method)
+}
+
+export function missingHostMethods(appContract: AppContract, has: (name: string) => boolean): string[] {
+  return [...appContract.methods.values()]
+    .filter((d) => d.owner === 'host' && !isTransportOnlyHostMethod(d.name) && !has(d.name))
+    .map((d) => d.name)
+}
+
 function subscriptionTopic(
   method: string,
   params: unknown,

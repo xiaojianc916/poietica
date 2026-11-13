@@ -27,7 +27,7 @@ import { createIpcTransport } from './ipc-transport'
 import { HostLoggingToken, type HostModule, type HostModuleContext } from './module'
 import { createQuitCoordinator } from './quit'
 import { createHostRpcBinding } from './rpc-binding'
-import { RpcHub } from './rpc-hub'
+import { missingHostMethods, RpcHub } from './rpc-hub'
 import { WindowRegistry } from './windows'
 
 export interface HostKernelOptions {
@@ -263,9 +263,7 @@ async function boot(
     }
   }
   // 每个 owner='host' 的方法都必须有实现
-  const missing = [...opts.appContract.methods.values()]
-    .filter((d) => d.owner === 'host' && !hostRouter.has(d.name))
-    .map((d) => d.name)
+  const missing = missingHostMethods(opts.appContract, (name) => hostRouter.has(name))
   if (missing.length > 0) {
     fatal(
       logger,
