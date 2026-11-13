@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import path from 'node:path'
 import { ArpEngine } from '@poietica/runtime-manager'
-import { createTestLogger, tempDir } from '@poietica/test-kit'
+import { createTestLogger, tempDir, waitFor } from '@poietica/test-kit'
 
 const worker = path.join(import.meta.dir, 'fixtures', 'engine-worker.ts')
 
@@ -28,6 +28,20 @@ describe('ArpEngine', () => {
       })
       expect(session.state()).toBe('idle')
       expect((await session.page('main', null)).items).toEqual([])
+
+      /* Worker 的事件必须经 runtime.event 回到 Core；缺这条桥，UI 只看得到用户气泡。 */
+      const events: string[] = []
+      session.subscribe((event) => events.push(event.type))
+      await session.submit({
+        text: 'hi',
+        images: [],
+        files: [],
+        skills: [],
+        deliverAs: 'turn',
+      })
+      await waitFor(() => events.includes('timeline'))
+      expect(events).toContain('state')
+
       await session.dispose()
     } finally {
       await engine.dispose()

@@ -8,6 +8,7 @@ import type {
   DraftControlInit,
   EngineInfo,
   EngineSession,
+  EngineSessionEvent,
   EngineToolSpec,
   LoginIO,
   OpenSessionSpec,
@@ -15,6 +16,8 @@ import type {
 } from '@poietica/runtime-protocol'
 import {
   arpEngineSnapshotResult,
+  arpEventMethod,
+  arpEventParams,
   arpLoginAuthParams,
   arpLoginProgressParams,
   arpLoginPromptParams,
@@ -104,7 +107,14 @@ export class ArpEngine implements AgentEngine {
     const engine = new ArpEngine(runtime, { name: 'omp', version: hello.engineVersion }, snapshot, tools, o.logger)
     engineRef = engine
     engine.portSubscription = runtime.onNotification((method, params) => {
-      if (method === arpPortEventMethod) engine.onPortEvent(params)
+      if (method === arpPortEventMethod) {
+        engine.onPortEvent(params)
+        return
+      }
+      if (method === arpEventMethod) {
+        const event = arpEventParams.parse(jsonValue(params))
+        engine.sessions.get(event.key)?.dispatch(event.event as EngineSessionEvent)
+      }
     })
     return engine
   }
