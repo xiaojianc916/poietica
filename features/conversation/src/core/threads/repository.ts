@@ -1,7 +1,7 @@
 import type { ModelRef, Posture } from '@poietica/runtime-protocol'
 import type { ModuleDatabase, SqlValue } from '@poietica/storage-sqlite'
-import type { Thread } from '../contract'
-import { type ControlsSnapshot, parseSnapshot } from './controls-snapshot'
+import type { Thread } from '../../contract'
+import { type ControlsSnapshot, parseSnapshot } from '../composer/controls-snapshot'
 
 export interface ThreadRow {
   id: string

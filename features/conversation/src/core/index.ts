@@ -19,9 +19,9 @@ import { conversationService } from './conversation-service'
 import { registerHandlers } from './handlers'
 import { registerImageTool } from './image-tool'
 import { migrations } from './migrations'
+import { TurnContextHub } from './runs/turn-context'
 import { SideTopicHub } from './side-topic-hub'
-import { TimelineHub } from './timeline-hub'
-import { TurnContextHub } from './turn-context'
+import { TimelineHub } from './timeline/timeline-hub'
 import { wireEventsNotice, wireResetNotice } from './wire'
 
 export default defineCoreModule({

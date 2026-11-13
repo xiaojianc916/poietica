@@ -5,10 +5,10 @@ import type { JournalService } from '@poietica/feature-journal/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, type Clock, type Logger, toAppError } from '@poietica/foundation'
 import type { EngineSession, QueueOutcome, QueueSnapshot } from '@poietica/runtime-protocol'
-import type { QueueView, SubmissionView } from '../contract'
-import { conversationErrors } from '../contract/errors'
+import type { QueueView, SubmissionView } from '../../contract'
+import { conversationErrors } from '../../contract/errors'
+import { OWNER_KEY } from '../threads/thread-service'
 import { type SubmissionRow, type SubmissionsRepository, submissionOf } from './submissions-repository'
-import { OWNER_KEY } from './thread-service'
 import type { CollectedContext } from './turn-context'
 
 /**

@@ -12,7 +12,7 @@ import { createTestLogger, tempDir, waitFor } from '@poietica/test-kit'
 import type { QueueView, Thread } from '../../contract'
 import { ConversationCore } from '../conversation'
 import { migrations } from '../migrations'
-import { TimelineHub } from '../timeline-hub'
+import { TimelineHub } from '../timeline/timeline-hub'
 import { fakeJournal } from './fake-journal'
 import { deferredOpenEngine } from './helpers'
 

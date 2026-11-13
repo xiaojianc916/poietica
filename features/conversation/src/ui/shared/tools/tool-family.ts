@@ -1,4 +1,4 @@
-import type { ToolGlyph } from '../../shared/model/tool-call'
+import type { ToolGlyph } from '../model/tool-call'
 import type { ToolCallTimelineItem } from '../timeline/timeline-contract'
 import { toolGlyphOf } from './omp-tool-glyphs'
 

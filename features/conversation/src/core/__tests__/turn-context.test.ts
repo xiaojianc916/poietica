@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { InvariantError } from '@poietica/foundation'
 import { createTestLogger } from '@poietica/test-kit'
-import { TURN_CONTEXT_MAX, TurnContextHub } from '../turn-context'
+import { TURN_CONTEXT_MAX, TurnContextHub } from '../runs/turn-context'
 
 /* 轮次上下文登记处：别的功能交来「下一句顺带告诉模型的事」，conversation 只负责收齐、交给引擎、回执。 */
 describe('TurnContextHub', () => {

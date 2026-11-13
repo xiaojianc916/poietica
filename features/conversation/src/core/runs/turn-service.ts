@@ -21,16 +21,16 @@ import {
   type SideTopic,
   type SlashCommand,
 } from '@poietica/runtime-protocol'
-import type { QueueView } from '../contract'
-import { DEFAULT_POSTURE, type Thread, type TurnState } from '../contract/entities'
-import { conversationErrors } from '../contract/errors'
-import { controlsFromSnapshot } from './controls-snapshot'
-import type { EventRouter } from './event-router'
-import { eventsFromPage, pagesToPage } from './journal-rebuild'
-import type { ThreadsRepository } from './repository'
-import type { ConversationRuntime } from './runtime'
+import type { QueueView } from '../../contract'
+import { DEFAULT_POSTURE, type Thread, type TurnState } from '../../contract/entities'
+import { conversationErrors } from '../../contract/errors'
+import { controlsFromSnapshot } from '../composer/controls-snapshot'
+import type { ConversationRuntime } from '../runtime'
+import type { ThreadsRepository } from '../threads/repository'
+import type { EventRouter } from '../timeline/event-router'
+import { eventsFromPage, pagesToPage } from '../timeline/journal-rebuild'
+import type { TimelineHub } from '../timeline/timeline-hub'
 import type { SessionPool } from './session-pool'
-import type { TimelineHub } from './timeline-hub'
 
 /**
  * 回合服务（07 页 §5C 的 `turn-service.ts`）：submit / cancel / queue / controls / interactions，
@@ -49,10 +49,10 @@ export interface TurnServiceDeps {
   readonly attachments: AttachmentsService
   readonly clock: Clock
   readonly logger: Logger
-  readonly requireRow: (threadId: string) => import('./repository').ThreadRow
+  readonly requireRow: (threadId: string) => import('../threads/repository').ThreadRow
   /** 线程服务：setPostureAction 要同时把线程行改掉；读线程形状走 threadOf */
   readonly threads: {
-    threadOf(row: import('./repository').ThreadRow): Thread
+    threadOf(row: import('../threads/repository').ThreadRow): Thread
     setPosture(threadId: string, posture: Posture): void
   }
   readonly emitThreadUpdated: (thread: Thread) => void
@@ -102,7 +102,7 @@ export class TurnService {
     attachmentIds: readonly string[]
     skills: readonly string[]
     deliverAs: 'turn' | 'steer' | 'followUp'
-  }): Promise<{ submission: import('../contract').SubmissionView }> {
+  }): Promise<{ submission: import('../../contract').SubmissionView }> {
     /*
      * 「Core 即时回显」：这里只存库、推送、回复（几毫秒），打开会话与交给 omp 由
      * SubmissionService 在后台做。忙时不再报 thread_busy —— 交接时自动改成排队。
@@ -119,7 +119,7 @@ export class TurnService {
   }
 
   /** 时间线订阅要画的提交行（线程还没有会话时也要返回）。 */
-  submissionsOf(threadId: string, stamped: ReadonlySet<string>): import('../contract').SubmissionView[] {
+  submissionsOf(threadId: string, stamped: ReadonlySet<string>): import('../../contract').SubmissionView[] {
     return this.d.submissions.viewOfThread(threadId, stamped)
   }
 

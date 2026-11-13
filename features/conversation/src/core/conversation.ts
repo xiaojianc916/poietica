@@ -13,18 +13,18 @@ import type {
   UsageSample,
 } from '@poietica/runtime-protocol'
 import type { QueueView, Thread, TurnState } from '../contract/entities'
-import { EventRouter } from './event-router'
-import { createReclaimRepository } from './reclaim-repository'
-import { createThreadsRepository } from './repository'
+import { SessionPool } from './runs/session-pool'
+import { SubmissionService } from './runs/submission-service'
+import { createSubmissionsRepository } from './runs/submissions-repository'
+import type { TurnContextHub } from './runs/turn-context'
+import { TurnService } from './runs/turn-service'
 import type { ConversationRuntime } from './runtime'
-import { SessionPool } from './session-pool'
 import type { SideDelta } from './side-topic-hub'
-import { SubmissionService } from './submission-service'
-import { createSubmissionsRepository } from './submissions-repository'
-import { ThreadService } from './thread-service'
-import type { TimelineHub } from './timeline-hub'
-import type { TurnContextHub } from './turn-context'
-import { TurnService } from './turn-service'
+import { createReclaimRepository } from './threads/reclaim-repository'
+import { createThreadsRepository } from './threads/repository'
+import { ThreadService } from './threads/thread-service'
+import { EventRouter } from './timeline/event-router'
+import type { TimelineHub } from './timeline/timeline-hub'
 
 export interface ConversationCoreDeps {
   readonly db: Parameters<typeof createThreadsRepository>[0]

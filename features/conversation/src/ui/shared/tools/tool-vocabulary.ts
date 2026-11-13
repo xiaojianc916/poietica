@@ -1,4 +1,4 @@
-import type { ToolKind } from '../../shared/model/tool-call'
+import type { ToolKind } from '../model/tool-call'
 
 // 认不出的工具（MCP/插件/新增）按入参字段名猜类别与主语；顺序即优先级。
 // 认得名字的工具由 omp-tool-view 的 HANDLERS 自己给。

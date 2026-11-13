@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { EngineSession, OpenSessionSpec } from '@poietica/runtime-protocol'
 import { createFakeEngine, type ScenarioScript } from '@poietica/runtime-protocol-testkit'
 import { createTestLogger, fakeClock, waitFor } from '@poietica/test-kit'
-import { IDLE_TTL_MS, MAX_IDLE_SESSIONS, SessionPool, SWEEP_INTERVAL_MS } from '../session-pool'
+import { IDLE_TTL_MS, MAX_IDLE_SESSIONS, SessionPool, SWEEP_INTERVAL_MS } from '../runs/session-pool'
 import { deferredOpenEngine } from './helpers'
 
 function poolFor(opts: { clock: ReturnType<typeof fakeClock>; threads: string[] }) {

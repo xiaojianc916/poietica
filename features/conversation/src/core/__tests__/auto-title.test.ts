@@ -6,7 +6,7 @@ import { createTestLogger, tempDir } from '@poietica/test-kit'
 import { conversationContract } from '../../contract'
 import { ConversationCore } from '../conversation'
 import { migrations } from '../migrations'
-import { TimelineHub } from '../timeline-hub'
+import { TimelineHub } from '../timeline/timeline-hub'
 import { fakeJournal } from './fake-journal'
 import { harness } from './helpers'
 

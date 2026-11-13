@@ -4,7 +4,7 @@ import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import { AppError, SystemErrorCode } from '@poietica/foundation'
 import { isInside } from '@poietica/fs-kit'
 import { z } from 'zod'
-import { OWNER_KEY } from './thread-service'
+import { OWNER_KEY } from './threads/thread-service'
 
 /*
  * agent 往对话里展示一张图（R-13）。

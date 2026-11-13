@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { deriveTitle, forkTitleOf, normalizeTitle, PENDING_TITLE } from '../title'
+import { deriveTitle, forkTitleOf, normalizeTitle, PENDING_TITLE } from '../threads/title'
 
 describe('CV-2 标题规则', () => {
   test('空白折叠、去首尾', () => {

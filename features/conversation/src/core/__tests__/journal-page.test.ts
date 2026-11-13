@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { AgentEvent } from '@poietica/agent-model'
-import { pageFromJournal } from '../turn-service'
+import { pageFromJournal } from '../runs/turn-service'
 
 const at = '2026-11-08T00:00:00.000Z'
 

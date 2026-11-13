@@ -1,7 +1,7 @@
 import type { AgentEvent, TranscriptPage } from '@poietica/agent-model'
 import type { NotificationParams, ResultOf } from '@poietica/contract-kit'
 import type { conversationContract } from '../contract'
-import type { TimelineEventsNotice, TimelineResetNotice } from './timeline-hub'
+import type { TimelineEventsNotice, TimelineResetNotice } from './timeline/timeline-hub'
 
 /*
  * 线上形状与内存形状之间唯一的转换点。

@@ -6,9 +6,9 @@ import type { EngineSession, SubmitInput } from '@poietica/runtime-protocol'
 import { openDatabase } from '@poietica/storage-sqlite'
 import { createTestLogger, waitFor } from '@poietica/test-kit'
 import { migrations } from '../migrations'
-import { SubmissionService } from '../submission-service'
-import { createSubmissionsRepository, type SubmissionRow, type SubmissionsRepository } from '../submissions-repository'
-import type { CollectedContext } from '../turn-context'
+import { SubmissionService } from '../runs/submission-service'
+import { createSubmissionsRepository, type SubmissionRow, type SubmissionsRepository } from '../runs/submissions-repository'
+import type { CollectedContext } from '../runs/turn-context'
 
 /*
  * R-08-2：`turnId → clientTurnId` 的查询缓存。

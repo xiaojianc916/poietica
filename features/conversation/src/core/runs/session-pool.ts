@@ -8,7 +8,7 @@ import {
   SystemErrorCode,
 } from '@poietica/foundation'
 import type { EngineSession, EngineSessionEvent, OpenSessionSpec } from '@poietica/runtime-protocol'
-import type { ConversationRuntime } from './runtime'
+import type { ConversationRuntime } from '../runtime'
 
 export const MAX_IDLE_SESSIONS = 6
 export const IDLE_TTL_MS = 10 * 60_000

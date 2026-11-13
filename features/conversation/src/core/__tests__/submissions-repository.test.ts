@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { openDatabase } from '@poietica/storage-sqlite'
 import { migrations } from '../migrations'
-import { createThreadsRepository } from '../repository'
-import { createSubmissionsRepository, type SubmissionRow } from '../submissions-repository'
+import { createSubmissionsRepository, type SubmissionRow } from '../runs/submissions-repository'
+import { createThreadsRepository } from '../threads/repository'
 
 /* 提交仓储的写法（数据库性能方案 D2）：update 一条语句改完带回新行、failUndelivered 一条语句收完、取号表只读两列走部分索引。 */
 function fresh() {

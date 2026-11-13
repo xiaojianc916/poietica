@@ -1,5 +1,5 @@
 import type { ModuleDatabase } from '@poietica/storage-sqlite'
-import type { SubmissionAttachment, SubmissionView } from '../contract'
+import type { SubmissionAttachment, SubmissionView } from '../../contract'
 
 /**
  * 提交表：每条提交在 Core 里都有一个**确定结局**并存进库 —— 要么变成真实的一轮，要么排队，

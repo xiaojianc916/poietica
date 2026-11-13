@@ -1,4 +1,4 @@
-import type { ToolGlyph } from '../../shared/model/tool-call'
+import type { ToolGlyph } from '../model/tool-call'
 
 /*
  * 折叠行上那一枚字形认谁：**只认名字**（帧的 name）—— checkpoint 与 read 都碰文件，但一件事是回退、一件事是看，只有名字分得开。

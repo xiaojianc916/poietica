@@ -1,5 +1,5 @@
 import type { Interaction } from '@poietica/runtime-protocol'
-import type { PendingInteraction } from '../contract/entities'
+import type { PendingInteraction } from '../../contract/entities'
 
 /**
  * 引擎的六种交互折成侧栏要画的三档。

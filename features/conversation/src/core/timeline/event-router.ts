@@ -11,11 +11,11 @@ import type {
   SideTopic,
   UsageSample,
 } from '@poietica/runtime-protocol'
-import { MAIN_AGENT_ID, type QueueView, type Thread, type TurnState } from '../contract/entities'
-import { conversationErrors } from '../contract/errors'
-import { snapshotOf } from './controls-snapshot'
-import type { ThreadRow, ThreadsRepository } from './repository'
-import type { SideDelta } from './side-topic-hub'
+import { MAIN_AGENT_ID, type QueueView, type Thread, type TurnState } from '../../contract/entities'
+import { conversationErrors } from '../../contract/errors'
+import { snapshotOf } from '../composer/controls-snapshot'
+import type { SideDelta } from '../side-topic-hub'
+import type { ThreadRow, ThreadsRepository } from '../threads/repository'
 import type { TimelineHub } from './timeline-hub'
 
 /**
@@ -41,7 +41,7 @@ export interface EventRouterDeps {
    * 「Core 即时回显」的提交服务：路由要在本会话第一个新 turn 上盖 clientTurnId，
    * 并把那条提交推进到 `started`。
    */
-  readonly submissions: import('./submission-service').SubmissionService
+  readonly submissions: import('../runs/submission-service').SubmissionService
   readonly clock: Clock
   readonly threads: {
     threadOf(row: ThreadRow): Thread
