@@ -9,7 +9,7 @@ import {
   TurnServiceToken,
 } from '@poietica/feature-runs/core-api'
 import { ThreadsRepositoryToken, ThreadsServiceToken } from '@poietica/feature-threads/core-api'
-import { TimelineServiceToken } from '@poietica/feature-timeline/core-api'
+import { EventRouterFactoryToken, TimelineServiceToken } from '@poietica/feature-timeline/core-api'
 import { type WorkspaceRemoved, WorkspacesServiceToken, workspaceRemoved } from '@poietica/feature-workspaces/core-api'
 import { conversationContract } from '../contract'
 import {
@@ -52,6 +52,7 @@ export default defineCoreModule({
     const threadsService = ctx.services.get(ThreadsServiceToken)
     const submissionsService = ctx.services.get(SubmissionServiceToken)
     const turnService = ctx.services.get(TurnServiceToken)
+    const createEventRouter = ctx.services.get(EventRouterFactoryToken)
     const createSessionPool = ctx.services.get(SessionPoolFactoryToken)
     /* 别的功能（例如 intelligent-ui）往这里登记「下一句顺带告诉模型的事」；交接时由提交服务收一次 */
     const turnContext = ctx.services.get(TurnContextRegistryToken)
@@ -61,6 +62,7 @@ export default defineCoreModule({
       threads: threadsService,
       submissionsService,
       turnService,
+      createEventRouter,
       createSessionPool,
       runtime: { ...ctx.agentRuntime.sessions, models: ctx.agentRuntime.models, settings: ctx.agentRuntime.settings },
       journal: ctx.services.get(JournalServiceToken),

@@ -4,7 +4,7 @@ import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { JournalService } from '@poietica/feature-journal/core-api'
 import { createSessionPool } from '@poietica/feature-runs/core'
 import { createThreadsRepository } from '@poietica/feature-threads/core'
-import { TimelineHub } from '@poietica/feature-timeline/core'
+import { createEventRouter, TimelineHub } from '@poietica/feature-timeline/core'
 import type { Workspace } from '@poietica/feature-workspaces/contract'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, createId, systemClock } from '@poietica/foundation'
@@ -100,6 +100,7 @@ async function makeCore(
     db: db.forModule('conversation'),
     submissionsService: createTestSubmissionService(db.forModule('conversation'), systemClock),
     turnService: createTestTurnService(systemClock),
+    createEventRouter,
     createSessionPool,
 
     repo: createThreadsRepository(db.forModule('conversation')),
@@ -314,6 +315,7 @@ describe('conversation core（不经内核的直连测试）', () => {
       db: db.forModule('conversation'),
       submissionsService: createTestSubmissionService(db.forModule('conversation'), systemClock),
       turnService: createTestTurnService(systemClock),
+      createEventRouter,
       createSessionPool,
 
       repo: createThreadsRepository(db.forModule('conversation')),
@@ -1082,6 +1084,7 @@ describe('conversation core（不经内核的直连测试）', () => {
         db: moduleDb,
         submissionsService: createTestSubmissionService(moduleDb, systemClock),
         turnService: createTestTurnService(systemClock),
+        createEventRouter,
         createSessionPool,
         repo: createThreadsRepository(moduleDb),
         threads: createTestThreads(moduleDb, systemClock),

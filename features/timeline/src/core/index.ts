@@ -1,7 +1,9 @@
 import { defineCoreModule } from '@poietica/core-kernel'
-import { TimelineServiceToken } from '../core-api'
+import { EventRouterFactoryToken, TimelineServiceToken } from '../core-api'
+import { EventRouter } from './event-router'
 import { TimelineHub } from './timeline-hub'
 
+export { EventRouter } from './event-router'
 export {
   BATCH_WINDOW_MS,
   RING_CAPACITY,
@@ -9,6 +11,7 @@ export {
   TimelineChannel,
   TOOL_UPDATE_INTERVAL_MS,
 } from './timeline-channel'
+export const createEventRouter = (deps: import('../core-api').EventRouterDeps): EventRouter => new EventRouter(deps)
 export { TimelineHub } from './timeline-hub'
 
 export default defineCoreModule({
@@ -16,6 +19,7 @@ export default defineCoreModule({
   setup(ctx) {
     const hub = new TimelineHub({ clock: ctx.clock })
     ctx.services.provide(TimelineServiceToken, hub)
+    ctx.services.provide(EventRouterFactoryToken, (deps) => new EventRouter(deps))
     ctx.lifecycle.onShutdown(() => hub.dispose())
   },
 })

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { createSessionPool } from '@poietica/feature-runs/core'
 import { createThreadsRepository } from '@poietica/feature-threads/core'
-import { TimelineHub } from '@poietica/feature-timeline/core'
+import { createEventRouter, TimelineHub } from '@poietica/feature-timeline/core'
 import { createId, systemClock } from '@poietica/foundation'
 import type { ContextUsage, Controls } from '@poietica/runtime-protocol'
 import { createFakeEngine, type FakeEngine } from '@poietica/runtime-protocol-testkit'
@@ -39,6 +39,7 @@ async function makeCore(options: { readonly contextUsage?: ContextUsage } = {}) 
     db: moduleDb,
     submissionsService: createTestSubmissionService(moduleDb, systemClock),
     turnService: createTestTurnService(systemClock),
+    createEventRouter,
     createSessionPool,
     repo: createThreadsRepository(moduleDb),
     threads: createTestThreads(moduleDb, clock),

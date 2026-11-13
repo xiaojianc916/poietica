@@ -9,7 +9,7 @@ import type {
   TurnService,
 } from '@poietica/feature-runs/core-api'
 import type { ThreadRow, ThreadsRepository, ThreadsService } from '@poietica/feature-threads/core-api'
-import type { TimelineService } from '@poietica/feature-timeline/core-api'
+import type { CreateEventRouter, EventRouter, TimelineService } from '@poietica/feature-timeline/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import type { Clock, Logger } from '@poietica/foundation'
 import type {
@@ -25,7 +25,6 @@ import type { ModuleDatabase } from '@poietica/storage-sqlite'
 import type { QueueView, Thread, TurnState } from '../contract/entities'
 import type { ConversationRuntime } from './runtime'
 import type { SideDelta } from './side-topic-hub'
-import { EventRouter } from './timeline/event-router'
 
 export interface ConversationCoreDeps {
   readonly db: ModuleDatabase
@@ -34,6 +33,7 @@ export interface ConversationCoreDeps {
   readonly createSessionPool: CreateSessionPool
   readonly submissionsService: SubmissionService
   readonly turnService: TurnService
+  readonly createEventRouter: CreateEventRouter
   readonly runtime: ConversationRuntime
   readonly journal: JournalService
   readonly checkpoints?: CheckpointService
@@ -191,20 +191,17 @@ export class ConversationCore {
       ...(d.turnContext === undefined ? {} : { collectContext: (threadId) => d.turnContext!.collect(threadId) }),
     })
 
-    this.router = new EventRouter({
+    this.router = d.createEventRouter({
       repo,
-      journal: d.journal,
       hub: d.hub,
-      clock: d.clock,
+      journal: d.journal,
       submissions: this.submissions,
+      clock: d.clock,
       threads: {
-        threadOf: (row) => this.threads.threadOf(row),
-        setPosture: (threadId, posture) => {
-          this.threads.setPosture(threadId, posture)
-        },
-        setTitleFromSession: (threadId, title, source, sessionFile) => {
-          this.threads.setTitleFromSession(threadId, title, source, sessionFile)
-        },
+        threadOf: (row) => this.threads.threadOf(row as ThreadRow),
+        setPosture: (threadId, posture) => this.threads.setPosture(threadId, posture),
+        setTitleFromSession: (threadId, title, source, sessionFile) =>
+          this.threads.setTitleFromSession(threadId, title, source, sessionFile),
       },
       emitThreadUpdated: d.emitThreadUpdated,
       emitTurnState: d.emitTurnState,
@@ -212,16 +209,16 @@ export class ConversationCore {
       emitQueue: d.emitQueue,
       emitControls: d.emitControls,
       emitContextUsage: d.emitContextUsage,
-      emitCommandOutput: d.emitCommandOutput,
-      emitCommandsChanged: d.emitCommandsChanged,
-      emitSideTopic: d.emitSideTopic,
-      emitSideDelta: d.emitSideDelta,
-      emitSideNotice: d.emitSideNotice,
-      emitFileChanged: d.emitFileChanged,
       emitInteractionRequested: d.emitInteractionRequested,
       emitInteractionResolved: d.emitInteractionResolved,
       emitTurnSettled: d.emitTurnSettled,
       emitUsageSampled: d.emitUsageSampled,
+      emitCommandOutput: d.emitCommandOutput,
+      emitCommandsChanged: d.emitCommandsChanged,
+      emitFileChanged: d.emitFileChanged,
+      emitSideTopic: d.emitSideTopic,
+      emitSideDelta: d.emitSideDelta,
+      emitSideNotice: d.emitSideNotice,
     })
 
     this.turns = d.turnService

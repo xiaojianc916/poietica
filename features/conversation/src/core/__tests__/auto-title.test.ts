@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { createSessionPool } from '@poietica/feature-runs/core'
 import { createThreadsRepository } from '@poietica/feature-threads/core'
-import { TimelineHub } from '@poietica/feature-timeline/core'
+import { createEventRouter, TimelineHub } from '@poietica/feature-timeline/core'
 import { systemClock } from '@poietica/foundation'
 import { createFakeEngine } from '@poietica/runtime-protocol-testkit'
 import { openDatabase } from '@poietica/storage-sqlite'
@@ -145,6 +145,7 @@ test('T5 守卫：旧会话的迟到事件不许改现在的标题（sessionFile
     db: db.forModule('conversation'),
     submissionsService: createTestSubmissionService(db.forModule('conversation'), systemClock),
     turnService: createTestTurnService(systemClock),
+    createEventRouter,
     createSessionPool,
 
     repo: createThreadsRepository(db.forModule('conversation')),

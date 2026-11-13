@@ -1,22 +1,7 @@
 import type { AgentEvent } from '@poietica/agent-model'
-import type { JournalService } from '@poietica/feature-journal/core-api'
-import type { ThreadRow, ThreadsRepository } from '@poietica/feature-threads/core-api'
-import type { TimelineService } from '@poietica/feature-timeline/core-api'
-import type { Clock } from '@poietica/foundation'
-import { snapshotOf } from '@poietica/product-model'
-import type {
-  CommandOutputTone,
-  ContextUsage,
-  Controls,
-  EngineSessionEvent,
-  FileChange,
-  Posture,
-  SideTopic,
-  UsageSample,
-} from '@poietica/runtime-protocol'
-import { MAIN_AGENT_ID, type QueueView, type Thread, type TurnState } from '../../contract/entities'
-import { conversationErrors } from '../../contract/errors'
-import type { SideDelta } from '../side-topic-hub'
+import { MAIN_AGENT_ID, snapshotOf, type TurnState } from '@poietica/product-model'
+import type { EngineSessionEvent } from '@poietica/runtime-protocol'
+import type { EventRouter as EventRouterContract, EventRouterDeps } from '../core-api'
 
 /**
  * 事件路由（07 页 §5C 的 `event-router.ts`）：把 `EngineSessionEvent` 变成通知 / Core 事件。
@@ -33,51 +18,7 @@ interface Runtime {
   seenTurns: Set<string>
 }
 
-export interface EventRouterDeps {
-  readonly repo: ThreadsRepository
-  readonly hub: TimelineService
-  readonly journal: JournalService
-  /**
-   * 「Core 即时回显」的提交服务：路由要在本会话第一个新 turn 上盖 clientTurnId，
-   * 并把那条提交推进到 `started`。
-   */
-  readonly submissions: import('@poietica/feature-runs/core-api').SubmissionService
-  readonly clock: Clock
-  readonly threads: {
-    threadOf(row: ThreadRow): Thread
-    /** controls 事件里的姿态与线程行不一致时把行改掉（服务行为表） */
-    setPosture(threadId: string, posture: Posture): void
-    /** omp 的会话名变了（自动总结或用户定名，omp 知识 #17）；守卫住在 thread-service 里 */
-    setTitleFromSession(threadId: string, title: string, source: 'auto' | 'user', sessionFile: string): void
-  }
-  readonly emitThreadUpdated: (thread: Thread) => void
-  readonly emitTurnState: (state: TurnState) => void
-  readonly emitTurnDropped: (p: { threadId: string; clientTurnId: string | null; text: string }) => void
-  readonly emitQueue: (p: { threadId: string; queue: QueueView }) => void
-  readonly emitControls: (p: { threadId: string; controls: Controls }) => void
-  readonly emitContextUsage: (p: { threadId: string; usage: ContextUsage | null }) => void
-  readonly emitInteractionRequested: (p: {
-    threadId: string
-    interaction: import('@poietica/runtime-protocol').Interaction
-  }) => void
-  readonly emitInteractionResolved: (p: { threadId: string; interactionId: string }) => void
-  readonly emitTurnSettled: (p: {
-    threadId: string
-    outcome: 'completed' | 'cancelled' | 'failed'
-    error: { code: string; message: string } | null
-  }) => void
-  readonly emitUsageSampled: (p: { threadId: string; sample: UsageSample; at: number }) => void
-  readonly emitCommandOutput: (p: { threadId: string; text: string; tone: CommandOutputTone }) => void
-  readonly emitCommandsChanged: (p: { threadId: string }) => void
-  /** 工具写了一处文件（引擎写的那一刻报）：原样交给 Core 事件，文件的账归 review 记 */
-  readonly emitFileChanged: (p: { threadId: string } & FileChange) => void
-  /** 侧边提问（右坞辅助对话）：原样转成 side.* 通知 —— 它们不进时间线、不碰回合运行时 */
-  readonly emitSideTopic: (p: { threadId: string; topic: SideTopic }) => void
-  readonly emitSideDelta: (p: SideDelta) => void
-  readonly emitSideNotice: (p: { threadId: string; message: string }) => void
-}
-
-export class EventRouter {
+export class EventRouter implements EventRouterContract {
   private readonly runtime = new Map<string, Runtime>()
   /**
    * 每条线程**已经认领过号**的 turnId。
@@ -316,8 +257,8 @@ export class EventRouter {
       threadId,
       error ??
         (rt.cancelRequested
-          ? { code: conversationErrors.submit_cancelled, message: conversationErrors.submit_cancelled }
-          : { code: conversationErrors.submit_dropped, message: conversationErrors.submit_dropped }),
+          ? { code: 'conversation.submit_cancelled', message: 'conversation.submit_cancelled' }
+          : { code: 'conversation.submit_dropped', message: 'conversation.submit_dropped' }),
     )
     rt.cancelRequested = false
   }
