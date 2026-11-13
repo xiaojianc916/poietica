@@ -16,6 +16,7 @@ import { ConversationCore } from '../conversation'
 import { migrations } from '../migrations'
 import { fakeJournal } from './fake-journal'
 import { deferredOpenEngine } from './helpers'
+import { createTestThreads } from './test-threads'
 
 /** 直接构造 ConversationCore：注入内存库、假工作区与假附件服务，比装整个内核更快也更聚焦 */
 async function makeCore(
@@ -97,6 +98,7 @@ async function makeCore(
   const core = new ConversationCore({
     db: db.forModule('conversation'),
     repo: createThreadsRepository(db.forModule('conversation')),
+    threads: createTestThreads(db.forModule('conversation'), systemClock),
     journal: overrides.journal ?? fakeJournal(),
     runtime: engine,
     hub,
@@ -306,6 +308,7 @@ describe('conversation core（不经内核的直连测试）', () => {
     const core = new ConversationCore({
       db: db.forModule('conversation'),
       repo: createThreadsRepository(db.forModule('conversation')),
+      threads: createTestThreads(db.forModule('conversation'), systemClock),
       journal: fakeJournal(),
       runtime: engine,
       hub,
@@ -1069,6 +1072,7 @@ describe('conversation core（不经内核的直连测试）', () => {
       const core = new ConversationCore({
         db: moduleDb,
         repo: createThreadsRepository(moduleDb),
+        threads: createTestThreads(moduleDb, systemClock),
         journal: fakeJournal(),
         runtime: engine,
         hub,

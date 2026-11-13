@@ -1,10 +1,10 @@
 import path from 'node:path'
 import type { AgentToolRegistry } from '@poietica/core-kernel'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
+import { OWNER_KEY } from '@poietica/feature-threads/core-api'
 import { AppError, SystemErrorCode } from '@poietica/foundation'
 import { isInside } from '@poietica/fs-kit'
 import { z } from 'zod'
-import { OWNER_KEY } from './threads/thread-service'
 
 /*
  * agent 往对话里展示一张图（R-13）。

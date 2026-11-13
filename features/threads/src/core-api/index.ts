@@ -6,5 +6,6 @@ export type { ThreadRow, ThreadsRepository } from './types'
 export const ThreadsRepositoryToken = defineServiceToken<ThreadsRepository>('threads', 'ThreadsRepository')
 
 export * from './pending-interaction'
+export * from './service'
 export * from './thread-of'
 export * from './title'

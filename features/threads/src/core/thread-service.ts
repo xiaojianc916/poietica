@@ -1,57 +1,47 @@
-import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
-import type { ThreadRow, ThreadsRepository } from '@poietica/feature-threads/core-api'
+import { AppError, type Clock, createId, type Logger, mapLimited } from '@poietica/foundation'
+import type { Thread, TurnState } from '@poietica/product-model'
+import type { EngineSession, ModelRef, OpenSessionSpec, Posture } from '@poietica/runtime-protocol'
 import {
   deriveTitle,
   forkTitleOf,
   LEAKED_MARKUP_PREFIX,
   normalizeTitle,
+  ownerKeyOf,
   PENDING_TITLE,
   pendingInteractionOf,
+  type ThreadRow,
+  type ThreadServicePorts,
+  ThreadsErrorCode,
+  type ThreadsRepository,
+  type ThreadsService,
   threadOf,
-} from '@poietica/feature-threads/core-api'
-import type { TimelineService } from '@poietica/feature-timeline/core-api'
-import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
-import { AppError, type Clock, createId, type Logger, mapLimited } from '@poietica/foundation'
-import type { EngineSession, ModelRef, Posture } from '@poietica/runtime-protocol'
-import type { Thread, TurnState } from '../../contract/entities'
-import { conversationErrors } from '../../contract/errors'
-import type { ConversationRuntime } from '../runtime'
+} from '../core-api'
 import type { ReclaimRepository } from './reclaim-repository'
 
-/** 附件引用的 ownerKey 拼法：'<功能 id>:<实体>:<id>' */
-export const OWNER_KEY = (threadId: string): string => `conversation:thread:${threadId}`
+export const OWNER_KEY = ownerKeyOf
 
 /**
  * 线程 CRUD、fork、export、删除，以及工作区移除的级联清理。会话池的接线
  * （describe / onOpened / cleanup）也在这里 —— 「一条线程对应哪个 omp 会话」是线程自己的事实。
  */
-export interface ThreadServiceDeps {
+interface ThreadServiceBaseDeps {
   readonly repo: ThreadsRepository
   /** 会话文件回收队列：删行与入队同一个事务（见 cleanup） */
   readonly reclaim: ReclaimRepository
-  /** 本模块库的同步事务（组合根注入 `db.transaction`） */
+  /** 本模块库的同步事务 */
   readonly transaction: <T>(fn: () => T) => T
-  readonly runtime: ConversationRuntime
-  readonly workspaces: WorkspacesService
-  readonly attachments: AttachmentsService
-  readonly hub: TimelineService
   readonly clock: Clock
   readonly logger: Logger
-  /** 会话此刻的状态（来自会话池；组合根注入，避免与 turn-service 互相依赖） */
-  readonly sessionState: (threadId: string) => TurnState['state']
-  readonly peekSession: (threadId: string) => EngineSession | undefined
-  /** 这一条线程的会话正在打开（打开中的不算忙，见 #isBusy） */
-  readonly isOpening: (threadId: string) => boolean
-  /** 释放这个线程的会话（delete / 工作区级联用） */
-  readonly releaseSession: (threadId: string) => Promise<void>
-  readonly emitThreadUpdated: (thread: Thread) => void
-  readonly emitThreadRemoved: (threadId: string) => void
-  /** 线程行删除后的统一遗忘钩子：清理按线程索引的进程内状态（router / submissions） */
-  readonly onThreadRemoved: (threadId: string) => void
 }
 
-export class ThreadService {
-  constructor(private readonly d: ThreadServiceDeps) {}
+export class ThreadService implements ThreadsService {
+  private p!: ThreadServicePorts
+
+  constructor(private readonly d: ThreadServiceBaseDeps) {}
+
+  configure(ports: ThreadServicePorts): void {
+    this.p = ports
+  }
 
   // ── 读 ────────────────────────────────────────────────────────────────────
   row(id: string): ThreadRow | null {
@@ -61,7 +51,7 @@ export class ThreadService {
   requireRow(id: string): ThreadRow {
     const row = this.d.repo.get(id)
     if (row === null) {
-      throw new AppError(conversationErrors.thread_not_found, '对话不存在')
+      throw new AppError(ThreadsErrorCode.notFound, '对话不存在')
     }
     return row
   }
@@ -77,12 +67,12 @@ export class ThreadService {
    * 只在活会话里，会话被驱逐时 `cancelAll` 已经把人等的那几项以 dismiss 收口。
    */
   pendingInteractionOf(threadId: string): Thread['pendingInteraction'] {
-    const session = this.d.peekSession(threadId)
+    const session = this.p.peekSession(threadId)
     return session === undefined ? null : pendingInteractionOf(session.interactions())
   }
 
   stateOf(threadId: string): TurnState['state'] {
-    return this.d.sessionState(threadId)
+    return this.p.sessionState(threadId)
   }
 
   list(q: { workspaceId?: string | undefined; includeArchived: boolean }): Thread[] {
@@ -98,7 +88,7 @@ export class ThreadService {
     title?: string
     origin?: 'user' | 'automation'
   }): ThreadRow {
-    this.d.workspaces.requireUsable(init.workspaceId)
+    this.p.workspaces.requireUsable(init.workspaceId)
     const now = this.d.clock.now()
     const row: ThreadRow = {
       id: createId(),
@@ -131,9 +121,9 @@ export class ThreadService {
   async rename(id: string, title: string): Promise<ThreadRow> {
     const row = this.requireRow(id)
     const next = normalizeTitle(title)
-    const live = this.d.peekSession(id)
+    const live = this.p.peekSession(id)
     if (live !== undefined) await live.rename(next)
-    else if (row.sessionFile !== null) await this.d.runtime.sessionFiles.rename(row.sessionFile, next)
+    else if (row.sessionFile !== null) await this.p.runtime.sessionFiles.rename(row.sessionFile, next)
     /*
      * 改名不是活动：**不碰 updatedAt**。侧栏那格「N 分钟前」与排序读的都是它，
      * 改个名字就让对话跳到「现在」是把元数据编辑当成了对话活动（产品负责人
@@ -220,9 +210,9 @@ export class ThreadService {
   }
 
   /** 会话池问路：这一条线程的 cwd、会话文件、姿态、初始模型（describe） */
-  describe(threadId: string): import('@poietica/runtime-protocol').OpenSessionSpec {
+  describe(threadId: string): OpenSessionSpec {
     const row = this.requireRow(threadId)
-    const ws = this.d.workspaces.requireUsable(row.workspaceId)
+    const ws = this.p.workspaces.requireUsable(row.workspaceId)
     return {
       key: threadId,
       cwd: ws.path,
@@ -247,7 +237,7 @@ export class ThreadService {
     const row = this.d.repo.get(threadId)
     if (row === null) return
     // 发过增量的通道（会话被驱逐后又打开）→ 换 epoch，UI 整页重取；只被冷读订阅过的通道不换（见 TimelineService.resetAdvanced）
-    this.d.hub.resetAdvanced(threadId)
+    this.p.hub.resetAdvanced(threadId)
     if (row.sessionFile !== session.sessionFile) {
       // session_id 与 session_file 必须同时写（库里的 CHECK 约束）
       this.d.repo.update(threadId, { sessionId: session.sessionId, sessionFile: session.sessionFile })
@@ -270,7 +260,7 @@ export class ThreadService {
    * 随线程活到进程结束。不动 epoch、不发 reset —— 那会立刻触发整读。
    */
   onReleased(threadId: string): void {
-    this.d.hub.dropHistory(threadId)
+    this.p.hub.dropHistory(threadId)
     const row = this.d.repo.get(threadId)
     if (row !== null) this.emitUpdated(row)
   }
@@ -278,24 +268,24 @@ export class ThreadService {
   async delete(threadId: string): Promise<void> {
     const row = this.requireRow(threadId)
     if (await this.#isBusy(threadId)) {
-      throw new AppError(conversationErrors.thread_busy, '对话正在运行，请先停止')
+      throw new AppError(ThreadsErrorCode.busy, '对话正在运行，请先停止')
     }
     await this.cleanup(row)
-    this.d.emitThreadRemoved(threadId)
+    this.p.emitThreadRemoved(threadId)
   }
 
   /** `keepTurns`：只留前几轮（时间线上的轮号）；不给 = 整条复制 */
   async fork(threadId: string, keepTurns: number | undefined, title?: string): Promise<ThreadRow> {
     const row = this.requireRow(threadId)
     if (await this.#isBusy(threadId)) {
-      throw new AppError(conversationErrors.thread_busy, '对话正在运行，请先停止')
+      throw new AppError(ThreadsErrorCode.busy, '对话正在运行，请先停止')
     }
     if (row.sessionFile === null) {
-      throw new AppError(conversationErrors.thread_empty, '对话还没有任何内容')
+      throw new AppError(ThreadsErrorCode.empty, '对话还没有任何内容')
     }
     /* 分叉的名字一并写进 omp 的新会话（P4）：行里的标题只是它的投影 */
     const forkTitle = normalizeTitle(title ?? forkTitleOf(row.title))
-    const forked = await this.d.runtime.sessionFiles.fork(row.sessionFile, keepTurns, forkTitle)
+    const forked = await this.p.runtime.sessionFiles.fork(row.sessionFile, keepTurns, forkTitle)
     const now = this.d.clock.now()
     const next: ThreadRow = {
       ...row,
@@ -323,7 +313,7 @@ export class ThreadService {
      * 少了这一句，删掉原对话（releaseOwner）后 24 小时的回收会把文件删掉，
      * 分支里的 agent 再按路径去读就读不到了。
      */
-    this.d.attachments.copyOwner(OWNER_KEY(row.id), OWNER_KEY(next.id))
+    this.p.attachments.copyOwner(OWNER_KEY(row.id), OWNER_KEY(next.id))
     this.emitUpdated(next)
     return next
   }
@@ -331,15 +321,15 @@ export class ThreadService {
   async exportThread(threadId: string, format: 'html' | 'markdown', targetPath: string): Promise<{ path: string }> {
     const row = this.requireRow(threadId)
     if (row.sessionFile === null) {
-      throw new AppError(conversationErrors.thread_empty, '对话还没有任何内容')
+      throw new AppError(ThreadsErrorCode.empty, '对话还没有任何内容')
     }
     if (format === 'html') {
-      await this.d.runtime.sessionFiles.exportHtml(row.sessionFile, targetPath)
+      await this.p.runtime.sessionFiles.exportHtml(row.sessionFile, targetPath)
       return { path: targetPath }
     }
     /* 模块取用与正文导出互不相干：一起发出去，别让一次模块加载排在导出后面。 */
     const [markdown, { writeFileAtomic }] = await Promise.all([
-      this.d.runtime.sessionFiles.exportMarkdown(row.sessionFile),
+      this.p.runtime.sessionFiles.exportMarkdown(row.sessionFile),
       import('@poietica/fs-kit'),
     ])
     await writeFileAtomic(targetPath, markdown)
@@ -353,9 +343,9 @@ export class ThreadService {
   async shareThread(threadId: string): Promise<{ url: string; truncated: boolean }> {
     const row = this.requireRow(threadId)
     if (row.sessionFile === null) {
-      throw new AppError(conversationErrors.thread_empty, '对话还没有任何内容')
+      throw new AppError(ThreadsErrorCode.empty, '对话还没有任何内容')
     }
-    return await this.d.runtime.sessionFiles.share(row.sessionFile)
+    return await this.p.runtime.sessionFiles.share(row.sessionFile)
   }
 
   /** 工作区被移除：该工作区的每个线程都走一遍 delete 的清理（运行中的先取消） */
@@ -363,12 +353,12 @@ export class ThreadService {
     /* 每条线程的清理彼此独立（各自的会话、各自的行与文件），串行等只会把「删一个工作区」拖成 N 次往返。
        单条完成即发通知，屏幕上仍是一条一条消失。 */
     await mapLimited(this.d.repo.listByWorkspace(workspaceId), 4, async (row) => {
-      const session = this.d.peekSession(row.id)
+      const session = this.p.peekSession(row.id)
       if (session?.isBusy() === true) await session.cancel().catch(() => undefined)
       await this.cleanup(row).catch((e: unknown) => {
         this.d.logger.warn('workspace cascade cleanup failed', { threadId: row.id, error: String(e) })
       })
-      this.d.emitThreadRemoved(row.id)
+      this.p.emitThreadRemoved(row.id)
     })
   }
 
@@ -382,18 +372,18 @@ export class ThreadService {
    * 文件删掉了而后面某一步失败，再删一次又会因为文件已不在而失败（真实故障：归档页「删除失败，请重试。」）。
    */
   private async cleanup(row: ThreadRow): Promise<void> {
-    await this.d.releaseSession(row.id)
+    await this.p.releaseSession(row.id)
     const current = this.d.repo.get(row.id) ?? row
     const sessionFile = current.sessionFile
     this.d.transaction(() => {
       this.d.repo.delete(row.id)
       if (sessionFile !== null) this.d.reclaim.enqueue(sessionFile, row.id, this.d.clock.now())
     })
-    this.d.hub.disposeThread(row.id)
-    this.d.onThreadRemoved(row.id)
+    this.p.hub.disposeThread(row.id)
+    this.p.onThreadRemoved(row.id)
     /* 附件引用放在落账之后：放在前面，删行失败时线程还在、附件却被 24 小时回收清掉（分支里的 agent 就读不到了） */
     try {
-      this.d.attachments.releaseOwner(OWNER_KEY(row.id))
+      this.p.attachments.releaseOwner(OWNER_KEY(row.id))
     } catch (error) {
       this.d.logger.warn('attachments release on delete failed', { threadId: row.id, error: String(error) })
     }
@@ -403,7 +393,7 @@ export class ThreadService {
   /** 物理回收一份会话文件：成功出队；失败记账、留给下次启动重试，**不抛** —— 线程在用户看来已经删完了 */
   private async reclaimFile(sessionFile: string): Promise<boolean> {
     try {
-      await this.d.runtime.sessionFiles.delete(sessionFile)
+      await this.p.runtime.sessionFiles.delete(sessionFile)
       this.d.reclaim.done(sessionFile)
       return true
     } catch (error) {
@@ -433,10 +423,10 @@ export class ThreadService {
        这样一条坏行不会让整轮退化成 N 次磁盘往返。 */
     const candidates = this.d.repo
       .listBound()
-      .filter((bound) => !this.d.isOpening(bound.id) && this.d.peekSession(bound.id) === undefined)
+      .filter((bound) => !this.p.isOpening(bound.id) && this.p.peekSession(bound.id) === undefined)
     const checked = await mapLimited(candidates, 4, async (bound) => {
       try {
-        return { bound, exists: await this.d.runtime.sessionFiles.exists(bound.sessionFile) }
+        return { bound, exists: await this.p.runtime.sessionFiles.exists(bound.sessionFile) }
       } catch (error) {
         /* 读不了（权限 / 盘符没挂上）不等于不存在：不动它 */
         this.d.logger.warn('session file check failed', { threadId: bound.id, error: String(error) })
@@ -461,13 +451,13 @@ export class ThreadService {
    * 而侧边一问不该拦住删除与分叉 —— 删除时它随会话一起停掉，分叉复制的是已经落盘的话题。
    */
   async #isBusy(threadId: string): Promise<boolean> {
-    if (this.d.isOpening(threadId)) return false
-    const state = this.d.peekSession(threadId)?.state()
+    if (this.p.isOpening(threadId)) return false
+    const state = this.p.peekSession(threadId)?.state()
     return state !== undefined && state !== 'idle'
   }
 
   private emitUpdated(row: ThreadRow): ThreadRow {
-    this.d.emitThreadUpdated(this.threadOf(row))
+    this.p.emitThreadUpdated(this.threadOf(row))
     return row
   }
 }

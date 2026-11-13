@@ -1,7 +1,7 @@
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { CheckpointService } from '@poietica/feature-checkpoints/core-api'
 import type { JournalService } from '@poietica/feature-journal/core-api'
-import type { ThreadsRepository } from '@poietica/feature-threads/core-api'
+import type { ThreadsRepository, ThreadsService } from '@poietica/feature-threads/core-api'
 import type { TimelineService } from '@poietica/feature-timeline/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import type { Clock, Logger } from '@poietica/foundation'
@@ -23,13 +23,12 @@ import type { TurnContextHub } from './runs/turn-context'
 import { TurnService } from './runs/turn-service'
 import type { ConversationRuntime } from './runtime'
 import type { SideDelta } from './side-topic-hub'
-import { createReclaimRepository } from './threads/reclaim-repository'
-import { ThreadService } from './threads/thread-service'
 import { EventRouter } from './timeline/event-router'
 
 export interface ConversationCoreDeps {
   readonly db: ModuleDatabase
   readonly repo: ThreadsRepository
+  readonly threads: ThreadsService
   readonly runtime: ConversationRuntime
   readonly journal: JournalService
   readonly checkpoints?: CheckpointService
@@ -105,7 +104,7 @@ export class ConversationCore {
   private readonly pool: SessionPool
   private readonly router: EventRouter
   /** 线程 CRUD / fork / export / 级联删除 */
-  readonly threads: ThreadService
+  readonly threads: ThreadsService
   /** 回合、时间线、队列、控件、交互 */
   readonly turns: TurnService
   /** 提交行的账（存库、重试、丢弃、按页盖章） */
@@ -120,27 +119,21 @@ export class ConversationCore {
      * thread-service 又要问 pool 的状态），所以互相之间全部走**惰性闭包**：
      * 回调只在运行时才解开 `this.*`，构造期一条都不解引用。
      */
-    this.threads = new ThreadService({
-      repo,
-      reclaim: createReclaimRepository(d.db),
-      transaction: (fn) => d.db.transaction(fn),
-      runtime: d.runtime,
+    this.threads = d.threads
+    this.threads.configure({
+      runtime: { sessionFiles: d.runtime.sessionFiles },
       workspaces: d.workspaces,
       attachments: d.attachments,
       hub: d.hub,
-      clock: d.clock,
-      logger: d.logger,
       sessionState: (threadId) => this.pool.peek(threadId)?.state() ?? 'idle',
       peekSession: (threadId) => this.pool.peek(threadId),
       isOpening: (threadId) => this.pool.isOpening(threadId),
       releaseSession: (threadId) => this.pool.release(threadId),
       emitThreadUpdated: d.emitThreadUpdated,
       emitThreadRemoved: d.emitThreadRemoved,
-      /* R-03 §2.3：线程删除的统一遗忘钩子 —— 按线程索引的进程内状态都在这里清理 */
       onThreadRemoved: (threadId) => {
         this.router.forget(threadId)
         this.submissions.forget(threadId)
-        /* R-06：Core 事件版与 RPC 通知同源（钩子只有这一个发出点） */
         d.emitThreadRemovedEvent({ threadId })
       },
     })
