@@ -1,7 +1,7 @@
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { CheckpointService } from '@poietica/feature-checkpoints/core-api'
 import type { JournalService } from '@poietica/feature-journal/core-api'
-import type { SubmissionsRepository } from '@poietica/feature-runs/core-api'
+import type { CreateSessionPool, SessionPool, SubmissionsRepository } from '@poietica/feature-runs/core-api'
 import type { ThreadsRepository, ThreadsService } from '@poietica/feature-threads/core-api'
 import type { TimelineService } from '@poietica/feature-timeline/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
@@ -17,7 +17,6 @@ import type {
 } from '@poietica/runtime-protocol'
 import type { ModuleDatabase } from '@poietica/storage-sqlite'
 import type { QueueView, Thread, TurnState } from '../contract/entities'
-import { SessionPool } from './runs/session-pool'
 import { SubmissionService } from './runs/submission-service'
 import type { TurnContextHub } from './runs/turn-context'
 import { TurnService } from './runs/turn-service'
@@ -30,6 +29,7 @@ export interface ConversationCoreDeps {
   readonly repo: ThreadsRepository
   readonly threads: ThreadsService
   readonly submissionsRepo: SubmissionsRepository
+  readonly createSessionPool: CreateSessionPool
   readonly runtime: ConversationRuntime
   readonly journal: JournalService
   readonly checkpoints?: CheckpointService
@@ -139,7 +139,7 @@ export class ConversationCore {
       },
     })
 
-    this.pool = new SessionPool({
+    this.pool = d.createSessionPool({
       runtime: d.runtime,
       clock: d.clock,
       logger: d.logger,

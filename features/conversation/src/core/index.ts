@@ -2,7 +2,7 @@ import { defineCoreModule } from '@poietica/core-kernel'
 import { AttachmentsServiceToken } from '@poietica/feature-attachments/core-api'
 import { CheckpointServiceToken } from '@poietica/feature-checkpoints/core-api'
 import { JournalServiceToken } from '@poietica/feature-journal/core-api'
-import { SubmissionsRepositoryToken } from '@poietica/feature-runs/core-api'
+import { SessionPoolFactoryToken, SubmissionsRepositoryToken } from '@poietica/feature-runs/core-api'
 import { ThreadsRepositoryToken, ThreadsServiceToken } from '@poietica/feature-threads/core-api'
 import { TimelineServiceToken } from '@poietica/feature-timeline/core-api'
 import { type WorkspaceRemoved, WorkspacesServiceToken, workspaceRemoved } from '@poietica/feature-workspaces/core-api'
@@ -48,6 +48,7 @@ export default defineCoreModule({
     const threadsRepository = ctx.services.get(ThreadsRepositoryToken)
     const threadsService = ctx.services.get(ThreadsServiceToken)
     const submissionsRepo = ctx.services.get(SubmissionsRepositoryToken)
+    const createSessionPool = ctx.services.get(SessionPoolFactoryToken)
     /* 别的功能（例如 intelligent-ui）往这里登记「下一句顺带告诉模型的事」；交接时由提交服务收一次 */
     const turnContext = new TurnContextHub(ctx.logger)
     const core = new ConversationCore({
@@ -55,6 +56,7 @@ export default defineCoreModule({
       repo: threadsRepository,
       threads: threadsService,
       submissionsRepo,
+      createSessionPool,
       runtime: { ...ctx.agentRuntime.sessions, models: ctx.agentRuntime.models, settings: ctx.agentRuntime.settings },
       journal: ctx.services.get(JournalServiceToken),
       checkpoints: ctx.services.get(CheckpointServiceToken),

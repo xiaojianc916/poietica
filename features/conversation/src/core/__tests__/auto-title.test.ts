@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { createSessionPool } from '@poietica/feature-runs/core'
 import { createThreadsRepository } from '@poietica/feature-threads/core'
 import { TimelineHub } from '@poietica/feature-timeline/core'
 import { systemClock } from '@poietica/foundation'
@@ -143,6 +144,7 @@ test('T5 守卫：旧会话的迟到事件不许改现在的标题（sessionFile
   const core = new ConversationCore({
     db: db.forModule('conversation'),
     submissionsRepo: createTestSubmissions(db.forModule('conversation')),
+    createSessionPool,
     repo: createThreadsRepository(db.forModule('conversation')),
     threads: createTestThreads(db.forModule('conversation'), clock),
     journal: fakeJournal(),

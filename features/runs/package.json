@@ -11,6 +11,7 @@
     "@poietica/core-kernel": "workspace:*",
     "@poietica/foundation": "workspace:*",
     "@poietica/product-model": "workspace:*",
+    "@poietica/runtime-protocol": "workspace:*",
     "@poietica/storage-sqlite": "workspace:*"
   },
   "devDependencies": {

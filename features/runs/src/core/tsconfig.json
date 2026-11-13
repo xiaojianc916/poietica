@@ -6,7 +6,13 @@
       "path": "../../../../packages/core-kernel"
     },
     {
+      "path": "../../../../packages/foundation"
+    },
+    {
       "path": "../../../../packages/product-model"
+    },
+    {
+      "path": "../../../../packages/runtime-protocol"
     },
     {
       "path": "../../../../packages/storage-sqlite"

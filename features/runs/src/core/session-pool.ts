@@ -1,29 +1,10 @@
-import {
-  AppError,
-  type Clock,
-  Deferred,
-  type Disposable,
-  type Logger,
-  mapLimited,
-  SystemErrorCode,
-} from '@poietica/foundation'
-import type { EngineSession, EngineSessionEvent, OpenSessionSpec } from '@poietica/runtime-protocol'
-import type { ConversationRuntime } from '../runtime'
+import { AppError, Deferred, type Disposable, mapLimited, SystemErrorCode } from '@poietica/foundation'
+import type { EngineSession, EngineSessionEvent } from '@poietica/runtime-protocol'
+import type { SessionPool as SessionPoolContract, SessionPoolDeps } from '../core-api'
 
 export const MAX_IDLE_SESSIONS = 6
 export const IDLE_TTL_MS = 10 * 60_000
 export const SWEEP_INTERVAL_MS = 60_000
-
-export interface SessionPoolDeps {
-  readonly runtime: ConversationRuntime
-  readonly clock: Clock
-  readonly logger: Logger
-  describe(threadId: string): OpenSessionSpec
-  /** 新会话第一次打开后回调：把 sessionId / sessionFile 绑定到线程行 */
-  onOpened(threadId: string, session: EngineSession): void
-  onEvent(threadId: string, event: EngineSessionEvent): void
-  onReleased(threadId: string): void
-}
 
 /** 正在打开的槽位：`promise` 由 deferred 驱动，槽位一定先于 `open()` 的第一个 await 进表 */
 interface OpeningSlot {
@@ -53,7 +34,7 @@ type Slot = OpeningSlot | LiveSlot
  * - 配置变更换代（invalidate）：空闲的立刻释放，忙的与打开中的在第一次空闲时释放；
  * - 忙（运行中或有待答交互）的会话永不驱逐；
  * - 空闲超过 10 分钟，或空闲会话超过 6 个时，按最久未用驱逐。
- */ export class SessionPool implements Disposable {
+ */ export class SessionPool implements SessionPoolContract {
   private readonly slots = new Map<string, Slot>()
   /** 配置代号：每次 invalidate() +1，槽位记住自己是哪一代打开的 */
   private generation = 0

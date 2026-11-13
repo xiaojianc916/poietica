@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { createSessionPool } from '@poietica/feature-runs/core'
 import { createThreadsRepository } from '@poietica/feature-threads/core'
 import { TimelineHub } from '@poietica/feature-timeline/core'
 import { createId, systemClock } from '@poietica/foundation'
@@ -37,6 +38,7 @@ async function makeCore(options: { readonly contextUsage?: ContextUsage } = {}) 
   const core = new ConversationCore({
     db: moduleDb,
     submissionsRepo: createTestSubmissions(moduleDb),
+    createSessionPool,
     repo: createThreadsRepository(moduleDb),
     threads: createTestThreads(moduleDb, clock),
     journal: fakeJournal(),

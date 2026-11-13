@@ -7,6 +7,7 @@ import {
   turnOrdinal,
 } from '@poietica/agent-model'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
+import type { SessionPool } from '@poietica/feature-runs/core-api'
 import type { ThreadsRepository } from '@poietica/feature-threads/core-api'
 import type { TimelineService } from '@poietica/feature-timeline/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
@@ -30,7 +31,6 @@ import { conversationErrors } from '../../contract/errors'
 import type { ConversationRuntime } from '../runtime'
 import type { EventRouter } from '../timeline/event-router'
 import { eventsFromPage, pagesToPage } from '../timeline/journal-rebuild'
-import type { SessionPool } from './session-pool'
 
 /**
  * 回合服务（07 页 §5C 的 `turn-service.ts`）：submit / cancel / queue / controls / interactions，

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { AgentEvent } from '@poietica/agent-model'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { JournalService } from '@poietica/feature-journal/core-api'
+import { createSessionPool } from '@poietica/feature-runs/core'
 import { createThreadsRepository } from '@poietica/feature-threads/core'
 import { TimelineHub } from '@poietica/feature-timeline/core'
 import type { Workspace } from '@poietica/feature-workspaces/contract'
@@ -98,6 +99,7 @@ async function makeCore(
   const core = new ConversationCore({
     db: db.forModule('conversation'),
     submissionsRepo: createTestSubmissions(db.forModule('conversation')),
+    createSessionPool,
     repo: createThreadsRepository(db.forModule('conversation')),
     threads: createTestThreads(db.forModule('conversation'), systemClock),
     journal: overrides.journal ?? fakeJournal(),
@@ -309,6 +311,7 @@ describe('conversation core（不经内核的直连测试）', () => {
     const core = new ConversationCore({
       db: db.forModule('conversation'),
       submissionsRepo: createTestSubmissions(db.forModule('conversation')),
+      createSessionPool,
       repo: createThreadsRepository(db.forModule('conversation')),
       threads: createTestThreads(db.forModule('conversation'), systemClock),
       journal: fakeJournal(),
@@ -1074,6 +1077,7 @@ describe('conversation core（不经内核的直连测试）', () => {
       const core = new ConversationCore({
         db: moduleDb,
         submissionsRepo: createTestSubmissions(moduleDb),
+        createSessionPool,
         repo: createThreadsRepository(moduleDb),
         threads: createTestThreads(moduleDb, systemClock),
         journal: fakeJournal(),
