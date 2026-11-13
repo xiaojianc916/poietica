@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
+import { createSubmissionsRepository } from '@poietica/feature-runs/core'
+import type { SubmissionRow, SubmissionsRepository } from '@poietica/feature-runs/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { systemClock } from '@poietica/foundation'
 import type { EngineSession, SubmitInput } from '@poietica/runtime-protocol'
@@ -7,11 +9,6 @@ import { openDatabase } from '@poietica/storage-sqlite'
 import { createTestLogger, waitFor } from '@poietica/test-kit'
 import { migrations } from '../migrations'
 import { SubmissionService } from '../runs/submission-service'
-import {
-  createSubmissionsRepository,
-  type SubmissionRow,
-  type SubmissionsRepository,
-} from '../runs/submissions-repository'
 import type { CollectedContext } from '../runs/turn-context'
 
 /*

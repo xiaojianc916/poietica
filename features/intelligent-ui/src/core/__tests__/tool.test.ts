@@ -5,6 +5,7 @@ import { checkpointsTestModule } from '@poietica/feature-checkpoints/testing'
 import { conversationContract } from '@poietica/feature-conversation/contract'
 import conversation from '@poietica/feature-conversation/core'
 import journal from '@poietica/feature-journal/core'
+import runs from '@poietica/feature-runs/core'
 import threads from '@poietica/feature-threads/core'
 import timeline from '@poietica/feature-timeline/core'
 import { workspacesContract } from '@poietica/feature-workspaces/contract'
@@ -168,6 +169,7 @@ describe('intelligent_ui 经真内核', () => {
         attachments,
         workspaces,
         checkpointsTestModule,
+        runs,
         threads,
         timeline,
         conversation,
@@ -275,6 +277,7 @@ describe('intelligent_ui 经真内核', () => {
         attachments,
         workspaces,
         checkpointsTestModule,
+        runs,
         threads,
         timeline,
         conversation,

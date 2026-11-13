@@ -1,24 +1,6 @@
+import type { SubmissionAttachment } from '@poietica/product-model'
 import type { ModuleDatabase } from '@poietica/storage-sqlite'
-import type { SubmissionAttachment, SubmissionView } from '../../contract'
-
-/**
- * 提交表：每条提交在 Core 里都有一个**确定结局**并存进库 —— 要么变成真实的一轮，要么排队，
- * 要么失败；刷新或重开应用，失败的消息还在。表名按功能 id 前缀。
- */
-export interface SubmissionRow {
-  clientTurnId: string
-  threadId: string
-  text: string
-  attachments: readonly SubmissionAttachment[]
-  skills: readonly string[]
-  requestedAs: 'turn' | 'steer' | 'followUp'
-  status: SubmissionView['status']
-  turnId: string | null
-  error: { code: string; message: string } | null
-  rev: number
-  createdAt: number
-  updatedAt: number
-}
+import type { SubmissionRow, SubmissionsRepository } from '../core-api'
 
 interface Raw {
   client_turn_id: string
@@ -54,49 +36,6 @@ function toRow(r: Raw): SubmissionRow {
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   }
-}
-
-export function submissionOf(row: SubmissionRow): SubmissionView {
-  return {
-    clientTurnId: row.clientTurnId,
-    threadId: row.threadId,
-    text: row.text,
-    attachments: [...row.attachments],
-    skills: [...row.skills],
-    deliverAs: row.requestedAs,
-    status: row.status,
-    turnId: row.turnId,
-    error: row.error === null ? null : { ...row.error },
-    rev: row.rev,
-    createdAt: row.createdAt,
-  }
-}
-
-export interface SubmissionsRepository {
-  insert(row: SubmissionRow): void
-  get(clientTurnId: string): SubmissionRow | null
-  /** 这个线程的全部提交，按创建顺序（时间的先后就是屏幕上气泡的先后）。 */
-  listByThread(threadId: string): SubmissionRow[]
-  /** turnId → clientTurnId（快照盖章用：把本机的提交号补到 turn 上）。 */
-  mapByTurnId(threadId: string): ReadonlyMap<string, string>
-  /**
-   * 这一条线程里某个 turnId 对应的提交行。
-   *
-   * **必须带 threadId**：turnId 是每条会话各自从 `t1` 编的，只按 turnId 查会命中别的线程
-   * （实测：界面上出现两个用户气泡，正是因为新线程的 t1 拿到了旧线程的提交号）。
-   */
-  findByTurnId(threadId: string, turnId: string): SubmissionRow | null
-  update(clientTurnId: string, patch: Partial<Pick<SubmissionRow, 'status' | 'turnId' | 'error'>>): SubmissionRow | null
-  delete(clientTurnId: string): void
-  /**
-   * Core 启动：`pending` / `queued` 一律收成 `core_restarted`。
-   *
-   * pending 是上一次进程没来得及交出去的；queued 是交给了 omp、排在它**内存里**的
-   * 那一队 —— 队列随进程一起消失（R-08-5），留在库里只会让界面画一个永远不动的排队行。
-   */
-  failUndelivered(error: { code: string; message: string }): SubmissionRow[]
-  /** Core 启动：`started` 太旧的清掉（7 天；真实轮次在会话文件里，这里清的只是账）。 */
-  deleteStaleTerminal(cutoff: number): void
 }
 
 export function createSubmissionsRepository(db: ModuleDatabase): SubmissionsRepository {

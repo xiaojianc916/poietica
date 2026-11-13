@@ -194,6 +194,12 @@
       "path": "features/review/src/ui"
     },
     {
+      "path": "features/runs/src/core"
+    },
+    {
+      "path": "features/runs/src/core-api"
+    },
+    {
       "path": "features/secrets/src/contract"
     },
     {

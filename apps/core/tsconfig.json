@@ -57,6 +57,9 @@
       "path": "../../features/review/src/core"
     },
     {
+      "path": "../../features/runs/src/core"
+    },
+    {
       "path": "../../features/settings/src/core"
     },
     {

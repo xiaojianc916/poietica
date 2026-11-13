@@ -22,6 +22,7 @@
     "@poietica/feature-policy": "workspace:*",
     "@poietica/feature-python": "workspace:*",
     "@poietica/feature-review": "workspace:*",
+    "@poietica/feature-runs": "workspace:*",
     "@poietica/feature-settings": "workspace:*",
     "@poietica/feature-threads": "workspace:*",
     "@poietica/feature-timeline": "workspace:*",

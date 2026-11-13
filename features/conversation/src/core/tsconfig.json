@@ -39,6 +39,9 @@
       "path": "../../../journal/src/core-api"
     },
     {
+      "path": "../../../runs/src/core-api"
+    },
+    {
       "path": "../../../threads/src/core-api"
     },
     {

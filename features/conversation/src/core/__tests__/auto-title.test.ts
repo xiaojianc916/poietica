@@ -10,7 +10,7 @@ import { ConversationCore } from '../conversation'
 import { migrations } from '../migrations'
 import { fakeJournal } from './fake-journal'
 import { harness } from './helpers'
-import { createTestThreads } from './test-threads'
+import { createTestSubmissions, createTestThreads } from './test-threads'
 
 /*
  * 自动总结标题的接线（omp 知识 #17）：omp 的首句兜底 → 总结成功替换 → 失败保留兜底。
@@ -142,6 +142,7 @@ test('T5 守卫：旧会话的迟到事件不许改现在的标题（sessionFile
   const hub = new TimelineHub({ clock, emitEvents: () => undefined, emitReset: () => undefined })
   const core = new ConversationCore({
     db: db.forModule('conversation'),
+    submissionsRepo: createTestSubmissions(db.forModule('conversation')),
     repo: createThreadsRepository(db.forModule('conversation')),
     threads: createTestThreads(db.forModule('conversation'), clock),
     journal: fakeJournal(),

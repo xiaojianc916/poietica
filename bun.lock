@@ -45,6 +45,7 @@
         "@poietica/feature-policy": "workspace:*",
         "@poietica/feature-python": "workspace:*",
         "@poietica/feature-review": "workspace:*",
+        "@poietica/feature-runs": "workspace:*",
         "@poietica/feature-settings": "workspace:*",
         "@poietica/feature-threads": "workspace:*",
         "@poietica/feature-timeline": "workspace:*",
@@ -193,6 +194,7 @@
         "@poietica/feature-attachments": "workspace:*",
         "@poietica/feature-checkpoints": "workspace:*",
         "@poietica/feature-journal": "workspace:*",
+        "@poietica/feature-runs": "workspace:*",
         "@poietica/feature-threads": "workspace:*",
         "@poietica/feature-timeline": "workspace:*",
         "@poietica/runtime-protocol-testkit": "workspace:*",
@@ -259,6 +261,7 @@
         "@poietica/feature-journal": "workspace:*",
         "@poietica/feature-platform": "workspace:*",
         "@poietica/feature-preferences": "workspace:*",
+        "@poietica/feature-runs": "workspace:*",
         "@poietica/feature-threads": "workspace:*",
         "@poietica/feature-timeline": "workspace:*",
         "@poietica/feature-workspaces": "workspace:*",
@@ -371,6 +374,7 @@
         "@poietica/feature-attachments": "workspace:*",
         "@poietica/feature-checkpoints": "workspace:*",
         "@poietica/feature-journal": "workspace:*",
+        "@poietica/feature-runs": "workspace:*",
         "@poietica/feature-threads": "workspace:*",
         "@poietica/feature-timeline": "workspace:*",
         "@poietica/feature-workspaces": "workspace:*",
@@ -535,6 +539,19 @@
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",
         "react-dom": "catalog:",
+      },
+    },
+    "features/runs": {
+      "name": "@poietica/feature-runs",
+      "version": "0.0.0",
+      "dependencies": {
+        "@poietica/core-kernel": "workspace:*",
+        "@poietica/foundation": "workspace:*",
+        "@poietica/product-model": "workspace:*",
+        "@poietica/storage-sqlite": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.4.4",
       },
     },
     "features/secrets": {
@@ -1510,6 +1527,8 @@
     "@poietica/feature-python": ["@poietica/feature-python@workspace:features/python"],
 
     "@poietica/feature-review": ["@poietica/feature-review@workspace:features/review"],
+
+    "@poietica/feature-runs": ["@poietica/feature-runs@workspace:features/runs"],
 
     "@poietica/feature-secrets": ["@poietica/feature-secrets@workspace:features/secrets"],
 

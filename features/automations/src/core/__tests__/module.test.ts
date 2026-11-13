@@ -5,6 +5,7 @@ import { checkpointsTestModule } from '@poietica/feature-checkpoints/testing'
 import { conversationContract } from '@poietica/feature-conversation/contract'
 import conversation from '@poietica/feature-conversation/core'
 import journal from '@poietica/feature-journal/core'
+import runs from '@poietica/feature-runs/core'
 import threads from '@poietica/feature-threads/core'
 import timeline from '@poietica/feature-timeline/core'
 import { workspacesContract } from '@poietica/feature-workspaces/contract'
@@ -18,7 +19,17 @@ async function harness(script?: ScenarioScript) {
   const clock = fakeClock()
   const engine = createFakeEngine({ clock, ...(script === undefined ? {} : { script }) })
   const h = await createCoreHarness({
-    modules: [journal, workspaces, attachments, checkpointsTestModule, threads, timeline, conversation, automations],
+    modules: [
+      journal,
+      workspaces,
+      attachments,
+      checkpointsTestModule,
+      runs,
+      threads,
+      timeline,
+      conversation,
+      automations,
+    ],
     engine,
     clock,
   })

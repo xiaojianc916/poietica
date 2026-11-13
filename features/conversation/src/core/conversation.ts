@@ -1,6 +1,7 @@
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { CheckpointService } from '@poietica/feature-checkpoints/core-api'
 import type { JournalService } from '@poietica/feature-journal/core-api'
+import type { SubmissionsRepository } from '@poietica/feature-runs/core-api'
 import type { ThreadsRepository, ThreadsService } from '@poietica/feature-threads/core-api'
 import type { TimelineService } from '@poietica/feature-timeline/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
@@ -18,7 +19,6 @@ import type { ModuleDatabase } from '@poietica/storage-sqlite'
 import type { QueueView, Thread, TurnState } from '../contract/entities'
 import { SessionPool } from './runs/session-pool'
 import { SubmissionService } from './runs/submission-service'
-import { createSubmissionsRepository } from './runs/submissions-repository'
 import type { TurnContextHub } from './runs/turn-context'
 import { TurnService } from './runs/turn-service'
 import type { ConversationRuntime } from './runtime'
@@ -29,6 +29,7 @@ export interface ConversationCoreDeps {
   readonly db: ModuleDatabase
   readonly repo: ThreadsRepository
   readonly threads: ThreadsService
+  readonly submissionsRepo: SubmissionsRepository
   readonly runtime: ConversationRuntime
   readonly journal: JournalService
   readonly checkpoints?: CheckpointService
@@ -112,7 +113,7 @@ export class ConversationCore {
 
   constructor(d: ConversationCoreDeps) {
     const repo = d.repo
-    const submissionsRepo = createSubmissionsRepository(d.db)
+    const submissionsRepo = d.submissionsRepo
 
     /*
      * 三份服务互相引用（router 要读线程形状、pool 的 describe 要用 thread-service、

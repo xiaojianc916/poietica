@@ -36,7 +36,8 @@
     "@types/bun": "catalog:",
     "@types/react": "catalog:",
     "@poietica/feature-timeline": "workspace:*",
-    "@poietica/feature-threads": "workspace:*"
+    "@poietica/feature-threads": "workspace:*",
+    "@poietica/feature-runs": "workspace:*"
   },
   "poietica": {
     "kind": "domain"
