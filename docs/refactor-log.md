@@ -431,3 +431,4 @@
 | v2-P6c 增量            | 2026-11-13 | 产品实体迁至 @poietica/product-model；线程仓储与 ThreadsRepositoryToken 独立成 features/threads（过渡 tablePrefix=conversation）                                                                               |
 | v2-P6c 线程            | 2026-11-13 | ThreadService、回收队列、标题/待答交互/行映射移入 features/threads；晚绑定端口接会话池与事件出口                                                                                                               |
 | v2-P6c 运行            | 2026-11-13 | runs 接管提交仓储、SessionPool、TurnContext、SubmissionService；conversation 只剩 TurnService 与 composer                                                                                                      |
+| v2-P6c TurnService     | 2026-11-13 | TurnService、时间线分页辅助迁入 runs；conversation 只剩 EventRouter、组合根与 composer 接线                                                                                                                    |
