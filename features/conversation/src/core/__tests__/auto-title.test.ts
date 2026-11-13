@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { TimelineHub } from '@poietica/feature-timeline/core'
 import { systemClock } from '@poietica/foundation'
 import { createFakeEngine } from '@poietica/runtime-protocol-testkit'
 import { openDatabase } from '@poietica/storage-sqlite'
@@ -6,7 +7,6 @@ import { createTestLogger, tempDir } from '@poietica/test-kit'
 import { conversationContract } from '../../contract'
 import { ConversationCore } from '../conversation'
 import { migrations } from '../migrations'
-import { TimelineHub } from '../timeline/timeline-hub'
 import { fakeJournal } from './fake-journal'
 import { harness } from './helpers'
 

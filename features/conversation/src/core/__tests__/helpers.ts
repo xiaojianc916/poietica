@@ -2,6 +2,7 @@ import { type CoreHarness, createCoreHarness } from '@poietica/core-kernel/testi
 import attachments from '@poietica/feature-attachments/core'
 import { checkpointsTestModule } from '@poietica/feature-checkpoints/testing'
 import journal from '@poietica/feature-journal/core'
+import timeline from '@poietica/feature-timeline/core'
 import workspaces from '@poietica/feature-workspaces/core'
 import type { EngineSession, OpenSessionSpec } from '@poietica/runtime-protocol'
 import { createFakeEngine, type FakeEngine, type ScenarioScript } from '@poietica/runtime-protocol-testkit'
@@ -28,7 +29,7 @@ export async function harness(
     ...(opts.autoTitle === undefined ? {} : { autoTitle: opts.autoTitle }),
   })
   const h = await createCoreHarness({
-    modules: [journal, attachments, workspaces, checkpointsTestModule, conversation],
+    modules: [journal, attachments, workspaces, checkpointsTestModule, timeline, conversation],
     engine,
     clock,
   })

@@ -34,7 +34,8 @@
     "@poietica/test-kit": "workspace:*",
     "@testing-library/react": "catalog:",
     "@types/bun": "catalog:",
-    "@types/react": "catalog:"
+    "@types/react": "catalog:",
+    "@poietica/feature-timeline": "workspace:*"
   },
   "poietica": {
     "kind": "domain"

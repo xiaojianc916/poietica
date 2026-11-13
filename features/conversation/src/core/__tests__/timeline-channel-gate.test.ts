@@ -1,7 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import type { AgentEvent, TranscriptFrame } from '@poietica/agent-model'
+import {
+  BATCH_WINDOW_MS,
+  RING_MAX_CHARS,
+  TimelineChannel,
+  TOOL_UPDATE_INTERVAL_MS,
+} from '@poietica/feature-timeline/core'
 import { fakeClock } from '@poietica/test-kit'
-import { BATCH_WINDOW_MS, RING_MAX_CHARS, TimelineChannel, TOOL_UPDATE_INTERVAL_MS } from '../timeline/timeline-channel'
 
 /*
  * P-05：通道把「可以合并的」合并掉、把运行中工具的中间结果节流，并给环形缓存加字符预算。

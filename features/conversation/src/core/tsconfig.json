@@ -36,6 +36,9 @@
       "path": "../../../journal/src/core-api"
     },
     {
+      "path": "../../../timeline/src/core-api"
+    },
+    {
       "path": "../../../workspaces/src/core-api"
     },
     {

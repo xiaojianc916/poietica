@@ -7,6 +7,7 @@ import {
   turnOrdinal,
 } from '@poietica/agent-model'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
+import type { TimelineService } from '@poietica/feature-timeline/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, type Clock, type Logger, SystemErrorCode } from '@poietica/foundation'
 import {
@@ -29,7 +30,6 @@ import type { ConversationRuntime } from '../runtime'
 import type { ThreadsRepository } from '../threads/repository'
 import type { EventRouter } from '../timeline/event-router'
 import { eventsFromPage, pagesToPage } from '../timeline/journal-rebuild'
-import type { TimelineHub } from '../timeline/timeline-hub'
 import type { SessionPool } from './session-pool'
 
 /**
@@ -41,7 +41,7 @@ export interface TurnServiceDeps {
   readonly journal: import('@poietica/feature-journal/core-api').JournalService
   readonly repo: ThreadsRepository
   readonly pool: SessionPool
-  readonly hub: TimelineHub
+  readonly hub: TimelineService
   readonly router: EventRouter
   /** 「Core 即时回显」的提交服务：submit / cancel / retry / discard 都归它。 */
   readonly submissions: import('./submission-service').SubmissionService
@@ -182,7 +182,7 @@ export class TurnService {
    * （`SessionFilesPort.readPage`，与「重开再 page()」同一页）：看一眼历史对话、往上翻页、定时任务从线程预填，
    * 都不再冷启动一整条 AgentSession —— 那要装工具与扩展、按会话拉起全部 MCP 服务器，而且引擎里所有打开排成一队。
    * 打开中的也冷读：打开不改文件里已有的正文（中断修补在冷读里按同一口径补齐），打开之后的变化经增量补上，
-   * 只被冷读订阅过的通道打开时也不换代（TimelineHub.resetAdvanced）。
+   * 只被冷读订阅过的通道打开时也不换代（TimelineService.resetAdvanced）。
    * 还没落过盘的线程没有正文可读：空页，不为一次读去签发会话文件。
    */
   async page(

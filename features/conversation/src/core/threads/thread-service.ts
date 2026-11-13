@@ -1,11 +1,11 @@
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
+import type { TimelineService } from '@poietica/feature-timeline/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, type Clock, createId, type Logger, mapLimited } from '@poietica/foundation'
 import type { EngineSession, ModelRef, Posture } from '@poietica/runtime-protocol'
 import type { Thread, TurnState } from '../../contract/entities'
 import { conversationErrors } from '../../contract/errors'
 import type { ConversationRuntime } from '../runtime'
-import type { TimelineHub } from '../timeline/timeline-hub'
 import { pendingInteractionOf } from './pending-interaction'
 import type { ReclaimRepository } from './reclaim-repository'
 import type { ThreadRow, ThreadsRepository } from './repository'
@@ -28,7 +28,7 @@ export interface ThreadServiceDeps {
   readonly runtime: ConversationRuntime
   readonly workspaces: WorkspacesService
   readonly attachments: AttachmentsService
-  readonly hub: TimelineHub
+  readonly hub: TimelineService
   readonly clock: Clock
   readonly logger: Logger
   /** 会话此刻的状态（来自会话池；组合根注入，避免与 turn-service 互相依赖） */
@@ -240,7 +240,7 @@ export class ThreadService {
   onOpened(threadId: string, session: EngineSession): void {
     const row = this.d.repo.get(threadId)
     if (row === null) return
-    // 发过增量的通道（会话被驱逐后又打开）→ 换 epoch，UI 整页重取；只被冷读订阅过的通道不换（见 TimelineHub.resetAdvanced）
+    // 发过增量的通道（会话被驱逐后又打开）→ 换 epoch，UI 整页重取；只被冷读订阅过的通道不换（见 TimelineService.resetAdvanced）
     this.d.hub.resetAdvanced(threadId)
     if (row.sessionFile !== session.sessionFile) {
       // session_id 与 session_file 必须同时写（库里的 CHECK 约束）

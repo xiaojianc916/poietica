@@ -38,7 +38,8 @@
     "@types/bun": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
-    "electron": "catalog:"
+    "electron": "catalog:",
+    "@poietica/feature-timeline": "workspace:*"
   },
   "poietica": {
     "kind": "agent-tool"

@@ -218,6 +218,12 @@
       "path": "features/terminal/src/ui"
     },
     {
+      "path": "features/timeline/src/core"
+    },
+    {
+      "path": "features/timeline/src/core-api"
+    },
+    {
       "path": "features/update/src/contract"
     },
     {

@@ -1,25 +1,10 @@
 import type { AgentEvent } from '@poietica/agent-model'
-import type { Clock, Disposable } from '@poietica/foundation'
+import type { Clock } from '@poietica/foundation'
+import type { TimelineEventsNotice, TimelineResetNotice, TimelineService, TimelineSink } from '../core-api'
 import { TimelineChannel } from './timeline-channel'
-
-export interface TimelineEventsNotice {
-  readonly threadId: string
-  readonly agentId: string
-  readonly epoch: number
-  readonly seq: number
-  readonly events: readonly AgentEvent[]
-}
-
-export interface TimelineResetNotice {
-  readonly threadId: string
-  readonly agentId: string
-  readonly epoch: number
-}
 
 export interface TimelineHubDeps {
   readonly clock: Clock
-  readonly emitEvents: (p: TimelineEventsNotice) => void
-  readonly emitReset: (p: TimelineResetNotice) => void
   /**
    * 本进程 epoch 的起点；默认随机。测试注入固定值。
    *
@@ -27,6 +12,9 @@ export interface TimelineHubDeps {
    * 两个先后启动的 Core 都从 1 开始，UI 就认不出换代（R-04 §3.2）。
    */
   readonly epochBase?: number
+  /** 兼容直接构造的测试：给了就等同于 configure。 */
+  readonly emitEvents?: (p: TimelineEventsNotice) => void
+  readonly emitReset?: (p: TimelineResetNotice) => void
 }
 
 /** 2^40 以内的随机正整数：不用 `Date.now()`，同一毫秒启动的两个进程与时钟回拨都会撞号 */
@@ -35,12 +23,20 @@ export function randomEpochBase(): number {
 }
 
 /** (threadId, agentId) → TimelineChannel；epoch 从随机起点自增，跨进程不重复 */
-export class TimelineHub implements Disposable {
+export class TimelineHub implements TimelineService {
   private readonly channels = new Map<string, TimelineChannel>()
+  private sink: TimelineSink | undefined
   private next: number
 
   constructor(private readonly d: TimelineHubDeps) {
     this.next = d.epochBase ?? randomEpochBase()
+    if (d.emitEvents !== undefined && d.emitReset !== undefined) {
+      this.sink = { events: d.emitEvents, reset: d.emitReset }
+    }
+  }
+
+  configure(sink: TimelineSink): void {
+    this.sink = sink
   }
 
   private key(threadId: string, agentId: string): string {
@@ -52,8 +48,8 @@ export class TimelineHub implements Disposable {
     let c = this.channels.get(k)
     if (c === undefined) {
       c = new TimelineChannel(this.next++, () => this.next++, this.d.clock, {
-        events: (p) => this.d.emitEvents({ threadId, agentId, ...p }),
-        reset: (p) => this.d.emitReset({ threadId, agentId, ...p }),
+        events: (p) => this.sink?.events({ threadId, agentId, ...p }),
+        reset: (p) => this.sink?.reset({ threadId, agentId, ...p }),
       })
       this.channels.set(k, c)
     }

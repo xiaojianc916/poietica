@@ -1,8 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { AgentEvent } from '@poietica/agent-model'
+import { BATCH_WINDOW_MS, RING_CAPACITY, TimelineChannel, TimelineHub } from '@poietica/feature-timeline/core'
 import { fakeClock } from '@poietica/test-kit'
-import { BATCH_WINDOW_MS, RING_CAPACITY, TimelineChannel } from '../timeline/timeline-channel'
-import { TimelineHub } from '../timeline/timeline-hub'
 
 const at = '2026-01-01T00:00:00.000Z'
 

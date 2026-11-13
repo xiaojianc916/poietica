@@ -1,5 +1,6 @@
 import type { AgentEvent } from '@poietica/agent-model'
 import type { JournalService } from '@poietica/feature-journal/core-api'
+import type { TimelineService } from '@poietica/feature-timeline/core-api'
 import type { Clock } from '@poietica/foundation'
 import type {
   CommandOutputTone,
@@ -16,7 +17,6 @@ import { conversationErrors } from '../../contract/errors'
 import { snapshotOf } from '../composer/controls-snapshot'
 import type { SideDelta } from '../side-topic-hub'
 import type { ThreadRow, ThreadsRepository } from '../threads/repository'
-import type { TimelineHub } from './timeline-hub'
 
 /**
  * 事件路由（07 页 §5C 的 `event-router.ts`）：把 `EngineSessionEvent` 变成通知 / Core 事件。
@@ -35,7 +35,7 @@ interface Runtime {
 
 export interface EventRouterDeps {
   readonly repo: ThreadsRepository
-  readonly hub: TimelineHub
+  readonly hub: TimelineService
   readonly journal: JournalService
   /**
    * 「Core 即时回显」的提交服务：路由要在本会话第一个新 turn 上盖 clientTurnId，

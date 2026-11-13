@@ -1,10 +1,10 @@
 import type { CoreModuleContext } from '@poietica/core-kernel'
+import type { TimelineService } from '@poietica/feature-timeline/core-api'
 import { AppError } from '@poietica/foundation'
 import type { conversationContract } from '../contract'
 import { MAIN_AGENT_ID } from '../contract/entities'
 import type { ConversationCore } from './conversation'
 import type { SideTopicHub } from './side-topic-hub'
-import type { TimelineHub } from './timeline/timeline-hub'
 
 type Ctx = CoreModuleContext<typeof conversationContract>
 
@@ -20,7 +20,7 @@ function turnIdsOf(page: import('@poietica/agent-model').TranscriptPage): Readon
 }
 
 /** 契约方法 → 服务调用（每个 handler 一行） */
-export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: TimelineHub, sideHub: SideTopicHub): void {
+export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: TimelineService, sideHub: SideTopicHub): void {
   /* 三份服务直接调（R-08-7 撤掉了门面上的纯转发）：这里只认它们各自的公开方法 */
   const { threads, turns, submissions } = core
 
@@ -79,7 +79,7 @@ export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: Timeline
     /*
      * 先取位置、再取整页：两步之间到达的增量会被 UI 缓存（05 页 §12.2）。
      * **不打开会话**（读写分离，性能方案 P1）：池里没有这条会话时整页来自会话文件的冷读（turns.page），真要写时才打开；
-     * 打开时只给这一代里发过增量的通道换 epoch（ThreadService.onOpened → TimelineHub.resetAdvanced），所以这一份快照
+     * 打开时只给这一代里发过增量的通道换 epoch（ThreadService.onOpened → TimelineService.resetAdvanced），所以这一份快照
      * 不会被随后的打开作废（R-03 §2.4 当初「先 acquire 再取位置」要防的正是那一次 reset）。
      */
     const pos = hub.position(threadId, agentId)

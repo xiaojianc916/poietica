@@ -2,6 +2,7 @@ import { defineCoreModule } from '@poietica/core-kernel'
 import { AttachmentsServiceToken } from '@poietica/feature-attachments/core-api'
 import { CheckpointServiceToken } from '@poietica/feature-checkpoints/core-api'
 import { JournalServiceToken } from '@poietica/feature-journal/core-api'
+import { TimelineServiceToken } from '@poietica/feature-timeline/core-api'
 import { type WorkspaceRemoved, WorkspacesServiceToken, workspaceRemoved } from '@poietica/feature-workspaces/core-api'
 import { conversationContract } from '../contract'
 import {
@@ -21,19 +22,18 @@ import { registerImageTool } from './image-tool'
 import { migrations } from './migrations'
 import { TurnContextHub } from './runs/turn-context'
 import { SideTopicHub } from './side-topic-hub'
-import { TimelineHub } from './timeline/timeline-hub'
 import { wireEventsNotice, wireResetNotice } from './wire'
 
 export default defineCoreModule({
   id: 'conversation',
   contract: conversationContract,
-  dependsOn: ['workspaces', 'attachments', 'journal', 'checkpoints'],
+  dependsOn: ['timeline', 'workspaces', 'attachments', 'journal', 'checkpoints'],
   migrations,
   setup(ctx) {
-    const hub = new TimelineHub({
-      clock: ctx.clock,
-      emitEvents: (p) => ctx.rpc.emit('timeline.events', wireEventsNotice(p)),
-      emitReset: (p) => ctx.rpc.emit('timeline.reset', wireResetNotice(p)),
+    const hub = ctx.services.get(TimelineServiceToken)
+    hub.configure({
+      events: (p) => ctx.rpc.emit('timeline.events', wireEventsNotice(p)),
+      reset: (p) => ctx.rpc.emit('timeline.reset', wireResetNotice(p)),
     })
 
     const sideHub = new SideTopicHub({
@@ -151,7 +151,6 @@ export default defineCoreModule({
     // 会话池与 hub 的释放都是异步/有序的：模块的 onShutdown 里逐个做
     ctx.lifecycle.onShutdown(async () => {
       maintenance.abort()
-      hub.dispose()
       await core.dispose()
     })
   },

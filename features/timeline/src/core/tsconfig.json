@@ -1,0 +1,21 @@
+{
+  "extends": "../../../../tooling/tsconfig/bun.json",
+  "include": ["."],
+  "references": [
+    {
+      "path": "../../../../packages/agent-model"
+    },
+    {
+      "path": "../../../../packages/core-kernel"
+    },
+    {
+      "path": "../../../../packages/foundation"
+    },
+    {
+      "path": "../../../../packages/stream-kit"
+    },
+    {
+      "path": "../core-api"
+    }
+  ]
+}

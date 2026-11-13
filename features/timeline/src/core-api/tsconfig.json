@@ -1,0 +1,12 @@
+{
+  "extends": "../../../../tooling/tsconfig/neutral.json",
+  "include": ["."],
+  "references": [
+    {
+      "path": "../../../../packages/agent-model"
+    },
+    {
+      "path": "../../../../packages/foundation"
+    }
+  ]
+}

@@ -39,7 +39,8 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "yet-another-react-lightbox": "catalog:",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@poietica/feature-timeline": "workspace:*"
   },
   "devDependencies": {
     "@poietica/runtime-protocol-testkit": "workspace:*",

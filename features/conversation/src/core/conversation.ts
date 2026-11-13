@@ -1,6 +1,7 @@
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { CheckpointService } from '@poietica/feature-checkpoints/core-api'
 import type { JournalService } from '@poietica/feature-journal/core-api'
+import type { TimelineService } from '@poietica/feature-timeline/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import type { Clock, Logger } from '@poietica/foundation'
 import type {
@@ -24,14 +25,13 @@ import { createReclaimRepository } from './threads/reclaim-repository'
 import { createThreadsRepository } from './threads/repository'
 import { ThreadService } from './threads/thread-service'
 import { EventRouter } from './timeline/event-router'
-import type { TimelineHub } from './timeline/timeline-hub'
 
 export interface ConversationCoreDeps {
   readonly db: Parameters<typeof createThreadsRepository>[0]
   readonly runtime: ConversationRuntime
   readonly journal: JournalService
   readonly checkpoints?: CheckpointService
-  readonly hub: TimelineHub
+  readonly hub: TimelineService
   readonly workspaces: WorkspacesService
   readonly attachments: AttachmentsService
   readonly clock: Clock
