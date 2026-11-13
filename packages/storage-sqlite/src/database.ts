@@ -20,7 +20,7 @@ export interface Database {
   readonly readonly: boolean
   /** 内核专用：不做前缀检查 */
   readonly raw: BunDatabase
-  forModule(moduleId: string): ModuleDatabase
+  forModule(moduleId: string, prefixOverride?: string): ModuleDatabase
   close(): void
 }
 
@@ -63,11 +63,12 @@ function wrap(raw: BunDatabase, writable: boolean): Database {
   return {
     readonly: !writable,
     raw,
-    forModule(moduleId) {
-      let m = modules.get(moduleId)
+    forModule(moduleId, prefixOverride) {
+      const key = prefixOverride === undefined ? moduleId : `${moduleId}:${prefixOverride}`
+      let m = modules.get(key)
       if (m === undefined) {
-        m = createModuleDatabase(raw, moduleId)
-        modules.set(moduleId, m)
+        m = createModuleDatabase(raw, moduleId, prefixOverride)
+        modules.set(key, m)
       }
       return m
     },
@@ -82,8 +83,8 @@ function wrap(raw: BunDatabase, writable: boolean): Database {
   }
 }
 
-function createModuleDatabase(raw: BunDatabase, moduleId: string): ModuleDatabase {
-  const prefix = tablePrefix(moduleId)
+function createModuleDatabase(raw: BunDatabase, moduleId: string, prefixOverride?: string): ModuleDatabase {
+  const prefix = prefixOverride ?? tablePrefix(moduleId)
   const checked = new Set<string>()
   const guard = (sql: string) => {
     if (checked.has(sql)) return

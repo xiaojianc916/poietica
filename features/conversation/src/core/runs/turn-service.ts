@@ -7,9 +7,11 @@ import {
   turnOrdinal,
 } from '@poietica/agent-model'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
+import type { ThreadsRepository } from '@poietica/feature-threads/core-api'
 import type { TimelineService } from '@poietica/feature-timeline/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, type Clock, type Logger, SystemErrorCode } from '@poietica/foundation'
+import { controlsFromSnapshot } from '@poietica/product-model'
 import {
   type Controls,
   EngineErrorCode,
@@ -25,9 +27,7 @@ import {
 import type { QueueView } from '../../contract'
 import { DEFAULT_POSTURE, type Thread, type TurnState } from '../../contract/entities'
 import { conversationErrors } from '../../contract/errors'
-import { controlsFromSnapshot } from '../composer/controls-snapshot'
 import type { ConversationRuntime } from '../runtime'
-import type { ThreadsRepository } from '../threads/repository'
 import type { EventRouter } from '../timeline/event-router'
 import { eventsFromPage, pagesToPage } from '../timeline/journal-rebuild'
 import type { SessionPool } from './session-pool'
@@ -49,10 +49,10 @@ export interface TurnServiceDeps {
   readonly attachments: AttachmentsService
   readonly clock: Clock
   readonly logger: Logger
-  readonly requireRow: (threadId: string) => import('../threads/repository').ThreadRow
+  readonly requireRow: (threadId: string) => import('@poietica/feature-threads/core-api').ThreadRow
   /** 线程服务：setPostureAction 要同时把线程行改掉；读线程形状走 threadOf */
   readonly threads: {
-    threadOf(row: import('../threads/repository').ThreadRow): Thread
+    threadOf(row: import('@poietica/feature-threads/core-api').ThreadRow): Thread
     setPosture(threadId: string, posture: Posture): void
   }
   readonly emitThreadUpdated: (thread: Thread) => void

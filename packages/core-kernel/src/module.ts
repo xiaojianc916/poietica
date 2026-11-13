@@ -18,6 +18,11 @@ export interface CoreModule<C extends Contract = Contract> {
   readonly id: string
   /** 模块类型（P6）；装配清单里由 features/<id>/package.json 的 poietica.kind 声明。 */
   readonly kind?: ModuleKind
+  /**
+   * 过渡期表前缀覆盖（P6c）：模块接管历史表但尚未重命名时使用。
+   * 正常情况不要设置；新表仍应使用模块 id 的前缀。
+   */
+  readonly tablePrefix?: string
   readonly contract?: C
   readonly dependsOn?: readonly string[]
   /** 表结构迁移；表名、索引名必须以 `${表前缀}_` 开头（表前缀 = id 中的 '-' 换成 '_'）。 */

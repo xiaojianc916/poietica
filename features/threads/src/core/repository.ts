@@ -1,29 +1,7 @@
-import type { ModelRef, Posture } from '@poietica/runtime-protocol'
+import { parseSnapshot } from '@poietica/product-model'
+import type { Posture } from '@poietica/runtime-protocol'
 import type { ModuleDatabase, SqlValue } from '@poietica/storage-sqlite'
-import type { Thread } from '../../contract'
-import { type ControlsSnapshot, parseSnapshot } from '../composer/controls-snapshot'
-
-export interface ThreadRow {
-  id: string
-  workspaceId: string
-  title: string
-  titleSource: 'pending' | 'auto' | 'user'
-  posture: Posture
-  origin: 'user' | 'automation'
-  /**
-   * omp 会话 id 与文件路径：库里的 CHECK 要求两者同时为空或同时有值，所以只在这一处一起写
-   * （实体上 id 以 sessionId 露出去，供「复制 Session ID」用；文件路径仍然不出这个进程）。
-   */
-  sessionId: string | null
-  sessionFile: string | null
-  forkedFrom: string | null
-  pinned: boolean
-  archived: boolean
-  initialModel: ModelRef | null
-  initialThinking: string | null
-  createdAt: number
-  updatedAt: number
-}
+import type { ThreadRow, ThreadsRepository } from '../core-api'
 
 interface Row {
   id: string
@@ -42,22 +20,6 @@ interface Row {
   archived: number
   created_at: number
   updated_at: number
-}
-
-export interface ThreadsRepository {
-  insert(row: ThreadRow): void
-  get(id: string): ThreadRow | null
-  /** pinned DESC, updated_at DESC */
-  list(q: { workspaceId?: string | undefined; includeArchived: boolean }): ThreadRow[]
-  update(id: string, patch: Partial<Omit<ThreadRow, 'id'>>): void
-  delete(id: string): void
-  listByWorkspace(workspaceId: string): ThreadRow[]
-  /** 绑着会话文件的那些行（启动对账用：行上的路径必须真有文件） */
-  listBound(): Array<{ readonly id: string; readonly sessionFile: string }>
-  /** 控件表快照（性能方案 P4，见 controls-snapshot.ts）：没有、或读不懂都是 null。不在 COLUMNS 里 —— 列线程不必捎上它 */
-  controlsSnapshot(id: string): ControlsSnapshot | null
-  /** 覆盖控件表快照；内容没变就不写（比较在库里做，进程内不另记一份） */
-  saveControlsSnapshot(id: string, snapshot: ControlsSnapshot): void
 }
 
 const COLUMNS = `id, workspace_id, title, title_source, posture, origin, session_id, session_file,
@@ -84,34 +46,6 @@ function toRow(r: Row): ThreadRow {
     initialThinking: r.initial_thinking,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
-  }
-}
-
-/**
- * 行 → 实体。state 与 pendingInteraction 都由活会话决定（不在池中即 idle / null），
- * 这里只负责其余字段。
- */
-export function threadOf(
-  row: ThreadRow,
-  state: Thread['state'],
-  pendingInteraction: Thread['pendingInteraction'],
-): Thread {
-  return {
-    id: row.id,
-    workspaceId: row.workspaceId,
-    title: row.title,
-    titleSource: row.titleSource,
-    posture: row.posture,
-    origin: row.origin,
-    state,
-    pendingInteraction,
-    hasSession: row.sessionFile !== null,
-    sessionId: row.sessionId,
-    forkedFrom: row.forkedFrom,
-    pinned: row.pinned,
-    archived: row.archived,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
   }
 }
 

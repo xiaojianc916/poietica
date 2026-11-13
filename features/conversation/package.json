@@ -22,6 +22,7 @@
     "@poietica/feature-journal": "workspace:*",
     "@poietica/feature-platform": "workspace:*",
     "@poietica/feature-preferences": "workspace:*",
+    "@poietica/feature-threads": "workspace:*",
     "@poietica/feature-timeline": "workspace:*",
     "@poietica/feature-workspaces": "workspace:*",
     "@poietica/foundation": "workspace:*",

@@ -17,6 +17,7 @@ import policy from '@poietica/feature-policy/core'
 import python from '@poietica/feature-python/core'
 import review from '@poietica/feature-review/core'
 import settings from '@poietica/feature-settings/core'
+import threads from '@poietica/feature-threads/core'
 import timeline from '@poietica/feature-timeline/core'
 import usage from '@poietica/feature-usage/core'
 import workbuddy from '@poietica/feature-workbuddy/core'
@@ -39,6 +40,7 @@ export const coreModuleKinds = {
   python: 'integration',
   review: 'domain',
   settings: 'domain',
+  threads: 'domain',
   timeline: 'domain',
   usage: 'domain',
   workbuddy: 'integration',
@@ -62,6 +64,7 @@ export const coreModules: readonly CoreModule[] = [
   python,
   review,
   settings,
+  threads,
   timeline,
   usage,
   workbuddy,

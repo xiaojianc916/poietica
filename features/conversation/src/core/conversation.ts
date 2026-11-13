@@ -1,6 +1,7 @@
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { CheckpointService } from '@poietica/feature-checkpoints/core-api'
 import type { JournalService } from '@poietica/feature-journal/core-api'
+import type { ThreadsRepository } from '@poietica/feature-threads/core-api'
 import type { TimelineService } from '@poietica/feature-timeline/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import type { Clock, Logger } from '@poietica/foundation'
@@ -13,6 +14,7 @@ import type {
   SideTopic,
   UsageSample,
 } from '@poietica/runtime-protocol'
+import type { ModuleDatabase } from '@poietica/storage-sqlite'
 import type { QueueView, Thread, TurnState } from '../contract/entities'
 import { SessionPool } from './runs/session-pool'
 import { SubmissionService } from './runs/submission-service'
@@ -22,12 +24,12 @@ import { TurnService } from './runs/turn-service'
 import type { ConversationRuntime } from './runtime'
 import type { SideDelta } from './side-topic-hub'
 import { createReclaimRepository } from './threads/reclaim-repository'
-import { createThreadsRepository } from './threads/repository'
 import { ThreadService } from './threads/thread-service'
 import { EventRouter } from './timeline/event-router'
 
 export interface ConversationCoreDeps {
-  readonly db: Parameters<typeof createThreadsRepository>[0]
+  readonly db: ModuleDatabase
+  readonly repo: ThreadsRepository
   readonly runtime: ConversationRuntime
   readonly journal: JournalService
   readonly checkpoints?: CheckpointService
@@ -110,7 +112,7 @@ export class ConversationCore {
   readonly submissions: SubmissionService
 
   constructor(d: ConversationCoreDeps) {
-    const repo = createThreadsRepository(d.db)
+    const repo = d.repo
     const submissionsRepo = createSubmissionsRepository(d.db)
 
     /*

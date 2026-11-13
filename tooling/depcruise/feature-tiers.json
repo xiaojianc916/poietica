@@ -22,5 +22,6 @@
   "journal": 1,
   "policy": 1,
   "settings": 0,
-  "timeline": 1
+  "timeline": 1,
+  "threads": 1
 }

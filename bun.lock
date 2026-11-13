@@ -46,6 +46,7 @@
         "@poietica/feature-python": "workspace:*",
         "@poietica/feature-review": "workspace:*",
         "@poietica/feature-settings": "workspace:*",
+        "@poietica/feature-threads": "workspace:*",
         "@poietica/feature-timeline": "workspace:*",
         "@poietica/feature-usage": "workspace:*",
         "@poietica/feature-workbuddy": "workspace:*",
@@ -192,6 +193,7 @@
         "@poietica/feature-attachments": "workspace:*",
         "@poietica/feature-checkpoints": "workspace:*",
         "@poietica/feature-journal": "workspace:*",
+        "@poietica/feature-threads": "workspace:*",
         "@poietica/feature-timeline": "workspace:*",
         "@poietica/runtime-protocol-testkit": "workspace:*",
         "@poietica/test-kit": "workspace:*",
@@ -257,6 +259,7 @@
         "@poietica/feature-journal": "workspace:*",
         "@poietica/feature-platform": "workspace:*",
         "@poietica/feature-preferences": "workspace:*",
+        "@poietica/feature-threads": "workspace:*",
         "@poietica/feature-timeline": "workspace:*",
         "@poietica/feature-workspaces": "workspace:*",
         "@poietica/foundation": "workspace:*",
@@ -368,6 +371,7 @@
         "@poietica/feature-attachments": "workspace:*",
         "@poietica/feature-checkpoints": "workspace:*",
         "@poietica/feature-journal": "workspace:*",
+        "@poietica/feature-threads": "workspace:*",
         "@poietica/feature-timeline": "workspace:*",
         "@poietica/feature-workspaces": "workspace:*",
         "@poietica/runtime-protocol": "workspace:*",
@@ -593,6 +597,20 @@
         "@types/node": "catalog:",
         "@types/react": "catalog:",
         "electron": "catalog:",
+      },
+    },
+    "features/threads": {
+      "name": "@poietica/feature-threads",
+      "version": "0.0.0",
+      "dependencies": {
+        "@poietica/core-kernel": "workspace:*",
+        "@poietica/foundation": "workspace:*",
+        "@poietica/product-model": "workspace:*",
+        "@poietica/runtime-protocol": "workspace:*",
+        "@poietica/storage-sqlite": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.4.4",
       },
     },
     "features/timeline": {
@@ -1498,6 +1516,8 @@
     "@poietica/feature-settings": ["@poietica/feature-settings@workspace:features/settings"],
 
     "@poietica/feature-terminal": ["@poietica/feature-terminal@workspace:features/terminal"],
+
+    "@poietica/feature-threads": ["@poietica/feature-threads@workspace:features/threads"],
 
     "@poietica/feature-timeline": ["@poietica/feature-timeline@workspace:features/timeline"],
 

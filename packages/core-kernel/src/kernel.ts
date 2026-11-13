@@ -250,7 +250,7 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
         logger,
         clock: opts.clock,
         layout: opts.layout,
-        db: db.forModule(m.id),
+        db: db.forModule(m.id, m.tablePrefix),
         outbox,
         jobs,
         idempotency,

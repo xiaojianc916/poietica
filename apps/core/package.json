@@ -23,6 +23,7 @@
     "@poietica/feature-python": "workspace:*",
     "@poietica/feature-review": "workspace:*",
     "@poietica/feature-settings": "workspace:*",
+    "@poietica/feature-threads": "workspace:*",
     "@poietica/feature-timeline": "workspace:*",
     "@poietica/feature-usage": "workspace:*",
     "@poietica/feature-workbuddy": "workspace:*",

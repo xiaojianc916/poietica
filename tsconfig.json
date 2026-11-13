@@ -218,6 +218,12 @@
       "path": "features/terminal/src/ui"
     },
     {
+      "path": "features/threads/src/core"
+    },
+    {
+      "path": "features/threads/src/core-api"
+    },
+    {
       "path": "features/timeline/src/core"
     },
     {

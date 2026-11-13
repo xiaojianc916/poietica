@@ -1,4 +1,5 @@
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
+import type { ThreadRow, ThreadsRepository } from '@poietica/feature-threads/core-api'
 import type { TimelineService } from '@poietica/feature-timeline/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, type Clock, createId, type Logger, mapLimited } from '@poietica/foundation'
@@ -8,8 +9,7 @@ import { conversationErrors } from '../../contract/errors'
 import type { ConversationRuntime } from '../runtime'
 import { pendingInteractionOf } from './pending-interaction'
 import type { ReclaimRepository } from './reclaim-repository'
-import type { ThreadRow, ThreadsRepository } from './repository'
-import { threadOf } from './repository'
+import { threadOf } from './thread-of'
 import { deriveTitle, forkTitleOf, LEAKED_MARKUP_PREFIX, normalizeTitle, PENDING_TITLE } from './title'
 
 /** 附件引用的 ownerKey 拼法：'<功能 id>:<实体>:<id>' */

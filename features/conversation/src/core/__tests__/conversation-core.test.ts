@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { AgentEvent } from '@poietica/agent-model'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { JournalService } from '@poietica/feature-journal/core-api'
+import { createThreadsRepository } from '@poietica/feature-threads/core'
 import { TimelineHub } from '@poietica/feature-timeline/core'
 import type { Workspace } from '@poietica/feature-workspaces/contract'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
@@ -95,6 +96,7 @@ async function makeCore(
 
   const core = new ConversationCore({
     db: db.forModule('conversation'),
+    repo: createThreadsRepository(db.forModule('conversation')),
     journal: overrides.journal ?? fakeJournal(),
     runtime: engine,
     hub,
@@ -303,6 +305,7 @@ describe('conversation core（不经内核的直连测试）', () => {
     engine.freezeTools()
     const core = new ConversationCore({
       db: db.forModule('conversation'),
+      repo: createThreadsRepository(db.forModule('conversation')),
       journal: fakeJournal(),
       runtime: engine,
       hub,
@@ -1065,6 +1068,7 @@ describe('conversation core（不经内核的直连测试）', () => {
       const submissions: { status: string }[] = []
       const core = new ConversationCore({
         db: moduleDb,
+        repo: createThreadsRepository(moduleDb),
         journal: fakeJournal(),
         runtime: engine,
         hub,

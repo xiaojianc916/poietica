@@ -1,0 +1,23 @@
+{
+  "name": "@poietica/feature-threads",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./core": "./src/core/index.ts",
+    "./core-api": "./src/core-api/index.ts"
+  },
+  "dependencies": {
+    "@poietica/core-kernel": "workspace:*",
+    "@poietica/foundation": "workspace:*",
+    "@poietica/product-model": "workspace:*",
+    "@poietica/runtime-protocol": "workspace:*",
+    "@poietica/storage-sqlite": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4"
+  },
+  "poietica": {
+    "kind": "domain"
+  }
+}
