@@ -432,3 +432,4 @@
 | v2-P6c 线程            | 2026-11-13 | ThreadService、回收队列、标题/待答交互/行映射移入 features/threads；晚绑定端口接会话池与事件出口                                                                                                               |
 | v2-P6c 运行            | 2026-11-13 | runs 接管提交仓储、SessionPool、TurnContext、SubmissionService；conversation 只剩 TurnService 与 composer                                                                                                      |
 | v2-P6c TurnService     | 2026-11-13 | TurnService、时间线分页辅助迁入 runs；conversation 只剩 EventRouter、组合根与 composer 接线                                                                                                                    |
+| v2-P6c EventRouter     | 2026-11-13 | EventRouter 与回合运行时表迁入 timeline；conversation 只剩组合根、handler、composer 接线                                                                                                                       |
