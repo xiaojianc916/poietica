@@ -1,6 +1,6 @@
 # ADR-012：模块类型、描述符与设置注册表
 
-状态：部分实施（P6）：模块类型、三进程清单与契约汇总已由目录生成；timeline 已抽为独立 feature，threads / runs / composer 仍留在 conversation。
+状态：部分实施（P6）：模块类型、三进程清单与契约汇总已由目录生成；timeline 已抽为独立 feature；threads 仓储与产品实体已独立，ThreadService 与 runs/composer 仍在 conversation。
 
 背景：功能切片是唯一主轴，领域、运行时、界面、集成混在一个目录；设置分散且有影子副本。
 

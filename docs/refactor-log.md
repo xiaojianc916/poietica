@@ -428,3 +428,4 @@
 | v2-P6                  | 2026-11-13 | outbox / jobs / 幂等 / workflows + 分发器 / 启动续跑；统一设置注册表；三进程清单与契约汇总改为目录生成、模块类型声明；conversation 拆分未做                                                                    |
 | v2-P7                  | 2026-11-13 | omp 锁版本、导出/事件差分、未知事件/工具兜底；深层 import 73 处，待上游公开导出                                                                                                                                |
 | v2-P6c                 | 2026-11-13 | conversation 内部按 threads/runs/timeline/composer 分组；timeline 抽为独立 feature（TimelineServiceToken，通知仍归 conversation 契约）                                                                         |
+| v2-P6c 增量            | 2026-11-13 | 产品实体迁至 @poietica/product-model；线程仓储与 ThreadsRepositoryToken 独立成 features/threads（过渡 tablePrefix=conversation）                                                                               |
