@@ -7,7 +7,11 @@ import { openDatabase } from '@poietica/storage-sqlite'
 import { createTestLogger, waitFor } from '@poietica/test-kit'
 import { migrations } from '../migrations'
 import { SubmissionService } from '../runs/submission-service'
-import { createSubmissionsRepository, type SubmissionRow, type SubmissionsRepository } from '../runs/submissions-repository'
+import {
+  createSubmissionsRepository,
+  type SubmissionRow,
+  type SubmissionsRepository,
+} from '../runs/submissions-repository'
 import type { CollectedContext } from '../runs/turn-context'
 
 /*
