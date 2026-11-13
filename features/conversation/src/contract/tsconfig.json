@@ -9,6 +9,9 @@
       "path": "../../../../packages/contract-kit"
     },
     {
+      "path": "../../../../packages/product-model"
+    },
+    {
       "path": "../../../../packages/runtime-protocol"
     }
   ]

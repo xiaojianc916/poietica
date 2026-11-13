@@ -22,11 +22,13 @@
     "@poietica/feature-journal": "workspace:*",
     "@poietica/feature-platform": "workspace:*",
     "@poietica/feature-preferences": "workspace:*",
+    "@poietica/feature-timeline": "workspace:*",
     "@poietica/feature-workspaces": "workspace:*",
     "@poietica/foundation": "workspace:*",
     "@poietica/fs-kit": "workspace:*",
     "@poietica/host-kernel": "workspace:*",
     "@poietica/omp-types": "workspace:*",
+    "@poietica/product-model": "workspace:*",
     "@poietica/rpc": "workspace:*",
     "@poietica/runtime-protocol": "workspace:*",
     "@poietica/storage-sqlite": "workspace:*",
@@ -39,8 +41,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "yet-another-react-lightbox": "catalog:",
-    "zod": "catalog:",
-    "@poietica/feature-timeline": "workspace:*"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@poietica/runtime-protocol-testkit": "workspace:*",

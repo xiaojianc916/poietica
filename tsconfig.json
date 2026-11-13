@@ -308,6 +308,9 @@
       "path": "packages/process-kit"
     },
     {
+      "path": "packages/product-model"
+    },
+    {
       "path": "packages/protocol"
     },
     {

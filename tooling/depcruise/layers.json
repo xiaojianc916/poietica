@@ -25,5 +25,6 @@
   "runtime-kernel": 2,
   "runtime-manager": 3,
   "diff": 1,
-  "worktree": 2
+  "worktree": 2,
+  "product-model": 1
 }

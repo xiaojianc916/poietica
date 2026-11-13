@@ -4,5 +4,6 @@
   "engine-omp": ["engine-testkit"],
   "git": ["process-kit"],
   "rpc": ["contract-kit"],
-  "worktree": ["git"]
+  "worktree": ["git"],
+  "product-model": ["agent-model", "runtime-protocol"]
 }

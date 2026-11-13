@@ -279,7 +279,7 @@ module.exports = {
         pathNot: [
           '^features/$1/src/(contract|core-api)/',
           '^features/[^/]+/src/contract/',
-          '^packages/(contract-kit|foundation|agent-model|runtime-protocol)/',
+          '^packages/(contract-kit|foundation|agent-model|runtime-protocol|product-model)/',
           '^packages/core-kernel/src/events-def\\.ts$',
           `${NM}zod/`,
         ],

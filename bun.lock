@@ -263,6 +263,7 @@
         "@poietica/fs-kit": "workspace:*",
         "@poietica/host-kernel": "workspace:*",
         "@poietica/omp-types": "workspace:*",
+        "@poietica/product-model": "workspace:*",
         "@poietica/rpc": "workspace:*",
         "@poietica/runtime-protocol": "workspace:*",
         "@poietica/storage-sqlite": "workspace:*",
@@ -889,6 +890,18 @@
         "@types/node": "catalog:",
       },
     },
+    "packages/product-model": {
+      "name": "@poietica/product-model",
+      "version": "0.0.0",
+      "dependencies": {
+        "@poietica/agent-model": "workspace:*",
+        "@poietica/runtime-protocol": "workspace:*",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.4.4",
+      },
+    },
     "packages/protocol": {
       "name": "@poietica/protocol",
       "version": "0.0.0",
@@ -1509,6 +1522,8 @@
     "@poietica/omp-types": ["@poietica/omp-types@workspace:packages/omp-types"],
 
     "@poietica/process-kit": ["@poietica/process-kit@workspace:packages/process-kit"],
+
+    "@poietica/product-model": ["@poietica/product-model@workspace:packages/product-model"],
 
     "@poietica/protocol": ["@poietica/protocol@workspace:packages/protocol"],
 
