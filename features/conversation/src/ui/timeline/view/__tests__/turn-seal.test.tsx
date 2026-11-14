@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'bun:test'
+import type { TurnOutcome } from '@poietica/conversation-kit/timeline'
 import { cleanup, render } from '@testing-library/react'
-import type { TurnOutcome } from '../../../shared/timeline/timeline-contract'
 import { TurnSeal } from '../turn-seal'
 
 /*

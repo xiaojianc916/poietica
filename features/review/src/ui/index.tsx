@@ -1,8 +1,5 @@
-import {
-  composerContextItems,
-  turnChangesProviders,
-  workspaceGitProviders,
-} from '@poietica/feature-conversation/ui-api'
+import { composerContextItems } from '@poietica/feature-composer/ui-api'
+import { turnChangesProviders, workspaceGitProviders } from '@poietica/feature-conversation/ui-api'
 import { WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
 import { BannersToken, builtinPoints, defineUiFeature, LayoutToken } from '@poietica/ui-kernel'
 import { FileDiff, GitCompareArrows } from 'lucide-react'

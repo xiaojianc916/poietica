@@ -1,6 +1,4 @@
-import type { SlashCommand } from '@poietica/runtime-protocol'
-import type { SlashCommandContribution } from '../../ui-api'
-import { PLAN_CONTROL_ID, PLAN_ENABLED } from '../session'
+import type { ChatStatus, SessionConfigControl } from '@poietica/conversation-kit/model'
 import {
   COMMAND_GROUPS,
   type CommandChoice,
@@ -8,9 +6,10 @@ import {
   type CommandInput,
   type ComposerCommand,
   findCommand,
-} from '../shared/model/commands'
-import type { SessionConfigControl } from '../shared/model/config'
-import type { ChatStatus } from '../shared/model/run'
+} from '@poietica/conversation-kit/model'
+import type { SlashCommand } from '@poietica/runtime-protocol'
+import type { SlashCommandContribution } from '../../ui-api'
+import { PLAN_CONTROL_ID, PLAN_ENABLED } from '../session'
 
 /*
  * GUI 里的斜杠命令清单：哪些列、在哪儿列、选中之后做什么，都在这一处。

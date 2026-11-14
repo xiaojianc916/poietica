@@ -206,11 +206,11 @@ module.exports = {
         'conversation 的区与区之间只经 <区>/index 互引（docs/ARCHITECTURE.md §4.3）。setup 是装配层、没有 index，所以它只出不进：' +
         '组合根（ui/index.tsx）直接取它的段落，各区一律不得反向 import setup 内部。',
       from: {
-        path: '^features/conversation/src/ui/(threads|composer|timeline|session|status|home|setup)/',
+        path: '^features/conversation/src/ui/(threads|timeline|session|status|home|setup)/',
         pathNot: TEST,
       },
       to: {
-        path: '^features/conversation/src/ui/(threads|composer|timeline|session|status|home|setup)/',
+        path: '^features/conversation/src/ui/(threads|timeline|session|status|home|setup)/',
         pathNot: ['^features/conversation/src/ui/$1/', '^features/conversation/src/ui/[^/]+/index\\.tsx?$'],
       },
     },
@@ -219,7 +219,7 @@ module.exports = {
       severity: 'error',
       comment: 'shared/ 不得反向依赖任何区（docs/ARCHITECTURE.md §4.3）',
       from: { path: '^features/conversation/src/ui/shared/', pathNot: TEST },
-      to: { path: '^features/conversation/src/ui/(threads|composer|timeline|session|status|home|setup)/' },
+      to: { path: '^features/conversation/src/ui/(threads|timeline|session|status|home|setup)/' },
     },
     /*
      * timeline 是全仓最大的区（~19k 行），内部按 model / view / feed / tools / minimap 五个子目录分工。

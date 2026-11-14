@@ -5,7 +5,7 @@ import {
   type TimelineState,
   type ToolCallTimelineItem,
   type TurnPage,
-} from '../../shared/timeline/timeline-contract'
+} from '@poietica/conversation-kit/timeline'
 import { clientTurnIdsOf, delegateCallsOf } from '../timeline-queries'
 
 /*

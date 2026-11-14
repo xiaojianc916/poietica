@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from 'bun:test'
+import type { CompactionTimelineItem } from '@poietica/conversation-kit/timeline'
 import { cleanup, fireEvent, render } from '@testing-library/react'
-import type { CompactionTimelineItem } from '../../../shared/timeline/timeline-contract'
 import { CompactionStatus } from '../compaction-status'
 
 /*

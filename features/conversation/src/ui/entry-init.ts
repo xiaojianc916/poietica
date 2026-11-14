@@ -1,20 +1,15 @@
+import type { SessionConfigControl } from '@poietica/conversation-kit/model'
 import type { ModelRef, Posture } from '@poietica/runtime-protocol'
 import { postureOfControl } from './session/configuration/control-shapes'
-import type { SessionConfigControl } from './shared/model/config'
 
 /*
  * 屏幕上那一份（草稿覆盖后的 `controls.draft` 结果）才是这条线程的初始化。只带「用户手改过的草稿」时，没动过选择器就一个都不传，omp 按内置目录另挑一条 ——
  * 屏幕上写着 A、会话里跑的是 B（真机故障：入口页显示 DeepSeek-V4.1-Flash，发送后会话文件里是 deepseek-v4-pro）。
  */
 
-export interface DraftSelection {
-  readonly model?: ModelRef | null | undefined
-  readonly thinking?: string | null | undefined
-  readonly posture?: Posture | undefined
-  /** **入口这一格没有会话**，所以计划模式与目标都先记在这里，等铸出号之后再补下发给会话。 */
-  readonly plan?: boolean | undefined
-  readonly goal?: boolean | undefined
-}
+import type { DraftSelection } from '@poietica/feature-composer/ui-api'
+
+export type { DraftSelection }
 
 export interface EntryThreadInit {
   readonly workspaceId: string

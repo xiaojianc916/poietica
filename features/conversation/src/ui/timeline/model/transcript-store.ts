@@ -1,28 +1,25 @@
 import { type AgentTranscriptSnapshot, turnOrdinal } from '@poietica/agent-model'
-import { AppError, createId, InvariantError, invariant, SystemErrorCode } from '@poietica/foundation'
-import type { SubmissionView } from '../../../contract'
-import { conversationErrors } from '../../../contract'
-import { describeFailure } from '../../failure'
-import type { DialogAnswer } from '../../shared/model/dialog'
-import { MessageQueue } from '../../shared/model/message-queue'
-import type { ApprovalAnswer } from '../../shared/model/permission'
-import type { PlanAnswer } from '../../shared/model/plan'
-import type { QuestionResponse } from '../../shared/model/question'
-import type { RunStatus } from '../../shared/model/run'
 import type {
   AgentPromptHandle,
   AgentSessionPort,
+  ApprovalAnswer,
   DeliveryModePatch,
+  DialogAnswer,
   DroppedPrompt,
+  PlanAnswer,
   PromptAsset,
   PromptConfiguration,
   PromptDelivery,
   PromptSkill,
+  QuestionResponse,
   QueuedMessages,
   RunFailed,
-} from '../../shared/model/session'
-import type { TranscriptPage, TranscriptSignal } from '../../shared/model/transcript'
-import type { TurnMark } from '../../shared/model/turn-mark'
+  RunStatus,
+  TranscriptPage,
+  TranscriptSignal,
+  TurnMark,
+} from '@poietica/conversation-kit/model'
+import { MessageQueue } from '@poietica/conversation-kit/model'
 import {
   createTimelineState,
   fileMetaLabel,
@@ -31,7 +28,11 @@ import {
   type TimelineItem,
   type TimelineState,
   type TurnOutcome,
-} from '../../shared/timeline/timeline-contract'
+} from '@poietica/conversation-kit/timeline'
+import { AppError, createId, InvariantError, invariant, SystemErrorCode } from '@poietica/foundation'
+import type { SubmissionView } from '../../../contract'
+import { conversationErrors } from '../../../contract'
+import { describeFailure } from '../../failure'
 import { delegateAddress, delegateKey } from '../delegate-channel'
 import { clientTurnIdsOf, selectIsBusy } from '../timeline-queries'
 import {

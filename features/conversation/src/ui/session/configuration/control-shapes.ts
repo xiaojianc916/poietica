@@ -1,8 +1,6 @@
+import type { SessionConfigControl, SessionGoal, SessionUsage } from '@poietica/conversation-kit/model'
+import { GOAL_CONTROL_ID, GOAL_DISABLED, GOAL_ENABLED } from '@poietica/conversation-kit/model'
 import type { ContextUsage, Controls, Posture } from '@poietica/runtime-protocol'
-import type { SessionConfigControl } from '../../shared/model/config'
-import type { SessionGoal } from '../../shared/model/goal'
-import { GOAL_CONTROL_ID, GOAL_DISABLED, GOAL_ENABLED } from '../../shared/model/goal-control'
-import type { SessionUsage } from '../../shared/model/usage'
 
 /** 计划那一档的两个取值（与产品侧 appliesOnSubmit 的选择器同词表）。 */
 export const PLAN_CONTROL_ID = 'plan'

@@ -1,13 +1,13 @@
 import { describe, expect, test } from 'bun:test'
-import type { Thread } from '../../../../contract'
-import { createSessionRegistry, createThreadEntry } from '../../../session'
 import type {
   AgentPromptHandle,
   AgentPromptRequest,
   AgentSessionPort,
   QueuedMessages,
-} from '../../../shared/model/session'
-import type { TranscriptPage } from '../../../shared/model/transcript'
+  TranscriptPage,
+} from '@poietica/conversation-kit/model'
+import type { Thread } from '../../../../contract'
+import { createSessionRegistry, createThreadEntry } from '../../../session'
 import { selectPresentation } from '../../presentation'
 import { TranscriptStore } from '../transcript-store'
 import { readFailedSubmissionText } from '../use-assistant-session'
@@ -362,7 +362,7 @@ describe('待发提交按 clientTurnId 收口（发送键不再空转）', () =>
 describe('Core 换代后的重新同步（R-04 §3.6）', () => {
   /** 一根可记账、可主动推信号的假端口。 */
   function recordingPort(threadId: string) {
-    let listener: ((signal: import('../../../shared/model/transcript').TranscriptSignal) => void) | null = null
+    let listener: ((signal: import('@poietica/conversation-kit/model').TranscriptSignal) => void) | null = null
     const state = { reads: 0, queues: 0, nextSeq: 100 }
     const page = (): TranscriptPage => ({ ...EMPTY_PAGE, seq: state.nextSeq })
     const port: AgentSessionPort = {
@@ -406,7 +406,7 @@ describe('Core 换代后的重新同步（R-04 §3.6）', () => {
     return {
       port,
       state,
-      emit: (signal: import('../../../shared/model/transcript').TranscriptSignal) => listener?.(signal),
+      emit: (signal: import('@poietica/conversation-kit/model').TranscriptSignal) => listener?.(signal),
     }
   }
 
@@ -613,8 +613,8 @@ describe('R-08-5 未送达的插话 / 排队也画成气泡', () => {
 describe('进程中途没了那一轮报「已停止」，不报「已完成」', () => {
   /** 能捕获 `RunFailed` 订阅者的假端口（真接线在装配层，这里直接把它拉出来问）。 */
   function dyingPort(threadId: string) {
-    let listener: ((signal: import('../../../shared/model/transcript').TranscriptSignal) => void) | null = null
-    let runFailed: ((failed: import('../../../shared/model/session').RunFailed) => void) | null = null
+    let listener: ((signal: import('@poietica/conversation-kit/model').TranscriptSignal) => void) | null = null
+    let runFailed: ((failed: import('@poietica/conversation-kit/model').RunFailed) => void) | null = null
     const port: AgentSessionPort = {
       transcript: {
         subscribeTranscript: (l) => {
@@ -654,7 +654,7 @@ describe('进程中途没了那一轮报「已停止」，不报「已完成」'
     }
     return {
       port,
-      emit: (signal: import('../../../shared/model/transcript').TranscriptSignal): void => listener?.(signal),
+      emit: (signal: import('@poietica/conversation-kit/model').TranscriptSignal): void => listener?.(signal),
       /* 让这一轮真的跑起来：一轮 + 一个段 + 一次 read（有过程可折，才谈得上折不折）。 */
       openTurn: (): void => {
         /* seq 必须接在初始整读的水位之后（EMPTY_PAGE.seq = 1），否则会被当成重复批丢掉。 */

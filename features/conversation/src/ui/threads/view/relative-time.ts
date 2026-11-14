@@ -1,6 +1,6 @@
 /* 时间退回行尾那一格的元数据；两级投影分开：时钟跳一次不该让整屏重跑解析。 */
 
-import { DAY, HOUR, MINUTE, narrowUnit } from '../../shared/semantics/duration'
+import { DAY, HOUR, MINUTE, narrowUnit } from '@poietica/conversation-kit/semantics'
 
 const spoken = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
 

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { applyOps, emptyTimeline, type TranscriptOperation } from '@poietica/agent-model'
-import type { TranscriptPage } from '../../../shared/model/transcript'
+import type { TranscriptPage } from '@poietica/conversation-kit/model'
 import { outlineOf, type ProjectionMemo, projectTranscript } from '../transcript-projector'
 
 /*

@@ -135,7 +135,9 @@ UI 功能的注册项按功能持有：`setup` 中途失败时立即逆序释放
 
 **功能内部按区分目录。** 一个功能大到有多个区域时，每个区一个目录，区里自带状态与视图，区与区之间只能经
 `<区>/index` 互相引用；`shared/` 收跨区的模型、词表与基础件，且**不得反向依赖任何区**。conversation 是
-第一个这样组织的功能（`ui/{threads,composer,timeline,session,status,home,shared}`），两条规则由 depcruise
+conversation 仍按区组织（`ui/{threads,timeline,session,status,home}`），跨区的模型、词表与基础件已下沉到
+`packages/conversation-kit`；composer 的界面与草稿状态独立为 `features/composer`（tier 2），conversation 只经它的
+`surface` 入口组合。conversation 的两条区规则由 depcruise
 的 `conversation-area-via-index` 与 `conversation-shared-is-leaf` 把关。timeline 是全仓最大的区（约 19k 行），
 内部再分 `model` / `view` / `feed` / `tools` / `minimap` 五个子目录：`model` 只放状态与投影、不得依赖渲染层，
 `tools` 是工具卡片的视图模型、只依赖 `shared` 词表（`model` 与 `view` 都可以用它）。这两条方向由

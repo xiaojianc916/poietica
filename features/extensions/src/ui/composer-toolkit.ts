@@ -3,12 +3,12 @@ import type {
   ComposerToolkitSource,
   ToolkitMcpServer,
   ToolkitSkill,
-} from '@poietica/feature-conversation/ui-api'
+} from '@poietica/feature-composer/ui-api'
 import type { Logger } from '@poietica/foundation'
 import type { McpServerInfo, McpStatus, SkillInfo } from '../contract'
 import type { ExtensionsApi } from './api'
 
-/* 加号面板那张名册的数据来源（conversation.composerToolkitSources 的提供方）。名册属于 extensions，conversation 只画面板。
+/* 加号面板那张名册的数据来源（composer.toolkitSources 的提供方）。名册属于 extensions，conversation 只画面板。
  * 三条读法判据：**技能按工作区缓存**（omp 的 discoverSkills(cwd) 按工作目录分层）；**MCP 只有全局一份**，且**名单取配置、状态取
  * 活会话** —— mcp.status 只汇总活会话，没跑过会话时恒为空，只读状态会让面板在第一条对话之前什么都没有（真实故障）；**只画可用的
  * 技能**。失败只记 warn、保留旧值：名册是输入框上的装饰，弹错误横幅反而拦住了人打字。 */

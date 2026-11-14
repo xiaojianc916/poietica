@@ -1,5 +1,5 @@
+import { CheckIcon, FailureIcon, WarningIcon } from '@poietica/conversation-kit/primitives'
 import { useCopy } from '@poietica/design-system'
-import { CheckIcon, FailureIcon, WarningIcon } from '../../shared/primitives/icons'
 
 import './error-notice.css'
 

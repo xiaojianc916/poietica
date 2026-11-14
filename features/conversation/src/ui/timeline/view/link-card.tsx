@@ -2,10 +2,9 @@ import './flow-row.css'
 import './ticker/shimmer.css'
 import './tools/tool-call.css'
 
+import { ChevronDownIcon, DisclosureBody, LinkIcon } from '@poietica/conversation-kit/primitives'
+import type { LinkTimelineItem } from '@poietica/conversation-kit/timeline'
 import { cn } from '@poietica/design-system'
-import { DisclosureBody } from '../../shared/primitives/disclosure'
-import { ChevronDownIcon, LinkIcon } from '../../shared/primitives/icons'
-import type { LinkTimelineItem } from '../../shared/timeline/timeline-contract'
 
 /* 一次断线，长在它耽误的那一轮里；「还断着吗」不由这张卡自己判，它与工具卡片同问 row.isInFlight
    （判据在 presentation.ts 的 inFlight），所以一轮死掉时这里的光会停。 */

@@ -1,11 +1,15 @@
 import { type ProseFileLinks, ProseFileLinksContext } from '@poietica/design-system/prose'
+import type { ComposerStore } from '@poietica/feature-composer/surface'
+import {
+  AttachmentIntakeContext,
+  ComposerStoreContext,
+  type LiveComposers,
+  LiveComposersContext,
+} from '@poietica/feature-composer/surface'
+import { composerProviders } from '@poietica/feature-composer/ui-api'
 import { FeatureScope, useContributions } from '@poietica/ui-kernel'
 import { type ReactNode, useMemo } from 'react'
-import { composerProviders, fileReferenceOpeners, turnChangesProviders, workspaceGitProviders } from '../ui-api'
-import { AttachmentIntakeContext } from './composer/attachment'
-import type { ComposerStore } from './composer/composer-store'
-import { ComposerStoreContext } from './composer/drafts-context'
-import { type LiveComposers, LiveComposersContext } from './composer/live-composers'
+import { fileReferenceOpeners, turnChangesProviders, workspaceGitProviders } from '../ui-api'
 import type { TranscriptStore } from './timeline/model/transcript-store'
 import { TranscriptsContext } from './timeline/model/transcripts-context'
 import { type AgentControls, AgentControlsContext } from './timeline/view/agent-controls-context'

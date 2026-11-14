@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
+import type { SessionGoal } from '@poietica/conversation-kit/model'
+import type { TodoItem } from '@poietica/conversation-kit/timeline'
 import type { WorkspaceGitStatus } from '@poietica/feature-conversation/ui-api'
-import type { SessionGoal } from '../../../shared/model/goal'
-import type { TodoItem } from '../../../shared/timeline/timeline-contract'
 import { statusSummaryOf } from '../status-summary'
 
 const git = (added: number, removed: number): WorkspaceGitStatus => ({

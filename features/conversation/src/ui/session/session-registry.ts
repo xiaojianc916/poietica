@@ -1,5 +1,5 @@
+import type { AgentSessionPort } from '@poietica/conversation-kit/model'
 import type { ConversationApi } from '../api'
-import type { AgentSessionPort } from '../shared/model/session'
 import { createSessionPort } from './session-port'
 
 /*

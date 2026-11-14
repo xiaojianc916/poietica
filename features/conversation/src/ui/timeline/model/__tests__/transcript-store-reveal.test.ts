@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test'
 import { type AgentEvent, EMPTY_THREAD_STATE, reduceAll, snapshotOf } from '@poietica/agent-model'
-import type { AgentSessionPort } from '../../../shared/model/session'
-import type { TranscriptPage } from '../../../shared/model/transcript'
+import type { AgentSessionPort, TranscriptPage } from '@poietica/conversation-kit/model'
 import { TranscriptStore } from '../transcript-store'
 
 /*

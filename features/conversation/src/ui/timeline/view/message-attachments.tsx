@@ -1,9 +1,9 @@
 import './message-attachments.css'
 
+import { ImageLightbox } from '@poietica/conversation-kit/media'
+import { FileIcon, SpinnerIcon } from '@poietica/conversation-kit/primitives'
+import type { MessageFile, MessageImage } from '@poietica/conversation-kit/timeline'
 import { useMemo, useState } from 'react'
-import { ImageLightbox } from '../../shared/media/image-lightbox'
-import { FileIcon, SpinnerIcon } from '../../shared/primitives/icons'
-import type { MessageFile, MessageImage } from '../../shared/timeline/timeline-contract'
 
 /**
  * 附件排在这句话上面、气泡外面：气泡宽度贴着文字，塞进去就会被附件撑成附件框，那句话反成了附件的说明文字。

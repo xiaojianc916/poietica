@@ -1,8 +1,13 @@
 import type { Attachment } from '@poietica/feature-attachments/contract'
 import { AttachmentsUiToken } from '@poietica/feature-attachments/ui-api'
+import { type AttachmentIntake, AttachmentIntakeContext, type ComposerAsset } from '@poietica/feature-composer/surface'
+import {
+  type ComposerDraft,
+  composerInputHandlers,
+  composerProviders,
+  type DraftAttachment,
+} from '@poietica/feature-composer/ui-api'
 import type { ReactNode } from 'react'
-import { type ComposerDraft, composerInputHandlers, composerProviders, type DraftAttachment } from '../../ui-api'
-import { type AttachmentIntake, AttachmentIntakeContext, type ComposerAsset } from '../composer'
 import type { ConversationActions } from './actions'
 import type { ConversationSetup } from './context'
 

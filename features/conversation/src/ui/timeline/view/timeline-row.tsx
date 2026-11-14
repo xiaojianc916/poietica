@@ -1,10 +1,10 @@
 import './flow-row.css'
 
+import type { TimelineItem } from '@poietica/conversation-kit/timeline'
 import { Prose } from '@poietica/design-system/prose'
 import { FeatureScope, useContributions } from '@poietica/ui-kernel'
 import { memo, Suspense } from 'react'
 import { type ToolCallRendererProps, toolCallRenderers } from '../../../ui-api'
-import type { TimelineItem } from '../../shared/timeline/timeline-contract'
 import { type FeedRow, matchesToolName } from '../presentation'
 import { CompactionStatus } from './compaction-status'
 import { ErrorNotice } from './error-notice'

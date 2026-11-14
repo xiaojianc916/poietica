@@ -3,11 +3,7 @@ import '../ticker/shimmer.css'
 import './tool-call.css'
 import './tool-group.css'
 
-import { cn, GithubMark } from '@poietica/design-system'
-import { type DiffStat, diffStatOf } from '@poietica/design-system/diff'
-import type { ComponentType } from 'react'
-import type { ToolGlyph } from '../../../shared/model/tool-call'
-import { DisclosureBody } from '../../../shared/primitives/disclosure'
+import type { ToolGlyph } from '@poietica/conversation-kit/model'
 import {
   BrainIcon,
   BugIcon,
@@ -15,6 +11,7 @@ import {
   ClockIcon,
   ComputerIcon,
   DeviceIcon,
+  DisclosureBody,
   FileIcon,
   GlobeIcon,
   GoalIcon,
@@ -33,11 +30,13 @@ import {
   ToolIcon,
   WandIcon,
   YieldIcon,
-} from '../../../shared/primitives/icons'
-import { toDiffFilesOf } from '../../../shared/semantics/tool-call-facets'
-import type { ToolCallTimelineItem } from '../../../shared/timeline/timeline-contract'
-import { toolGlyphOf } from '../../../shared/tools/omp-tool-glyphs'
-import { clampToLine, readToolLine, sayToolCount } from '../../../shared/tools/tool-intent'
+} from '@poietica/conversation-kit/primitives'
+import { toDiffFilesOf } from '@poietica/conversation-kit/semantics'
+import type { ToolCallTimelineItem } from '@poietica/conversation-kit/timeline'
+import { clampToLine, readToolLine, sayToolCount, toolGlyphOf } from '@poietica/conversation-kit/tools'
+import { cn, GithubMark } from '@poietica/design-system'
+import { type DiffStat, diffStatOf } from '@poietica/design-system/diff'
+import type { ComponentType } from 'react'
 import { isDelegation } from '../../delegate-channel'
 import { useDelegateChannel } from '../delegate-channel-context'
 import { ToolCallPanels } from './tool-call-panels'

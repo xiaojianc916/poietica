@@ -24,5 +24,6 @@
   "settings": 0,
   "timeline": 1,
   "threads": 1,
-  "runs": 1
+  "runs": 1,
+  "composer": 2
 }

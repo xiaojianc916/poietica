@@ -1,7 +1,7 @@
+import { ChevronDownIcon } from '@poietica/conversation-kit/primitives'
 import { FileTypeMark } from '@poietica/design-system'
 import { Undo2 } from 'lucide-react'
 import type { TurnChangesView } from '../../../ui-api'
-import { ChevronDownIcon } from '../../shared/primitives/icons'
 import './turn-changes.css'
 
 /*

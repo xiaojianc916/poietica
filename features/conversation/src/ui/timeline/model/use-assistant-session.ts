@@ -1,20 +1,21 @@
-import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
-import type { DialogAnswer } from '../../shared/model/dialog'
-import type { MessageQueue, MessageQueueState } from '../../shared/model/message-queue'
-import type { ApprovalAnswer } from '../../shared/model/permission'
-import type { PlanAnswer } from '../../shared/model/plan'
-import type { QuestionResponse } from '../../shared/model/question'
-import type { ChatStatus } from '../../shared/model/run'
 import type {
   AgentPromptHandle,
   AgentSessionPort,
+  ApprovalAnswer,
+  ChatStatus,
+  DialogAnswer,
+  MessageQueue,
+  MessageQueueState,
+  PlanAnswer,
   PromptAsset,
   PromptConfiguration,
   PromptDelivery,
   PromptSkill,
-} from '../../shared/model/session'
-import type { TurnMark } from '../../shared/model/turn-mark'
-import type { BackgroundTaskItem, SubagentItem, TimelineState, TodoItem } from '../../shared/timeline/timeline-contract'
+  QuestionResponse,
+  TurnMark,
+} from '@poietica/conversation-kit/model'
+import type { BackgroundTaskItem, SubagentItem, TimelineState, TodoItem } from '@poietica/conversation-kit/timeline'
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import type { PendingInteractions } from '../timeline-queries'
 import { activeScope, pendingInteractions } from '../timeline-queries'
 import type { PreparedThread, Transcript } from './transcript-store'

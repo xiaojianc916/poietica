@@ -1,7 +1,7 @@
+import { createDraftPin, type Draft, type DraftPinView, isDraft } from '@poietica/feature-composer/surface'
 import type { SetupUiStateKey } from '@poietica/feature-preferences/contract'
 import type { UiStateSlot } from '@poietica/feature-preferences/ui-api'
 import { createValue } from '@poietica/ui-kernel'
-import { createDraftPin, type Draft, type DraftPinView, isDraft } from '../composer'
 import { shouldNotify } from '../session'
 import type { SummaryPanelPreference, SummaryPanelVariant } from '../status'
 import { leaveForArchive } from '../threads'

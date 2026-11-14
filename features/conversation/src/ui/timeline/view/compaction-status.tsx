@@ -3,12 +3,17 @@ import './flow-row.css'
 import './ticker/shimmer.css'
 import './tools/tool-call.css'
 
+import { formatTokens } from '@poietica/conversation-kit/model'
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  CompactionIcon,
+  CopyIcon,
+  DisclosureBody,
+} from '@poietica/conversation-kit/primitives'
+import type { CompactionTimelineItem } from '@poietica/conversation-kit/timeline'
 import { cn, useCopy } from '@poietica/design-system'
 import { Prose } from '@poietica/design-system/prose'
-import { formatTokens } from '../../shared/model/usage'
-import { DisclosureBody } from '../../shared/primitives/disclosure'
-import { CheckIcon, ChevronDownIcon, CompactionIcon, CopyIcon } from '../../shared/primitives/icons'
-import type { CompactionTimelineItem } from '../../shared/timeline/timeline-contract'
 
 /** 前后两个数都有：「39.9K → 23.7K」；只有压缩前的、或都没有：null（由调用方另说） */
 function spanOf(item: CompactionTimelineItem): string | null {

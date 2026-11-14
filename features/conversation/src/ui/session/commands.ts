@@ -1,7 +1,7 @@
+import type { CommandOutputNotice, ThreadCommands } from '@poietica/conversation-kit/model'
 import type { CommandOutputTone, SlashCommand } from '@poietica/runtime-protocol'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ConversationApi } from '../api'
-import type { CommandOutputNotice, ThreadCommands } from '../shared/model/commands'
 
 const NO_COMMANDS: readonly SlashCommand[] = Object.freeze([])
 

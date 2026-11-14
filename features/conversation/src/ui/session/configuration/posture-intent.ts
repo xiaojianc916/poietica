@@ -1,5 +1,5 @@
-import type { PermissionPosturePort } from '../../shared/model/permission'
-import { createExternalStore } from '../../shared/primitives/external-store'
+import type { PermissionPosturePort } from '@poietica/conversation-kit/model'
+import { createExternalStore } from '@poietica/conversation-kit/primitives'
 
 /*
  * 记忆的正主是 `uiState` 的 `'conversation.permissionPosture'`：开机先读回来、再拿它去对齐新建的会话。

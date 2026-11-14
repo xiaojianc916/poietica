@@ -1,5 +1,4 @@
 import type { TranscriptUsage } from '@poietica/agent-model'
-import type { ToolCallRenderer } from '../../ui-api'
 import {
   isTerminal,
   type TimelineItem,
@@ -9,8 +8,9 @@ import {
   type TurnOutcome,
   type TurnPage,
   type TurnSpan,
-} from '../shared/timeline/timeline-contract'
-import { PROCESS_FAMILY, toolFamilyOf } from '../shared/tools/tool-family'
+} from '@poietica/conversation-kit/timeline'
+import { PROCESS_FAMILY, toolFamilyOf } from '@poietica/conversation-kit/tools'
+import type { ToolCallRenderer } from '../../ui-api'
 import { lastAtOrBefore } from './ordered-lookup'
 import { isRenderable } from './renderable'
 

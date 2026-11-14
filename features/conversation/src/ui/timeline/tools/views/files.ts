@@ -1,5 +1,5 @@
+import type { ToolCallContent } from '@poietica/conversation-kit/model'
 import type { OmpGenericToolDetails } from '@poietica/omp-types'
-import type { ToolCallContent } from '../../../shared/model/tool-call'
 import type { Ctx, Handler } from '../view-kit'
 import {
   at,

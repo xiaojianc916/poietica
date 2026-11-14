@@ -5,8 +5,8 @@ import '../../../features/conversation/src/ui/timeline/view/ticker/rolling-line.
 
 import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { readThoughtSentence } from '../../../features/conversation/src/ui/shared/semantics/thought-sentence'
 import { RollingLine } from '../../../features/conversation/src/ui/timeline/view/ticker/rolling-line'
+import { readThoughtSentence } from '../../../packages/conversation-kit/src/semantics/thought-sentence'
 import { measureFrame, type Sample } from './recorder'
 import { type Arrival, THOUGHT } from './streams'
 

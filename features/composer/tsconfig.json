@@ -1,0 +1,14 @@
+{
+  "extends": "../../tooling/tsconfig/dom.json",
+  "include": ["src"],
+  "references": [
+    { "path": "../../packages/agent-model" },
+    { "path": "../../packages/conversation-kit" },
+    { "path": "../../packages/design-system" },
+    { "path": "../../packages/foundation" },
+    { "path": "../../packages/omp-types" },
+    { "path": "../../packages/runtime-protocol" },
+    { "path": "../../packages/ui-kernel" },
+    { "path": "../attachments" }
+  ]
+}

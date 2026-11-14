@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ComposerDraft } from '@poietica/feature-conversation/ui-api'
+import type { ComposerDraft } from '@poietica/feature-composer/ui-api'
 import type { NavigationService } from '@poietica/ui-kernel'
 import type { PickedElement } from '../../contract'
 import { createPickDelivery, reportBytes, reportName } from '../pick-delivery'

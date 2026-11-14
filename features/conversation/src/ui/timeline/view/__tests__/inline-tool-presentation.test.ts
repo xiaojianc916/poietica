@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
-import type { ToolCallStatus, ToolKind } from '../../../shared/model/tool-call'
-import type { TimelineItem, TimelineState, ToolCallTimelineItem } from '../../../shared/timeline/timeline-contract'
+import type { ToolCallStatus, ToolKind } from '@poietica/conversation-kit/model'
+import type { TimelineItem, TimelineState, ToolCallTimelineItem } from '@poietica/conversation-kit/timeline'
 import { inlineToolsOf, selectPresentation } from '../../presentation'
 
 /* 贡献了 inline 卡片的工具（例如 intelligent-ui 的 intelligent_ui，原 R-18 的 show_widget）不并进过程组，落定后也不折进「过程」；失败的那次照常归过程。

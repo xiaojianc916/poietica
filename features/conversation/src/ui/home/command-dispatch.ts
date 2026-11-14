@@ -1,13 +1,11 @@
+import type { ChatStatus, SessionConfigControl, SessionUsage } from '@poietica/conversation-kit/model'
+import { commandArgsOf, commandNameOf, findCommand, type ThreadCommands } from '@poietica/conversation-kit/model'
+import type { ControlsOpenRequest, PromptInputMessage } from '@poietica/feature-composer/surface'
 import type { BannerService, CommandService, DialogService } from '@poietica/ui-kernel'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Thread } from '../../contract'
 import type { SlashCommandContribution } from '../../ui-api'
-import type { ControlsOpenRequest, PromptInputMessage } from '../composer'
 import { PLAN_CONTROL_ID, PLAN_DISABLED, PLAN_ENABLED } from '../session'
-import { commandArgsOf, commandNameOf, findCommand, type ThreadCommands } from '../shared/model/commands'
-import type { SessionConfigControl } from '../shared/model/config'
-import type { ChatStatus } from '../shared/model/run'
-import type { SessionUsage } from '../shared/model/usage'
 import type { SummaryPanelPreference } from '../status'
 import {
   type AvailableCommand,

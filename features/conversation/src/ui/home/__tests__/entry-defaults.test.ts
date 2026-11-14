@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { createComposerStore } from '../../composer/composer-store'
+import { createComposerStore } from '@poietica/feature-composer/surface'
 import { createEntryDefaults, type EntryDefaultChoice } from '../entry-defaults'
 
 /*

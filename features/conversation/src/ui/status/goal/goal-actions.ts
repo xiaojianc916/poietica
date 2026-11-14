@@ -1,7 +1,7 @@
+import type { GoalAction, GoalActionResult } from '@poietica/conversation-kit/model'
 import { assertNever, isAppError } from '@poietica/foundation'
 import type { Controls } from '@poietica/runtime-protocol'
 import { describeFailure } from '../../failure'
-import type { GoalAction, GoalActionResult } from '../../shared/model/goal-control'
 
 export interface GoalActionApi {
   setGoal(threadId: string, goal: string | null): Promise<Controls>

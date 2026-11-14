@@ -1,7 +1,7 @@
+import { type ComposerStore, createComposerStore, projectDocument } from '@poietica/feature-composer/surface'
 import { createId } from '@poietica/foundation'
 import type { Controls, ModelRef, Posture } from '@poietica/runtime-protocol'
 import type { ConversationApi } from '../api'
-import { type ComposerStore, createComposerStore, projectDocument } from '../composer'
 import {
   type CompletionUnreadStore,
   createCompletionUnreadStore,
@@ -14,9 +14,9 @@ import { type ControlsStore, createControlsStore } from './configuration/control
 
 export interface ComposerApi {
   readonly threadId: string | null
-  readonly draft: import('../composer').Draft
+  readonly draft: import('@poietica/feature-composer/surface').Draft
   setText(text: string): void
-  addAttachments(items: readonly import('../../ui-api').DraftAttachment[]): void
+  addAttachments(items: readonly import('@poietica/feature-composer/ui-api').DraftAttachment[]): void
   removeAttachment(id: string): void
   insertText(text: string): void
   submit(deliverAs: 'turn' | 'steer' | 'followUp'): void
@@ -39,7 +39,7 @@ export interface ConversationStores {
 
 export function createStores(
   api: ConversationApi,
-  initialDrafts: Readonly<Record<string, import('../composer').Draft>> = {},
+  initialDrafts: Readonly<Record<string, import('@poietica/feature-composer/surface').Draft>> = {},
 ): ConversationStores {
   /*
    * turnStates 先建：threads.refresh() 要用它把 `Thread.state` 打底（R-04 §3.5），

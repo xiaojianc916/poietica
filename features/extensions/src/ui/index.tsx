@@ -1,4 +1,5 @@
-import { composerToolkitSources, slashCommands } from '@poietica/feature-conversation/ui-api'
+import { composerToolkitSources } from '@poietica/feature-composer/ui-api'
+import { slashCommands } from '@poietica/feature-conversation/ui-api'
 import { BannersToken, builtinPoints, defineUiFeature, NavigationToken, SETTINGS_GROUPS } from '@poietica/ui-kernel'
 import { PackageOpen, Plug } from 'lucide-react'
 import { lazy } from 'react'

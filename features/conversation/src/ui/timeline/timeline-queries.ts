@@ -6,7 +6,7 @@ import {
   type TimelineItem,
   type TimelineState,
   type ToolCallTimelineItem,
-} from '../shared/timeline/timeline-contract'
+} from '@poietica/conversation-kit/timeline'
 import { sealedPageMemo } from './page-memo'
 
 /** 未结交互以条目为事实；status 只能从条目单向投影，不能反向参与判定。 */

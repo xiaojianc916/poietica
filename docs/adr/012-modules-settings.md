@@ -1,6 +1,6 @@
 # ADR-012：模块类型、描述符与设置注册表
 
-状态：部分实施（P6）：模块类型、三进程清单与契约汇总已由目录生成；timeline / threads 已抽为独立 feature；runs 已接管提交仓储、SessionPool、TurnContext、SubmissionService 与 TurnService；timeline 接管 EventRouter；剩余只有 composer 的 UI 入口。
+状态：P6c 已实施：timeline / threads / runs / composer 均为独立 feature；conversation 只保留组合根、RPC handlers 与装配；`ui/shared` 下沉为 `conversation-kit` 包。
 
 背景：功能切片是唯一主轴，领域、运行时、界面、集成混在一个目录；设置分散且有影子副本。
 

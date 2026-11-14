@@ -1,5 +1,14 @@
 import './assistant-threads.css'
 
+import { byIsoDescending } from '@poietica/conversation-kit/model'
+import {
+  ArchiveIcon,
+  ChevronDownIcon,
+  ComposeIcon,
+  PinIcon,
+  useHorizon,
+  useNow,
+} from '@poietica/conversation-kit/primitives'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,9 +20,6 @@ import { AlarmClock, FolderClosed, FolderOpen, MoreHorizontal, PinOff, Trash2 } 
 import type { RefObject } from 'react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import type { Thread } from '../../../contract'
-import { byIsoDescending } from '../../shared/model/thread-order'
-import { useHorizon, useNow } from '../../shared/primitives/clock'
-import { ArchiveIcon, ChevronDownIcon, ComposeIcon, PinIcon } from '../../shared/primitives/icons'
 import { AnimatedRows } from './animated-rows'
 import { datedGroupsOf, instantsOf, nextChangeIn, paintedGroupsOf } from './relative-time'
 import { ThreadDisclosure } from './thread-disclosure'

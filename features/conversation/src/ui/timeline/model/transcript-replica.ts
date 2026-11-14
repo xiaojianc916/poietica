@@ -101,7 +101,12 @@ class LocalTranscriptStore {
   }
 }
 
-import type { TranscriptCatchUp, TranscriptPage, TranscriptPort, TranscriptSignal } from '../../shared/model/transcript'
+import type {
+  TranscriptCatchUp,
+  TranscriptPage,
+  TranscriptPort,
+  TranscriptSignal,
+} from '@poietica/conversation-kit/model'
 
 type Feed = { seq: number; valid: boolean; tail: Promise<void> }
 type Publish = (agentId: string, snapshot: AgentTranscriptSnapshot) => void

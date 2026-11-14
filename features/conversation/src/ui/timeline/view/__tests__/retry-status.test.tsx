@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from 'bun:test'
+import type { RetryTimelineItem } from '@poietica/conversation-kit/timeline'
 import { cleanup, fireEvent, render } from '@testing-library/react'
-import type { RetryTimelineItem } from '../../../shared/timeline/timeline-contract'
 import { RetryStatus } from '../retry-status'
 
 /*

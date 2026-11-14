@@ -1,7 +1,8 @@
+import type { ComposerDraft } from '@poietica/feature-composer/ui-api'
 import { defineServiceToken } from '@poietica/foundation'
 import type { OmpToolInputOf, OmpToolOutputOf } from '@poietica/omp-types'
 import { defineContributionPoint, type IconComponent, type SurfaceComponent } from '@poietica/ui-kernel'
-import type { ComponentType, ReactNode } from 'react'
+import type { ComponentType } from 'react'
 import type { Thread } from '../contract'
 
 /*
@@ -43,48 +44,6 @@ export {
   useTurnDiffOpener,
 } from './turn-changes'
 /**
- * 输入框下方那一行的其它 chip。
- *
- * 工作区胶囊由 conversation 自己画（它认识工作区），分支胶囊由 review 贡献：
- * conversation 不认识 git，review 也不该认识输入框的排版。
- */
-export interface ComposerContextItem {
-  readonly id: string
-  readonly order: number
-  readonly component: ComponentType
-}
-export const composerContextItems = defineContributionPoint<ComposerContextItem>('conversation.composerContextItems')
-
-/**
- * 输入框树的外层提供者：别的功能往输入框树里放一层 Context 的插槽。
- *
- * 附件的入库口不走这里的外部贡献：conversation 依赖 attachments（功能分级里 attachments 在下），
- * 由 ui/setup/attachments.tsx 用 `AttachmentsUiToken` 拼好入库口，自己往这个插槽里放。
- */
-export interface ComposerProviderItem {
-  readonly id: string
-  readonly order: number
-  readonly component: ComponentType<{ readonly children: ReactNode }>
-}
-export const composerProviders = defineContributionPoint<ComposerProviderItem>('conversation.composerProviders')
-
-/*
- * 加号面板里「技能 / MCP」两组的数据落点（见 ./composer-toolkit.ts 的头注）。
- *
- * 名册属于 extensions（它持有 `skills.list` / `mcp.status` / `mcp.statusChanged`），
- * conversation 只画面板，所以 conversation 留贡献点、extensions 提供数据 ——
- * 与上面的 composerProviders 同一形制。
- */
-export {
-  type ComposerToolkit,
-  type ComposerToolkitSource,
-  composerToolkitSources,
-  EMPTY_TOOLKIT,
-  type ToolkitMcpServer,
-  type ToolkitSkill,
-} from './composer-toolkit'
-
-/**
  * 输入框斜杠命令面板里由别的功能提供的命令：MCP、技能、用量、记忆…… 这些能力住在别的功能里，命令只是「打开那一页」的快捷方式，
  * conversation 不认识那些页。与 omp 的内置命令同名时以这里为准（`/mcp` 在 GUI 里就是打开 MCP 设置页，不是终端里的子命令）。
  * 任何场所都列（入口页也能用）：打开一页设置不需要对话。
@@ -125,39 +84,6 @@ export interface ToolCallRenderer {
   readonly inline?: boolean
 }
 export const toolCallRenderers = defineContributionPoint<ToolCallRenderer>('conversation.toolCallRenderers')
-
-/** 输入框草稿：贡献者通过它往草稿里加东西 */
-export interface DraftAttachment {
-  readonly id: string
-  readonly name: string
-  readonly kind: 'image' | 'file'
-  readonly previewUrl: string | null
-}
-export interface ComposerDraft {
-  readonly threadId: string | null // home 页的新对话为 null
-  addAttachments(items: readonly DraftAttachment[]): void
-  insertText(text: string): void
-  /** 等价于用户点击发送（草稿为空时什么也不做） */
-  submit(): void
-}
-export interface ComposerAction {
-  readonly id: string
-  readonly order: number
-  readonly component: ComponentType<{ draft: ComposerDraft }>
-}
-export const composerActions = defineContributionPoint<ComposerAction>('conversation.composerActions')
-
-export interface ComposerInputHandler {
-  readonly id: string
-  /**
-   * 这次粘贴归不归我。**必须同步**：要在 Lexical 把文字插入 DOM 之前就答出来（异步回答时它已经插完了）。
-   * 认领了再由 onPaste 决定接不接得住，接不住会把文字照原样贴回去。
-   */
-  claims?(event: ClipboardEvent): boolean
-  onPaste?(event: ClipboardEvent, draft: ComposerDraft): boolean | Promise<boolean>
-  onDrop?(event: DragEvent, draft: ComposerDraft): boolean | Promise<boolean>
-}
-export const composerInputHandlers = defineContributionPoint<ComposerInputHandler>('conversation.composerInputHandlers')
 
 export interface ThreadAction {
   readonly id: string

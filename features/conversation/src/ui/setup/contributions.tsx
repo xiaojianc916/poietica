@@ -1,3 +1,5 @@
+import { GOAL_CONTROL_ID, GOAL_DISABLED, groupByWorkspace } from '@poietica/conversation-kit/model'
+import type { TimelineState } from '@poietica/conversation-kit/timeline'
 import { Banner, ConfirmationDialog } from '@poietica/design-system'
 import { prefetchProseWhenIdle } from '@poietica/design-system/prose'
 import { useWorkspacesView } from '@poietica/feature-workspaces/ui-api'
@@ -26,9 +28,6 @@ import {
   useThreadCommands,
   withoutHiddenModels,
 } from '../session'
-import { GOAL_CONTROL_ID, GOAL_DISABLED } from '../shared/model/goal-control'
-import { groupByWorkspace } from '../shared/model/thread-order'
-import type { TimelineState } from '../shared/timeline/timeline-contract'
 import { runGoalAction } from '../status'
 import {
   ARCHIVED_FILTER,

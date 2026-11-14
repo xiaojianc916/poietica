@@ -1,9 +1,11 @@
+import type { CommandOutputNotice, SessionConfigControl, ThreadCommands } from '@poietica/conversation-kit/model'
+import { GOAL_CONTROL_ID, GOAL_DISABLED, GOAL_ENABLED } from '@poietica/conversation-kit/model'
+import { type EntrySelection, NEW_THREAD_KEY } from '@poietica/feature-composer/surface'
 import type { PreferencesApi } from '@poietica/feature-preferences/ui-api'
 import { useWorkspacesView, type WorkspacesUi } from '@poietica/feature-workspaces/ui-api'
 import { useFeatureStore } from '@poietica/ui-kernel'
 import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { ConversationApi } from '../api'
-import { type EntrySelection, NEW_THREAD_KEY } from '../composer'
 import { type DraftSelection, entryThreadInitOf } from '../entry-init'
 import type { ConversationStores, PostureIntent, SessionRegistry } from '../session'
 import {
@@ -18,9 +20,6 @@ import {
   useCommandCatalog,
   withoutHiddenModels,
 } from '../session'
-import type { CommandOutputNotice, ThreadCommands } from '../shared/model/commands'
-import type { SessionConfigControl } from '../shared/model/config'
-import { GOAL_CONTROL_ID, GOAL_DISABLED, GOAL_ENABLED } from '../shared/model/goal-control'
 import type { PreparedThread } from '../timeline'
 
 function applyDraftModes(

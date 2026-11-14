@@ -1,5 +1,6 @@
 import './agent-activity-feed.css'
 
+import { ToLatestIcon, useDevicePixels } from '@poietica/conversation-kit/primitives'
 import {
   defaultRangeExtractor,
   type Range,
@@ -18,8 +19,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import { ToLatestIcon } from '../../shared/primitives/icons'
-import { useDevicePixels } from '../../shared/primitives/use-device-pixels'
 import type { Presentation } from '../presentation'
 import { geometryOf, keepGeometry } from './conversation-geometry'
 import { KeepAlive, mergeRange } from './keep-alive'

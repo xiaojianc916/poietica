@@ -1,9 +1,8 @@
+import type { GoalAction, GoalActionHandler, GoalActionResult, SessionGoal } from '@poietica/conversation-kit/model'
 import { focusOnMount, Tooltip, TooltipContent, TooltipTrigger } from '@poietica/design-system'
 import { Check, CirclePause, CirclePlay, Goal, Pencil, Trash2, X } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { describeFailure } from '../../failure'
-import type { SessionGoal } from '../../shared/model/goal'
-import type { GoalAction, GoalActionHandler, GoalActionResult } from '../../shared/model/goal-control'
 import './goal-bar.css'
 
 export type GoalBarToggle = 'pause' | 'resume' | null

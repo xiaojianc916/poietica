@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test'
+import { AuxiliaryComposerBar } from '@poietica/feature-composer/surface'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
-import { AuxiliaryComposerBar } from '../../../composer'
 import { ConfirmStopButton } from '../delegate-channel-view'
 
 /* 子代理标签页的两样控件：停止要点两下才生效；引导框是辅助对话那颗输入药丸。 */

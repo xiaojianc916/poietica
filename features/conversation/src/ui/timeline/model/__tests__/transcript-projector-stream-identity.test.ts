@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test'
 import { applyOps, emptyTimeline, type TranscriptOperation } from '@poietica/agent-model'
-import type { TranscriptPage } from '../../../shared/model/transcript'
-import { toToolCallFacets } from '../../../shared/semantics/tool-call-facets'
-import type { ToolCallTimelineItem } from '../../../shared/timeline/timeline-contract'
+import type { TranscriptPage } from '@poietica/conversation-kit/model'
+import { toToolCallFacets } from '@poietica/conversation-kit/semantics'
+import type { ToolCallTimelineItem } from '@poietica/conversation-kit/timeline'
 import { type ProjectionMemo, projectTranscript } from '../transcript-projector'
 
 /*

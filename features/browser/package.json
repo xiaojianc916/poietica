@@ -14,6 +14,7 @@
     "@poietica/core-kernel": "workspace:*",
     "@poietica/design-system": "workspace:*",
     "@poietica/feature-attachments": "workspace:*",
+    "@poietica/feature-composer": "workspace:*",
     "@poietica/feature-conversation": "workspace:*",
     "@poietica/foundation": "workspace:*",
     "@poietica/host-kernel": "workspace:*",

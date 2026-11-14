@@ -16,12 +16,13 @@ import type {
   TurnOrigin,
 } from '@poietica/agent-model'
 import { compactionMarkerPayload, retryNoticeOf } from '@poietica/agent-model'
-import { invariant } from '@poietica/foundation'
-import { mediaAssetUrl } from '../../../contract'
-import type { DialogRequest } from '../../shared/model/dialog'
-import type { QuestionChoice, QuestionItem } from '../../shared/model/question'
-import type { ToolCallContent } from '../../shared/model/tool-call'
-import type { TurnMark } from '../../shared/model/turn-mark'
+import type {
+  DialogRequest,
+  QuestionChoice,
+  QuestionItem,
+  ToolCallContent,
+  TurnMark,
+} from '@poietica/conversation-kit/model'
 import type {
   BackgroundTaskItem,
   CompactionTimelineItem,
@@ -40,9 +41,11 @@ import type {
   TurnPage,
   TurnSpan,
   UserMessageItem,
-} from '../../shared/timeline/timeline-contract'
-import { fileMetaLabel, isInFlight } from '../../shared/timeline/timeline-contract'
-import { describeTool } from '../../shared/tools/tool-vocabulary'
+} from '@poietica/conversation-kit/timeline'
+import { fileMetaLabel, isInFlight } from '@poietica/conversation-kit/timeline'
+import { describeTool } from '@poietica/conversation-kit/tools'
+import { invariant } from '@poietica/foundation'
+import { mediaAssetUrl } from '../../../contract'
 import { ompToolView } from '../tools/omp-tool-view'
 
 function timeOf(value?: string): number | undefined {

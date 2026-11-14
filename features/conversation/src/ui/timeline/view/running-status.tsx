@@ -1,7 +1,7 @@
 import './running-status.css'
+import { useSecond } from '@poietica/conversation-kit/primitives'
+import { formatRunDuration } from '@poietica/conversation-kit/semantics'
 import { memo } from 'react'
-import { useSecond } from '../../shared/primitives/clock'
-import { formatRunDuration } from '../../shared/semantics/duration'
 
 /**
  * 对话最下面那一行「深度求索中，用时 N秒 ···」（DSH RunningStatus）。

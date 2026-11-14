@@ -1,9 +1,9 @@
+import { createLiveComposers, createSideStore } from '@poietica/feature-composer/surface'
 import { platformContract } from '@poietica/feature-platform/contract'
 import { PreferencesToken } from '@poietica/feature-preferences/ui-api'
 import { WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
 import { BannersToken, DialogsToken, LayoutToken, NavigationToken, type UiFeatureContext } from '@poietica/ui-kernel'
 import { createConversationApi } from '../api'
-import { createLiveComposers, createSideStore } from '../composer'
 import { createEntryDefaults } from '../home'
 import {
   type ConversationStores,

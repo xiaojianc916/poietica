@@ -1,4 +1,5 @@
 import './conversation-minimap.css'
+import type { TurnMark } from '@poietica/conversation-kit/model'
 import {
   type CSSProperties,
   memo,
@@ -9,7 +10,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { TurnMark } from '../../shared/model/turn-mark'
 import { RAIL_PITCH_PX, RAIL_VISIBLE_TURNS, railCentre } from './conversation-minimap-geometry'
 import { useRailPointer } from './use-rail-pointer'
 

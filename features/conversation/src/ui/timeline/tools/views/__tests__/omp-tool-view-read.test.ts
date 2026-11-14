@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { toolGlyphOf } from '../../../../shared/tools/omp-tool-glyphs'
-import { toolFamilyOf } from '../../../../shared/tools/tool-family'
+import { toolFamilyOf, toolGlyphOf } from '@poietica/conversation-kit/tools'
 import { ompToolView } from '../../omp-tool-view'
 
 /*

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
+import type { SessionConfigControl } from '@poietica/conversation-kit/model'
 import type { SlashCommand } from '@poietica/runtime-protocol'
 import type { SlashCommandContribution } from '../../../ui-api'
-import type { SessionConfigControl } from '../../shared/model/config'
 import { availableCommands, type CommandContext, resolveCommand } from '../command-manifest'
 
 const engine = (name: string, extra: Partial<SlashCommand> = {}): SlashCommand => ({

@@ -4,7 +4,7 @@ import type {
   TimelineState,
   ToolCallTimelineItem,
   TurnOutcome,
-} from '../../../shared/timeline/timeline-contract'
+} from '@poietica/conversation-kit/timeline'
 import { selectPresentation } from '../../presentation'
 
 /*

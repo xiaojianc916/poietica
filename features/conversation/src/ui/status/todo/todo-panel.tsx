@@ -1,3 +1,12 @@
+import type { SessionGoal } from '@poietica/conversation-kit/model'
+import { useSecond } from '@poietica/conversation-kit/primitives'
+import type {
+  BackgroundTaskItem,
+  BackgroundTaskStatus,
+  SubagentItem,
+  TodoItem,
+  ToolCallTimelineItem,
+} from '@poietica/conversation-kit/timeline'
 import {
   Accordion,
   AccordionHeader,
@@ -30,15 +39,6 @@ import {
 } from 'lucide-react'
 import { type ReactNode, useMemo, useState } from 'react'
 import { useWorkspaceGitFacts, type WorkspaceGitStatus } from '../../../ui-api'
-import type { SessionGoal } from '../../shared/model/goal'
-import { useSecond } from '../../shared/primitives/clock'
-import type {
-  BackgroundTaskItem,
-  BackgroundTaskStatus,
-  SubagentItem,
-  TodoItem,
-  ToolCallTimelineItem,
-} from '../../shared/timeline/timeline-contract'
 import {
   delegateCallsOf,
   type OpenDelegateChannel,

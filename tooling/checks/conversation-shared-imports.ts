@@ -7,8 +7,8 @@ import path from 'node:path'
 import { type CallExpression, type Expression, parseSync } from '@swc/core'
 
 const ROOT = path.resolve(import.meta.dir, '../..')
-const SHARED = 'features/conversation/src/ui/shared'
-const AREA = /^features\/conversation\/src\/ui\/(threads|composer|timeline|session|status|home|setup)\//
+const SHARED = 'packages/conversation-kit/src'
+const AREA = /^features\/conversation\/src\/ui\/(threads|timeline|session|status|home|setup)\//
 const SKIP = /(^|\/)(__tests__\/|[^/]+\.test\.tsx?$)/
 
 function isRecord(value: unknown): value is Record<string, unknown> {

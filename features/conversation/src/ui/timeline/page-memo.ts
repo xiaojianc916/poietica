@@ -1,4 +1,4 @@
-import type { TurnPage } from '../shared/timeline/timeline-contract'
+import type { TurnPage } from '@poietica/conversation-kit/timeline'
 
 /**
  * `sealed` 里的页不可变、身份稳定，于是「扫一遍这一页」的结果跟着页走，长对话里每批就只剩在跑的那一页要现扫。

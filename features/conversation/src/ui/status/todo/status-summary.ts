@@ -1,6 +1,6 @@
+import type { SessionGoal } from '@poietica/conversation-kit/model'
+import type { TodoItem } from '@poietica/conversation-kit/timeline'
 import type { WorkspaceGitStatus } from '../../../ui-api'
-import type { SessionGoal } from '../../shared/model/goal'
-import type { TodoItem } from '../../shared/timeline/timeline-contract'
 
 /*
  * 收起态只报一项主状态，优先级照 ZCode 的摘要链：当前待办 → 目标 → Git 变更 → 已完成待办 →

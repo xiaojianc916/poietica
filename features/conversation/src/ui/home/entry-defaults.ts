@@ -1,5 +1,5 @@
+import type { ComposerStore } from '@poietica/feature-composer/surface'
 import type { ModelRef } from '@poietica/runtime-protocol'
-import type { ComposerStore } from '../composer'
 
 /*
  * 入口页的模型 / 档位**不是**一份本地状态：它就是「新对话默认」那一份持久意图（omp 的 `modelRoles.default:档位`，

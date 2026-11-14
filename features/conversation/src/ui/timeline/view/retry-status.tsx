@@ -3,10 +3,16 @@ import './retry-status.css'
 import './ticker/shimmer.css'
 import './tools/tool-call.css'
 
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  CopyIcon,
+  DisclosureBody,
+  RetryFailedIcon,
+  RetryIcon,
+} from '@poietica/conversation-kit/primitives'
+import type { RetryTimelineItem } from '@poietica/conversation-kit/timeline'
 import { cn, useCopy } from '@poietica/design-system'
-import { DisclosureBody } from '../../shared/primitives/disclosure'
-import { CheckIcon, ChevronDownIcon, CopyIcon, RetryFailedIcon, RetryIcon } from '../../shared/primitives/icons'
-import type { RetryTimelineItem } from '../../shared/timeline/timeline-contract'
 
 /** 连着几次报一样的错算一条：「第 1–3 次请求」+ 那句报错 */
 interface ErrorRun {

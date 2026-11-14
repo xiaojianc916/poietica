@@ -1,0 +1,34 @@
+{
+  "name": "@poietica/conversation-kit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    "./model": "./src/model/index.ts",
+    "./primitives": "./src/primitives/index.ts",
+    "./timeline": "./src/timeline/index.ts",
+    "./media": "./src/media/index.ts",
+    "./semantics": "./src/semantics/index.ts",
+    "./tools": "./src/tools/index.ts",
+    "./styles/*": "./src/styles/*"
+  },
+  "dependencies": {
+    "@poietica/agent-model": "workspace:*",
+    "@poietica/design-system": "workspace:*",
+    "@poietica/foundation": "workspace:*",
+    "@poietica/omp-types": "workspace:*",
+    "@poietica/product-model": "workspace:*",
+    "@poietica/runtime-protocol": "workspace:*",
+    "lexical": "catalog:",
+    "lucide-react": "catalog:",
+    "motion": "catalog:",
+    "react": "catalog:",
+    "yet-another-react-lightbox": "catalog:"
+  },
+  "devDependencies": {
+    "@testing-library/react": "catalog:"
+  }
+}

@@ -40,7 +40,6 @@
   },
   "tool-payload-parsing": {
     "features/attachments/src/ui/draft-refs.ts": 1,
-    "features/conversation/src/ui/composer/composer-store.ts": 1,
     "features/conversation/src/ui/setup/actions.ts": 1,
     "features/extensions/src/ui/catalog-grid.tsx": 3,
     "features/extensions/src/ui/catalog.ts": 4,
@@ -48,7 +47,8 @@
     "features/extensions/src/ui/mcp-settings.tsx": 1,
     "features/intelligent-ui/src/ui/bridge.ts": 16,
     "packages/ui-kernel/src/services/layout.ts": 3,
-    "packages/ui-kernel/src/services/logging.ts": 4
+    "packages/ui-kernel/src/services/logging.ts": 4,
+    "features/composer/src/ui/composer-store.ts": 1
   },
   "platform-branch": {
     "apps/desktop/src/main/index.ts": 2,

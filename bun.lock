@@ -73,6 +73,7 @@
       "version": "0.5.20",
       "dependencies": {
         "@lydell/node-pty": "catalog:",
+        "@poietica/feature-composer": "workspace:*",
         "electron-updater": "^6.8.11",
       },
       "devDependencies": {
@@ -212,6 +213,7 @@
         "@poietica/core-kernel": "workspace:*",
         "@poietica/design-system": "workspace:*",
         "@poietica/feature-attachments": "workspace:*",
+        "@poietica/feature-composer": "workspace:*",
         "@poietica/feature-conversation": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/host-kernel": "workspace:*",
@@ -247,6 +249,27 @@
         "@types/bun": "catalog:",
       },
     },
+    "features/composer": {
+      "name": "@poietica/feature-composer",
+      "version": "0.0.0",
+      "dependencies": {
+        "@lexical/react": "catalog:",
+        "@poietica/conversation-kit": "workspace:*",
+        "@poietica/design-system": "workspace:*",
+        "@poietica/foundation": "workspace:*",
+        "@poietica/runtime-protocol": "workspace:*",
+        "@poietica/ui-kernel": "workspace:*",
+        "lexical": "catalog:",
+        "lucide-react": "catalog:",
+        "motion": "catalog:",
+        "react": "catalog:",
+        "react-dom": "catalog:",
+      },
+      "devDependencies": {
+        "@poietica/rpc": "workspace:*",
+        "@testing-library/react": "catalog:",
+      },
+    },
     "features/conversation": {
       "name": "@poietica/feature-conversation",
       "version": "0.0.0",
@@ -254,10 +277,12 @@
         "@lexical/react": "catalog:",
         "@poietica/agent-model": "workspace:*",
         "@poietica/contract-kit": "workspace:*",
+        "@poietica/conversation-kit": "workspace:*",
         "@poietica/core-kernel": "workspace:*",
         "@poietica/design-system": "workspace:*",
         "@poietica/feature-attachments": "workspace:*",
         "@poietica/feature-checkpoints": "workspace:*",
+        "@poietica/feature-composer": "workspace:*",
         "@poietica/feature-journal": "workspace:*",
         "@poietica/feature-platform": "workspace:*",
         "@poietica/feature-preferences": "workspace:*",
@@ -302,6 +327,7 @@
         "@poietica/contract-kit": "workspace:*",
         "@poietica/core-kernel": "workspace:*",
         "@poietica/design-system": "workspace:*",
+        "@poietica/feature-composer": "workspace:*",
         "@poietica/feature-conversation": "workspace:*",
         "@poietica/feature-platform": "workspace:*",
         "@poietica/feature-workspaces": "workspace:*",
@@ -521,6 +547,7 @@
         "@poietica/design-system": "workspace:*",
         "@poietica/diff": "workspace:*",
         "@poietica/feature-checkpoints": "workspace:*",
+        "@poietica/feature-composer": "workspace:*",
         "@poietica/feature-conversation": "workspace:*",
         "@poietica/feature-platform": "workspace:*",
         "@poietica/feature-workspaces": "workspace:*",
@@ -756,6 +783,26 @@
       "dependencies": {
         "@poietica/foundation": "workspace:*",
         "zod": "catalog:",
+      },
+    },
+    "packages/conversation-kit": {
+      "name": "@poietica/conversation-kit",
+      "version": "0.0.0",
+      "dependencies": {
+        "@poietica/agent-model": "workspace:*",
+        "@poietica/design-system": "workspace:*",
+        "@poietica/foundation": "workspace:*",
+        "@poietica/omp-types": "workspace:*",
+        "@poietica/product-model": "workspace:*",
+        "@poietica/runtime-protocol": "workspace:*",
+        "lexical": "catalog:",
+        "lucide-react": "catalog:",
+        "motion": "catalog:",
+        "react": "catalog:",
+        "yet-another-react-lightbox": "catalog:",
+      },
+      "devDependencies": {
+        "@testing-library/react": "catalog:",
       },
     },
     "packages/core-kernel": {
@@ -1493,6 +1540,8 @@
 
     "@poietica/contract-kit": ["@poietica/contract-kit@workspace:packages/contract-kit"],
 
+    "@poietica/conversation-kit": ["@poietica/conversation-kit@workspace:packages/conversation-kit"],
+
     "@poietica/core-kernel": ["@poietica/core-kernel@workspace:packages/core-kernel"],
 
     "@poietica/design-system": ["@poietica/design-system@workspace:packages/design-system"],
@@ -1510,6 +1559,8 @@
     "@poietica/feature-browser": ["@poietica/feature-browser@workspace:features/browser"],
 
     "@poietica/feature-checkpoints": ["@poietica/feature-checkpoints@workspace:features/checkpoints"],
+
+    "@poietica/feature-composer": ["@poietica/feature-composer@workspace:features/composer"],
 
     "@poietica/feature-conversation": ["@poietica/feature-conversation@workspace:features/conversation"],
 

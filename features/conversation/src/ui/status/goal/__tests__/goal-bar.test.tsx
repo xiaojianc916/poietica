@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test'
+import type { GoalAction, GoalActionHandler, GoalActionResult, SessionGoal } from '@poietica/conversation-kit/model'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
-import type { SessionGoal } from '../../../shared/model/goal'
-import type { GoalAction, GoalActionHandler, GoalActionResult } from '../../../shared/model/goal-control'
 import { GoalBar, useGoalActions } from '../goal-bar'
 
 /*

@@ -1,3 +1,4 @@
+import { groupByWorkspace, type ThreadListItem } from '@poietica/conversation-kit/model'
 import {
   Button,
   ConfirmationDialog,
@@ -16,7 +17,6 @@ import type { Thread } from '../../../contract'
 import { conversationErrors } from '../../../contract/errors'
 import type { ConversationApi } from '../../api'
 import { describeFailure } from '../../failure'
-import { groupByWorkspace, type ThreadListItem } from '../../shared/model/thread-order'
 import type { ConversationStores } from '../stores'
 import './archived-page.css'
 

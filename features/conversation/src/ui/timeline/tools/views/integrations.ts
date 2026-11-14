@@ -1,5 +1,5 @@
+import { describeTool } from '@poietica/conversation-kit/tools'
 import type { OmpMcpToolDetails, OmpToolDetailsOf, OmpToolInputOf } from '@poietica/omp-types'
-import { describeTool } from '../../../shared/tools/tool-vocabulary'
 import type { Handler, OmpToolView } from '../view-kit'
 import {
   at,

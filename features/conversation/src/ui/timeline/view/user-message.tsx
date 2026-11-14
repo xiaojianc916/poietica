@@ -1,6 +1,6 @@
+import { PromptChip, promptSegments } from '@poietica/conversation-kit/primitives'
+import type { MessageFile, MessageImage } from '@poietica/conversation-kit/timeline'
 import { Fragment, type ReactNode, useState } from 'react'
-import { PromptChip, promptSegments } from '../../shared/primitives/prompt-chip'
-import type { MessageFile, MessageImage } from '../../shared/timeline/timeline-contract'
 import { MessageAttachments } from './message-attachments'
 import { VirtualLines } from './virtual-lines'
 

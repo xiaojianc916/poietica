@@ -1,4 +1,4 @@
-import { ResetIcon } from '../../shared/primitives/icons'
+import { ResetIcon } from '@poietica/conversation-kit/primitives'
 
 import './retry-turn.css'
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
+import type { ToolCallTimelineItem } from '@poietica/conversation-kit/timeline'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { ToolCallTimelineItem } from '../../../shared/timeline/timeline-contract'
 import { agentRows, TaskPanelContent } from '../todo-panel'
 
 /* 状态面板的「智能体 / 后台任务」两格：数据到了就画，行能点开子代理，运行中的作业能停。 */

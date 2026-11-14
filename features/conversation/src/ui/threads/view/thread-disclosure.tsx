@@ -1,6 +1,6 @@
+import { EXIT_SECONDS } from '@poietica/conversation-kit/primitives'
 import type { ReactNode, TransitionEvent } from 'react'
 import { useEffect, useState } from 'react'
-import { EXIT_SECONDS } from '../../shared/primitives/motion'
 
 /*
  * 不用 motion 逐帧补 height：height/width 一类布局属性每帧都会让浏览器重新排版，长列表里正是卡顿的来源。

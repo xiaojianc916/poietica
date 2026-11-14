@@ -1,4 +1,4 @@
-import type { TranscriptPage } from '../../shared/model/transcript'
+import type { TranscriptPage } from '@poietica/conversation-kit/model'
 export interface TranscriptSink {
   readonly opening: (threadId: string) => void
   readonly failed: (threadId: string, cause: unknown) => void

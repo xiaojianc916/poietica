@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it } from 'bun:test'
+import type { ToolCallStatus, ToolKind } from '@poietica/conversation-kit/model'
+import type { TimelineItem, TimelineState, ToolCallTimelineItem } from '@poietica/conversation-kit/timeline'
+import { sayFamilySummary } from '@poietica/conversation-kit/tools'
 import { cleanup, render } from '@testing-library/react'
 import { MotionConfig } from 'motion/react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { ToolCallStatus, ToolKind } from '../../../shared/model/tool-call'
-import type { TimelineItem, TimelineState, ToolCallTimelineItem } from '../../../shared/timeline/timeline-contract'
-import { sayFamilySummary } from '../../../shared/tools/tool-intent'
 import { type Presentation, selectPresentation, type ToolGroupPlan } from '../../presentation'
 import { ToolGroupCard } from '../tools/tool-group-card'
 

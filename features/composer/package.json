@@ -1,0 +1,28 @@
+{
+  "name": "@poietica/feature-composer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./ui": "./src/ui/index.ts",
+    "./ui-api": "./src/ui-api/index.ts",
+    "./surface": "./src/surface/index.ts"
+  },
+  "dependencies": {
+    "@lexical/react": "catalog:",
+    "@poietica/conversation-kit": "workspace:*",
+    "@poietica/design-system": "workspace:*",
+    "@poietica/foundation": "workspace:*",
+    "@poietica/runtime-protocol": "workspace:*",
+    "@poietica/ui-kernel": "workspace:*",
+    "lexical": "catalog:",
+    "lucide-react": "catalog:",
+    "motion": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@poietica/rpc": "workspace:*",
+    "@testing-library/react": "catalog:"
+  }
+}

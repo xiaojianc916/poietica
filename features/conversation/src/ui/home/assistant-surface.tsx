@@ -1,6 +1,28 @@
-import '../shared/styles/surface.css'
+import '@poietica/conversation-kit/styles/surface.css'
 
+import type {
+  AgentSessionPort,
+  AgentToolkit,
+  GoalActionHandler,
+  SessionConfigControl,
+  SessionGoal,
+  SessionUsage,
+  ThreadCommands,
+  WithdrawnMessage,
+} from '@poietica/conversation-kit/model'
+import type { PlanItem, QuestionTimelineItem } from '@poietica/conversation-kit/timeline'
 import { Banner, WorkspacePicker, type WorkspacePickerProps } from '@poietica/design-system'
+import type { PermissionDockProps, PromptInputHandle, PromptInputMessage } from '@poietica/feature-composer/surface'
+import {
+  AssistantComposer,
+  ComposerDraftKeyContext,
+  ComposerNotice,
+  PromptQueue,
+  SwarmToggle,
+  useAgentToolkit,
+  useDockClearance,
+} from '@poietica/feature-composer/surface'
+import { composerContextItems } from '@poietica/feature-composer/ui-api'
 import { FeatureScope, useContributions, useKernel, useObservable } from '@poietica/ui-kernel'
 import {
   memo,
@@ -14,25 +36,7 @@ import {
   useState,
 } from 'react'
 import type { Thread } from '../../contract'
-import { composerContextItems, slashCommands, threadHeaderItems } from '../../ui-api'
-import type { PermissionDockProps, PromptInputHandle, PromptInputMessage } from '../composer'
-import {
-  AssistantComposer,
-  ComposerDraftKeyContext,
-  ComposerNotice,
-  PromptQueue,
-  SwarmToggle,
-  useAgentToolkit,
-  useDockClearance,
-} from '../composer'
-import type { ThreadCommands } from '../shared/model/commands'
-import type { SessionConfigControl } from '../shared/model/config'
-import type { SessionGoal } from '../shared/model/goal'
-import type { GoalActionHandler } from '../shared/model/goal-control'
-import type { AgentSessionPort, WithdrawnMessage } from '../shared/model/session'
-import type { AgentToolkit } from '../shared/model/toolkit'
-import type { SessionUsage } from '../shared/model/usage'
-import type { PlanItem, QuestionTimelineItem } from '../shared/timeline/timeline-contract'
+import { slashCommands, threadHeaderItems } from '../../ui-api'
 import {
   CONVERSATION_STATUS_PANEL_LAYOUT_STYLE,
   ConversationStatusPanel,

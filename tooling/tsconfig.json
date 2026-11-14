@@ -16,6 +16,9 @@
       "path": "../packages/contract-kit"
     },
     {
+      "path": "../packages/conversation-kit"
+    },
+    {
       "path": "../packages/core-kernel"
     },
     {

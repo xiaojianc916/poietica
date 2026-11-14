@@ -1,8 +1,8 @@
 import './turn-seal.css'
+import { ChevronDownIcon } from '@poietica/conversation-kit/primitives'
+import { formatRunDuration } from '@poietica/conversation-kit/semantics'
+import type { TurnOutcome } from '@poietica/conversation-kit/timeline'
 import { memo } from 'react'
-import { ChevronDownIcon } from '../../shared/primitives/icons'
-import { formatRunDuration } from '../../shared/semantics/duration'
-import type { TurnOutcome } from '../../shared/timeline/timeline-contract'
 
 /**
  * 一轮**结束之后**压在过程上方的那条封条（DSH TurnProcessNodeView）。

@@ -1,3 +1,4 @@
+import type { SessionGoal } from '@poietica/conversation-kit/model'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,7 +26,6 @@ import {
 } from 'lucide-react'
 import { type CSSProperties, type ReactNode, useCallback, useMemo, useState } from 'react'
 import { useWorkspaceGitFacts } from '../../ui-api'
-import type { SessionGoal } from '../shared/model/goal'
 import {
   delegateCallsOf,
   useAgentControls,

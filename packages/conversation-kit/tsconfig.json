@@ -1,0 +1,24 @@
+{
+  "extends": "../../tooling/tsconfig/dom.json",
+  "include": ["src"],
+  "references": [
+    {
+      "path": "../agent-model"
+    },
+    {
+      "path": "../design-system"
+    },
+    {
+      "path": "../foundation"
+    },
+    {
+      "path": "../omp-types"
+    },
+    {
+      "path": "../product-model"
+    },
+    {
+      "path": "../runtime-protocol"
+    }
+  ]
+}

@@ -6,6 +6,9 @@
       "path": "../../../../packages/agent-model"
     },
     {
+      "path": "../../../../packages/conversation-kit"
+    },
+    {
       "path": "../../../../packages/design-system"
     },
     {

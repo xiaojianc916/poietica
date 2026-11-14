@@ -4,6 +4,7 @@ import agentSettings from '@poietica/feature-agent-settings/ui'
 import attachments from '@poietica/feature-attachments/ui'
 import automations from '@poietica/feature-automations/ui'
 import browser from '@poietica/feature-browser/ui'
+import composer from '@poietica/feature-composer/ui'
 import conversation from '@poietica/feature-conversation/ui'
 import extensions from '@poietica/feature-extensions/ui'
 import files from '@poietica/feature-files/ui'
@@ -25,6 +26,7 @@ export const uiFeatures: readonly UiFeature[] = [
   attachments,
   automations,
   browser,
+  composer,
   conversation,
   extensions,
   files,
