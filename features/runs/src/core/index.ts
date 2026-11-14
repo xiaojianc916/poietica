@@ -17,6 +17,8 @@ import { TurnService } from './turn-service'
  * 表重命名与旧库迁移在独立 schema 窗口完成。
  */
 export { createSubmissionsRepository } from './repository'
+export const createSessionPool = (deps: ConstructorParameters<typeof SessionPool>[0]): SessionPool =>
+  new SessionPool(deps)
 
 export default defineCoreModule({
   id: 'runs',
@@ -25,18 +27,14 @@ export default defineCoreModule({
     const repo = createSubmissionsRepository(ctx.db)
     ctx.services.provide(SubmissionsRepositoryToken, repo)
     ctx.services.provide(SubmissionServiceToken, new SubmissionService({ repo, clock: ctx.clock, logger: ctx.logger }))
-    ctx.services.provide(SessionPoolFactoryToken, (deps) => new SessionPool(deps))
+    ctx.services.provide(SessionPoolFactoryToken, createSessionPool)
     ctx.services.provide(TurnContextRegistryToken, new TurnContextHub(ctx.logger))
     ctx.services.provide(TurnServiceToken, new TurnService({ clock: ctx.clock, logger: ctx.logger }))
   },
 })
 
+export { eventsFromPage, pagesToPage } from './journal-rebuild'
 export { IDLE_TTL_MS, MAX_IDLE_SESSIONS, SessionPool, SWEEP_INTERVAL_MS } from './session-pool'
 export { SubmissionService } from './submission-service'
-export { TurnService } from './turn-service'
-export const createSessionPool = (deps: ConstructorParameters<typeof SessionPool>[0]): SessionPool =>
-  new SessionPool(deps)
-
-export { eventsFromPage, pagesToPage } from './journal-rebuild'
 export { TURN_CONTEXT_MAX, TurnContextHub } from './turn-context'
-export { pageFromJournal } from './turn-service'
+export { pageFromJournal, TurnService } from './turn-service'

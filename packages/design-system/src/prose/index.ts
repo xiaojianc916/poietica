@@ -6,6 +6,6 @@
  */
 
 export { type ProseFileLinks, ProseFileLinksContext } from './file-links-context'
-export { type FileRef, isAbsoluteFilePath } from './file-ref'
+export { type FileRef, fileNameOf, isAbsoluteFilePath } from './file-ref'
 export { loadMath } from './math-plugin'
 export { Prose, type ProseProps, prefetchProseWhenIdle, preloadProse, useProseSettled } from './prose-shell'

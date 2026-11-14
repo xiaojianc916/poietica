@@ -13,7 +13,7 @@ import { blobMediaRef } from './session/media-store'
 import { wrapOmpSession } from './session/omp-session-adapter'
 import { SessionFactory } from './session/session-factory'
 import { listCommandCatalog } from './session/slash-commands'
-import { isConfiguredSetting, overrideSetting, readSetting, writeGlobalSetting } from './settings-access'
+import { isConfiguredSetting, overrideSetting, writeGlobalSetting } from './settings-access'
 
 export interface CreateEngineOptions {
   readonly layout: DataLayout
@@ -204,10 +204,7 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
         },
         selector,
       ),
-    modelRoles: () => {
-      const roles = readSetting(root, 'modelRoles')
-      return typeof roles === 'object' && roles !== null ? (roles as Record<string, string>) : {}
-    },
+    modelRoles: () => root.getModelRoles(),
     wrapSession: (sessionInput) =>
       wrapOmpSession({
         ...sessionInput,

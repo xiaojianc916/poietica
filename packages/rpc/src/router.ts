@@ -39,10 +39,6 @@ export class Router {
     return this.handlers.has(method)
   }
 
-  names(): readonly string[] {
-    return [...this.handlers.keys()]
-  }
-
   async handle(method: string, params: unknown, ctx: InboundContext): Promise<unknown> {
     const h = this.handlers.get(method)
     if (h === undefined) throw new AppError(SystemErrorCode.methodNotFound, `未知方法 ${method}`)

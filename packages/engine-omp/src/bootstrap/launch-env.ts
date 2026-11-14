@@ -5,8 +5,6 @@ import { ISOLATION_ENV_KEYS } from './isolation-env'
  * 它记下“用户真实环境”有哪些键；scrubInjected() 在 pi-utils 触发 .env 加载之后调用，
  * 把那时才出现的新键删掉。这样 .env 里的东西永远进不了 omp 的进程环境。
  */
-let snapshot: ReadonlySet<string> | null = null
-
 export interface LaunchEnv {
   readonly keys: readonly string[]
   /**
@@ -20,7 +18,6 @@ export interface LaunchEnv {
 
 export function captureLaunchEnv(env: Record<string, string | undefined> = process.env): LaunchEnv {
   const keys = new Set(Object.keys(env))
-  snapshot = keys
   return {
     keys: [...keys],
     async scrubInjected() {
@@ -64,9 +61,4 @@ async function dropProviderKeys(env: Record<string, string | undefined>, kept: R
     }
   }
   return removed
-}
-
-/** 测试与诊断用：本次进程是否已经快照过 */
-export function hasLaunchEnvSnapshot(): boolean {
-  return snapshot !== null
 }

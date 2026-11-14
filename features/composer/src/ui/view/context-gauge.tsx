@@ -53,6 +53,7 @@ function levelOf(fraction: number): 'ok' | 'warn' | 'high' | 'critical' {
 }
 
 export interface GaugeLayout {
+  readonly fraction: number
   readonly label: string
   readonly reading: string
   readonly used: number
@@ -88,6 +89,7 @@ export function gaugeLayout(usage: SessionUsage): GaugeLayout {
 
   return {
     breakdown,
+    fraction,
     session:
       tokens === undefined
         ? undefined
@@ -272,8 +274,7 @@ export const ContextGauge = memo(function ContextGauge({ openRequest, usage }: C
     return null
   }
 
-  const { breakdown, label, reading, segments, session, used, size } = gaugeLayout(usage)
-  const fraction = Math.min(Math.max(usage.used / usage.size, 0), 1)
+  const { breakdown, fraction, label, reading, segments, session, used, size } = gaugeLayout(usage)
 
   return (
     <span className="context-gauge" data-context-gauge="" ref={rootRef}>

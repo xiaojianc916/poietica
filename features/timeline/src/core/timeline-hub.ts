@@ -1,5 +1,6 @@
 import type { AgentEvent } from '@poietica/agent-model'
 import type { Clock } from '@poietica/foundation'
+import { randomEpochBase } from '@poietica/stream-kit'
 import type { TimelineEventsNotice, TimelineResetNotice, TimelineService, TimelineSink } from '../core-api'
 import { TimelineChannel } from './timeline-channel'
 
@@ -15,11 +16,6 @@ export interface TimelineHubDeps {
   /** 兼容直接构造的测试：给了就等同于 configure。 */
   readonly emitEvents?: (p: TimelineEventsNotice) => void
   readonly emitReset?: (p: TimelineResetNotice) => void
-}
-
-/** 2^40 以内的随机正整数：不用 `Date.now()`，同一毫秒启动的两个进程与时钟回拨都会撞号 */
-export function randomEpochBase(): number {
-  return 1 + Math.floor(Math.random() * 2 ** 40)
 }
 
 /** (threadId, agentId) → TimelineChannel；epoch 从随机起点自增，跨进程不重复 */

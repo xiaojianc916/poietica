@@ -32,13 +32,3 @@ export function installStdoutGuard(target: NodeJS.WriteStream = process.stdout):
   installed = writeFrame
   return writeFrame
 }
-
-/** 测试用：拿到已安装的 writeFrame（未安装时为 null） */
-export function stdoutWriteFrame(): ((frame: string) => void) | null {
-  return installed
-}
-
-/** 测试用：还原守卫（只用于同一进程里跑多个用例） */
-export function resetStdoutGuardForTest(): void {
-  installed = null
-}

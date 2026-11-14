@@ -1,4 +1,4 @@
-import type { BtwHistoryRecord, BtwHistoryTurn } from '@oh-my-pi/pi-coding-agent/session/btw-history'
+import { type BtwHistoryRecord, type BtwHistoryTurn, getBtwTurns } from '@oh-my-pi/pi-coding-agent/session/btw-history'
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
 import { EngineErrorCode, type EngineSessionEvent, type SideTopic, type SideTurn } from '@poietica/runtime-protocol'
 import { describeError } from './event-faults'
@@ -158,9 +158,9 @@ export function sideTopicsOf(records: readonly BtwHistoryRecord[]): SideTopic[] 
   return [...records].sort((a, b) => b.createdAt - a.createdAt || a.id.localeCompare(b.id)).map(topicOf)
 }
 
-/** omp 的一条记录（首问 + followUps）→ 端口的话题（问题表摊平；omp 的 getBtwTurns 同一个次序） */
+/** omp 的一条记录（首问 + followUps）→ 端口的话题（问题表摊平交给 omp 的 getBtwTurns，同一个次序） */
 export function topicOf(record: BtwHistoryRecord): SideTopic {
-  return { id: record.id, leafId: record.leafId, turns: [record, ...(record.followUps ?? [])].map(turnOf) }
+  return { id: record.id, leafId: record.leafId, turns: getBtwTurns(record).map(turnOf) }
 }
 
 function turnOf(turn: BtwHistoryTurn): SideTurn {

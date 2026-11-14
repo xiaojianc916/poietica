@@ -19,7 +19,7 @@ export default defineCoreModule({
   setup(ctx) {
     const hub = new TimelineHub({ clock: ctx.clock })
     ctx.services.provide(TimelineServiceToken, hub)
-    ctx.services.provide(EventRouterFactoryToken, (deps) => new EventRouter(deps))
+    ctx.services.provide(EventRouterFactoryToken, createEventRouter)
     ctx.lifecycle.onShutdown(() => hub.dispose())
   },
 })

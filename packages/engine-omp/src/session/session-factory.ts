@@ -39,7 +39,7 @@ export interface SessionFactoryOptions {
   /** 测试缝：mock 也是 `tiny` 角色的候选，标题请求会吃掉一条脚本回复 */
   readonly disableAutoTitle?: boolean
   readonly resolveModel: (selector: string | null) => { provider: string; id: string } | null
-  readonly modelRoles: () => Readonly<Record<string, string>>
+  readonly modelRoles: () => Readonly<Record<string, string | undefined>>
   /** 把 omp 的会话对象包成 OmpSession（由 omp-session-factory 的调用方提供，避免这里绑死形状） */
   readonly wrapSession: (input: {
     readonly spec: OpenSessionSpec

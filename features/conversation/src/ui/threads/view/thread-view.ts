@@ -7,6 +7,8 @@
  * 规则），照抄那一组只会得到两个一模一样的选项 —— 不画。
  */
 
+import { byIsoDescending } from '@poietica/conversation-kit/model'
+
 /** 分组方式。单列表＝不分工作区，按最近活动排成一列（正本 groupBy.flat）。 */
 export const GROUP_BY = { workspace: 'workspace', flat: 'flat' } as const
 /** 归档会话的可见档：隐藏 / 一起显示 / 只看它们（正本 filterBy 那三档）。 */
@@ -52,11 +54,6 @@ function visible(thread: ViewThread, filter: ArchivedFilter): boolean {
   return filter === ARCHIVED_FILTER.show || thread.archived !== true
 }
 
-/* ISO-8601 定长串按字典序即时间序（与 thread-order 的 byIsoDescending 同一条规则）。 */
-function byUpdatedDescending(left: ViewThread, right: ViewThread): number {
-  return left.updatedAt > right.updatedAt ? -1 : left.updatedAt < right.updatedAt ? 1 : 0
-}
-
 /**
  * 筛（归档档 + 搜索词）、分组、排序。入参的组序与组内序已经是库里的那一份（组按最近活动、
  * 组内钉住优先），这里只做「换一档视图」那点事：单列表把各组合并重排，其余原样保留。
@@ -88,7 +85,9 @@ export function shapeGroups<T extends ViewThread>(
     {
       id: FLAT_GROUP_ID,
       name: null,
-      items: kept.flatMap((group) => group.items).sort(byUpdatedDescending),
+      items: kept
+        .flatMap((group) => group.items)
+        .sort((left, right) => byIsoDescending(left.updatedAt, right.updatedAt)),
     },
   ]
 }

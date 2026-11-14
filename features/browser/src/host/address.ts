@@ -26,7 +26,7 @@ function isExplicitAddress(trimmed: string): boolean {
 function explicitAddressOf(trimmed: string): string | null {
   const parsed = parseUrl(trimmed)
   if (parsed === null) return null
-  if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+  if (WEB_PROTOCOLS[parsed.protocol] === true) {
     return parsed.hostname.length > 0 ? parsed.toString() : null
   }
   return isLocalFile(parsed) ? parsed.toString() : null
@@ -54,6 +54,9 @@ function parseUrl(value: string): URL | null {
   }
 }
 
+const WEB_PROTOCOLS: Readonly<Record<string, true>> = { 'http:': true, 'https:': true }
+const NAVIGABLE_PROTOCOLS: Readonly<Record<string, true>> = { ...WEB_PROTOCOLS, 'about:': true }
+
 function isLocalAuthority(address: string): boolean {
   const authority = address.split('/')[0] ?? address
   const colon = authority.lastIndexOf(':')
@@ -63,29 +66,15 @@ function isLocalAuthority(address: string): boolean {
 }
 
 export function displayHost(url: string): string {
-  try {
-    return new URL(url).host
-  } catch {
-    return url
-  }
+  return parseUrl(url)?.host ?? url
 }
 
 export function isWebAddress(url: string): boolean {
-  try {
-    const protocol = new URL(url).protocol
-
-    return protocol === 'http:' || protocol === 'https:'
-  } catch {
-    return false
-  }
+  const protocol = parseUrl(url)?.protocol
+  return protocol !== undefined && WEB_PROTOCOLS[protocol] === true
 }
 
 export function isNavigableAddress(url: string): boolean {
-  try {
-    const protocol = new URL(url).protocol
-
-    return protocol === 'http:' || protocol === 'https:' || protocol === 'about:'
-  } catch {
-    return false
-  }
+  const protocol = parseUrl(url)?.protocol
+  return protocol !== undefined && NAVIGABLE_PROTOCOLS[protocol] === true
 }

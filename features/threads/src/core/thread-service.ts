@@ -18,8 +18,6 @@ import {
 } from '../core-api'
 import type { ReclaimRepository } from './reclaim-repository'
 
-export const OWNER_KEY = ownerKeyOf
-
 /**
  * 线程 CRUD、fork、export、删除，以及工作区移除的级联清理。会话池的接线
  * （describe / onOpened / cleanup）也在这里 —— 「一条线程对应哪个 omp 会话」是线程自己的事实。
@@ -313,7 +311,7 @@ export class ThreadService implements ThreadsService {
      * 少了这一句，删掉原对话（releaseOwner）后 24 小时的回收会把文件删掉，
      * 分支里的 agent 再按路径去读就读不到了。
      */
-    this.p.attachments.copyOwner(OWNER_KEY(row.id), OWNER_KEY(next.id))
+    this.p.attachments.copyOwner(ownerKeyOf(row.id), ownerKeyOf(next.id))
     this.emitUpdated(next)
     return next
   }
@@ -383,7 +381,7 @@ export class ThreadService implements ThreadsService {
     this.p.onThreadRemoved(row.id)
     /* 附件引用放在落账之后：放在前面，删行失败时线程还在、附件却被 24 小时回收清掉（分支里的 agent 就读不到了） */
     try {
-      this.p.attachments.releaseOwner(OWNER_KEY(row.id))
+      this.p.attachments.releaseOwner(ownerKeyOf(row.id))
     } catch (error) {
       this.d.logger.warn('attachments release on delete failed', { threadId: row.id, error: String(error) })
     }

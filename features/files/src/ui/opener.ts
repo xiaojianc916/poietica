@@ -41,8 +41,15 @@ export function createFileOpener(d: {
   /** 目录：打开树并展开到它。 */
   readonly revealInTree: (owner: string, workspaceId: string, path: string) => void
 }): FileOpener {
-  const show = (owner: string, workspaceId: string, path: string, line: number | null, column: number | null): void => {
-    d.tabs.open(owner, workspaceId, path, line, column)
+  const show = (
+    owner: string,
+    workspaceId: string,
+    path: string,
+    line: number | null,
+    column: number | null,
+    diff?: FileDiff,
+  ): void => {
+    d.tabs.open(owner, workspaceId, path, line, column, diff)
     d.layout.focusPane(owner, VIEWER_PANEL_ID)
     d.layout.setDockOpen(owner, true)
   }
@@ -52,9 +59,7 @@ export function createFileOpener(d: {
       show(owner, workspaceId, path, null, null)
     },
     openDiff(owner, workspaceId, path, diff) {
-      d.tabs.open(owner, workspaceId, path, null, null, diff)
-      d.layout.focusPane(owner, VIEWER_PANEL_ID)
-      d.layout.setDockOpen(owner, true)
+      show(owner, workspaceId, path, null, null, diff)
     },
     openReference(request) {
       const owner = request.owner ?? d.layout.current().auxiliary.activeOwner

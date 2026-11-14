@@ -1,7 +1,6 @@
 import type { IconComponent } from '@poietica/ui-kernel'
 import {
   builtinPoints,
-  CommandsToken,
   defineUiFeature,
   KeybindingsToken,
   LayoutToken,
@@ -38,7 +37,6 @@ export default defineUiFeature({
     const navigation = ctx.services.get(NavigationToken)
     const layout = ctx.services.get(LayoutToken)
     const keybindings = ctx.services.get(KeybindingsToken)
-    ctx.services.get(CommandsToken)
 
     // setup 同步而 prefs.get 异步：先拿默认值兜底，拿到真值后替换（下面「首帧就解一次」那一处一并替换）。
     let current: () => Preferences = () => PreferencesSchema.parse({})

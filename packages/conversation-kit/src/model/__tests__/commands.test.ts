@@ -1,11 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import type { SlashCommand } from '@poietica/runtime-protocol'
 import {
   type CommandChoice,
   type ComposerCommand,
   commandArgsOf,
   commandNameOf,
-  matchCommand,
   rankChoices,
   rankCommands,
   slashStateOf,
@@ -52,22 +50,6 @@ describe('一句话点名的命令与参数', () => {
     expect(commandArgsOf('/rename   新标题  ')).toBe('新标题')
     expect(commandArgsOf('/fast')).toBe('')
     expect(commandArgsOf('不是命令')).toBe('')
-  })
-
-  test('按名字或别名在 omp 的表里找', () => {
-    const list: SlashCommand[] = [
-      {
-        name: 'model',
-        aliases: ['models'],
-        description: null,
-        hint: null,
-        source: 'builtin',
-        subcommands: [],
-      },
-    ]
-    expect(matchCommand(list, '/models')?.name).toBe('model')
-    expect(matchCommand(list, '/model opus')?.name).toBe('model')
-    expect(matchCommand(list, '/unknown')).toBeNull()
   })
 })
 

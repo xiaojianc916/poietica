@@ -9,16 +9,16 @@ import { type SettingsScope, settingAt } from '../settings-access'
 
 /** 设置句柄的 schema 类型（boolean / enum / number / string / array / record）。 */
 export function settingTypeOf(path: string): string {
-  return (settingAt(path) as unknown as { type: string }).type
+  return settingAt(path).type
 }
 
 /** 数组设置加一项（omp 的 Setting.setMember 只认 { member: boolean } 这一种形状）。 */
 export function addArrayMember(scope: SettingsScope, path: string, item: string): void {
-  setMember(scope, path, item, true)
+  settingAt(path).setMember(scope, item, { member: true })
 }
 
 export function removeArrayMember(scope: SettingsScope, path: string, item: string): void {
-  setMember(scope, path, item, false)
+  settingAt(path).setMember(scope, item, { member: false })
 }
 
 /** 读一格模型角色（omp 的 Settings.getModelRole）；没配就是 undefined。 */
@@ -42,17 +42,4 @@ export async function flushOf(scope: SettingsScope): Promise<void> {
 /** SettingsScope → omp 的 Settings 实例（要把它交给 omp 自己的 helper 时用，如 config/model-roles）。 */
 export function settingsInstanceOf(scope: SettingsScope): Settings {
   return 'settings' in scope ? scope.settings : scope
-}
-
-/** omp 的数组句柄那一格（Setting.setMember）。 */
-interface MemberHandle {
-  setMember(scope: SettingsScope, item: string, options: { member: boolean }): void
-}
-
-function entryOf(path: string): MemberHandle {
-  return settingAt(path) as unknown as MemberHandle
-}
-
-function setMember(scope: SettingsScope, path: string, item: string, member: boolean): void {
-  entryOf(path).setMember(scope, item, { member })
 }

@@ -19,7 +19,6 @@ export {
   type ErrorObject,
   isNotification,
   isRequest,
-  isResponse,
   type NotificationMessage,
   type RequestMessage,
   type RpcId,
@@ -39,7 +38,7 @@ export {
 } from './peer'
 export { Router, type TypedHandler } from './router'
 export type { Transport } from './transport'
-export { isRpcMessage } from './transport-core'
+export { isRpcMessage, TransportCore } from './transport-core'
 export { type CallOptions, createTypedClient, type RpcChannel, type TypedRpcClient } from './typed-client'
 export {
   BRIDGE_GLOBAL,

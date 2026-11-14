@@ -98,12 +98,6 @@ export function findCommand<T extends { readonly name: string; readonly aliases:
   return list.find((command) => command.name === name || command.aliases.includes(name)) ?? null
 }
 
-/** 一句话点名的是不是 omp 表里的一条 */
-export function matchCommand(list: readonly SlashCommand[], text: string): SlashCommand | null {
-  const name = commandNameOf(text)
-  return name === null ? null : findCommand(list, name)
-}
-
 /**
  * 草稿此刻是哪一段斜杠输入：整份草稿只有一行、以 `/` 开头。`rest` 为 null = 还在敲名字（可以是空串，刚敲下 `/` 那一刻）；
  * 不为 null = 名字之后已经敲了空格，`rest` 是空格之后的那一截（可以是空串）。不是斜杠输入交回 null。

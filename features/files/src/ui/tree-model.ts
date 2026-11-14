@@ -1,6 +1,7 @@
 import { type FileTreeRow, pathTreeRows } from '@poietica/design-system'
 import type { FileEntry } from '../contract'
 import type { FilesApi } from './api'
+import { parentDirectory } from './relative-path'
 
 /*
  * 一个工作区的文件树：哪些目录展开着、各目录读到了什么、筛选词与结果。不碰 React：组件经 subscribe / version 订阅，
@@ -22,11 +23,6 @@ export type SearchState =
   | { readonly phase: 'failed' }
 
 const SEARCH_DEBOUNCE_MS = 150
-
-function parentOf(path: string): string {
-  const at = path.lastIndexOf('/')
-  return at < 0 ? '' : path.slice(0, at)
-}
 
 function rowOf(entry: FileEntry, depth: number, expanded: ReadonlySet<string>): FileTreeRow {
   const folder = entry.kind === 'directory'
@@ -180,7 +176,7 @@ export class FileTreeModel {
     const stale =
       paths === null
         ? [...this.dirs.keys()]
-        : [...new Set(paths.flatMap((path) => [parentOf(path), path]))].filter((dir) => this.dirs.has(dir))
+        : [...new Set(paths.flatMap((path) => [parentDirectory(path), path]))].filter((dir) => this.dirs.has(dir))
     for (const dir of stale) void this.load(dir)
     if (this.query.trim() !== '') this.schedule()
   }

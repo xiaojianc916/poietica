@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 import type { rename as fsRename } from 'node:fs/promises'
 import { mkdir, open, rename, rm } from 'node:fs/promises'
 import path from 'node:path'
+import { setTimeout as sleepTimer } from 'node:timers/promises'
 
 type Rename = typeof fsRename
 
@@ -29,7 +30,7 @@ export async function renameWithRetry(
   to: string,
   o: RenameRetryOptions = {},
 ): Promise<void> {
-  const sleep = o.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
+  const sleep = o.sleep ?? sleepTimer
   let waited = 0
   let delay = RENAME_RETRY_BASE_MS
   let last: unknown

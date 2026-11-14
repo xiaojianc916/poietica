@@ -5,6 +5,9 @@ import { z } from 'zod'
 export const ThreadId = z.string().min(1)
 export const MAIN_AGENT_ID = 'main'
 
+/** 附件引用的 ownerKey 拼法：'<功能 id>:<实体>:<id>'。线程是唯一会登记附件的实体。 */
+export const attachmentOwnerKeyOf = (threadId: string): string => `conversation:thread:${threadId}`
+
 /** 新线程的默认姿态：threads.create 与 controls.draft 共用这一个值。 */
 export const DEFAULT_POSTURE: Posture = 'auto-edit'
 

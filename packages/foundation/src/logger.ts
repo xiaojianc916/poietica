@@ -1,5 +1,4 @@
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
-export const LOG_LEVELS: readonly LogLevel[] = ['debug', 'info', 'warn', 'error']
 
 /** 日志接口。实现在 @poietica/logging；msg 用英文短语，data 放结构化字段。 */
 export interface Logger {

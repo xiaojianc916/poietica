@@ -5,16 +5,11 @@ export { type AppShortcut, type DesiredAppShortcut, listShortcutFiles, repairApp
 export { ASSET_SCHEME, type AssetDispatcher, type AssetHandler, createAssetDispatcher } from './asset-protocol'
 export { type CoreOutputSink, createCoreOutputSink } from './core-output'
 export {
-  BACKOFF_MS,
   type CoreFailureReason,
   type CoreStatus,
   type CoreStatusState,
   CoreSupervisor,
   type CoreSupervisorOptions,
-  CRASH_WINDOW_MS,
-  MAX_CRASHES_IN_WINDOW,
-  QUEUE_WAIT_MS,
-  READY_TIMEOUT_MS,
   STOP_GRACE_MS,
 } from './core-supervisor'
 export { createIpcTransport } from './ipc-transport'

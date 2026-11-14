@@ -37,7 +37,6 @@ import type { AgentTranscriptSnapshot, StepHeader, TurnHeader } from './ops/oper
 
 export type EventDurability = 'committed' | 'ephemeral'
 
-export const OMP_REF_FIELDS = ['sessionFile', 'entryId', 'toolCallId'] as const
 export const ompRefSchema = z.object({
   /** omp 会话文件；跨进程/重开时用它把产品事件挂回对话正文 */
   sessionFile: z.string().optional(),

@@ -6,7 +6,7 @@ import {
   GitPullRequestDraft,
   type LucideIcon,
 } from 'lucide-react'
-import type { GithubCheck, GithubCheckState, GithubMergeStatus, GithubPullState, GithubPullSummary } from '../contract'
+import type { GithubCheck, GithubCheckState, GithubMergeStatus, GithubPullSummary } from '../contract'
 
 /* 代码审查页的纯展示规则：相对时间、状态文案、色调与字形。全在这里，组件里不各写各的。 */
 
@@ -171,8 +171,4 @@ export function pullMetaLine(pr: GithubPullSummary, repositoryName: string | nul
 /** 详情的 meta 行：「xiaojianc916 · 1mo ago · refactor/plugin-ledger-ownership → main」。 */
 export function pullBranchLine(pr: GithubPullSummary): string {
   return `${pr.headBranch} → ${pr.baseBranch}`
-}
-
-export function pullStateOf(state: GithubPullState): GithubPullState {
-  return state
 }

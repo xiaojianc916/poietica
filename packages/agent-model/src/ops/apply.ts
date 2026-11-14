@@ -3,7 +3,7 @@ import type { TranscriptFrame } from '../model/frame'
 import type { AttachmentId, InteractionId, PromptId, TaskId, TodoId, TurnId } from '../model/ids'
 import { turnOrdinal } from '../model/ids'
 import type { TranscriptInteraction } from '../model/interaction'
-import type { TranscriptItem } from '../model/item'
+import { itemId, type TranscriptItem } from '../model/item'
 import type { AgentPhaseMeta, AgentStatusMeta, TranscriptMeta, TranscriptMetaMerge } from '../model/meta'
 import type { TranscriptPrompt } from '../model/prompt'
 import type { TranscriptTask } from '../model/task'
@@ -372,7 +372,7 @@ export function appendAtOffset(
 }
 
 function applyItemUpsert(state: AgentState, item: TranscriptItem, id: string, beforeTurn?: number): ApplyResult {
-  const at = state.items.findIndex((entry) => itemIdOf(entry) === id)
+  const at = state.items.findIndex((entry) => itemId(entry) === id)
   if (at >= 0) {
     if (state.items[at] === item) return { state, changed: false }
     const items = [...state.items]
@@ -395,23 +395,12 @@ function applyItemUpsert(state: AgentState, item: TranscriptItem, id: string, be
   return { state: { ...state, items: [...state.items, item] }, changed: true }
 }
 
-function itemIdOf(item: TranscriptItem): string {
-  switch (item.kind) {
-    case 'turn':
-      return item.turnId
-    case 'marker':
-      return item.markerId
-    case 'taskref':
-      return item.refId
-  }
-}
-
 function applyItemsRemove(state: AgentState, ids: readonly string[]): ApplyResult {
   const drop = new Set(ids)
   const removedTurns = state.items.filter(
     (entry): entry is TranscriptTurn => entry.kind === 'turn' && drop.has(entry.turnId),
   )
-  const items = state.items.filter((entry) => !drop.has(itemIdOf(entry)))
+  const items = state.items.filter((entry) => !drop.has(itemId(entry)))
   if (items.length === state.items.length) return { state, changed: false }
   const { interactions, pending } = dropAnchoredInteractions(state, removedTurns)
   return {

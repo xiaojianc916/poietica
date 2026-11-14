@@ -1,6 +1,5 @@
 import type { CoreModuleContext } from '@poietica/core-kernel'
 import type { TimelineService } from '@poietica/feature-timeline/core-api'
-import { AppError } from '@poietica/foundation'
 import type { conversationContract } from '../contract'
 import { MAIN_AGENT_ID } from '../contract/entities'
 import type { ConversationCore } from './conversation'
@@ -54,16 +53,7 @@ export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: Timeline
   )
   ctx.rpc.handle('threads.share', ({ threadId }) => threads.shareThread(threadId))
 
-  ctx.rpc.handle('turns.submit', (p) =>
-    turns.submit({
-      threadId: p.threadId,
-      clientTurnId: p.clientTurnId,
-      text: p.text,
-      attachmentIds: p.attachmentIds,
-      skills: p.skills,
-      deliverAs: p.deliverAs,
-    }),
-  )
+  ctx.rpc.handle('turns.submit', (p) => turns.submit(p))
   ctx.rpc.handle('submissions.retry', ({ clientTurnId }) => ({ submission: submissions.retry(clientTurnId) }))
   ctx.rpc.handle('submissions.discard', ({ clientTurnId }) => {
     submissions.discard(clientTurnId)
@@ -165,6 +155,4 @@ export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: Timeline
     await turns.respond(threadId, interactionId, answer)
     return {}
   })
-
-  void AppError
 }

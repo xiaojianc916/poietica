@@ -1,6 +1,5 @@
 import {
   builtinPoints,
-  CommandsToken,
   defineUiFeature,
   LayoutToken,
   NavigationToken,
@@ -22,7 +21,6 @@ export const workbenchFeature = defineUiFeature({
   setup(ctx) {
     const navigation = ctx.services.get(NavigationToken)
     const layout = ctx.services.get(LayoutToken)
-    ctx.services.get(CommandsToken)
 
     const command = (id: string, title: string, run: () => void, enabled?: () => boolean): void => {
       ctx.contribute(

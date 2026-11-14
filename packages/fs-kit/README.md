@@ -5,7 +5,7 @@
 ## 关键导出
 
 - `writeFileAtomic`：临时文件落盘后改名；Windows 上对占用错误退避重试
-- `ensureDir`、`sha256File`
+- `ensureDir`
 - `createJsonDocument`：zod 校验；损坏文件改名 `.corrupt-<时间戳>` 后回退默认值
 - `isInside`：纯字符串路径包含判断，不解析符号链接
 

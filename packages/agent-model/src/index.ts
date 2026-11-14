@@ -98,7 +98,6 @@ export {
   committedOnly,
   EMPTY_THREAD_STATE,
   type FrameOverlay,
-  itemIdOf,
   materialize,
   type ReduceGap,
   reduce,

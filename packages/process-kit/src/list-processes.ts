@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { system32 } from './system32'
 
 /** 一条系统进程记录（只取我们判断所需的字段） */
 export interface ProcessInfo {
@@ -50,11 +51,6 @@ export function parseProcessList(json: string): ProcessInfo[] {
   const decoded: unknown = JSON.parse(trimmed)
   const rows = Array.isArray(decoded) ? decoded : [decoded]
   return rows.map(rowOf).filter((row): row is ProcessInfo => row !== null)
-}
-
-/** 系统目录里的固定路径：不走 PATH（PATH 是用户环境，安装器与卸载场景不可信） */
-function system32(exe: string): string {
-  return `${process.env.SystemRoot ?? 'C:\\Windows'}\\System32\\${exe}`
 }
 
 const SELECT_FIELDS = [

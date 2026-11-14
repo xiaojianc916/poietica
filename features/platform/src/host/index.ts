@@ -5,7 +5,6 @@ import { type BrowserWindow, dialog, Menu, Notification, screen, session, shell,
 import { platformContract } from '../contract'
 import { createLogSink } from './log-sink'
 import { createNotifyService } from './notify-service'
-import { openExternal } from './open-browser'
 import { createShellService } from './shell-service'
 import { createStorageService } from './storage-service'
 import { createTray } from './tray'
@@ -33,7 +32,7 @@ export default defineHostModule({
       shell: {
         openExternal: async (url) => {
           // 不用 rundll32：它启动成功并返回 0 也不代表系统浏览器真的打开了 URL。
-          await openExternal(shell, url)
+          await shell.openExternal(url)
           ctx.logger.info('opened in default browser', { host: new URL(url).host })
         },
         openPath: (path) => shell.openPath(path),

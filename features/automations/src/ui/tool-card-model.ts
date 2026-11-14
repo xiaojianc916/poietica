@@ -249,6 +249,7 @@ export function automationOf(view: unknown): CardAutomation | null {
   const schedule = bag(view).schedule
   const timeZone = str(schedule, 'timeZone') ?? ''
   const next = str(view, 'nextRunAt')
+  const nextAt = next === null ? Number.NaN : Date.parse(next)
   const upcomingRaw = bag(view).upcoming
   const upcoming = Array.isArray(upcomingRaw)
     ? upcomingRaw.flatMap((t) => {
@@ -262,7 +263,7 @@ export function automationOf(view: unknown): CardAutomation | null {
     prompt: str(view, 'prompt') ?? '',
     enabled: bool(view, 'enabled') ?? true,
     plan: planOf(schedule),
-    nextRunAt: next === null ? null : Number.isFinite(Date.parse(next)) ? Date.parse(next) : null,
+    nextRunAt: Number.isFinite(nextAt) ? nextAt : null,
     state: stateOf(view),
     meta: metaOf(view),
     upcoming,

@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
 import { createDeriver, type ReviewDeriver } from './derive'
+import { useRetainedStore } from './retained-store'
 import {
   createReviewStore,
   type ReviewDerive,
@@ -18,6 +18,7 @@ interface Held {
   refs: number
   stop: (() => void) | null
   readonly deriver: { held: ReviewDeriver | null }
+  readonly release: () => void
 }
 
 const held = new Map<string, Held>()
@@ -33,34 +34,22 @@ function obtain(gateway: ReviewGateway, report: ReviewFailureReport): Held {
     deriver.held ??= createDeriver()
     return deriver.held.derive(patch, wordDiff)
   }
-  const entry: Held = { deriver, refs: 0, stop: null, store: createReviewStore({ derive, gateway, report }) }
+  const entry: Held = {
+    deriver,
+    refs: 0,
+    stop: null,
+    store: createReviewStore({ derive, gateway, report }),
+    release: () => {
+      deriver.held?.dispose()
+      deriver.held = null
+    },
+  }
   held.set(key, entry)
   return entry
 }
 
-/** 交回的函数必须成对调用（effect 的清理）。 */
-function retain(entry: Held): () => void {
-  entry.refs += 1
-  entry.stop ??= entry.store.start()
-  let released = false
-  return () => {
-    if (released) {
-      return
-    }
-    released = true
-    entry.refs -= 1
-    if (entry.refs > 0) {
-      return
-    }
-    entry.stop?.()
-    entry.stop = null
-    entry.deriver.held?.dispose()
-    entry.deriver.held = null
-  }
-}
-
 export function useReviewStore(gateway: ReviewGateway, report: ReviewFailureReport): ReviewStore {
   const entry = obtain(gateway, report)
-  useEffect(() => retain(entry), [entry])
+  useRetainedStore(entry)
   return entry.store
 }

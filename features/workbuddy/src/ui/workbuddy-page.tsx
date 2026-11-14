@@ -13,6 +13,7 @@ import {
   TooltipTrigger,
   useCopy,
 } from '@poietica/design-system'
+import { errorMessageOf } from '@poietica/foundation'
 import { useFeatureStore } from '@poietica/ui-kernel'
 import { CalendarCheck, CheckCircle2, LoaderCircle, LogIn, Plus, Star, Trash2 } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
@@ -30,10 +31,6 @@ interface LoginView {
   readonly accountId: string | null
   readonly state: 'waiting' | 'done' | 'failed'
   readonly message: string | null
-}
-
-function messageOf(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause)
 }
 
 function dayLabel(at: number): string {
@@ -406,7 +403,7 @@ function LoginDialog({
       await onOpenUrl(login.url)
       if (alive.current) setOpened(true)
     } catch (cause) {
-      if (alive.current) setOpenError(messageOf(cause))
+      if (alive.current) setOpenError(errorMessageOf(cause))
     } finally {
       if (alive.current) setOpening(false)
     }
@@ -602,7 +599,7 @@ export function WorkBuddyPage({
       setSnapshot(await api.snapshot())
       setError(null)
     } catch (cause) {
-      setError(messageOf(cause))
+      setError(errorMessageOf(cause))
     }
   }, [api])
 
@@ -664,7 +661,7 @@ export function WorkBuddyPage({
       const next = await task()
       if (next !== undefined) setSnapshot(next)
     } catch (cause) {
-      setError(messageOf(cause))
+      setError(errorMessageOf(cause))
     } finally {
       setBusy(null)
     }
@@ -685,7 +682,7 @@ export function WorkBuddyPage({
           message: null,
         })
       } catch (cause) {
-        setError(messageOf(cause))
+        setError(errorMessageOf(cause))
       } finally {
         setBusy(null)
       }
@@ -706,7 +703,7 @@ export function WorkBuddyPage({
       setRemoveTarget(null)
       await reload()
     } catch (cause) {
-      setError(messageOf(cause))
+      setError(errorMessageOf(cause))
     } finally {
       setBusy(null)
     }
@@ -720,7 +717,7 @@ export function WorkBuddyPage({
         await api.checkin(account.id)
         await reload()
       } catch (cause) {
-        setError(messageOf(cause))
+        setError(errorMessageOf(cause))
       } finally {
         setBusy(null)
       }

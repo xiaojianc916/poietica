@@ -42,7 +42,7 @@ export class OmpSkillsPort implements SkillsPort {
         name: skill.name,
         description: skill.description,
         source: sourceOf(skill.source, skill._source?.level),
-        enabled: !disabled.has(skill.name),
+        enabled: !disabled.has(`skill:${skill.name}`),
         path: skill.baseDir,
       }))
     } catch (error) {

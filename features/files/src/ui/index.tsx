@@ -1,4 +1,5 @@
 import { FileTypeMark } from '@poietica/design-system'
+import { fileNameOf } from '@poietica/design-system/prose'
 import { fileReferenceOpeners, turnDiffOpeners } from '@poietica/feature-conversation/ui-api'
 import { WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
 import {
@@ -21,10 +22,6 @@ import { FileViewerPanel } from './viewer'
 const WATCH_LIMIT = 32
 
 type DockTabs = NonNullable<PanelItem['dockTabs']>
-
-function basenameOf(path: string): string {
-  return path.slice(path.lastIndexOf('/') + 1)
-}
 
 /*
  * 右坞「文件」的装配。两格：
@@ -230,7 +227,7 @@ function createFileDockTabs(layout: LayoutService, tabs: FileTabsStore): DockTab
         return [
           {
             id,
-            title: basenameOf(tab.path),
+            title: fileNameOf(tab.path),
             hint: tab.path,
             icon: <FileTypeMark name={tab.path} />,
             active: id === set.activeId,

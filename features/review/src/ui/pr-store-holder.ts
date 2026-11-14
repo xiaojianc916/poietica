@@ -1,7 +1,7 @@
 import type { UiFeatureContext } from '@poietica/ui-kernel'
-import { useEffect } from 'react'
 import { createGithubGateway, createReviewApi } from './api'
 import { createPrStore, type PrFailureReport, type PrStore } from './pr-store'
+import { useRetainedStore } from './retained-store'
 
 /*
  * 代码审查页的 store 按工作区**常驻**：页面卸载（切到对话、设置……）时 store 不扔，再回来直接画上次读到的东西，
@@ -42,27 +42,8 @@ function obtain(ctx: UiFeatureContext, workspaceId: string, report: PrFailureRep
   return entry
 }
 
-/** 交回的函数必须成对调用（effect 的清理）。 */
-function retain(entry: Held): () => void {
-  entry.refs += 1
-  entry.stop ??= entry.store.start()
-  let released = false
-  return () => {
-    if (released) {
-      return
-    }
-    released = true
-    entry.refs -= 1
-    if (entry.refs > 0) {
-      return
-    }
-    entry.stop?.()
-    entry.stop = null
-  }
-}
-
 export function usePrStore(ctx: UiFeatureContext, workspaceId: string, report: PrFailureReport): PrStore {
   const entry = obtain(ctx, workspaceId, report)
-  useEffect(() => retain(entry), [entry])
+  useRetainedStore(entry)
   return entry.store
 }

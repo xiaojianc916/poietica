@@ -1,6 +1,6 @@
 import type { TranscriptPage } from '@poietica/agent-model'
 import { AppError, type Clock, type Logger, toAppError } from '@poietica/foundation'
-import type { QueueView, SubmissionView } from '@poietica/product-model'
+import { attachmentOwnerKeyOf, type QueueView, type SubmissionView } from '@poietica/product-model'
 import type { QueueOutcome, QueueSnapshot } from '@poietica/runtime-protocol'
 import {
   type CollectedContext,
@@ -11,8 +11,6 @@ import {
   type SubmissionsRepository,
   submissionOf,
 } from '../core-api'
-
-const OWNER_KEY = (threadId: string): string => `conversation:thread:${threadId}`
 
 /**
  * 「Core 即时回显」的提交服务。三条规则：
@@ -108,7 +106,7 @@ export class SubmissionService implements SubmissionServiceContract {
      * 写库到交接之间、以及交接失败的 failed 行，若不在此登记就都没有引用，24 小时回收会连
      * 文件一起删掉，隔天重试永远报 not_found。这一句与 insert 同一同步段，中间不会被回收插进来。
      */
-    this.p.attachments.retain(input.attachmentIds, OWNER_KEY(input.threadId))
+    this.p.attachments.retain(input.attachmentIds, attachmentOwnerKeyOf(input.threadId))
     const view = submissionOf(row)
     this.p.emitChanged(view)
 

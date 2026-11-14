@@ -32,6 +32,7 @@ export { SegmentedControl, type SegmentedOption } from './control/segmented-cont
 export { Select, type SelectOption } from './control/select'
 export { StateDot, type StateDotState } from './control/state-dot'
 export { Switch } from './control/switch'
+export { ToolbarMenu, ToolbarMenuLabel } from './control/toolbar-menu'
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './control/tooltip'
 export { ViewSwitch, type ViewSwitchOption } from './control/view-switch'
 export { type WorkspaceChoice, WorkspacePicker, type WorkspacePickerProps } from './control/workspace-picker'
@@ -63,4 +64,5 @@ export {
 export { FileTree, type FileTreeProps, type FileTreeRow } from './tree/file-tree'
 export { type PathTreeFile, type PathTreeFolder, type PathTreeNode, pathTreeRows } from './tree/path-tree'
 export { useCopy } from './use-copy'
+export { type ScrollEnds, scrollEndsOf, useScrollEnds } from './use-scroll-ends'
 export { type ViewTransitionOptions, withViewTransition } from './view-transition'

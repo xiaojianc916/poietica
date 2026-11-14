@@ -13,16 +13,14 @@ export function usageOf(
   if (typeof raw !== 'object' || raw === null) return null
   const usage = raw as {
     readonly input?: unknown
-    readonly inputTokens?: unknown
     readonly output?: unknown
-    readonly outputTokens?: unknown
     readonly cacheRead?: unknown
     readonly cacheWrite?: unknown
     readonly cost?: { readonly total?: unknown } | number
   }
   const int = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0)
-  const input = int(usage.input ?? usage.inputTokens)
-  const output = int(usage.output ?? usage.outputTokens)
+  const input = int(usage.input)
+  const output = int(usage.output)
   const cacheRead = int(usage.cacheRead)
   const cacheWrite = int(usage.cacheWrite)
   const cost =

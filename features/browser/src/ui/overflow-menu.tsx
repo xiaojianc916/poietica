@@ -1,19 +1,8 @@
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@poietica/design-system'
+import { DropdownMenuItem, DropdownMenuSeparator, ToolbarMenu, ToolbarMenuLabel } from '@poietica/design-system'
 import { ChevronRight, History, Minus, MoreHorizontal, Plus, RotateCcw } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 /* 工具栏右端那张「更多操作」菜单。菜单壳、行清单、行类名、缩放步进照 legacy；换掉三处口径：没接进来的条目不再假装存在、缩放范围按契约 browser.setZoom 的 -3…5、最近关闭是新增的。 */
-
-const triggerClassName =
-  'flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-launcher hover:opacity-100'
-
-const labelClassName = 'min-w-0 flex-1 truncate text-xs'
 
 /*
  * 列表键：同一地址可能真的被关掉两次，数组下标又会随增删整体漂移（下面一行的行身份就换了）——
@@ -30,37 +19,6 @@ function occurrenceKeyed<T>(
     seen.set(base, nth + 1)
     return { index, item, key: `${base}#${String(nth)}` }
   })
-}
-
-/*
- * 菜单壳。以前这里还要量出菜单高度、报给面板让它垫一块等高占位 —— 菜单是浮层，不占布局，
- * 那块占位只会变成工具栏下方一条发亮的横线（用户 2026-10-19 报告）。量高整段删除。
- */
-function MenuShell({
-  children,
-  className,
-  icon,
-  label,
-  onOpenChange,
-  open,
-}: {
-  readonly children: ReactNode
-  readonly className: string
-  readonly icon: ReactNode
-  readonly label: string
-  readonly onOpenChange: (open: boolean) => void
-  readonly open: boolean
-}) {
-  return (
-    <DropdownMenu onOpenChange={onOpenChange} open={open}>
-      <DropdownMenuTrigger aria-label={label} className={triggerClassName} title={label}>
-        {icon}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className={className}>
-        {children}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
 }
 
 const ZOOM_STEP = 1
@@ -94,7 +52,7 @@ function ZoomRow({ onZoom, level }: { readonly onZoom: (level: number) => void; 
 
   return (
     <fieldset aria-label="缩放" className="flex min-h-[var(--ui-control-height-sm)] items-center gap-1 px-2">
-      <span className={labelClassName}>缩放</span>
+      <ToolbarMenuLabel>缩放</ToolbarMenuLabel>
       <ZoomStep label="缩小" onClick={() => onZoom(Math.max(ZOOM_MIN, level - ZOOM_STEP))}>
         <Minus aria-hidden />
       </ZoomStep>
@@ -163,7 +121,7 @@ function CommandRow({
         command?.()
       }}
     >
-      <span className={labelClassName}>{label}</span>
+      <ToolbarMenuLabel>{label}</ToolbarMenuLabel>
       {submenu === true ? <ChevronRight aria-hidden className=" opacity-50" /> : null}
     </DropdownMenuItem>
   )
@@ -179,7 +137,7 @@ export function BrowserOverflowMenu({
   zoomLevel,
 }: BrowserOverflowMenuProps) {
   return (
-    <MenuShell
+    <ToolbarMenu
       className="w-64"
       icon={<MoreHorizontal aria-hidden />}
       label="更多操作"
@@ -212,7 +170,7 @@ export function BrowserOverflowMenu({
       <DropdownMenuSeparator />
       {recentlyClosed.length === 0 ? (
         <DropdownMenuItem disabled>
-          <span className={labelClassName}>没有最近关闭的标签页</span>
+          <ToolbarMenuLabel>没有最近关闭的标签页</ToolbarMenuLabel>
         </DropdownMenuItem>
       ) : (
         occurrenceKeyed(recentlyClosed, (tab) => tab.url).map(({ index, item: tab, key }) => (
@@ -223,11 +181,11 @@ export function BrowserOverflowMenu({
             }}
           >
             <History aria-hidden className=" opacity-50" />
-            <span className={labelClassName}>{tab.title}</span>
+            <ToolbarMenuLabel>{tab.title}</ToolbarMenuLabel>
             <ChevronRight aria-hidden className=" opacity-50" />
           </DropdownMenuItem>
         ))
       )}
-    </MenuShell>
+    </ToolbarMenu>
   )
 }

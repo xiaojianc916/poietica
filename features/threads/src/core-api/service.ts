@@ -1,5 +1,6 @@
 import { defineServiceToken } from '@poietica/foundation'
 import type { Thread, TurnState } from '@poietica/product-model'
+import { attachmentOwnerKeyOf } from '@poietica/product-model'
 import type { EngineSession, ModelRef, OpenSessionSpec, Posture, RuntimeServices } from '@poietica/runtime-protocol'
 import type { ThreadRow } from './types'
 
@@ -76,7 +77,7 @@ export interface ThreadsService {
 export const ThreadsServiceToken = defineServiceToken<ThreadsService>('threads', 'ThreadsService')
 
 /** 附件引用的 ownerKey 拼法：'<功能 id>:<实体>:<id>' */
-export const ownerKeyOf = (threadId: string): string => `conversation:thread:${threadId}`
+export const ownerKeyOf = attachmentOwnerKeyOf
 export const OWNER_KEY = ownerKeyOf
 
 /** 错误码沿用已发布契约，迁移模块不改变 UI 识别的 code。 */

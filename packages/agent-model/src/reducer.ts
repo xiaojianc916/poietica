@@ -2,7 +2,6 @@ import type { OmpToolInputOf } from '@poietica/omp-types'
 import type { AgentEvent, CommittedAgentEvent, EphemeralAgentEvent, ThreadSnapshot } from './events'
 import type { ToolFrameProgress, TranscriptFrame } from './model/frame'
 import type { TranscriptInteraction } from './model/interaction'
-import type { TranscriptItem } from './model/item'
 import type { TranscriptTask } from './model/task'
 import type { TranscriptTurn } from './model/turn'
 import type { AgentState } from './ops/apply'
@@ -456,15 +455,4 @@ export function committedOnly(events: readonly AgentEvent[]): CommittedAgentEven
 /** 侧表里的一条任务；供选择器使用，避免调用方自己遍历 Map */
 export function taskOf(state: ThreadState, taskId: string): TranscriptTask | undefined {
   return state.committed.tasks.get(taskId)
-}
-
-export function itemIdOf(item: TranscriptItem): string {
-  switch (item.kind) {
-    case 'turn':
-      return item.turnId
-    case 'marker':
-      return item.markerId
-    case 'taskref':
-      return item.refId
-  }
 }

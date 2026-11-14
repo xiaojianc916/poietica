@@ -38,7 +38,7 @@ export class TimelineChannel {
     epoch: number,
     nextEpoch: () => number,
     private readonly clock: Clock,
-    private readonly sink: ChannelSink,
+    sink: ChannelSink,
   ) {
     this.stream = new StreamChannel(epoch, nextEpoch, clock, {
       sink: {

@@ -33,6 +33,11 @@ export function toAppError(error: unknown): AppError {
   return new AppError(SystemErrorCode.internal, String(error))
 }
 
+/** 任意异常的一句话；只取文案、不构造 AppError（日志与界面提示共用这一个判据）。 */
+export function errorMessageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 /** 系统级错误码（命名空间 kernel）；功能级错误码由各功能在 contract 中用 defineErrors 定义。 */
 export const SystemErrorCode = {
   invalidParams: 'kernel.invalid_params',

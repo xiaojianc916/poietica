@@ -26,18 +26,11 @@ function cutAtLine(bytes: Uint8Array): Uint8Array {
   return at <= 0 ? bytes : bytes.subarray(0, at + 1)
 }
 
-function swapped(bytes: Uint8Array): Uint8Array {
-  const out = new Uint8Array(bytes.length - (bytes.length % 2))
-  for (let at = 0; at + 1 < bytes.length; at += 2) {
-    out[at] = bytes[at + 1] ?? 0
-    out[at + 1] = bytes[at] ?? 0
-  }
-  return out
-}
-
 function utf16(bytes: Uint8Array, bigEndian: boolean): DecodedText {
+  /* 截断在半个码元上时丢掉最后那一字节：与原来手写换序的边界一致，不让它变成替换符 */
   const body = bytes.subarray(2)
-  const text = new TextDecoder('utf-16le').decode(bigEndian ? swapped(body) : body)
+  const even = body.subarray(0, body.length - (body.length % 2))
+  const text = new TextDecoder(bigEndian ? 'utf-16be' : 'utf-16le').decode(even)
   return { text, encoding: bigEndian ? 'utf-16be' : 'utf-16le' }
 }
 

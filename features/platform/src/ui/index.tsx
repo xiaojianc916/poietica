@@ -1,12 +1,10 @@
 import { systemContract } from '@poietica/contract-kit'
 import {
-  BannersToken,
   builtinPoints,
   type CommandItem,
   createValue,
   defineUiFeature,
   type KeybindingItem,
-  NavigationToken,
   SETTINGS_GROUPS,
   type SettingsPageItem,
   UiLoggingToken,
@@ -37,9 +35,7 @@ export default defineUiFeature({
     const api = createPlatformApi(ctx)
     // system 契约由内核拥有：ui-kernel 的 ctx.rpc 无条件放行它。
     const system = ctx.rpc(systemContract)
-    const navigation = ctx.services.get(NavigationToken)
     const logging = ctx.services.get(UiLoggingToken)
-    ctx.services.get(BannersToken)
 
     logging.setSink((entries) => {
       void api.logWrite(entries).catch(() => undefined)
@@ -121,7 +117,6 @@ export default defineUiFeature({
     }
     bind('platform.openDevtools', 'Ctrl+Shift+I')
     if (IS_DEV) bind('platform.reload', 'Ctrl+R')
-    void navigation
 
     const guard = createWindowCloseGuard(api)
     ctx.services.provide(WindowCloseToken, guard)

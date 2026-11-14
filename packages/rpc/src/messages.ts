@@ -44,6 +44,3 @@ export function isRequest(m: RpcMessage): m is RequestMessage {
 export function isNotification(m: RpcMessage): m is NotificationMessage {
   return 'method' in m && !('id' in m)
 }
-export function isResponse(m: RpcMessage): m is SuccessMessage | ErrorMessage {
-  return !('method' in m)
-}

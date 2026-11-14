@@ -1,5 +1,6 @@
 import { ChevronDownIcon } from '@poietica/conversation-kit/primitives'
 import { FileTypeMark } from '@poietica/design-system'
+import { fileNameOf } from '@poietica/design-system/prose'
 import { Undo2 } from 'lucide-react'
 import type { TurnChangesView } from '../../../ui-api'
 import './turn-changes.css'
@@ -39,13 +40,6 @@ export function addedLabel(added: number): string {
 
 export function removedLabel(removed: number): string {
   return `-${String(removed)}`
-}
-
-/** 路径的最后一段（文件名）：显示时它用主墨，前面的目录退一档。 */
-export function fileNameOf(path: string): string {
-  const cut = path.lastIndexOf('/')
-
-  return cut === -1 ? path : path.slice(cut + 1)
 }
 
 /** 文件名之前那段目录；根目录下的文件没有这一段，不画空的一格。 */

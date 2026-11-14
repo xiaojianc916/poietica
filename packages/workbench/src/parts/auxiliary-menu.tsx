@@ -1,4 +1,4 @@
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@poietica/design-system'
+import { DropdownMenuItem, ToolbarMenu, ToolbarMenuLabel } from '@poietica/design-system'
 import { Plus } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -15,38 +15,6 @@ export interface AuxiliaryOffer {
   readonly icon: ReactNode
 }
 
-const triggerClassName =
-  'flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-launcher hover:opacity-100'
-
-const labelClassName = 'min-w-0 flex-1 truncate text-xs'
-
-function MenuShell({
-  children,
-  className,
-  icon,
-  label,
-  onOpenChange,
-  open,
-}: {
-  readonly children: ReactNode
-  readonly className: string
-  readonly icon: ReactNode
-  readonly label: string
-  readonly onOpenChange: (open: boolean) => void
-  readonly open: boolean
-}) {
-  return (
-    <DropdownMenu onOpenChange={onOpenChange} open={open}>
-      <DropdownMenuTrigger aria-label={label} className={triggerClassName} title={label}>
-        {icon}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className={className}>
-        {children}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
-
 export function AuxiliaryNewTabMenu({
   offers,
   onOpenChange,
@@ -59,7 +27,7 @@ export function AuxiliaryNewTabMenu({
   readonly open: boolean
 }) {
   return (
-    <MenuShell
+    <ToolbarMenu
       className="min-w-40"
       icon={<Plus aria-hidden />}
       label="新建标签页"
@@ -74,9 +42,9 @@ export function AuxiliaryNewTabMenu({
           }}
         >
           {offer.icon}
-          <span className={labelClassName}>{offer.label}</span>
+          <ToolbarMenuLabel>{offer.label}</ToolbarMenuLabel>
         </DropdownMenuItem>
       ))}
-    </MenuShell>
+    </ToolbarMenu>
   )
 }

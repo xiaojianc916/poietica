@@ -99,19 +99,12 @@ async function main(): Promise<void> {
     console.log(`[probe]     core.ready：coreVersion=${ready.coreVersion} engineVersion=${ready.engineVersion}`)
 
     console.log('[probe] 4/5 检查隔离目录与用户目录…')
-    const check = await import('@poietica/runtime-protocol-omp/bootstrap')
-    void check
     const leaked = listLeaks(fakeHome, dataRoot)
     if (leaked.length > 0) fail(`假用户目录里出现了数据根之外的路径：\n  ${leaked.join('\n  ')}`)
     console.log('[probe]     用户目录干净：除数据根路径链外没有任何文件或目录')
 
     console.log('[probe] 5/5 优雅退出…')
-    const reply = await withTimeout(
-      peer.request('core.shutdown', {}, { timeoutMs: 5_000 }),
-      6_000,
-      () => new Error('shutdown 超时'),
-    )
-    void reply
+    await withTimeout(peer.request('core.shutdown', {}, { timeoutMs: 5_000 }), 6_000, () => new Error('shutdown 超时'))
     const exitDeadline = systemClock.now() + 5_000
     while (child.exitCode === null && systemClock.now() < exitDeadline) await Bun.sleep(50)
     child.kill()

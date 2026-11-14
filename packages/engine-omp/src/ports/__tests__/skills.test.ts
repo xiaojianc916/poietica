@@ -55,6 +55,17 @@ describe('SkillsPort', () => {
     expect(read.markdown).toContain('# demo-skill')
   })
 
+  test('list 把 disabledExtensions 里的 skill: 前缀对上，报出停用状态', async () => {
+    const root = Settings.isolated()
+    const port = makePort(root)
+    const source = path.join(tempDir('poietica-skill-disabled-'), 'disabled-skill')
+    writeSkill(source, 'disabled-skill', '一份停用的技能')
+    await port.installFromDirectory(source)
+    await port.setEnabled('disabled-skill', false)
+    const listed = await port.list(null)
+    expect(listed.find((skill) => skill.id === 'disabled-skill')?.enabled).toBe(false)
+  })
+
   test('installFromZip 解压、校验结构后再改名进技能目录', async () => {
     const root = Settings.isolated()
     const port = makePort(root)

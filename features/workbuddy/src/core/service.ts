@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { AppError, type Logger } from '@poietica/foundation'
+import { AppError, errorMessageOf, type Logger } from '@poietica/foundation'
 import type { CustomProviderDef, ModelsPort } from '@poietica/runtime-protocol'
 import {
   type WorkBuddyCheckin as ClientCheckin,
@@ -110,10 +110,6 @@ function localDay(at: number): string {
 
 function beijingHour(at: number): number {
   return new Date(at + BEIJING_OFFSET_MS).getUTCHours()
-}
-
-function messageOf(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause)
 }
 
 function appErrorOf(cause: unknown, fallback: { code: string; message: string }): AppError {
@@ -415,7 +411,7 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
     try {
       return await sessionFor(record)
     } catch (cause) {
-      logger.warn('WorkBuddy 账号通道建立失败', { account: record.id, error: messageOf(cause) })
+      logger.warn('WorkBuddy 账号通道建立失败', { account: record.id, error: errorMessageOf(cause) })
       return null
     }
   }
@@ -478,7 +474,7 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
         // react-doctor-disable-next-line react-doctor/async-await-in-loop
         handed.push({ id: record.id, session: await sessionFor(record) })
       } catch (cause) {
-        logger.warn('WorkBuddy 账号通道建立失败', { account: record.id, error: messageOf(cause) })
+        logger.warn('WorkBuddy 账号通道建立失败', { account: record.id, error: errorMessageOf(cause) })
       }
     }
     return handed
@@ -506,7 +502,7 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
       probeAt.set(soonest.id, at)
       return { accounts: [{ id: soonest.id, session: probe }] }
     } catch (cause) {
-      logger.warn('WorkBuddy 账号通道建立失败', { account: soonest.id, error: messageOf(cause) })
+      logger.warn('WorkBuddy 账号通道建立失败', { account: soonest.id, error: errorMessageOf(cause) })
       return { accounts: [], restingUntil: soonest.restUntil }
     }
   }
@@ -582,7 +578,7 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
      */
     if (!providerRegistered || !existing.custom) return
     await writeProvider(false).catch((cause: unknown) => {
-      logger.warn('WorkBuddy 反代地址没能写回模型目录', { error: messageOf(cause) })
+      logger.warn('WorkBuddy 反代地址没能写回模型目录', { error: errorMessageOf(cause) })
     })
   }
 
@@ -701,7 +697,7 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
       providerRegistered = false
       repository.setSetting(SETTING_PROVIDER, '0')
     } catch (cause) {
-      logger.warn('移除 WorkBuddy 模型服务商失败', { error: messageOf(cause) })
+      logger.warn('移除 WorkBuddy 模型服务商失败', { error: errorMessageOf(cause) })
     }
   }
 
@@ -724,7 +720,7 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
       await ensureProvider()
     } catch (cause) {
       providerState = 'error'
-      providerMessage = messageOf(cause)
+      providerMessage = errorMessageOf(cause)
       logger.warn('WorkBuddy 反代注册失败', { error: providerMessage })
     }
   }
@@ -858,8 +854,8 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
     logins.delete(loginId)
     emitLogin({ loginId, state: 'done', accountId, message: null })
     changed()
-    void refreshUsage(accountId).catch((cause) => logger.warn('登录后读取积分失败', { error: messageOf(cause) }))
-    void syncProxy().catch((cause) => logger.warn('登录后启动 WorkBuddy 反代失败', { error: messageOf(cause) }))
+    void refreshUsage(accountId).catch((cause) => logger.warn('登录后读取积分失败', { error: errorMessageOf(cause) }))
+    void syncProxy().catch((cause) => logger.warn('登录后启动 WorkBuddy 反代失败', { error: errorMessageOf(cause) }))
   }
 
   async function runBrowserCallback(
@@ -872,8 +868,8 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
     } catch (cause) {
       logins.delete(loginId)
       if (attempt.cancelled) return
-      emitLogin({ loginId, state: 'failed', accountId: null, message: messageOf(cause) })
-      logger.warn('WorkBuddy 浏览器登录失败', { error: messageOf(cause) })
+      emitLogin({ loginId, state: 'failed', accountId: null, message: errorMessageOf(cause) })
+      logger.warn('WorkBuddy 浏览器登录失败', { error: errorMessageOf(cause) })
     }
   }
 
@@ -900,7 +896,9 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
       repository.updateCheckin(record.id, checkin, at)
       if (result.outcome === 'claimed' || result.outcome === 'done') {
         repository.setStatus(record.id, 'ok', null, at)
-        void refreshUsage(record.id).catch((cause) => logger.warn('签到后刷新积分失败', { error: messageOf(cause) }))
+        void refreshUsage(record.id).catch((cause) =>
+          logger.warn('签到后刷新积分失败', { error: errorMessageOf(cause) }),
+        )
       }
       changed()
       return checkinViewOf(checkin)
@@ -915,7 +913,7 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
    * 5 分钟一拍就会变成对上游的连打。手动按的那次不记，让用户再按还能立刻重试。
    */
   function noteCheckinFailure(accountId: string, cause: unknown, at: number, manual: boolean): void {
-    logger.warn(manual ? 'WorkBuddy 签到失败' : '自动签到失败', { account: accountId, error: messageOf(cause) })
+    logger.warn(manual ? 'WorkBuddy 签到失败' : '自动签到失败', { account: accountId, error: errorMessageOf(cause) })
     if (manual) return
     repository.updateCheckin(
       accountId,
@@ -923,7 +921,7 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
         day: localDay(at),
         at,
         outcome: 'failed',
-        message: messageOf(cause),
+        message: errorMessageOf(cause),
         credit: null,
         streak: null,
         nextTryAt: at + CHECKIN_RETRY_MS,
@@ -969,8 +967,8 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
       repository.clearRest(record.id, at)
       probeAt.delete(record.id)
     } catch (cause) {
-      logger.warn('读取 WorkBuddy 积分失败', { account: record.id, error: messageOf(cause) })
-      repository.setStatus(record.id, 'error', messageOf(cause), now())
+      logger.warn('读取 WorkBuddy 积分失败', { account: record.id, error: errorMessageOf(cause) })
+      repository.setStatus(record.id, 'error', errorMessageOf(cause), now())
     }
   }
 
@@ -991,10 +989,10 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
     async start() {
       if (started) return
       started = true
-      await syncProxy().catch((cause) => logger.warn('WorkBuddy 反代启动失败', { error: messageOf(cause) }))
-      void autoCheckinAll().catch((cause) => logger.warn('WorkBuddy 自动签到失败', { error: messageOf(cause) }))
+      await syncProxy().catch((cause) => logger.warn('WorkBuddy 反代启动失败', { error: errorMessageOf(cause) }))
+      void autoCheckinAll().catch((cause) => logger.warn('WorkBuddy 自动签到失败', { error: errorMessageOf(cause) }))
       timer = setInterval(() => {
-        void autoCheckinAll().catch((cause) => logger.warn('WorkBuddy 定时签到失败', { error: messageOf(cause) }))
+        void autoCheckinAll().catch((cause) => logger.warn('WorkBuddy 定时签到失败', { error: errorMessageOf(cause) }))
       }, CHECKIN_INTERVAL_MS)
     },
     dispose() {
@@ -1007,7 +1005,7 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
       unknownStrikes.clear()
       /* 黏号表按会话累积：进程在就一直在，Core 重启就该忘干净（magpie 落盘那是 P2） */
       sticks.clear()
-      void stopServer(false).catch((cause) => logger.warn('关闭 WorkBuddy 反代失败', { error: messageOf(cause) }))
+      void stopServer(false).catch((cause) => logger.warn('关闭 WorkBuddy 反代失败', { error: errorMessageOf(cause) }))
     },
     snapshot,
     async startBrowserLogin(accountId) {
@@ -1069,7 +1067,7 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
     async setAutoCheckin(next) {
       autoCheckin = next
       repository.setSetting(SETTING_AUTO_CHECKIN, next ? '1' : '0')
-      if (next) void autoCheckinAll().catch((cause) => logger.warn('自动签到失败', { error: messageOf(cause) }))
+      if (next) void autoCheckinAll().catch((cause) => logger.warn('自动签到失败', { error: errorMessageOf(cause) }))
       changed()
       return snapshot()
     },

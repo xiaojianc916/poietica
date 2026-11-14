@@ -1,5 +1,4 @@
-import type { Disposable } from '@poietica/foundation'
-import { IPC_CHANNEL, isRpcMessage, type RpcMessage, relayParts, type Transport } from '@poietica/rpc'
+import { IPC_CHANNEL, isRpcMessage, relayParts, type Transport, TransportCore } from '@poietica/rpc'
 import { type IpcMainEvent, ipcMain, type WebContents } from 'electron'
 
 /**
@@ -10,40 +9,28 @@ import { type IpcMainEvent, ipcMain, type WebContents } from 'electron'
  * 对象结构化克隆。页面一侧见 rpc 的 PreloadBridge / windowBridgeFromPreload。
  */
 export function createIpcTransport(wc: WebContents): Transport {
-  const messageListeners = new Set<(m: RpcMessage) => void>()
-  const closeListeners = new Set<(reason: string) => void>()
-  let closed = false
+  const core = new TransportCore()
   const onIpc = (event: IpcMainEvent, message: unknown): void => {
-    if (closed || event.sender !== wc || !isRpcMessage(message)) return
-    for (const l of [...messageListeners]) l(message)
+    if (event.sender !== wc || !isRpcMessage(message)) return
+    core.deliver(message)
   }
   const onDestroyed = (): void => close('webContents destroyed')
   ipcMain.on(IPC_CHANNEL, onIpc)
   wc.once('destroyed', onDestroyed)
   function close(reason: string): void {
-    if (closed) return
-    closed = true
+    if (!core.markClosed(reason)) return
     ipcMain.removeListener(IPC_CHANNEL, onIpc)
     wc.removeListener('destroyed', onDestroyed)
-    for (const l of [...closeListeners]) l(reason)
-  }
-  const sub = <T>(set: Set<T>, l: T): Disposable => {
-    set.add(l)
-    return {
-      dispose: () => {
-        set.delete(l)
-      },
-    }
   }
   return {
     send(message) {
-      if (closed || wc.isDestroyed()) return
+      if (core.closed || wc.isDestroyed()) return
       const relay = relayParts(message)
       if (relay === null) wc.send(IPC_CHANNEL, message)
       else wc.send(IPC_CHANNEL, relay[0], relay[1])
     },
-    onMessage: (l) => sub(messageListeners, l),
-    onClose: (l) => sub(closeListeners, l),
+    onMessage: (listener) => core.onMessage(listener),
+    onClose: (listener) => core.onClose(listener),
     close,
   }
 }
