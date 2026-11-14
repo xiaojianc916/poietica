@@ -253,11 +253,15 @@ export class ArpEngine implements AgentEngine {
     this.recovering = true
     try {
       for (const spec of this.tools.values()) {
+        /* 按目录顺序逐个注册：注册顺序就是引擎侧工具清单的顺序，且都要在 freezeTools 之前落完。 */
+        // react-doctor-disable-next-line react-doctor/async-await-in-loop
         await this.runtime.request(arpMethods.engineRegisterTool, toolParams(spec))
       }
       await this.runtime.request(arpMethods.engineCall, { path: ['freezeTools'], args: [] })
       for (const [key, spec] of this.specs) {
         try {
+          /* 逐个重开：刚重启的引擎不该被一次性并发拉起全部会话。 */
+          // react-doctor-disable-next-line react-doctor/async-await-in-loop
           const fresh = await ArpSession.open({
             spec,
             request: (method, params, timeoutMs) => this.runtime.request(method, params, timeoutMs),

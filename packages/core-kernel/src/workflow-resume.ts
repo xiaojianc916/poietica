@@ -28,6 +28,8 @@ export async function resumeWorkflows(o: ResumeWorkflowsOptions): Promise<number
       continue
     }
     try {
+      /* 启动对账逐个续跑：一个 handler 就可能拉起引擎会话，串行是这条路径的资源上限。 */
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop
       await handler.resume(record)
       resumed += 1
     } catch (error) {

@@ -7,9 +7,15 @@ import path from 'node:path'
 import { coreModules } from '../src/modules'
 import { buildSchemaSnapshot } from '../src/schema-snapshot'
 
-const version = (
-  JSON.parse(readFileSync(path.join(import.meta.dir, '..', 'package.json'), 'utf8')) as { version: string }
-).version
+/** package.json 是外部输入：解析可能抛，缺字段是 undefined，先校验再取。 */
+function readVersion(file: string): string {
+  const raw: unknown = JSON.parse(readFileSync(file, 'utf8'))
+  const version = typeof raw === 'object' && raw !== null && 'version' in raw ? raw.version : undefined
+  if (typeof version !== 'string' || version.length === 0) throw new Error(`${file} 缺 version`)
+  return version
+}
+
+const version = readVersion(path.join(import.meta.dir, '..', 'package.json'))
 const file = path.join(import.meta.dir, '..', 'schema', 'released', `v${version}.json`)
 const text = `${JSON.stringify(buildSchemaSnapshot(version, coreModules), null, 2)}\n`
 if (existsSync(file) && readFileSync(file, 'utf8') !== text) {

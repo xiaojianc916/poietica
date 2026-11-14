@@ -54,6 +54,9 @@ export function createJobRunner(o: JobRunnerOptions): JobRunner {
     running = true
     try {
       const batch = o.jobs.claim(o.batchSize ?? 10, o.leaseMs ?? 60_000)
+      /* 串行投递：同一轮的任务共用 Core 的一条 sqlite 写连接，逐个完成/退避才有确定的写序。
+         串行不是漏写并发：任务之间没有独立的失败隔离需求，handler 的写序才是这里的契约。 */
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop
       for (const job of batch) await deliver(job)
       return batch.length
     } finally {

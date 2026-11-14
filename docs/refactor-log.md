@@ -65,6 +65,14 @@
 
 ## 偏差与裁决
 
+### react-doctor 满分回归（2026-11-14）
+
+- **范围**：CI 用 `latest`（本次 0.9.23）全仓扫描 89 分 / 6 条 warning：`no-unsafe-json-parse` 1 条、`async-await-in-loop` 5 条。逐条落在代码里，最终 100 分、0 诊断。
+- **package.json 先校验再取字段**：`apps/core/scripts/schema-snapshot.ts` 不再是 `JSON.parse(...).version`；`readVersion()` 先确认解析结果是对象、`version` 是非空字符串，坏输入直接报出文件名。
+- **五处串行 await 保持串行**：`job-runner` / `outbox-dispatcher` 的投递共用一个 sqlite 写连接，且 outbox 的语义是入队序生效；`workflow-resume` 的启动续跑、`ArpEngine.recoverSessions` 的重开会话是资源上限（刚重启的引擎不该被并发拉起全部会话）；工具注册顺序就是引擎侧清单顺序。都按仓库惯例在循环处 `react-doctor-disable-next-line react-doctor/async-await-in-loop` 并写明理由，不改并发。
+- **格式闸门修绿**：上一提交留下的 `features/composer/tsconfig.json` 只有排版不合 `bun fmt`，已格式化，内容不变。
+- **验证**：react-doctor `100 / 100`、`✔ No issues found!`；`typecheck`、`lint`、`format:check`、`bun test`（3357 通过 / 1 跳过 / 0 失败）均通过。
+
 ### 2026-11-08 P2 起步：stream-kit、Journal 写入、主题路由
 
 - **stream-kit**：新增 `packages/stream-kit` 的通用 `StreamChannel<T>`（合批、epoch/seq、环形缓冲、补发、coalesce），conversation 的 `TimelineChannel` 改为用它；工具中间结果节流仍留在时间线层。

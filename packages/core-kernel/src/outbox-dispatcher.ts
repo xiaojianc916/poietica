@@ -57,6 +57,8 @@ export function createOutboxDispatcher(o: OutboxDispatcherOptions): OutboxDispat
     running = true
     try {
       const batch = o.outbox.claim(o.batchSize ?? 20, o.leaseMs ?? 30_000)
+      /* 串行投递：outbox 按入队序生效，逐个完成/退避才保得住同 topic 的写序。 */
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop
       for (const record of batch) await deliver(record)
       return batch.length
     } finally {
