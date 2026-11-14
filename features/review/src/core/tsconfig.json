@@ -21,6 +21,9 @@
       "path": "../../../../packages/storage-sqlite"
     },
     {
+      "path": "../../../checkpoints/src/contract"
+    },
+    {
       "path": "../../../checkpoints/src/core-api"
     },
     {

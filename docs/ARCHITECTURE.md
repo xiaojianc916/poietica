@@ -2,8 +2,8 @@
 
 ## 1. 一句话
 
-Poietica 是「三个进程 × 三个微内核 × 20 个平台包 + 18 个功能包」的 Windows 桌面 agent 应用：
-omp（Oh My Pi）经引擎端口接入，随包发布，与用户机器上的全局 omp 完全隔离。
+Poietica 是「四类进程（UI / Host / Core / Runtime Worker）× 三个微内核 × 29 个平台包 + 27 个功能包」的 Windows 桌面 agent 应用：
+omp（Oh My Pi）经 ARP 接入独立的 Runtime Worker，随包发布，与用户机器上的全局 omp 完全隔离。
 
 ```
                  ┌────────────── 功能包 features/<x>（垂直切片，一个功能一个包）───────────────┐
@@ -170,6 +170,14 @@ import `@oh-my-pi/*` 的地方（`apps/core/scripts` 的构建脚本是唯一例
 工具调用的入参/产出也在 `omp-types` 里按工具名各有其形（`OmpToolInput<N>` / `OmpToolDetails<N>`）：时间线的每格卡片拿到的是收口好的载荷，
 不再按字段名探测 `unknown`；认不出的工具只有 generic 兜底那一档。
 
+omp 的实现只在独立的 `poietica-runtime.exe` 里加载；Core 的 `serve` 只持有 ARP 客户端（`runtime-manager`），
+进程边界负责故障隔离，沙箱边界仍待 P4 第二道防线。
+
+执行策略（P4 第一道防线）：Worker 在每个工具执行前经 ARP `policy.check` 把工具名、入参与会话档位交给 Core 的
+`policy` 模块；Core 按工具分类与命令/路径裁决，并把 `policy.decided` 追加进 Journal。装了策略门后
+`tools.approvalMode` 固定为 `yolo`，omp 自己的审批让位；审批由产品自己的结构化 `approval` 交互卡片完成，
+全链路不解析界面文案。Core 不可用时 fail closed。
+
 隔离的三条硬要求：
 
 1. omp 的全部数据落在 `%APPDATA%\Poietica\omp\`（`DataLayout` 的 `ompRoot`）。
@@ -242,4 +250,4 @@ omp 的版本锁在根 `package.json` 的 catalog（四个 `@oh-my-pi/*` 同一�
 
 ## P0 架构决策与过渡
 
-唯一引擎为 omp；目标是 UI/Host/Core/Runtime 分工及 UI–Core 直连，当前进程拓扑仍是过渡实现。事实归属与后续计划见 `docs/adr/`。Host 的 safeStorage 凭据库通过受调用方限制的 `secrets.lease` 提供内存凭据，Core/Runtime 不应把新凭据写入引擎配置。四类债务以 `bun run check:ratchet` 在 CI 检查只减不增。
+唯一引擎为 omp；UI/Host/Core/Runtime 分工已落地 Runtime 外置（P3），UI–Core 直连仍按 ADR-006 默认关闭。执行安全已落地第一道防线（宿主策略与结构化审批），OS 沙箱待 P4。事实归属与后续计划见 `docs/adr/`。Host 的 safeStorage 凭据库通过受调用方限制的 `secrets.lease` 提供内存凭据，Core/Runtime 不应把新凭据写入引擎配置。四类债务以 `bun run check:ratchet` 在 CI 检查只减不增。

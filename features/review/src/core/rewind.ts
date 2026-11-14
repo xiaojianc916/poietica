@@ -1,6 +1,12 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { computeFile } from '@poietica/diff'
+import type { Checkpoint } from '@poietica/feature-checkpoints/contract'
+import {
+  CHECKPOINT_TURN_END_LABEL,
+  CHECKPOINT_TURN_START_LABEL,
+  type CheckpointService,
+} from '@poietica/feature-checkpoints/core-api'
 import { AppError, invariant, type Logger, mapLimited } from '@poietica/foundation'
 import type { TurnChanges, TurnChangesEntry, TurnRewindPreview } from '../contract'
 import { reviewErrors } from '../contract/errors'
@@ -17,6 +23,8 @@ import type { TurnFileRow, TurnFilesRepository } from './turn-files-repository'
 export interface TurnRewindDeps {
   readonly repo: TurnFilesRepository
   readonly logger: Logger
+  /** 影子检查点；给了就让撤销以磁盘真实变化为准（覆盖 shell / 脚本写入）。 */
+  readonly checkpoints?: CheckpointService
   /** 落账或撤销之后通知界面重读（对应 review.turnChangesChanged） */
   readonly emitChanged: (threadId: string) => void
   readonly now?: () => number
@@ -80,6 +88,97 @@ function notAvailable(threadId: string, turn: number): AppError {
   return new AppError(reviewErrors.rewind_not_available, '这一轮没有可以撤销的改动', { threadId, turn })
 }
 
+interface TurnCheckpoints {
+  readonly start: Checkpoint
+  readonly end: Checkpoint
+}
+
+/**
+ * 找这一轮的起止快照。每一轮固定产生一条「轮次开始」与一条「轮次结束」，按 threadId 过滤后
+ * 取第 turn 条即可；不按时间戳配对，避免同一秒内连续几轮时选错。
+ */
+async function turnCheckpoints(
+  checkpoints: CheckpointService,
+  threadId: string,
+  workspaceRoot: string,
+  turn: number,
+  logger: Logger,
+): Promise<TurnCheckpoints | null> {
+  try {
+    const all = await checkpoints.list(workspaceRoot, 200)
+    const mine = all.filter((entry) => entry.threadId === threadId).reverse()
+    const start = mine.filter((entry) => entry.label === CHECKPOINT_TURN_START_LABEL)[turn - 1]
+    const end = mine.filter((entry) => entry.label === CHECKPOINT_TURN_END_LABEL)[turn - 1]
+    return start !== undefined && end !== undefined ? { start, end } : null
+  } catch (error) {
+    logger.warn('checkpoint lookup failed', { threadId, error: String(error) })
+    return null
+  }
+}
+
+interface CheckpointPlan extends TurnCheckpoints {
+  readonly paths: readonly string[]
+}
+
+/** 这一轮真实改过的路径；起止快照或 diff 拿不到就返回 null，调用方退回指标本。 */
+async function checkpointPlan(
+  checkpoints: CheckpointService,
+  threadId: string,
+  workspaceRoot: string,
+  turn: number,
+  logger: Logger,
+): Promise<CheckpointPlan | null> {
+  const found = await turnCheckpoints(checkpoints, threadId, workspaceRoot, turn, logger)
+  if (found === null) return null
+  try {
+    const paths = await checkpoints.diffPaths({ workspaceRoot, from: found.start.id, to: found.end.id })
+    return paths.length === 0 ? null : { ...found, paths }
+  } catch (error) {
+    logger.warn('checkpoint diff unavailable; falling back to ledger', {
+      threadId,
+      turn,
+      error: String(error),
+    })
+    return null
+  }
+}
+
+/** 从起点恢复；「结束」快照用来做三方核对。冲突统一翻成 review 侧的 rewind_unsafe。 */
+async function restoreCheckpointPlan(
+  checkpoints: CheckpointService,
+  workspaceRoot: string,
+  plan: CheckpointPlan,
+): Promise<void> {
+  try {
+    await checkpoints.restore({
+      workspaceRoot,
+      checkpoint: plan.start.id,
+      expect: plan.end.id,
+      paths: [...plan.paths],
+    })
+  } catch (error) {
+    if (error instanceof AppError && error.code === 'checkpoints.conflict') {
+      throw new AppError(reviewErrors.rewind_unsafe, '这些文件在这一轮之后又被改过，不能撤销', {
+        cause: error.message,
+      })
+    }
+    throw error
+  }
+}
+
+async function previewCheckpointPlan(
+  checkpoints: CheckpointService,
+  workspaceRoot: string,
+  plan: CheckpointPlan,
+): Promise<TurnRewindPreview> {
+  const drift = new Set(await checkpoints.changedPaths({ workspaceRoot, checkpoint: plan.end.id }))
+  const safe = plan.paths.filter((entry) => !drift.has(entry)).map((entry) => ({ path: entry }))
+  const unsafe = plan.paths
+    .filter((entry) => drift.has(entry))
+    .map((entry) => ({ path: entry, reason: 'externally_modified' as const }))
+  return { safe, unsafe, canApply: unsafe.length === 0 }
+}
+
 /** 一次撤销的一个落点：target 是这一轮之前那一份（null = 这一轮建的，撤销就是删掉）。 */
 interface Restore {
   readonly path: string
@@ -120,6 +219,24 @@ async function rollback(done: readonly Restore[], logger: Logger): Promise<void>
 }
 
 type Obstacle = { path: string; reason: 'externally_modified' | 'missing' }
+
+/** 指标本的核对：手里只有工具写账的 before/after，按盘上当前内容逐格比。 */
+async function ledgerPreview(rows: readonly TurnFileRow[], workspaceRoot: string): Promise<TurnRewindPreview> {
+  const safe: { path: string }[] = []
+  const unsafe: Obstacle[] = []
+  /* 只读核对彼此独立；结果按账本行序收回，safe / unsafe 顺序才稳定。 */
+  const checked = await mapLimited(rows, FILE_CONCURRENCY, async (row) => ({
+    row,
+    current: await readIfPresent(row.path),
+  }))
+  for (const { row, current } of checked) {
+    const shown = displayPath(workspaceRoot, row.path)
+    if (current === row.after) safe.push({ path: shown })
+    else
+      unsafe.push({ path: shown, reason: current === null && row.after !== null ? 'missing' : 'externally_modified' })
+  }
+  return { safe, unsafe, canApply: unsafe.length === 0 }
+}
 
 /**
  * 落盘之前再核对一遍（不只是 preview 那一次）：preview 与 apply 之间隔着一次 RPC 往返，这期间用户
@@ -219,21 +336,23 @@ export function createTurnRewind(d: TurnRewindDeps): TurnRewind {
      * 但真正的理由是「撤销过了」，说法要分开。 */
     if (rows.every((row) => row.state === 'reverted')) throw notAvailable(threadId, turn)
 
-    const safe: { path: string }[] = []
-    const unsafe: Obstacle[] = []
-    /* 只读核对彼此独立；结果按账本行序收回，safe / unsafe 顺序才稳定。 */
-    const checked = await mapLimited(rows, FILE_CONCURRENCY, async (row) => ({
-      row,
-      current: await readIfPresent(row.path),
-    }))
-    for (const { row, current } of checked) {
-      const shown = displayPath(workspaceRoot, row.path)
-      if (current === row.after) safe.push({ path: shown })
-      else
-        unsafe.push({ path: shown, reason: current === null && row.after !== null ? 'missing' : 'externally_modified' })
+    const checkpoints = d.checkpoints
+    if (checkpoints !== undefined) {
+      const plan = await checkpointPlan(checkpoints, threadId, workspaceRoot, turn, d.logger)
+      if (plan !== null) {
+        try {
+          return await previewCheckpointPlan(checkpoints, workspaceRoot, plan)
+        } catch (error) {
+          d.logger.warn('checkpoint preview failed; falling back to ledger', {
+            threadId,
+            turn,
+            error: String(error),
+          })
+        }
+      }
     }
 
-    return { safe, unsafe, canApply: unsafe.length === 0 }
+    return await ledgerPreview(rows, workspaceRoot)
   }
 
   return {
@@ -269,6 +388,16 @@ export function createTurnRewind(d: TurnRewindDeps): TurnRewind {
       const rows = d.repo.listByTurn(threadId, turn)
       if (rows.length === 0 || rows.every((row) => row.state === 'reverted')) {
         throw notAvailable(threadId, turn)
+      }
+      const checkpoints = d.checkpoints
+      if (checkpoints !== undefined) {
+        const plan = await checkpointPlan(checkpoints, threadId, workspaceRoot, turn, d.logger)
+        if (plan !== null) {
+          await restoreCheckpointPlan(checkpoints, workspaceRoot, plan)
+          d.repo.markReverted(threadId, turn)
+          d.emitChanged(threadId)
+          return { turn, reverted: true }
+        }
       }
       const targets = await verified(rows, workspaceRoot)
       await restoreAll(targets, workspaceRoot, d.logger)

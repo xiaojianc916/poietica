@@ -44,7 +44,8 @@ import {
   resumeGoalMode,
   settlePlanProposal,
 } from './plan-goal'
-import { applyPosture, grantToolForSession } from './posture'
+import type { PolicyGate } from './policy-gate'
+import { applyPosture, delegateApprovalToHost, grantToolForSession } from './posture'
 import {
   expandSkillMessage,
   imageContentsOf,
@@ -182,6 +183,7 @@ export interface WrapOmpSessionInput {
   readonly setToolUIContext: (ui: unknown, hasUI: boolean) => void
   readonly mcpManager: unknown
   readonly tools: ReadonlyMap<string, EngineToolSpec>
+  readonly policyGate?: PolicyGate
   readonly logger: Logger
   readonly subagentBus: { on(channel: string, listener: (data: unknown) => void): () => void } | null
   readonly initializeExtensions: (session: unknown, ui: unknown) => Promise<void>
@@ -211,6 +213,21 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
         ...(error instanceof Error && error.stack !== undefined ? { stack: error.stack } : {}),
       }),
   )
+  /* 策略门的「询问」直接开产品审批卡片：不经过 omp 的对话框，也不解析任何界面文案。 */
+  input.policyGate?.bindApproval(async ({ tool, detail }) => {
+    const answer = await broker.ask({
+      kind: 'approval',
+      tool,
+      title: `允许使用工具：${tool}`,
+      detail,
+      allowSessionScope: true,
+    })
+    if (answer.kind !== 'approval') return { approved: false, session: false }
+    return {
+      approved: answer.decision === 'approve',
+      session: answer.decision === 'approve' && answer.scope === 'session',
+    }
+  })
   const projector = new LiveProjector({ now: () => systemClock.now() })
   const sessionKey = input.spec.key
   const ledger = new SubagentLedger({ now: () => systemClock.now() })
@@ -376,7 +393,13 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
         if (kind === 'steer') session.setSteeringMode(value, false)
         else session.setFollowUpMode(value, false)
       },
-      setApprovalMode: (posture) => applyPosture(input.settings, posture),
+      setApprovalMode: (posture) => {
+        applyPosture(input.settings, posture)
+        if (input.policyGate !== undefined) {
+          input.policyGate.setPreset(posture)
+          delegateApprovalToHost(input.settings)
+        }
+      },
       grantTool: (tool) => grantToolForSession(input.settings, tool),
       /* 控件表读的是**会话此刻的真相**：omp 的 model_changed 只会叫我们重发一次表，读数必须现读现报 */
       liveModel: () => {
@@ -618,6 +641,8 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
       },
     })
   }
+  const policyGate = input.policyGate
+  if (policyGate !== undefined) subscriptions.push(toSub(() => policyGate.dispose()))
   ompSession.attach(subscriptions)
   // omp 知识 #6：hasUI + setToolUIContext + initializeExtensions 三者缺一不可
   input.setToolUIContext(ui, true)

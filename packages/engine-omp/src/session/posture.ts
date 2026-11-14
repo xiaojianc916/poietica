@@ -17,6 +17,14 @@ export function applyPosture(scope: SettingsScope, posture: Posture): void {
 }
 
 /**
+ * 装了宿主策略门时，omp 自己的审批必须让位：否则同一件事会问两遍，而且第二遍仍靠解析文案。
+ * 真正裁决在 Core（ARP `policy.check`），同意/拒绝由产品审批卡片负责。
+ */
+export function delegateApprovalToHost(scope: SettingsScope): void {
+  overrideSetting(scope, 'tools.approvalMode', 'yolo')
+}
+
+/**
  * 会话级放行：写进会话设置的 override 层。写全局并 flush 的话，「本会话允许」会变成
  * “永久允许”，这是要修正的 bug。
  */

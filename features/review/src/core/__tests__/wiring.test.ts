@@ -72,6 +72,7 @@ async function wire(
       emit: () => undefined,
     },
     host: { call: () => Promise.reject(new Error('Host 不在测试里')) },
+    outboxHandlers: { register: () => undefined },
     services: {
       get: (token: { ownerModule: string }) => {
         if (token === WorkspacesServiceToken) {
@@ -90,6 +91,8 @@ async function wire(
             create: async () => ({ id: 'c1', workspaceRoot: dir.path, createdAt: '' }),
             list: async () => [],
             diff: async () => '',
+            diffPaths: async () => [],
+            changedPaths: async () => [],
             restore: async (input: { paths: string[] }) => ({ restored: input.paths }),
           }
         }

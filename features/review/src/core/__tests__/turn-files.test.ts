@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import type { Checkpoint, CheckpointRestoreParams } from '@poietica/feature-checkpoints/contract'
+import type { CheckpointService } from '@poietica/feature-checkpoints/core-api'
 import type { AppError, Logger } from '@poietica/foundation'
 import { openDatabase, runMigrations } from '@poietica/storage-sqlite'
 import { createTestLogger, tempDir } from '@poietica/test-kit'
@@ -27,7 +29,13 @@ interface Bench {
   dispose(): Promise<void>
 }
 
-async function bench(opts: { readonly threads?: Readonly<Record<string, string | null>> } = {}): Promise<Bench> {
+async function bench(
+  opts: {
+    readonly threads?: Readonly<Record<string, string | null>>
+    readonly now?: () => number
+    readonly checkpoints?: CheckpointService
+  } = {},
+): Promise<Bench> {
   const dir = await tempDir('review-turn-files-')
   const db = openDatabase(':memory:')
   runMigrations(db, [{ moduleId: 'review', migrations }])
@@ -35,11 +43,12 @@ async function bench(opts: { readonly threads?: Readonly<Record<string, string |
   const changed: string[] = []
   const rewind = createTurnRewind({
     repo,
+    ...(opts.checkpoints === undefined ? {} : { checkpoints: opts.checkpoints }),
     logger: createTestLogger(),
     emitChanged: (threadId) => {
       changed.push(threadId)
     },
-    now: () => 1_700_000_000_000,
+    now: opts.now ?? (() => 1_700_000_000_000),
   })
   const threadWorkspace: Readonly<Record<string, string | null>> = opts.threads ?? {}
   const warns: string[] = []
@@ -343,6 +352,78 @@ describe('review 右坞那一格 diff 的正文', () => {
     b.record({ turn: 1, path: path.join('src', 'deep.ts'), before: null, after: 'x\n' })
 
     expect(b.rewind.patch('t1', 1, b.root, 'src\\deep.ts')).toEqual({ before: null, after: 'x\n' })
+    await b.dispose()
+  })
+})
+
+describe('checkpoint 撤销（覆盖 shell / 脚本写入）', () => {
+  const NOW = 1_700_000_000_000
+
+  function fakeCheckpoints(paths: readonly string[], drift: readonly string[] = []) {
+    const restores: CheckpointRestoreParams[] = []
+    const start: Checkpoint = {
+      id: 'start',
+      workspaceRoot: 'C:/ws',
+      createdAt: new Date(NOW - 1000).toISOString(),
+      threadId: 't1',
+      label: '轮次开始',
+    }
+    const end: Checkpoint = {
+      id: 'end',
+      workspaceRoot: 'C:/ws',
+      createdAt: new Date(NOW + 1000).toISOString(),
+      threadId: 't1',
+      label: '轮次结束',
+    }
+    const service: CheckpointService = {
+      create: async () => {
+        throw new Error('测试不创建检查点')
+      },
+      list: async () => [end, start],
+      diff: async () => '',
+      diffPaths: async () => [...paths],
+      changedPaths: async () => [...drift],
+      restore: async (input) => {
+        restores.push(input)
+        return { restored: input.paths }
+      },
+    }
+    return { service, restores }
+  }
+
+  test('preview 与 apply 用起止 checkpoint；撤销带 expect 做三方核对', async () => {
+    const fake = fakeCheckpoints(['a.txt', 'b.txt'])
+    const b = await bench({ checkpoints: fake.service, now: () => NOW })
+    b.record({ turn: 1, path: 'a.txt', before: 'one', after: 'two' })
+    b.record({ turn: 1, path: 'b.txt', before: null, after: 'new' })
+
+    expect(await b.rewind.preview('t1', 1, b.root)).toEqual({
+      safe: [{ path: 'a.txt' }, { path: 'b.txt' }],
+      unsafe: [],
+      canApply: true,
+    })
+    await b.rewind.apply('t1', 1, b.root)
+    expect(fake.restores[0]).toMatchObject({
+      workspaceRoot: b.root,
+      checkpoint: 'start',
+      expect: 'end',
+      paths: ['a.txt', 'b.txt'],
+    })
+    expect(b.rewind.list('t1', b.root).turns[0]?.reverted).toBe(true)
+    await b.dispose()
+  })
+
+  test('checkpoint 之后磁盘又变过：preview 报不安全，apply 不落盘', async () => {
+    const fake = fakeCheckpoints(['a.txt'], ['a.txt'])
+    const b = await bench({ checkpoints: fake.service, now: () => NOW })
+    b.record({ turn: 1, path: 'a.txt', before: 'one', after: 'two' })
+
+    expect(await b.rewind.preview('t1', 1, b.root)).toEqual({
+      safe: [],
+      unsafe: [{ path: 'a.txt', reason: 'externally_modified' }],
+      canApply: false,
+    })
+    expect(fake.restores).toHaveLength(0)
     await b.dispose()
   })
 })

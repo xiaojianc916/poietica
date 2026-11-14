@@ -3,9 +3,9 @@
 
 import type { Logger } from '@poietica/foundation'
 import type { DataLayout } from '@poietica/runtime-layout'
-import type { AgentEngine } from '@poietica/runtime-protocol'
 import { prepareRelayToken } from './bootstrap/relay-token'
 import { createOmpEngineWith } from './create-engine'
+import type { OmpEngine } from './engine'
 import { OMP_VERSION } from './omp-version'
 import { pickFreePort } from './relay-port'
 
@@ -29,7 +29,7 @@ export interface CreateOmpEngineOptions {
  * browser relay 的端口与口令也在这里备好（引擎自己的事，不再经 Host 的启动参数）：端口每代 Core 现挑一个，
  * 经 `engine.browserRelay()` 报出去；口令按数据根持久化。调用方须已跑过 `scrubInjected()`（见 prepareRelayToken）。
  */
-export async function createOmpEngine(o: CreateOmpEngineOptions): Promise<AgentEngine> {
+export async function createOmpEngine(o: CreateOmpEngineOptions): Promise<OmpEngine> {
   const relayPort = await pickFreePort()
   prepareRelayToken(o.layout)
   return await createOmpEngineWith({ ...o, relayPort, engineVersion: o.engineVersion ?? OMP_VERSION }, null)
@@ -38,3 +38,5 @@ export async function createOmpEngine(o: CreateOmpEngineOptions): Promise<AgentE
 export { type ArpHandlers, type ArpHandlersDeps, createArpHandlers } from './arp/handlers'
 
 export { createOmpRuntimeWorker } from './arp/runtime'
+
+export type { OmpEngine } from './engine'

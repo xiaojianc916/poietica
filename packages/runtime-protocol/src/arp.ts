@@ -21,6 +21,7 @@ export const arpMethods = {
   sessionCall: 'session.call',
   engineCall: 'engine.call',
   engineSnapshot: 'engine.snapshot',
+  policyCheck: 'policy.check',
   engineRegisterTool: 'engine.registerTool',
   engineUnregisterTool: 'engine.unregisterTool',
   toolExecute: 'tool.execute',
@@ -151,6 +152,29 @@ export const arpToolExecuteParams = z.object({
   sessionKey: z.string(),
 })
 export type ArpToolExecuteParams = z.infer<typeof arpToolExecuteParams>
+
+/** 执行安全平面（架构设计 §13）：Worker 在每次内置工具执行前把「要做什么」交给 Core 裁决。 */
+export const arpPolicyPreset = z.enum(['read-only', 'ask', 'auto-edit', 'full-access'])
+export type ArpPolicyPreset = z.infer<typeof arpPolicyPreset>
+
+export const arpPolicyCheckParams = z.object({
+  sessionKey: z.string().min(1),
+  toolName: z.string().min(1),
+  toolCallId: z.string().min(1),
+  cwd: z.string().min(1),
+  preset: arpPolicyPreset,
+  /** 产品工具自报的能力等级；内置 omp 工具没有这一格。 */
+  approval: z.enum(['read', 'write', 'exec']).optional(),
+  input: z.record(z.string(), z.unknown()),
+})
+export type ArpPolicyCheckParams = z.infer<typeof arpPolicyCheckParams>
+
+export const arpPolicyDecision = z.object({
+  action: z.enum(['allow', 'ask', 'deny']),
+  rule: z.string().min(1),
+  reason: z.string(),
+})
+export type ArpPolicyDecision = z.infer<typeof arpPolicyDecision>
 
 export const arpLoginParams = z.object({ providerId: z.string().min(1), loginId: z.string().min(1) })
 export type ArpLoginParams = z.infer<typeof arpLoginParams>

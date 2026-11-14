@@ -16,7 +16,9 @@ export interface WorkspacesServiceDeps {
   readonly repo: WorkspacesRepository
   readonly clock: Clock
   readonly emitChanged: () => void
-  readonly emitRemoved: (e: WorkspaceRemoved) => void
+  /** 删除与 outbox 入队必须在同一事务里；UI 由随后的 emitChanged 刷新。 */
+  readonly transaction: <T>(fn: () => T) => T
+  readonly onRemoved: (e: WorkspaceRemoved) => void
   readonly fs: {
     isDirectory(p: string): boolean
   }
@@ -109,8 +111,10 @@ export function createWorkspacesService(d: WorkspacesServiceDeps): WorkspacesApi
     },
     remove(id) {
       const row = requireRow(id)
-      d.repo.delete(id)
-      d.emitRemoved({ workspaceId: id, path: row.path })
+      d.transaction(() => {
+        d.repo.delete(id)
+        d.onRemoved({ workspaceId: id, path: row.path })
+      })
       d.emitChanged()
     },
     touch(id) {

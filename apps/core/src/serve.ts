@@ -72,43 +72,93 @@ export async function serve(): Promise<void> {
   // 8. 先挂退出回调再启动：启动途中 Host 断开 / 要求关停时，关停跑完就得退出，不能等 start 返回才挂
   kernel.onExit((code) => process.exit(code)) //    core.shutdown 或 stdin 关闭 → kernel.shutdown → 退出码 0
   await kernel.start() // 9. 迁移 → 模块 setup → freezeTools → onReady → 发 core.ready
-  if ('setToolPolicy' in engine) {
+  if (hasToolPolicy(engine)) {
     const policy = kernel.services.get(PolicyServiceToken)
     const settings = kernel.services.get(SettingsServiceToken)
     const journal = kernel.services.get(JournalServiceToken)
-    ;(
-      engine as {
-        setToolPolicy(
-          p: (tool: { name: string; approval: 'read' | 'write' | 'exec'; cwd: string; sessionKey: string }) => unknown,
-        ): void
+    engine.setToolPolicy((tool) => {
+      const preset = (tool.preset ?? settings.get('policy.preset').value) as Parameters<typeof policy.evaluate>[0]
+      const decision =
+        tool.approval === undefined
+          ? policy.evaluate(preset, tool.name, policyContextOf(tool.input ?? {}, tool.cwd))
+          : policy.evaluateClassification(preset, classificationOfApproval(tool.approval), {
+              workspaceRoot: tool.cwd,
+            })
+      try {
+        journal.append(tool.sessionKey, 'main', [
+          {
+            schema: 1,
+            at: new Date().toISOString(),
+            durability: 'committed',
+            type: 'policy.decided',
+            toolName: tool.name,
+            category: decision.classification.category,
+            action: decision.action,
+            rule: decision.rule,
+            reason: decision.reason,
+            preset,
+          },
+        ])
+      } catch (error) {
+        /* 只读模式或库故障：审计落不下，但裁决本身仍然有效。 */
+        logger.warn('policy decision not journaled', { error: String(error), tool: tool.name })
       }
-    ).setToolPolicy((tool) => {
-      const classification =
-        tool.approval === 'read'
-          ? { category: 'file.read' as const, risk: 'low' as const, checkpoint: false }
-          : tool.approval === 'write'
-            ? { category: 'file.write' as const, risk: 'medium' as const, checkpoint: true }
-            : { category: 'exec' as const, risk: 'high' as const, checkpoint: true }
-      const preset = settings.get('policy.preset').value as 'read-only' | 'ask' | 'auto-edit' | 'full-access'
-      const decision = policy.evaluateClassification(preset, classification, { workspaceRoot: tool.cwd })
-      journal.append(tool.sessionKey, 'main', [
-        {
-          schema: 1,
-          at: new Date().toISOString(),
-          durability: 'committed',
-          type: 'policy.decided',
-          toolName: tool.name,
-          category: classification.category,
-          action: decision.action,
-          rule: decision.rule,
-          reason: decision.reason,
-          preset,
-        },
-      ])
-      return decision
+      return { action: decision.action, rule: decision.rule, reason: decision.reason }
     })
   }
   await Bun.write(path.join(layout.coreDir, 'core.pid'), String(process.pid))
+}
+
+interface PolicyToolContext {
+  readonly name: string
+  readonly approval?: 'read' | 'write' | 'exec'
+  readonly cwd: string
+  readonly sessionKey: string
+  readonly preset?: 'read-only' | 'ask' | 'auto-edit' | 'full-access'
+  readonly input?: Record<string, unknown>
+}
+
+interface PolicyInstallable {
+  setToolPolicy(policy: (tool: PolicyToolContext) => unknown): void
+}
+
+function classificationOfApproval(approval: 'read' | 'write' | 'exec') {
+  if (approval === 'read') return { category: 'file.read' as const, risk: 'low' as const, checkpoint: false }
+  if (approval === 'write') return { category: 'file.write' as const, risk: 'medium' as const, checkpoint: true }
+  return { category: 'exec' as const, risk: 'high' as const, checkpoint: true }
+}
+
+/** 运行时是否接受宿主策略注入（进程内替身没有这一格）。 */
+function hasToolPolicy(engine: object): engine is PolicyInstallable {
+  return 'setToolPolicy' in engine && typeof engine.setToolPolicy === 'function'
+}
+
+/** 内置工具的裁决上下文：命令正文与它显式点名的路径。路径按会话 cwd 解析，策略表只认绝对路径。 */
+function policyContextOf(
+  input: Record<string, unknown>,
+  cwd: string,
+): { workspaceRoot: string; command?: string; paths?: string[] } {
+  const command = typeof input.command === 'string' ? input.command : undefined
+  const paths = new Set<string>()
+  const add = (value: unknown): void => {
+    if (typeof value !== 'string' || value === '') return
+    paths.add(path.isAbsolute(value) ? value : path.resolve(cwd, value))
+  }
+  add(input.path)
+  add(input.filePath)
+  add(input.file_path)
+  if (Array.isArray(input.paths)) for (const value of input.paths) add(value)
+  if (typeof input.patch === 'string') {
+    for (const line of input.patch.split(/\r?\n/)) {
+      const match = /^\*\*\* (?:Update|Add|Delete) File: (.+)$/.exec(line)
+      if (match?.[1] !== undefined) add(match[1])
+    }
+  }
+  return {
+    workspaceRoot: cwd,
+    ...(command === undefined ? {} : { command }),
+    ...(paths.size === 0 ? {} : { paths: [...paths] }),
+  }
 }
 
 async function createRealEngine(

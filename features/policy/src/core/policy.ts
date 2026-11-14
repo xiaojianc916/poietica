@@ -19,12 +19,35 @@ const CATEGORIES = new Map<string, ToolClassification>([
   ...['read', 'grep', 'glob', 'find'].map(
     (name) => [name, { category: 'file.read' as const, risk: 'low' as const, checkpoint: false }] as const,
   ),
-  ...['fetch', 'search', 'browser'].map(
+  ...['fetch', 'search', 'browser', 'web_search', 'generate_image'].map(
     (name) => [name, { category: 'network' as const, risk: 'medium' as const, checkpoint: false }] as const,
   ),
   ['task', { category: 'agent', risk: 'high', checkpoint: false }],
-  ...['todo', 'plan', 'ask', 'retain', 'recall'].map(
-    (name) => [name, { category: 'meta' as const, risk: 'low' as const, checkpoint: false }] as const,
+  ...[
+    'todo',
+    'plan',
+    'ask',
+    'retain',
+    'recall',
+    'reflect',
+    'learn',
+    'manage_skill',
+    'wait',
+    'goal',
+    'think',
+    'yield',
+    'context_notes',
+    'new_context',
+    'tts',
+  ].map((name) => [name, { category: 'meta' as const, risk: 'low' as const, checkpoint: false }] as const),
+  ...['checkpoint', 'rewind'].map(
+    (name) => [name, { category: 'file.write' as const, risk: 'medium' as const, checkpoint: true }] as const,
+  ),
+  ...['computer', 'debug', 'ida', 'github'].map(
+    (name) => [name, { category: 'exec' as const, risk: 'high' as const, checkpoint: true }] as const,
+  ),
+  ...['security_scan', 'lsp'].map(
+    (name) => [name, { category: 'file.read' as const, risk: 'low' as const, checkpoint: false }] as const,
   ),
 ])
 

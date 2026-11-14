@@ -8,7 +8,11 @@ import {
   threadRemoved,
   turnSettled,
 } from '@poietica/feature-conversation/core-api'
-import { type WorkspaceRemoved, WorkspacesServiceToken, workspaceRemoved } from '@poietica/feature-workspaces/core-api'
+import {
+  WORKSPACE_REMOVED_TOPIC,
+  WorkspacesServiceToken,
+  workspaceRemovedPayload,
+} from '@poietica/feature-workspaces/core-api'
 import { automationsContract } from '../contract'
 import { registerAgentTools } from './agent-tools'
 import { registerHandlers } from './handlers'
@@ -71,12 +75,11 @@ export default defineCoreModule({
       }),
     )
 
-    ctx.disposables.add(
-      ctx.events.on<WorkspaceRemoved>(workspaceRemoved, (e) => {
-        repo.removeByWorkspace(e.workspaceId)
-        ctx.rpc.emit('automations.changed', {})
-      }),
-    )
+    ctx.outboxHandlers.register(WORKSPACE_REMOVED_TOPIC, (payload) => {
+      const e = workspaceRemovedPayload.parse(payload)
+      repo.removeByWorkspace(e.workspaceId)
+      ctx.rpc.emit('automations.changed', {})
+    })
 
     ctx.lifecycle.onReady(() => {
       /* 库只读（ADR-004）：不修账、不排程 —— 两样都要写库；列表照常能看 */

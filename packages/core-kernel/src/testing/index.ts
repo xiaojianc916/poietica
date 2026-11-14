@@ -17,6 +17,8 @@ export interface CoreHarnessOptions {
    * 现象是「时间线增量永远不来、会话永远是 running」。
    */
   readonly clock?: FakeClock
+  /** 默认 false：假时钟推进大跨度时不让 outbox 定时器空转；测 outbox 的用例显式开。 */
+  readonly outboxDispatch?: boolean
 }
 
 export interface CoreHarness {
@@ -66,6 +68,7 @@ export async function createCoreHarness(opts: CoreHarnessOptions): Promise<CoreH
     coreVersion: 'test',
     engineVersion: 'test',
     strict: true,
+    outboxDispatch: opts.outboxDispatch ?? false,
     runtime: { scrubbedEnvKeys: [], setLogLevel: () => undefined },
   })
   await kernel.start()

@@ -3,6 +3,8 @@ import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
 import { jsonValue } from '@poietica/rpc'
 import type {
   AgentEngine,
+  ArpPolicyDecision,
+  ArpPolicyPreset,
   CommandCatalogOptions,
   Controls,
   DraftControlInit,
@@ -22,6 +24,7 @@ import {
   arpLoginProgressParams,
   arpLoginPromptParams,
   arpMethods,
+  arpPolicyCheckParams,
   arpPortEventMethod,
   arpPortEventParams,
   arpToolExecuteParams,
@@ -37,9 +40,14 @@ import { ArpSession } from './session'
  */
 export interface ToolPolicyContext {
   readonly name: string
-  readonly approval: 'read' | 'write' | 'exec'
+  /** 产品工具自报的能力等级；内置 omp 工具走 `input` 那条路。 */
+  readonly approval?: 'read' | 'write' | 'exec'
   readonly cwd: string
   readonly sessionKey: string
+  /** 线程/会话此刻的档位；内置工具裁决用它，产品工具缺省时退回全局设置。 */
+  readonly preset?: ArpPolicyPreset
+  /** 内置工具的原始入参（命令、路径都在里面）。 */
+  readonly input?: Record<string, unknown>
 }
 
 export interface ToolPolicyDecision {
@@ -94,6 +102,25 @@ export class ArpEngine implements AgentEngine {
         const params = jsonValue(rawParams)
         const login = await handleLoginRequest(method, params, () => engineRef?.logins)
         if (login.handled) return login.value
+        if (method === arpMethods.policyCheck) {
+          const input = arpPolicyCheckParams.parse(params)
+          const decide = engineRef?.toolPolicy
+          if (decide === undefined) {
+            return {
+              action: 'deny',
+              rule: 'policy.unavailable',
+              reason: '策略引擎尚未就绪',
+            } satisfies ArpPolicyDecision
+          }
+          return await decide({
+            name: input.toolName,
+            cwd: input.cwd,
+            sessionKey: input.sessionKey,
+            preset: input.preset,
+            ...(input.approval === undefined ? {} : { approval: input.approval }),
+            input: input.input,
+          })
+        }
         if (method === arpMethods.toolExecute) {
           return await engineRef!.executeTool(arpToolExecuteParams.parse(params), tools)
         }
@@ -194,13 +221,6 @@ export class ArpEngine implements AgentEngine {
   ): Promise<{ text: string; details?: unknown; isError?: boolean }> {
     const spec = tools.get(input.name)
     if (spec === undefined) throw new AppError(SystemErrorCode.notFound, `未知产品工具：${input.name}`)
-    const refusal = await this.toolRefusalFor({
-      name: spec.name,
-      approval: spec.approval,
-      cwd: input.cwd,
-      sessionKey: input.sessionKey,
-    })
-    if (refusal !== undefined) return { text: refusal, isError: true }
     const result = await spec.execute(input.params as never, {
       cwd: input.cwd,
       sessionKey: input.sessionKey,
@@ -213,13 +233,7 @@ export class ArpEngine implements AgentEngine {
     }
   }
 
-  private async toolRefusalFor(tool: ToolPolicyContext): Promise<string | undefined> {
-    const decision = await this.toolPolicy?.(tool)
-    if (decision === undefined || decision.action === 'allow') return undefined
-    return `策略${decision.action === 'deny' ? '拒绝' : '要求审批'}：${decision.reason}（${decision.rule}）`
-  }
-
-  /** Core 在策略模块就绪后注入；只拦产品工具，内置 omp 工具仍由 omp 审批。 */
+  /** Core 在策略模块就绪后注入；产品工具与内置工具都经 ARP `policy.check` 走同一份裁决。 */
   setToolPolicy(policy: (tool: ToolPolicyContext) => ToolPolicyDecision | Promise<ToolPolicyDecision>): void {
     this.toolPolicy = policy
   }

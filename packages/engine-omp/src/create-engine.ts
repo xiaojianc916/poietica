@@ -1,7 +1,6 @@
 import { tmpdir } from 'node:os'
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
 import type { DataLayout } from '@poietica/runtime-layout'
-import type { AgentEngine } from '@poietica/runtime-protocol'
 import { OmpEngine } from './engine'
 import { disableForeignProviders } from './foreign-providers'
 import { resolveSessionModel } from './model-resolve'
@@ -11,6 +10,7 @@ import { ompPorts } from './ports/omp-ports'
 import { McpWorkspaces } from './session/mcp-workspaces'
 import { blobMediaRef } from './session/media-store'
 import { wrapOmpSession } from './session/omp-session-adapter'
+import { ensurePolicyExtensionFile } from './session/policy-gate'
 import { SessionFactory } from './session/session-factory'
 import { listCommandCatalog } from './session/slash-commands'
 import { isConfiguredSetting, overrideSetting, writeGlobalSetting } from './settings-access'
@@ -90,7 +90,7 @@ const PRODUCT_DEFAULTS: readonly (readonly [string, unknown])[] = [
  * refresh：缓存过期时它会当场等网络）→ MCP 工作区（omp 知识 #22）→ 工具表、SessionFactory、6 个端口。
  */
 /** 生产入口：包根的 createOmpEngine(opts) 就是它（seams 恒为 null） */
-export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineTestSeams | null): Promise<AgentEngine> {
+export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineTestSeams | null): Promise<OmpEngine> {
   // omp 知识 #3
   const theme = await import('@oh-my-pi/pi-tui')
   theme.ensureThemeSync()
@@ -182,6 +182,8 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
     },
   })
   const tools = engine.toolSpecs()
+  /* 生产才写：omp 的 task 子会话按路径继承文件扩展，inline factory 不会。 */
+  const policyExtensionPath = seams === null ? ensurePolicyExtensionFile(o.layout.coreDir) : undefined
   factory = new SessionFactory({
     layout: o.layout,
     logger: o.logger,
@@ -192,6 +194,8 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
     authStorage,
     registry,
     tools,
+    policyCheck: () => engine.policy,
+    ...(policyExtensionPath === undefined ? {} : { policyExtensionPath }),
     mcp,
     testSeams: seams,
     disableAutoTitle: seams?.disableAutoTitle === true,

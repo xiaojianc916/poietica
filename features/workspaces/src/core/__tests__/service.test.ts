@@ -23,7 +23,8 @@ async function make() {
     emitChanged: () => {
       changed.push(1)
     },
-    emitRemoved: (e) => {
+    transaction: (fn) => fn(),
+    onRemoved: (e) => {
       removed.push(e)
     },
     fs: {
@@ -109,7 +110,8 @@ describe('workspaces 服务（07 页 §3G）', () => {
       repo: createWorkspacesRepository(db.forModule('workspaces')),
       clock: fakeClock(),
       emitChanged: () => undefined,
-      emitRemoved: (e) => {
+      transaction: (fn) => fn(),
+      onRemoved: (e) => {
         seen = service.get(e.workspaceId)
       },
       fs: {

@@ -33,18 +33,24 @@ export interface OutboxDispatcher {
  * 这里不自己起事务 —— 入队发生在业务事务里，分发只负责认领、调用、完成/退避。
  */
 export function createOutboxDispatcher(o: OutboxDispatcherOptions): OutboxDispatcher {
-  const handlers = new Map(o.handlers.map((handler) => [handler.topic, handler]))
+  const handlers = new Map<string, OutboxHandler[]>()
+  for (const handler of o.handlers) {
+    const held = handlers.get(handler.topic) ?? []
+    held.push(handler)
+    handlers.set(handler.topic, held)
+  }
   let timer: { dispose(): void } | undefined
   let running = false
 
   const deliver = async (record: { id: number; topic: string; payload: unknown }): Promise<void> => {
-    const handler = handlers.get(record.topic)
-    if (handler === undefined) {
+    const registered = handlers.get(record.topic)
+    if (registered === undefined || registered.length === 0) {
       o.outbox.fail(record.id, `没有注册 outbox handler：${record.topic}`, o.retryDelayMs ?? 30_000)
       return
     }
     try {
-      await handler.handle(record.payload)
+      /* 同 topic 的多个消费者按注册顺序串行：每个都得成功，记录才算投递完成。 */
+      for (const handler of registered) await handler.handle(record.payload)
       o.outbox.complete(record.id)
     } catch (error) {
       o.outbox.fail(record.id, error instanceof Error ? error.message : String(error), o.retryDelayMs ?? 30_000)

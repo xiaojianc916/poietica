@@ -9,7 +9,8 @@
 ## 待决问题
 
 - 2026-10-26 架构审查：工作区删除先落本功能的删除、再通过易失事件触发 conversation / automations 清理，进程在两步之间退出时没有持久化重试依据；需裁决以持久主数据的缺席为删除依据、由各事实主人启动对账，还是保留墓碑并引入持久化删除工作流。删除数据的语义未定，本次不猜测、不改迁移。
-- 2026-11-14 engine-omp：`interactions/ui-context.ts` 的 `select()` 里审批标签识别在当前唯一 UI 上下文实现 `approve` 的前提下不可达。删掉可少约 55 行，但 omp 若将来回退到 select-only，卡片会退化成普通选择且不写会话放行 overlay；是保留宿主防御还是按不可达删除，需裁决。
+- 2026-11-14 engine-omp：P4 策略门已改为文件扩展，随 `additionalExtensionPaths` 装入主会话并由 task 执行器继承到子代理。已知边界：同一 cwd 多个线程不同档位时，子代理或没有登记门的 cwd 会落到「最严格的门」，审批卡片可能显示在另一个线程；需要按 `(cwd, parent session)` 精确路由，或给子会话下发只读策略快照。
+- 2026-11-14 engine-omp：`interactions/ui-context.ts` 的审批文案识别现在在生产路径上不可达（策略门把 omp 审批设为 yolo，审批走产品结构化卡片）。待裁决：按死代码删除并同步删掉 `approval.ts` 与相关用例，还是保留为「策略门没装」时的降级路径。
 - 2026-11-14 engine-omp：`ports/draft-controls.ts` 的思考梯子抄了 omp 的 `resolveThinkingLevelForModel`。官方实现会原样接受 `off` / `inherit`、认 `thinking.effortMap` 别名、未知值交回 `undefined`；换成它必须同时裁决入口页胶囊如何显示 `off` / `auto`，所以暂不替换。
 - 2026-11-14 engine-omp：`ports/model-helpers.ts` 的 `enabledModels` 匹配器只做精确 + glob，omp 的 `filterAvailableModelsByEnabledPatterns` 还认角色别名与裸子串。换成官方解析会改变「某个模型算不算启用」的边角结论，需产品裁决。
 
@@ -67,6 +68,17 @@
 | 2026-11-03 | WorkBuddy 反代：三件「知道该做但这轮没做」的（对照 magpie 后判定有价值、但都要动结构）：①**模型级休息**——`workbuddy_accounts` 只有账号级 `rest_until`，一个付费模型吃 14018 会把整号 15 个模型一起歇；magpie 按 `restID`（账号+模型）休息，并在 429 正文说「可切换其他模型」时只歇那个模型。要做需加模型级休息表 + `proxyAccounts` 按模型过滤。②**per-account 并发闸门**——omp 子代理默认 32 路（`task.maxConcurrency`）、自动起名与侧边提问都会并发打到同一个号，反代目前没有并发上限；magpie 的 lane 对 WorkBuddy 默认关，但「有旋钮」与「没旋钮」不同，建议在反代里加一个按账号的极简信号量（2~3）。③**会话亲和**——顺序现在是确定性的（同一会话天然落在同一个号），缺的是 magpie 的 `Within`（一轮工具循环之内不因排序变化换号）与会话级钉号；换成真实会话头之后这条才有意义。 | 2026-11-03 magpie 对照 |
 
 ## 偏差与裁决
+
+### P4 / P5 / P6 阶段收口（2026-11-15）
+
+- **P4 策略门**：policy 模块补齐 omp 工具分类（含 `web_search` / `generate_image` / `computer` / `debug` / `ida` / `github` 等）；Worker 在 omp `tool_call` 处经 ARP `policy.check` 交给 Core 裁决，裁决写 Journal，产品审批走结构化 `approval` 卡片。omp 自己的 `approvalMode` 固定 `yolo`，避免同一件事问两遍；Core 不可用时 fail closed。
+- **P5 检查点撤销**：每轮固定打「轮次开始 / 轮次结束」两个影子 git 检查点；review 用 `diffPaths(起点, 终点)` 取这一轮真实改过的路径，恢复时带 `expect = 终点` 做三方核对，新建文件在撤销时删除。起止点缺失、检查点失败或 diff 为空时退回 `review_turn_files` 指标本。同一工作区的检查点创建串行，避免 git index 并发写。
+- **P6 工作区级联持久化**：`workspaces.remove` 在删行的同一事务里写 outbox（topic `workspaces.removed`，幂等键为工作区 id）；conversation / automations / files / review 改为注册 outbox handler，进程在删行与级联清理之间退出后仍会重试。原来的进程内 `workspaceRemoved` 事件已无消费者，一并删除；UI 仍由 `workspaces.changed` 刷新。
+- **同 topic 多消费者**：outbox 注册表由「一个 topic 一个主人」改为「一个 topic 一组 handler」；分发器按注册顺序串行调用，全部成功才完成记录，任一失败整条按退避重试。
+- **协议**：检查点契约新增 `diffPaths` / `changedPaths`，`PROTOCOL_VERSION` 从 66 提升到 67，契约快照已重生成。
+- **测试代偿**：`CoreHarnessOptions` / `MakeKernelOptions` 增加 `outboxDispatch`，测试默认关闭，避免假时钟推进 25 小时时 250ms 定时器空转；测 outbox 与工作区级联的用例显式打开。同步更新 review 假 ctx、workspaces service 依赖与相关用例。
+- **未做**：OS 沙箱（Job Object / 受限令牌）、每次写型工具步骤后的增量检查点、隔离 worktree 的界面装配、写租约进入提交流程。
+- **验证**：`typecheck`、`format:check`、`lint`、全量 `bun test` 全绿。
 
 ### 官方能力替换（第五轮，2026-11-14）
 

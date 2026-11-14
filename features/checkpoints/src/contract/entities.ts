@@ -35,9 +35,17 @@ export const CheckpointDiffParams = z.object({
 })
 export type CheckpointDiffParams = z.infer<typeof CheckpointDiffParams>
 
+export const CheckpointChangedPathsParams = z.object({
+  workspaceRoot: z.string().min(1),
+  checkpoint: z.string().min(1),
+})
+export type CheckpointChangedPathsParams = z.infer<typeof CheckpointChangedPathsParams>
+
 export const CheckpointRestoreParams = z.object({
   workspaceRoot: z.string().min(1),
   checkpoint: z.string().min(1),
+  /** 期望的「撤销前」状态；给了就要求工作树与它对这批路径一致，否则按冲突拒绝。 */
+  expect: z.string().min(1).optional(),
   /** 只允许显式路径；空数组拒绝，避免误伤整棵树 */
   paths: z.array(z.string().min(1)).min(1),
 })

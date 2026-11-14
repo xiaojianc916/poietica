@@ -1,5 +1,5 @@
 {
-  "version": 66,
+  "version": 67,
   "methods": [
     {
       "name": "agentSettings.capabilities",
@@ -4381,6 +4381,10 @@
             "minLength": 1
           },
           "checkpoint": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expect": {
             "type": "string",
             "minLength": 1
           },

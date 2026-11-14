@@ -21,6 +21,8 @@ export async function harness(
     readonly script?: ScenarioScript
     /** 自动总结标题的替身（omp 知识 #17）：给了就按它回标题，回 null 表示生成失败 */
     readonly autoTitle?: (text: string) => string | null | undefined
+    /** 默认 false；工作区级联用例显式打开 outbox 分发 */
+    readonly outboxDispatch?: boolean
   } = {},
 ): Promise<{ h: CoreHarness; engine: FakeEngine }> {
   // 同一个 fakeClock 交给双方（见 CoreHarnessOptions.clock 的注释）
@@ -34,6 +36,7 @@ export async function harness(
     modules: [journal, attachments, workspaces, checkpointsTestModule, runs, threads, timeline, conversation],
     engine,
     clock,
+    outboxDispatch: opts.outboxDispatch ?? false,
   })
   return { h, engine }
 }

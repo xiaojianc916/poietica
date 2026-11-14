@@ -181,6 +181,8 @@ export interface MakeKernelOptions {
   readonly dataDir?: string
   readonly retiredModules?: CoreKernelOptions['retiredModules']
   readonly coreVersion?: string
+  /** 默认 false：假时钟大跨度推进时不空转 outbox 定时器；测 outbox 的用例显式开 */
+  readonly outboxDispatch?: boolean
 }
 
 export async function makeKernel(modules: readonly CoreModule[], opts: MakeKernelOptions = {}): Promise<KernelHarness> {
@@ -221,6 +223,7 @@ export async function makeKernel(modules: readonly CoreModule[], opts: MakeKerne
     coreVersion: opts.coreVersion ?? '1.2.3',
     engineVersion: '0.0.0-test',
     strict: opts.strict ?? true,
+    outboxDispatch: opts.outboxDispatch ?? false,
     runtime: { scrubbedEnvKeys: ['OPENAI_API_KEY'], setLogLevel: () => undefined },
   })
   const channel = {

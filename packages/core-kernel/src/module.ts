@@ -13,6 +13,11 @@ import type { WorkflowService } from './workflows'
 
 export type ModuleKind = 'domain' | 'capability' | 'agent-runtime' | 'agent-tool' | 'integration' | 'surface'
 
+/** 模块在 setup 里登记自己的 outbox 消费者；同一 topic 可以有多个消费者，分发器按注册顺序串行调用。 */
+export interface OutboxHandlerRegistry {
+  register(topic: string, handle: (payload: unknown) => void | Promise<void>): void
+}
+
 export interface CoreModule<C extends Contract = Contract> {
   /** 等于功能 id（kebab-case）。 */
   readonly id: string
@@ -63,6 +68,8 @@ export interface CoreModuleContext<C extends Contract = Contract> {
   readonly db: ModuleDatabase
   /** Kernel outbox（ADR-011）；跨模块副作用在业务事务里入队。 */
   readonly outbox: OutboxService
+  /** 登记 outbox 消费者；分发器在全部模块 setup 之后启动。 */
+  readonly outboxHandlers: OutboxHandlerRegistry
   readonly jobs: KernelJobsService
   readonly idempotency: IdempotencyService
   readonly workflows: WorkflowService

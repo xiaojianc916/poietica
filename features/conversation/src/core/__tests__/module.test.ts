@@ -15,8 +15,11 @@ import { BUSY_SCRIPT, harness } from './helpers'
  * 模块级集成测试：真实内核只装被测模块及其依赖，engine 是 FakeEngine。
  * harness 的时钟是 fakeClock —— FakeEngine 排下一拍、时间线 16ms 合批都走它，必须显式推时间。
  */
-async function started(script?: ScenarioScript) {
-  const { h, engine } = await harness(script === undefined ? {} : { script })
+async function started(script?: ScenarioScript, opts?: { outboxDispatch?: boolean }) {
+  const { h, engine } = await harness({
+    ...(script === undefined ? {} : { script }),
+    ...(opts?.outboxDispatch === undefined ? {} : { outboxDispatch: opts.outboxDispatch }),
+  })
   const api = h.client(conversationContract)
   const dir = await tempDir('conv-')
   const ws = await h.client(workspacesContract).call('workspaces.add', { path: dir.path })
@@ -388,7 +391,7 @@ describe('conversation core 模块', () => {
   })
 
   test('工作区被移除：该工作区的线程被级联删除', async () => {
-    const { api, thread, h, ws, finish } = await started()
+    const { api, thread, h, ws, finish } = await started(undefined, { outboxDispatch: true })
     await api.call('turns.submit', {
       threadId: thread.id,
       clientTurnId: 'Y',
@@ -399,8 +402,8 @@ describe('conversation core 模块', () => {
     })
     await runOneBeat(h)
     await h.client(workspacesContract).call('workspaces.remove', { workspaceId: ws.id })
-    // 级联是异步的（事件处理器里 void 出去），推一拍让它跑完
-    await h.clock.advanceAsync(1)
+    // 级联走 outbox：分发器每 250ms 认领一次，推过这个窗口让它跑完
+    await h.clock.advanceAsync(300)
     await new Promise((r) => setTimeout(r, 20))
     expect(h.notifications(conversationContract, 'threads.removed').some((n) => n.threadId === thread.id)).toBe(true)
     await finish()

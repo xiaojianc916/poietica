@@ -1,6 +1,8 @@
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
 import type { DataLayout } from '@poietica/runtime-layout'
 import {
+  type ArpPolicyCheckParams,
+  type ArpPolicyDecision,
   EngineErrorCode,
   type EngineSession,
   type EngineToolSpec,
@@ -10,7 +12,8 @@ import type { SettingsScope } from '../settings-access'
 import { createToolsExtension } from '../tools-extension'
 import { allowGoalContinuation } from './goal-host'
 import type { McpLease } from './mcp-workspaces'
-import { applyPosture } from './posture'
+import { createPolicyGate, type PolicyGate } from './policy-gate'
+import { applyPosture, delegateApprovalToHost } from './posture'
 
 export interface SessionFactoryOptions {
   readonly layout: DataLayout
@@ -34,6 +37,10 @@ export interface SessionFactoryOptions {
   readonly mcp?: { lease(cwd: string): Promise<McpLease> }
   /** 引擎的工具表（会话建好后交给 adapter） */
   readonly tools: ReadonlyMap<string, EngineToolSpec>
+  /** Core 的执行策略裁决（ARP `policy.check`）；会话打开时现取，Worker 晚于引擎安装。不给则不装策略扩展。 */
+  readonly policyCheck?: () => ((request: ArpPolicyCheckParams) => Promise<ArpPolicyDecision>) | undefined
+  /** 策略门的文件扩展路径；给了就装进主会话，并由 omp 的 task 执行器继承给子代理。 */
+  readonly policyExtensionPath?: string
   /** 测试缝：存在时跳过模型解析、直接用注入的 mock */
   readonly testSeams?: { readonly model?: unknown; readonly getApiKey?: (model: unknown) => string } | null
   /** 测试缝：mock 也是 `tiny` 角色的候选，标题请求会吃掉一条脚本回复 */
@@ -53,6 +60,8 @@ export interface SessionFactoryOptions {
     readonly created: Record<string, unknown>
     /** 解析出的模型（null 表示交给 SDK 兜底） */
     readonly model: { provider: string; id: string } | null
+    /** 执行策略门；装了就要求会话打开时把 omp 的审批交给宿主 */
+    readonly policyGate?: PolicyGate
   }) => Promise<EngineSession>
 }
 
@@ -141,9 +150,24 @@ export class SessionFactory {
     }
   }
 
+  private createPolicyGate(spec: OpenSessionSpec): PolicyGate | undefined {
+    const check = this.o.policyCheck?.()
+    if (check === undefined) return undefined
+    return createPolicyGate({
+      sessionKey: spec.key,
+      preset: spec.posture,
+      cwd: spec.cwd,
+      check,
+      approvalOf: (tool) => this.o.tools.get(tool)?.approval,
+    })
+  }
+
   private async open(spec: OpenSessionSpec): Promise<EngineSession> {
     const settings = this.overlay()
+    const policyGate = this.createPolicyGate(spec)
     applyPosture(settings, spec.posture)
+    /* 装了策略门就把 omp 自己的审批关掉：宿主是唯一裁决者，避免同一件事问两遍。 */
+    if (policyGate !== undefined) delegateApprovalToHost(settings)
     // 目标续跑：omp 的控制器只认 'rpc' 这一档，Poietica 按交互式宿主的设置放行（审查 R-11，goal-host.ts）
     allowGoalContinuation(settings)
     const manager = await this.openManager(spec)
@@ -153,6 +177,9 @@ export class SessionFactory {
     try {
       const created = await this.o.createAgentSession({
         extensions: [this.toolsExtension(spec.key, spec.cwd)],
+        ...(policyGate === undefined || this.o.policyExtensionPath === undefined
+          ? {}
+          : { additionalExtensionPaths: [this.o.policyExtensionPath] }),
         cwd: spec.cwd,
         settings,
         sessionManager: manager,
@@ -194,9 +221,11 @@ export class SessionFactory {
         tools: this.o.tools,
         created,
         model,
+        ...(policyGate === undefined ? {} : { policyGate }),
       })
     } catch (error) {
       /* 幂等：attach 过的会话之后再 dispose 时还会调一次，那一次是空操作 */
+      policyGate?.dispose()
       lease?.release()
       throw error
     }

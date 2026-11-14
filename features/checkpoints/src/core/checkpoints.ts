@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto'
-import { mkdir, stat } from 'node:fs/promises'
+import { mkdir, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { AppError } from '@poietica/foundation'
 import { RunError, run, which } from '@poietica/process-kit'
 import type {
   Checkpoint,
+  CheckpointChangedPathsParams,
   CheckpointCreateParams,
   CheckpointDiffParams,
   CheckpointRestoreParams,
@@ -59,6 +60,13 @@ export function createCheckpointService(o: CreateCheckpointServiceOptions): Chec
   const repoDirOf = (workspaceRoot: string): string => {
     const key = createHash('sha256').update(path.resolve(workspaceRoot)).digest('hex').slice(0, 32)
     return path.join(o.dir, `${key}.git`)
+  }
+
+  /** 影子仓库可能落在工作树内（测试、或用户把数据目录放进项目）：它自己的文件不算这一轮的改动。 */
+  const visiblePaths = (workspaceRoot: string, paths: readonly string[]): string[] => {
+    const shadowRel = path.relative(workspaceRoot, repoDirOf(workspaceRoot)).split(path.sep).join('/')
+    if (shadowRel.startsWith('..') || path.isAbsolute(shadowRel)) return [...paths]
+    return paths.filter((entry) => entry !== shadowRel && !entry.startsWith(`${shadowRel}/`))
   }
 
   const shadowEnv = (repoDir: string, workspaceRoot: string, includeGitDir = true) => ({
@@ -121,8 +129,7 @@ export function createCheckpointService(o: CreateCheckpointServiceOptions): Chec
     }
   }
 
-  const create = async (input: CheckpointCreateParams): Promise<Checkpoint> => {
-    const workspaceRoot = path.resolve(input.workspaceRoot)
+  const createOnce = async (workspaceRoot: string, input: CheckpointCreateParams): Promise<Checkpoint> => {
     const meta = checkpointMeta(workspaceRoot, input)
     const repoDir = await ensureRepo(workspaceRoot)
     const shadowRel = path.relative(workspaceRoot, repoDir)
@@ -142,6 +149,25 @@ export function createCheckpointService(o: CreateCheckpointServiceOptions): Chec
       ...(input.stepId === undefined ? {} : { stepId: input.stepId }),
       ...(input.label === undefined ? {} : { label: input.label }),
     }
+  }
+
+  /* 同一工作区串行提交：轮结束与下一轮开始可能几乎同时发生，git index 不能并发写，顺序也要稳定。 */
+  const createTails = new Map<string, Promise<void>>()
+  const create = async (input: CheckpointCreateParams): Promise<Checkpoint> => {
+    const workspaceRoot = path.resolve(input.workspaceRoot)
+    const previous = createTails.get(workspaceRoot) ?? Promise.resolve()
+    const run = previous.then(
+      () => createOnce(workspaceRoot, input),
+      () => createOnce(workspaceRoot, input),
+    )
+    createTails.set(
+      workspaceRoot,
+      run.then(
+        () => undefined,
+        () => undefined,
+      ),
+    )
+    return await run
   }
 
   const list = async (workspaceRootInput: string, limit = 50): Promise<Checkpoint[]> => {
@@ -174,20 +200,54 @@ export function createCheckpointService(o: CreateCheckpointServiceOptions): Chec
     return result.stdout
   }
 
+  const diffPaths = async (input: CheckpointDiffParams): Promise<string[]> => {
+    const workspaceRoot = path.resolve(input.workspaceRoot)
+    const result = await shadow(workspaceRoot, ['diff', '--name-only', '-z', input.from, input.to, '--'])
+    return visiblePaths(workspaceRoot, splitNul(result.stdout))
+  }
+
+  const changedPaths = async (input: CheckpointChangedPathsParams): Promise<string[]> => {
+    const workspaceRoot = path.resolve(input.workspaceRoot)
+    const tracked = await shadow(workspaceRoot, ['diff', '--name-only', '-z', input.checkpoint, '--'])
+    const untracked = await shadow(workspaceRoot, ['ls-files', '--others', '--exclude-standard', '-z', '--'])
+    return visiblePaths(workspaceRoot, [...new Set([...splitNul(tracked.stdout), ...splitNul(untracked.stdout)])])
+  }
+
   const restore = async (input: CheckpointRestoreParams): Promise<CheckpointRestoreResult> => {
     const workspaceRoot = path.resolve(input.workspaceRoot)
     const paths = input.paths.map((p) => safeRelative(workspaceRoot, p))
+    if (input.expect !== undefined) {
+      const wanted = new Set(paths)
+      const drift = (await changedPaths({ workspaceRoot, checkpoint: input.expect })).filter((p) => wanted.has(p))
+      if (drift.length > 0) {
+        throw new AppError('checkpoints.conflict', '工作区在这一轮之后又被改过，恢复会覆盖这些改动', {
+          paths: drift,
+        })
+      }
+    }
     const dirty = await shadow(workspaceRoot, ['status', '--porcelain', '--', ...paths])
     if (dirty.stdout.trim() !== '') {
       throw new AppError('checkpoints.conflict', '工作区在最近检查点之后被手动改过，恢复会覆盖这些改动')
     }
-    await shadow(workspaceRoot, ['checkout', input.checkpoint, '--', ...paths])
+    const existing: string[] = []
+    for (const entry of paths) {
+      const listed = await shadow(workspaceRoot, ['ls-tree', '--name-only', '-z', input.checkpoint, '--', entry])
+      if (splitNul(listed.stdout).includes(entry)) existing.push(entry)
+      /* 检查点里没有这个文件：这一轮新建的，撤销就是删掉。 */
+      else await rm(path.join(workspaceRoot, entry), { force: true })
+    }
+    if (existing.length > 0) await shadow(workspaceRoot, ['checkout', input.checkpoint, '--', ...existing])
     // 撤销本身也打点，保证「撤销的撤销」成立（§14.3）
     await create({ workspaceRoot, label: `revert ${input.checkpoint.slice(0, 12)}` })
     return { restored: paths }
   }
 
-  return { create, list, diff, restore }
+  return { create, list, diff, diffPaths, changedPaths, restore }
+}
+
+/** git 的 `-z` 输出：NUL 分隔、路径原样（不转义空格与中文）。 */
+function splitNul(stdout: string): string[] {
+  return stdout.split('\u0000').filter((line) => line.length > 0)
 }
 
 function checkpointMeta(workspaceRoot: string, input: CheckpointCreateParams): CheckpointMeta {

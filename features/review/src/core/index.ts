@@ -1,7 +1,11 @@
 import { defineCoreModule } from '@poietica/core-kernel'
 import { CheckpointServiceToken } from '@poietica/feature-checkpoints/core-api'
 import { ConversationServiceToken, threadRemoved, turnFileChanged } from '@poietica/feature-conversation/core-api'
-import { type WorkspaceRemoved, WorkspacesServiceToken, workspaceRemoved } from '@poietica/feature-workspaces/core-api'
+import {
+  WORKSPACE_REMOVED_TOPIC,
+  WorkspacesServiceToken,
+  workspaceRemovedPayload,
+} from '@poietica/feature-workspaces/core-api'
 import { AppError } from '@poietica/foundation'
 import { createGit } from '@poietica/git'
 import { reviewContract } from '../contract'
@@ -48,9 +52,10 @@ export default defineCoreModule({
     /* 每次调用都问一遍，工作区被移走后自然报 workspaces.not_found。 */
     const pathOf = (workspaceId: string): string => workspaces.requireUsable(workspaceId).path
 
-    /* 一轮文件改动的账：只从引擎写盘那一刻的事实来，撤销时按账退回工作区。 */
+    /* 一轮文件改动的账：显示用的文件清单来自引擎写盘事实；撤销优先按影子检查点覆盖全部写入。 */
     const rewind = createTurnRewind({
       repo: createTurnFilesRepository(ctx.db),
+      checkpoints,
       logger: ctx.logger,
       emitChanged: (threadId) => {
         ctx.rpc.emit('review.turnChangesChanged', { threadId })
@@ -66,12 +71,9 @@ export default defineCoreModule({
 
     ctx.disposables.add({ dispose: () => watcher.dispose() })
     ctx.lifecycle.onShutdown(() => watcher.dispose())
-    /* 工作区被移走：它的监听一并停掉（界面那边的 unwatch 可能永远不会来了）。 */
-    ctx.disposables.add(
-      ctx.events.on<WorkspaceRemoved>(workspaceRemoved, (e) => {
-        watcher.forget(e.workspaceId)
-      }),
-    )
+    ctx.outboxHandlers.register(WORKSPACE_REMOVED_TOPIC, (payload) => {
+      watcher.forget(workspaceRemovedPayload.parse(payload).workspaceId)
+    })
     ctx.disposables.add(ctx.events.on(turnFileChanged, (fact) => ledger.record(fact)))
     ctx.disposables.add(ctx.events.on(threadRemoved, ({ threadId }) => rewind.forgetThread(threadId)))
 

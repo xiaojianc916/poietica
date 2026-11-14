@@ -42,6 +42,33 @@ describe('影子检查点', () => {
     expect(listed[0]?.label).toContain('revert')
   })
 
+  test('diffPaths / changedPaths / expect 三方核对，并删除这一轮新建的文件', async () => {
+    const root = await workspace()
+    const service = createCheckpointService({ dir: path.join(root, '.shadow') })
+    const a = path.join(root, 'a.txt')
+    const b = path.join(root, 'b.txt')
+    await writeFile(a, 'one')
+    const start = await service.create({ workspaceRoot: root, threadId: 't1', label: '轮次开始' })
+    await writeFile(a, 'two')
+    await writeFile(b, 'new')
+    const end = await service.create({ workspaceRoot: root, threadId: 't1', label: '轮次结束' })
+
+    expect(await service.diffPaths({ workspaceRoot: root, from: start.id, to: end.id })).toEqual(['a.txt', 'b.txt'])
+    expect((await service.changedPaths({ workspaceRoot: root, checkpoint: start.id })).sort()).toEqual([
+      'a.txt',
+      'b.txt',
+    ])
+
+    await service.restore({
+      workspaceRoot: root,
+      checkpoint: start.id,
+      expect: end.id,
+      paths: ['a.txt', 'b.txt'],
+    })
+    expect(await readFile(a, 'utf8')).toBe('one')
+    await expect(readFile(b, 'utf8')).rejects.toThrow()
+  })
+
   test('检查点之后手动改过文件时拒绝恢复', async () => {
     const root = await workspace()
     const service = createCheckpointService({ dir: path.join(root, '.shadow') })

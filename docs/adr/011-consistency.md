@@ -15,3 +15,11 @@
 
 - 进程内事件只用于通知型、可丢的刷新；跨模块事实必须走 outbox。
 - 迁移期间两套机制并存，需防止同一副作用被发两次。
+
+## 实施进度（2026-11-15）
+
+- 工作区删除已经改成持久事实：`workspaces.remove` 在删行的同一事务里写 `kernel_outbox`（topic `workspaces.removed`，幂等键为工作区 id），内存事件只负责让 UI 立刻刷新。
+- conversation / automations / files / review 各自注册 outbox handler；进程在「删行」与「级联清理」之间退出时，下次启动由分发器补投。
+- 同一 topic 现在支持多个消费者：注册表按 topic 收一组 handler，分发器按注册顺序串行调用，全部成功才把记录标记完成；失败则整条记录按退避重试。
+- 测试 harness 默认关闭 outbox 定时器（`outboxDispatch: false`），避免假时钟推进 25 小时时定时器空转；测 outbox 的用例显式打开。
+- 本次只收口「工作区删除」这一条；启动对账其余步骤与工作流续跑保持原状。

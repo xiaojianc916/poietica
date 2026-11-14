@@ -3,6 +3,7 @@ import { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
 import { noopLogger } from '@poietica/foundation'
 import type { EngineSession, OpenSessionSpec } from '@poietica/runtime-protocol'
 import { testLayout } from '../../__tests__/omp-home'
+import { readSetting } from '../../settings-access'
 import { SessionFactory, type SessionFactoryOptions } from '../session-factory'
 
 /*
@@ -192,5 +193,38 @@ describe('开会话预热', () => {
     })
     await h.factory.warm('/tmp/warm')
     expect(h.calls).toHaveLength(0)
+  })
+})
+
+describe('执行策略门（架构设计 §13）', () => {
+  test('F-P-1 装了策略门：文件扩展交给 omp（子代理可继承），审批模式交给宿主', async () => {
+    let wrapped: Parameters<SessionFactoryOptions['wrapSession']>[0] | undefined
+    const options = await optionsOf(SPEC, {
+      policyCheck: () => async () => ({ action: 'allow', rule: 'test.allow', reason: 'ok' }),
+      policyExtensionPath: 'C:\\data\\poietica-policy.mjs',
+      wrapSession: async (input) => {
+        wrapped = input
+        return stubSession()
+      },
+    })
+    expect(options.extensions).toHaveLength(1)
+    expect(options.additionalExtensionPaths).toEqual(['C:\\data\\poietica-policy.mjs'])
+    expect(wrapped?.policyGate).toBeDefined()
+    if (wrapped === undefined) throw new Error('wrapSession 没有被调用')
+    expect(readSetting(wrapped.settings, 'tools.approvalMode')).toBe('yolo')
+  })
+
+  test('F-P-2 没有策略门（测试替身）：不装扩展，也不改 omp 的审批模式', async () => {
+    let wrapped: Parameters<SessionFactoryOptions['wrapSession']>[0] | undefined
+    const options = await optionsOf(SPEC, {
+      wrapSession: async (input) => {
+        wrapped = input
+        return stubSession()
+      },
+    })
+    expect(options.extensions).toHaveLength(1)
+    expect(wrapped?.policyGate).toBeUndefined()
+    if (wrapped === undefined) throw new Error('wrapSession 没有被调用')
+    expect(readSetting(wrapped.settings, 'tools.approvalMode')).toBe('always-ask')
   })
 })

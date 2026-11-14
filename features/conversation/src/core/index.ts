@@ -1,6 +1,6 @@
 import { defineCoreModule } from '@poietica/core-kernel'
 import { AttachmentsServiceToken } from '@poietica/feature-attachments/core-api'
-import { CheckpointServiceToken } from '@poietica/feature-checkpoints/core-api'
+import { CHECKPOINT_TURN_END_LABEL, CheckpointServiceToken } from '@poietica/feature-checkpoints/core-api'
 import { JournalServiceToken } from '@poietica/feature-journal/core-api'
 import {
   SessionPoolFactoryToken,
@@ -10,7 +10,11 @@ import {
 } from '@poietica/feature-runs/core-api'
 import { ThreadsRepositoryToken, ThreadsServiceToken } from '@poietica/feature-threads/core-api'
 import { EventRouterFactoryToken, TimelineServiceToken } from '@poietica/feature-timeline/core-api'
-import { type WorkspaceRemoved, WorkspacesServiceToken, workspaceRemoved } from '@poietica/feature-workspaces/core-api'
+import {
+  WORKSPACE_REMOVED_TOPIC,
+  WorkspacesServiceToken,
+  workspaceRemovedPayload,
+} from '@poietica/feature-workspaces/core-api'
 import { conversationContract } from '../contract'
 import {
   ConversationServiceToken,
@@ -56,6 +60,25 @@ export default defineCoreModule({
     const createSessionPool = ctx.services.get(SessionPoolFactoryToken)
     /* 别的功能（例如 intelligent-ui）往这里登记「下一句顺带告诉模型的事」；交接时由提交服务收一次 */
     const turnContext = ctx.services.get(TurnContextRegistryToken)
+    const checkpoints = ctx.services.get(CheckpointServiceToken)
+    const workspaces = ctx.services.get(WorkspacesServiceToken)
+
+    /**
+     * 轮次结束再打一个检查点：撤销一轮需要「轮开始」与「轮结束」两个快照做三方比对
+     * （起点 vs 终点 vs 当前磁盘）。失败只记 warn，不挡轮次收口。
+     */
+    const checkpointAtTurnEnd = (threadId: string): void => {
+      const thread = threadsRepository.get(threadId)
+      if (thread === null) return
+      const workspace = workspaces.get(thread.workspaceId)
+      if (workspace === null) return
+      void checkpoints
+        .create({ workspaceRoot: workspace.path, threadId, label: CHECKPOINT_TURN_END_LABEL })
+        .catch((error: unknown) => {
+          ctx.logger.warn('turn end checkpoint failed', { threadId, error: String(error) })
+        })
+    }
+
     const core = new ConversationCore({
       db: ctx.db,
       repo: threadsRepository,
@@ -66,9 +89,9 @@ export default defineCoreModule({
       createSessionPool,
       runtime: { ...ctx.agentRuntime.sessions, models: ctx.agentRuntime.models, settings: ctx.agentRuntime.settings },
       journal: ctx.services.get(JournalServiceToken),
-      checkpoints: ctx.services.get(CheckpointServiceToken),
+      checkpoints,
       hub,
-      workspaces: ctx.services.get(WorkspacesServiceToken),
+      workspaces,
       attachments,
       clock: ctx.clock,
       logger: ctx.logger,
@@ -91,7 +114,10 @@ export default defineCoreModule({
       emitSubmissionChanged: (submission) =>
         ctx.rpc.emit('submissions.changed', { threadId: submission.threadId, submission }),
       emitSubmissionRemoved: (p) => ctx.rpc.emit('submissions.removed', p),
-      emitTurnSettled: (p) => ctx.events.emit(turnSettled, p),
+      emitTurnSettled: (p) => {
+        checkpointAtTurnEnd(p.threadId)
+        ctx.events.emit(turnSettled, p)
+      },
       emitSubmissionFailed: (p) => ctx.events.emit(submissionFailed, p),
       emitThreadRemovedEvent: (p) => ctx.events.emit(threadRemoved, p),
       emitUsageSampled: (p) => ctx.events.emit(usageSampled, p),
@@ -127,14 +153,11 @@ export default defineCoreModule({
      */
     ctx.disposables.add(ctx.agentRuntime.models.onDidChangeDefaults(draftChanged))
 
-    // 工作区被移除：其中所有线程被删除（运行中的先取消）
-    ctx.disposables.add(
-      ctx.events.on<WorkspaceRemoved>(workspaceRemoved, (e) => {
-        void core.threads.removeWorkspaceThreads(e.workspaceId).catch((err: unknown) => {
-          ctx.logger.warn('workspace cascade failed', { workspaceId: e.workspaceId, error: String(err) })
-        })
-      }),
-    )
+    // 工作区被移除：其中所有线程被删除（运行中的先取消）。走 outbox，崩溃后仍会重试。
+    ctx.outboxHandlers.register(WORKSPACE_REMOVED_TOPIC, async (payload) => {
+      const e = workspaceRemovedPayload.parse(payload)
+      await core.threads.removeWorkspaceThreads(e.workspaceId)
+    })
 
     /*
      * 启动对账（会话池还没开过任何会话，UI 的请求要等 core.ready）：

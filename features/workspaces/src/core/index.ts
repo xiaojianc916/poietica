@@ -1,7 +1,12 @@
 import fs from 'node:fs'
 import { defineCoreModule } from '@poietica/core-kernel'
 import { workspacesContract } from '../contract'
-import { type WorkspaceRemoved, WorkspacesServiceToken, WriteLeaseServiceToken, workspaceRemoved } from '../core-api'
+import {
+  WORKSPACE_REMOVED_TOPIC,
+  type WorkspaceRemoved,
+  WorkspacesServiceToken,
+  WriteLeaseServiceToken,
+} from '../core-api'
 import { registerHandlers } from './handlers'
 import { createWriteLeaseService } from './lease'
 import { migrations } from './migrations'
@@ -19,8 +24,13 @@ export default defineCoreModule({
       emitChanged: () => {
         ctx.rpc.emit('workspaces.changed', { workspaces: [...service.list()] })
       },
-      emitRemoved: (e: WorkspaceRemoved) => {
-        ctx.events.emit(workspaceRemoved, e)
+      transaction: (fn) => ctx.db.transaction(fn),
+      onRemoved: (e: WorkspaceRemoved) => {
+        ctx.outbox.enqueue({
+          topic: WORKSPACE_REMOVED_TOPIC,
+          payload: e,
+          idempotencyKey: e.workspaceId,
+        })
       },
       fs: {
         isDirectory: (p) => fs.statSync(p, { throwIfNoEntry: false })?.isDirectory() ?? false,

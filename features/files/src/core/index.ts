@@ -1,5 +1,9 @@
 import { defineCoreModule } from '@poietica/core-kernel'
-import { type WorkspaceRemoved, WorkspacesServiceToken, workspaceRemoved } from '@poietica/feature-workspaces/core-api'
+import {
+  WORKSPACE_REMOVED_TOPIC,
+  WorkspacesServiceToken,
+  workspaceRemovedPayload,
+} from '@poietica/feature-workspaces/core-api'
 import { filesContract } from '../contract'
 import { createFilesGit } from './git'
 import { createFilesService } from './service'
@@ -32,12 +36,11 @@ export default defineCoreModule({
     })
     ctx.disposables.add({ dispose: () => watchers.dispose() })
     ctx.lifecycle.onShutdown(() => watchers.dispose())
-    ctx.disposables.add(
-      ctx.events.on<WorkspaceRemoved>(workspaceRemoved, (e) => {
-        watchers.forget(e.workspaceId)
-        service.invalidate(e.path)
-      }),
-    )
+    ctx.outboxHandlers.register(WORKSPACE_REMOVED_TOPIC, (payload) => {
+      const e = workspaceRemovedPayload.parse(payload)
+      watchers.forget(e.workspaceId)
+      service.invalidate(e.path)
+    })
 
     ctx.rpc.handle('files.list', (p) => service.list(rootOf(p.workspaceId), p.path))
     ctx.rpc.handle('files.read', (p) => service.read(rootOf(p.workspaceId), p.path))

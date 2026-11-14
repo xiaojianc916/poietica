@@ -1,6 +1,8 @@
 import { AppError, type Disposable, type Logger, SystemErrorCode, toDisposable } from '@poietica/foundation'
 import {
   type AgentEngine,
+  type ArpPolicyCheckParams,
+  type ArpPolicyDecision,
   type BrowserRelayEndpoint,
   type CommandCatalogOptions,
   type Controls,
@@ -57,6 +59,7 @@ export class OmpEngine implements AgentEngine {
   private readonly sessions = new Set<EngineSession>()
   private frozen = false
   private disposed = false
+  private policyCheck: ((request: ArpPolicyCheckParams) => Promise<ArpPolicyDecision>) | undefined
 
   constructor(private readonly o: OmpEngineOptions) {
     this.info = o.info
@@ -125,6 +128,16 @@ export class OmpEngine implements AgentEngine {
     return toDisposable(() => {
       this.tools.delete(spec.name)
     })
+  }
+
+  /** Worker 的 ARP 内核起来后注入：内置工具执行前的裁决走 Core（`policy.check`）。 */
+  setPolicyCheck(check: (request: ArpPolicyCheckParams) => Promise<ArpPolicyDecision>): void {
+    this.policyCheck = check
+  }
+
+  /** SessionFactory 建会话时取当前裁决器；还没装时不给策略扩展（测试替身）。 */
+  get policy(): ((request: ArpPolicyCheckParams) => Promise<ArpPolicyDecision>) | undefined {
+    return this.policyCheck
   }
 
   freezeTools(): void {

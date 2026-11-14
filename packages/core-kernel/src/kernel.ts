@@ -26,8 +26,9 @@ import { createAgentToolRegistry } from './agent-tools'
 import { createEventHub } from './events'
 import { createIdempotency } from './idempotency'
 import { createKernelJobs } from './jobs'
-import type { CoreDataMode, CoreModule, CoreModuleContext, RetiredCoreModule } from './module'
+import type { CoreDataMode, CoreModule, CoreModuleContext, OutboxHandlerRegistry, RetiredCoreModule } from './module'
 import { createOutbox } from './outbox'
+import { createOutboxDispatcher, type OutboxDispatcher, type OutboxHandler } from './outbox-dispatcher'
 import { createCoreRpcBinding, createHostCaller } from './rpc-binding'
 import { createWorkflowService } from './workflows'
 
@@ -52,6 +53,8 @@ export interface CoreKernelOptions {
   readonly retiredModules?: readonly RetiredCoreModule[]
   /** 迁移前备份保留几份；默认 3 */
   readonly backupKeep?: number
+  /** 测试可关掉 outbox 定时器（假时钟推进大跨度时不必空转）；默认开。 */
+  readonly outboxDispatch?: boolean
   readonly runtime: {
     readonly scrubbedEnvKeys: readonly string[]
     setLogLevel(level: 'debug' | 'info' | 'warn' | 'error'): void
@@ -118,6 +121,7 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
   let peer: RpcPeer | undefined
   let db: Database | undefined
   let toolsFrozen = false
+  let outboxDispatcher: OutboxDispatcher | undefined
   let dataMode: CoreDataMode = { mode: 'readWrite' }
   let inflight = 0
   let drained: Deferred<void> | undefined
@@ -234,6 +238,14 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
     validateModules(sorted)
     db = openStorage(sorted)
     const outbox = createOutbox(db, { clock: opts.clock, readonly: dataMode.mode === 'readOnly' })
+    const outboxHandlerMap = new Map<string, OutboxHandler[]>()
+    const outboxHandlers: OutboxHandlerRegistry = {
+      register(topic, handle) {
+        const held = outboxHandlerMap.get(topic) ?? []
+        held.push({ topic, handle })
+        outboxHandlerMap.set(topic, held)
+      },
+    }
     const jobs = createKernelJobs(db, { clock: opts.clock, readonly: dataMode.mode === 'readOnly' })
     const idempotency = createIdempotency(db, { clock: opts.clock, readonly: dataMode.mode === 'readOnly' })
     const workflows = createWorkflowService(db, { clock: opts.clock, readonly: dataMode.mode === 'readOnly' })
@@ -252,6 +264,7 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
         layout: opts.layout,
         db: db.forModule(m.id, m.tablePrefix),
         outbox,
+        outboxHandlers,
         jobs,
         idempotency,
         workflows,
@@ -278,6 +291,16 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
       await m.setup(ctx)
       if (aborted()) return
       log.info('module ready', { module: m.id, ms: opts.clock.now() - t0 })
+    }
+    if (opts.outboxDispatch !== false && outboxHandlerMap.size > 0 && dataMode.mode !== 'readOnly') {
+      outboxDispatcher = createOutboxDispatcher({
+        outbox,
+        handlers: [...outboxHandlerMap.values()].flat(),
+        logger: log.child({ scope: 'outbox' }),
+        clock: opts.clock,
+      })
+      outboxDispatcher.start()
+      void outboxDispatcher.tick().catch((error: unknown) => log.warn('outbox tick failed', { error: String(error) }))
     }
     assertAllCoreMethodsHandled()
     opts.engine.freezeTools()
@@ -362,6 +385,8 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
     const wasStarted = state !== 'created'
     const wasStarting = state === 'starting'
     state = 'stopping'
+    outboxDispatcher?.stop()
+    outboxDispatcher = undefined
     log.info('shutting down', { reason })
     // 总截止时间：所有分阶段预算都必须从这里算，Host 的宽限期比它更长（R-05 §3.3）
     const deadline = opts.clock.now() + CORE_SHUTDOWN_BUDGET_MS
