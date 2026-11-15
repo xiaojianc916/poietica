@@ -1,5 +1,5 @@
 {
-  "version": 71,
+  "version": 72,
   "methods": [
     {
       "name": "agentSettings.capabilities",
@@ -1011,6 +1011,7 @@
             "default": "auto-edit",
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -1149,6 +1150,7 @@
             "default": "auto-edit",
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -1457,6 +1459,7 @@
             "default": "auto-edit",
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -1762,6 +1765,7 @@
                   "default": "auto-edit",
                   "type": "string",
                   "enum": [
+                    "read-only",
                     "ask",
                     "auto-edit",
                     "full-access"
@@ -2447,6 +2451,7 @@
             "default": "auto-edit",
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -2746,6 +2751,7 @@
               "posture": {
                 "type": "string",
                 "enum": [
+                  "read-only",
                   "ask",
                   "auto-edit",
                   "full-access"
@@ -2878,6 +2884,7 @@
             "default": "auto-edit",
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -4766,6 +4773,7 @@
               {
                 "type": "string",
                 "enum": [
+                  "read-only",
                   "ask",
                   "auto-edit",
                   "full-access"
@@ -4908,6 +4916,7 @@
           "posture": {
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -5259,6 +5268,7 @@
           "posture": {
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -5610,6 +5620,7 @@
           "posture": {
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -5961,6 +5972,7 @@
           "posture": {
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -6381,6 +6393,7 @@
           "posture": {
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -6750,6 +6763,7 @@
           "posture": {
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -7105,6 +7119,7 @@
           "posture": {
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -7335,6 +7350,7 @@
           "posture": {
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -7465,6 +7481,7 @@
           "posture": {
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -7821,6 +7838,7 @@
           "posture": {
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -16499,6 +16517,7 @@
           "posture": {
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -16554,6 +16573,7 @@
           "posture": {
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -16767,6 +16787,7 @@
           "posture": {
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -16902,6 +16923,7 @@
           "posture": {
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -17044,6 +17066,7 @@
                 "posture": {
                   "type": "string",
                   "enum": [
+                    "read-only",
                     "ask",
                     "auto-edit",
                     "full-access"
@@ -17186,6 +17209,7 @@
           "posture": {
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -17325,6 +17349,7 @@
           "posture": {
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -17464,6 +17489,7 @@
           "posture": {
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -17603,6 +17629,7 @@
           "posture": {
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"
@@ -32153,6 +32180,7 @@
               "posture": {
                 "type": "string",
                 "enum": [
+                  "read-only",
                   "ask",
                   "auto-edit",
                   "full-access"
@@ -34258,6 +34286,7 @@
           "posture": {
             "type": "string",
             "enum": [
+              "read-only",
               "ask",
               "auto-edit",
               "full-access"

@@ -9,6 +9,7 @@ P4 第一道防线（2026-11-14）：
 - Worker 的每个内置/产品工具调用在 omp `tool_call` 处先经 ARP `policy.check` 交给 Core 的 policy 模块；Core 按会话档位、工具分类与命令/路径裁决，并把 `policy.decided` 写入 Journal。
 - 装了策略门后 `tools.approvalMode` 固定为 `yolo`：omp 自己的审批让位，避免同一件事问两遍；审批由产品自己的结构化 `approval` 交互卡片完成，全链路不解析界面文案。卡片载荷现在带 `risk` / `rule` / `category` / `reason`（ARP 2，协议 69）。
 - 未知工具按高风险询问；Core 不可用时 fail closed。
+- 只读档（read-only）已进入会话 Posture 与 ARP 档位，产品权限选择器可选；只读预设下写入与命令被拒绝。
 - 策略门以文件扩展装入（`additionalExtensionPaths`），omp 的 task 执行器按路径继承给子代理；子代理工具同样走 `policy.check`。
 - 写入边界改为按 `path.relative` 判定，`/w2` 不再被误认成 `/w` 之内；产品工具只报「这是写」而没有具体路径时，auto-edit 也先询问，不再盲放。
 - 仍未做：L2 受限令牌 / 低完整性级别与工作区外写入的 OS 级拒绝、网络白名单代理、审批超时策略的配置化、审批授权管理页；同一 cwd 多线程不同档位时，子代理按「最严格的门」路由，审批卡片可能落在另一个线程（已记入待决清单）。

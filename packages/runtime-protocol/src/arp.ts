@@ -63,7 +63,7 @@ export const arpSessionOpenParams = z.object({
   key: z.string().min(1),
   cwd: z.string().min(1),
   sessionFile: z.string().min(1).nullable(),
-  posture: z.enum(['ask', 'auto-edit', 'full-access']),
+  posture: z.enum(['read-only', 'ask', 'auto-edit', 'full-access']),
   model: z.object({ provider: z.string().min(1), id: z.string().min(1) }).nullable(),
   thinking: z.string().min(1).nullable(),
   autoTitle: z.boolean().optional(),

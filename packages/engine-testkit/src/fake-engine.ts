@@ -126,7 +126,7 @@ export interface FakeEngine extends AgentEngine {
 }
 
 const APPROVAL_TIER: Record<EngineToolSpec['approval'], number> = { read: 0, write: 1, exec: 2 }
-const POSTURE_MAX: Record<Posture, number> = { ask: 0, 'auto-edit': 1, 'full-access': 2 }
+const POSTURE_MAX: Record<Posture, number> = { 'read-only': -1, ask: 0, 'auto-edit': 1, 'full-access': 2 }
 
 /** 与 omp 的 APPROVAL_MODE_MAX_TIER 一致的放行规则。 */
 function needsApproval(posture: Posture, approval: EngineToolSpec['approval']): boolean {

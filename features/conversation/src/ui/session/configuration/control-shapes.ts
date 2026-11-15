@@ -15,6 +15,7 @@ export const PLAN_DISABLED = 'off'
  * **首帧**那一份可能只是一个还没长出字段的空载荷（宿主 stub、测试桩、Core 刚起来），选择器收到空表只是不画，比整块抛错好。
  */
 export const POSTURE_TO_CONTROL: Readonly<Record<Posture, string>> = Object.freeze({
+  'read-only': 'readonly',
   ask: 'manual',
   'auto-edit': 'yolo',
   'full-access': 'auto',
@@ -89,6 +90,7 @@ export function sessionConfigControlsOf(controls: Controls | null | undefined): 
     purpose: 'permission',
     current: POSTURE_TO_CONTROL[controls.posture] ?? 'manual',
     choices: [
+      { value: 'readonly', label: '只读' },
       { value: 'manual', label: '请求批准' },
       { value: 'yolo', label: '帮我批准' },
       { value: 'auto', label: '完全访问权限' },

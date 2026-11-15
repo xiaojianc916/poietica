@@ -16,6 +16,13 @@ export interface PermissionPosture {
 
 const POSTURES: readonly PermissionPosture[] = [
   {
+    value: 'readonly',
+    title: '只读',
+    detail: '只读取文件；写入与命令都拒绝',
+    pill: '只读',
+    alerts: false,
+  },
+  {
     value: 'manual',
     title: '请求批准',
     detail: '编辑外部文件和使用互联网时始终询问',

@@ -93,6 +93,7 @@ const NOTIFY_TEXT: Readonly<Record<string, string>> = {
 }
 
 const POSTURE_TEXT: Readonly<Record<string, string>> = {
+  'read-only': '只读',
   ask: '每次询问',
   'auto-edit': '自动编辑',
   'full-access': '完全放行',
