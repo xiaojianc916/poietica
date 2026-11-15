@@ -69,6 +69,12 @@
 
 ## 偏差与裁决
 
+### react-doctor 满分回归（2026-11-15）
+
+- **范围**：全仓扫描 79 分 / 4 条 `async-await-in-loop`（`outbox-dispatcher` 1、`workspaces` 2、`review/rewind` 1）；修后 100 分、0 诊断。
+- **四处保持串行**：outbox 同 topic 的消费者按注册顺序生效，并发会打乱消费序；worktree 的 remove 与启动对账共用一个仓库的 git worktree 元数据，并发会撞锁，启动路径也不该铺开一批 git 子进程；rewind 的逐轮 `diffNumstat` 打在同一份 git 对象库上，串行把并发 git 进程压在 1。都按既有惯例在循环处 `react-doctor-disable-next-line react-doctor/async-await-in-loop` 并写明理由，不改并发。
+- **验证**：react-doctor 100 / 0 诊断；`format:check`、`lint`、`typecheck`、`bun test features/workspaces features/review packages/core-kernel` 均通过。
+
 ### P4 / P5 / P6 第二轮（2026-11-15）
 
 - **P5 检查点优先的审查**：review 的轮次列表不再要求 `review_turn_files` 有行；shell-only 轮从起止 checkpoint 的 `diffNumstat` 取文件与行数，右坞 diff 从两个快照各读一份。撤销状态新增 `review_reverted_turns`，重启后仍知道哪一轮撤过。没有检查点的旧轮继续走指标本。

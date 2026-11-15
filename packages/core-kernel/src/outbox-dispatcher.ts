@@ -49,7 +49,9 @@ export function createOutboxDispatcher(o: OutboxDispatcherOptions): OutboxDispat
       return
     }
     try {
-      /* 同 topic 的多个消费者按注册顺序串行：每个都得成功，记录才算投递完成。 */
+      /* 同 topic 的多个消费者按注册顺序串行：每个都得成功，记录才算投递完成；
+         注册顺序就是这里唯一的契约，并发会打乱消费序、也拿不到「谁失败了」。 */
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop
       for (const handler of registered) await handler.handle(record.payload)
       o.outbox.complete(record.id)
     } catch (error) {

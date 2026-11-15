@@ -79,6 +79,8 @@ async function pruneOrphans(
     for (const entry of entries) {
       const absolute = path.resolve(entry.path)
       if (!absolute.startsWith(root) || known.has(absolute)) continue
+      /* 逐个删：同一仓库的 git worktree 元数据只有一个写者，并发 remove 会撞 .git/worktrees 的锁。 */
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop
       await worktree.remove({ repoPath, path: absolute })
       removed += 1
     }
@@ -258,7 +260,9 @@ export function createWorkspacesService(d: WorkspacesServiceDeps): WorkspacesApi
       const known = new Set(rows.filter((row) => row.mode === 'isolated').map((row) => path.resolve(row.path)))
       const root = path.resolve(d.worktreesDir) + path.sep
       let orphans = 0
+      /* 启动对账只跑一次：逐个仓库回收，别在启动路径上同时拉起一批 git 子进程。 */
       for (const local of rows.filter((row) => row.mode === 'local')) {
+        // react-doctor-disable-next-line react-doctor/async-await-in-loop
         orphans += await pruneOrphans(d.worktree, local.path, root, known)
       }
       const missing = rows.filter((row) => row.mode === 'isolated' && !exists(row.path)).length

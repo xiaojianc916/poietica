@@ -208,6 +208,9 @@ async function checkpointSummaries(
       const end = ends[index]
       if (start === undefined || end === undefined) continue
       try {
+        /* 逐轮取 diff：都打在同一份 git 对象库上，串行既避开锁竞争，也把并发 git 进程数压在 1。
+           只有「一行账都没有」的轮才走到这里，轮数上限是 2000 条检查点，不是每轮都起一次 git。 */
+        // react-doctor-disable-next-line react-doctor/async-await-in-loop
         const files = await checkpoints.diffNumstat({ workspaceRoot, from: start.id, to: end.id })
         if (files.length > 0) summaries.set(index + 1, { files })
       } catch (error) {
