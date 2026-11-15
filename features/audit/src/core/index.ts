@@ -18,16 +18,32 @@ export default defineCoreModule({
   dependsOn: ['journal'],
   setup(ctx) {
     const journal = ctx.services.get(JournalServiceToken)
-    ctx.rpc.handle('audit.query', ({ threadId, kinds, limit }) => {
-      const selected = kinds ?? ALL_KINDS
+    const query = (input: {
+      threadId: string
+      kinds?: readonly AuditKind[] | undefined
+      limit?: number | undefined
+    }) => {
+      const selected = input.kinds ?? ALL_KINDS
       const types = [...new Set(selected.flatMap((kind) => TYPES[kind]))]
-      const entries = journal.readTyped(threadId, 'main', types, limit ?? 500).map((event) => ({
+      return journal.readTyped(input.threadId, 'main', types, input.limit ?? 500).map((event) => ({
         seq: event.seq ?? 0,
         type: event.type,
         at: event.at,
         event,
       }))
-      return { entries }
+    }
+
+    ctx.rpc.handle('audit.query', (input) => ({ entries: query(input) }))
+    ctx.rpc.handle('audit.export', (input) => {
+      const entries = query(input)
+      return {
+        count: entries.length,
+        json: JSON.stringify(
+          { threadId: input.threadId, exportedAt: new Date(ctx.clock.now()).toISOString(), entries },
+          null,
+          2,
+        ),
+      }
     })
   },
 })

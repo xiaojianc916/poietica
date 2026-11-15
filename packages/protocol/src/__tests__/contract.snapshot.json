@@ -1,5 +1,5 @@
 {
-  "version": 73,
+  "version": 74,
   "methods": [
     {
       "name": "agentSettings.capabilities",
@@ -845,6 +845,61 @@
         },
         "required": [
           "missing"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "audit.export",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "把同一份审计查询导出成 JSON 文本（复制/保存给支持或合规审查）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "policy",
+                "approval",
+                "checkpoint",
+                "run"
+              ]
+            }
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5000
+          }
+        },
+        "required": [
+          "threadId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "json": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "count",
+          "json"
         ],
         "additionalProperties": false
       }

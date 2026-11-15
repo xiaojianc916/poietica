@@ -37,6 +37,12 @@ describe('audit.query', () => {
 
     const approvals = await client.call('audit.query', { threadId: 't1', kinds: ['approval'] })
     expect(approvals.entries).toEqual([])
+    const exported = await client.call('audit.export', { threadId: 't1' })
+    expect(exported.count).toBe(1)
+    expect(JSON.parse(exported.json)).toMatchObject({
+      threadId: 't1',
+      entries: [{ type: 'policy.decided' }],
+    })
     await h.dispose()
   })
 })
