@@ -44,3 +44,6 @@ Thumbs.db
 Project Refactoring Plan/
 
 .zcode/
+
+# omp 升级报告（CI 产物）
+artifacts/

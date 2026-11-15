@@ -6,19 +6,28 @@
   "exports": {
     "./contract": "./src/contract/index.ts",
     "./core": "./src/core/index.ts",
-    "./core-api": "./src/core-api/index.ts"
+    "./core-api": "./src/core-api/index.ts",
+    "./ui": "./src/ui/index.tsx"
   },
   "dependencies": {
+    "@poietica/agent-model": "workspace:*",
     "@poietica/contract-kit": "workspace:*",
     "@poietica/core-kernel": "workspace:*",
+    "@poietica/design-system": "workspace:*",
+    "@poietica/feature-journal": "workspace:*",
     "@poietica/feature-settings": "workspace:*",
     "@poietica/foundation": "workspace:*",
+    "@poietica/rpc": "workspace:*",
+    "@poietica/ui-kernel": "workspace:*",
     "@poietica/storage-sqlite": "workspace:*",
+    "lucide-react": "catalog:",
+    "react": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@poietica/test-kit": "workspace:*",
-    "@types/bun": "catalog:"
+    "@types/bun": "catalog:",
+    "@types/react": "catalog:"
   },
   "poietica": {
     "kind": "domain"

@@ -93,6 +93,7 @@
         "@poietica/feature-intelligent-ui": "workspace:*",
         "@poietica/feature-models": "workspace:*",
         "@poietica/feature-platform": "workspace:*",
+        "@poietica/feature-policy": "workspace:*",
         "@poietica/feature-preferences": "workspace:*",
         "@poietica/feature-python": "workspace:*",
         "@poietica/feature-review": "workspace:*",
@@ -507,14 +508,20 @@
       "dependencies": {
         "@poietica/contract-kit": "workspace:*",
         "@poietica/core-kernel": "workspace:*",
+        "@poietica/design-system": "workspace:*",
         "@poietica/feature-settings": "workspace:*",
         "@poietica/foundation": "workspace:*",
+        "@poietica/rpc": "workspace:*",
         "@poietica/storage-sqlite": "workspace:*",
+        "@poietica/ui-kernel": "workspace:*",
+        "lucide-react": "catalog:",
+        "react": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {
         "@poietica/test-kit": "workspace:*",
         "@types/bun": "catalog:",
+        "@types/react": "catalog:",
       },
     },
     "features/preferences": {

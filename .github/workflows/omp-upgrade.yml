@@ -1,0 +1,58 @@
+name: omp upgrade
+
+on:
+  schedule:
+    # 每周一 03:17 UTC：先于人工发现上游变化
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  upgrade:
+    name: Pull latest omp and report
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - name: Install
+        run: bun install --frozen-lockfile
+      - name: Pull latest omp
+        run: bun run omp:upgrade:pull
+      - name: Typecheck
+        run: bun run typecheck
+      - name: engine-omp samples
+        run: bun test packages/engine-omp
+      - name: Upgrade report
+        id: report
+        continue-on-error: true
+        run: bun run check:omp-upgrade
+      - name: Core build
+        run: bun run core:build
+      - name: Core probe
+        run: bun run core:probe
+      - name: Upload upgrade report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: omp-upgrade-report
+          path: artifacts/omp-upgrade/report.md
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Open upgrade PR
+        if: steps.report.outcome == 'failure'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: omp/upgrade
+          delete-branch: true
+          title: 'chore(omp): upgrade to latest and report changes'
+          commit-message: 'chore(omp): pull latest version'
+          body-path: artifacts/omp-upgrade/report.md
+          labels: omp-upgrade

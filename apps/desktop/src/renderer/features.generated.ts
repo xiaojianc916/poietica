@@ -11,6 +11,7 @@ import files from '@poietica/feature-files/ui'
 import intelligentUi from '@poietica/feature-intelligent-ui/ui'
 import models from '@poietica/feature-models/ui'
 import platform from '@poietica/feature-platform/ui'
+import policy from '@poietica/feature-policy/ui'
 import preferences from '@poietica/feature-preferences/ui'
 import python from '@poietica/feature-python/ui'
 import review from '@poietica/feature-review/ui'
@@ -33,6 +34,7 @@ export const uiFeatures: readonly UiFeature[] = [
   intelligentUi,
   models,
   platform,
+  policy,
   preferences,
   python,
   review,

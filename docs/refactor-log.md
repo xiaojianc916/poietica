@@ -502,3 +502,4 @@
 - **P6 跨模块事实全部入 outbox**：turnSettled / submissionFailed / turnFileChanged / usageSampled / userMessageSubmitted 不再走 `ctx.events`；automations / review / usage 改为 topic handler。usage 增加 event_id 唯一键，重放幂等。
 - **P6 设置注册表合并**：增加 `SettingsProvider`，preferences（Host JSON）、agent-settings（omp 目录/凭据）、python 解释器与 models 角色/隐藏模型都通过 provider 出现在 `settings.describe`；`settings.set` 按 key 路由回原主人。
 - **P5 隔离工作区侧栏入口**：项目组头菜单接上创建/交付/丢弃，目录缺失显示警告；命令面板入口保留。
+- **P7 升级流水线**：omp 基线加入命令与会话事件；检查失败生成报告，`--write` 归档；新增 `omp:upgrade:pull` 与每周 CI 工作流（拉版本、类型、样本、报告、Core 冒烟、开 PR）。

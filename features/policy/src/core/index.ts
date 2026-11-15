@@ -1,4 +1,5 @@
 import { defineCoreModule } from '@poietica/core-kernel'
+import { JournalServiceToken } from '@poietica/feature-journal/core-api'
 import { SettingsServiceToken } from '@poietica/feature-settings/core-api'
 import { policyContract } from '../contract'
 import { PolicyServiceToken } from '../core-api'
@@ -11,7 +12,7 @@ const GRANT_TTL_MS = 24 * 60 * 60 * 1000
 export default defineCoreModule({
   id: 'policy',
   contract: policyContract,
-  dependsOn: ['settings'],
+  dependsOn: ['settings', 'journal'],
   migrations,
   settings: ['policy.preset'],
   setup(ctx) {
@@ -31,6 +32,7 @@ export default defineCoreModule({
       restart: false,
     })
     const grants = createPolicyGrantsRepository(ctx.db)
+    const journal = ctx.services.get(JournalServiceToken)
     const service = {
       evaluate: (
         preset: Parameters<typeof evaluatePolicy>[0],
@@ -49,7 +51,24 @@ export default defineCoreModule({
       isGranted: (sessionKey: string, toolName: string) => grants.isGranted(sessionKey, toolName, ctx.clock.now()),
     }
     ctx.services.provide(PolicyServiceToken, service)
-    ctx.rpc.handle('policy.check', ({ preset, toolName, context }) => evaluatePolicy(preset, toolName, context))
+    ctx.rpc.handle('policy.check', ({ sessionKey, preset, toolName, context }) => {
+      const decision = evaluatePolicy(preset, toolName, context)
+      journal.append(sessionKey, 'main', [
+        {
+          type: 'policy.decided',
+          schema: 1,
+          at: new Date(ctx.clock.now()).toISOString(),
+          durability: 'committed',
+          toolName,
+          category: decision.classification.category,
+          action: decision.action,
+          rule: decision.rule,
+          reason: decision.reason,
+          preset: decision.preset,
+        },
+      ])
+      return decision
+    })
     ctx.rpc.handle('policy.grants', () => ({ grants: [...service.grants()] }))
     ctx.rpc.handle('policy.revoke', ({ grantId }) => ({ revoked: service.revoke(grantId) }))
   },

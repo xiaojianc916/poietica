@@ -23,3 +23,7 @@
 - `tooling/checks/omp-upgrade.ts` 的基线从「版本 + 导出名」扩成「版本 + 导出名 + 内置工具名 + 设置 id/类型」；omp 新增工具或设置即使不改根导出也会让检查失败。
 - 未识别的 omp 事件不再只留事件名：警告卡片的正文带截断后的原始 JSON（最多 4000 字），可复制进升级变更报告。
 - 仍未做：每次 omp 发版自动拉新版本并生成、归档变更报告的 CI 流水线；工具/设置的新增目前需要人跑 `check:omp-upgrade` 触发。
+- 基线扩成「版本 + 公开导出 + 内置工具 + 命令 + 会话事件字面量 + 设置 id/类型」；`check:omp-upgrade` 有变化时生成 `artifacts/omp-upgrade/report.md`，`--write` 接受新基线并把报告归档到 `docs/omp-upgrades/<from>-to-<to>.md`。
+- 新增 `omp:upgrade:pull`（`tooling/checks/omp-upgrade-pull.ts`）：查 npm 最新版、改写根 `package.json` 的 catalog/overrides 并安装；`--dry-run` 只报告。
+- 新增 `.github/workflows/omp-upgrade.yml`：每周拉新版本 → 安装 → 类型检查 → engine-omp 样本 → 变更报告 → Core 构建/探针 → 上传报告，并在有变更时开 PR；基线仍由人确认后 `--write`。
+- 仍未做：事件基线只覆盖 `agent-session-events.d.ts` 里的会话事件字面量，`pi-agent-core` 的基础事件不在其中；73 处深层 import 仍需上游公开导出。

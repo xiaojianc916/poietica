@@ -755,6 +755,34 @@
     "web_search",
     "write"
   ],
+  "commands": [
+    "init"
+  ],
+  "events": [
+    "advisor_cost_changed",
+    "advisor_yielded",
+    "agent_end",
+    "auto_compaction_end",
+    "auto_compaction_start",
+    "auto_retry_end",
+    "auto_retry_start",
+    "cache_warming_end",
+    "cache_warming_start",
+    "config_warnings_changed",
+    "goal_updated",
+    "irc_message",
+    "manual_compaction_end",
+    "manual_compaction_start",
+    "model_changed",
+    "notice",
+    "queue_update",
+    "retry_fallback_applied",
+    "retry_fallback_succeeded",
+    "thinking_level_changed",
+    "todo_auto_clear",
+    "todo_reminder",
+    "ttsr_triggered"
+  ],
   "settings": [
     "advisor.continueSeverity:enum",
     "advisor.enabled:boolean",
