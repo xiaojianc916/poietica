@@ -309,6 +309,11 @@
   --cp-model-quiet-ink: #8d8e8f;
   --cp-model-item-row: 29px;
   --cp-model-item-pad: 8px;
+  /*
+   * 清单页一次露出几行，多出来的在页里滚（features/composer 的 session-controls.css 拿它乘行高）。
+   * 十行是这张卡的高度上限：再高就压到工具条与正文之间那段留白上，菜单读起来像一块盖板。
+   */
+  --cp-model-list-rows: 10;
   --cp-model-rail: 24px;
   --cp-model-rail-face: #e8e7e8;
   --cp-model-rail-fill: #339cff;

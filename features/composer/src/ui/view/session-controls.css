@@ -236,11 +236,36 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   padding: 6px 0;
+  /*
+   * 最多十行，多出来的在页里滚。上限 = 十份行高 + 上下各 6 的内边距；第 11 行起被页自己的 overflow 裁掉。
+   *
+   * 滚的是页而不是卡：卡（.assistant-model-select__panel）是 overflow: hidden 的，它一滚就把卡面那圈
+   * 圆角与边线一起带着滚，看着像整张卡片在动。页滚，卡的边框与投影钉着不动。
+   */
+  max-block-size: calc(var(--cp-model-list-rows) * var(--cp-model-item-row) + 12px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* 滚动条不画，滚动照旧：滚轮、触屏、方向键与 Home/End 都不走条，条在这里只是十二行里多出的第五条线。 */
+  scrollbar-width: none;
 }
 
-/* 行盒、悬停底与字色归通用弹窗；这里只留名字那一格怎么收尾。 */
+.assistant-model-select__list-pane::-webkit-scrollbar {
+  inline-size: 0;
+  block-size: 0;
+  display: none;
+}
+
+/*
+ * 行盒、悬停底与字色归通用弹窗；这里只留名字那一格怎么收尾。
+ *
+ * 行高钉成 --cp-model-item-row（29px），不再由字行与内边距凑出来：清单页最多只露十行，那个上限就是
+ * 「十份行高」，行高若不是定值，上限只能跟着字级浮动，改一次字号就得重算一次。
+ */
 .assistant-model-select__item {
   display: flex;
+  block-size: var(--cp-model-item-row);
+  /* 行高改由 block-size 说，纵向内边距归零：带着通用弹窗那 4px 再定高，字行会在 29 的盒子里溢出半像素。 */
+  padding-block: 0;
   align-items: center;
 }
 
