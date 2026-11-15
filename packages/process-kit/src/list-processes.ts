@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { system32 } from './system32'
+import { isWindows, windowsCommands } from '@poietica/platform-kit'
 
 /** 一条系统进程记录（只取我们判断所需的字段） */
 export interface ProcessInfo {
@@ -104,7 +104,7 @@ export function parseTasklistCsv(stdout: string): Array<{ readonly name: string;
 function anyProcessNamed(imageName: string): Promise<boolean | null> {
   return new Promise<boolean | null>((resolve) => {
     execFile(
-      system32('tasklist.exe'),
+      windowsCommands.tasklist(),
       ['/NH', '/FO', 'CSV', '/FI', `IMAGENAME eq ${imageName}`],
       { windowsHide: true, timeout: 5_000, maxBuffer: 1024 * 1024 },
       (error, stdout) => {
@@ -122,7 +122,7 @@ function anyProcessNamed(imageName: string): Promise<boolean | null> {
 function queryCim(imageName: string | undefined): Promise<ProcessInfo[]> {
   return new Promise<ProcessInfo[]>((resolve) => {
     execFile(
-      system32('WindowsPowerShell\\v1.0\\powershell.exe'),
+      windowsCommands.ps(),
       ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', cimListScript(imageName)],
       { windowsHide: true, timeout: 10_000, maxBuffer: 16 * 1024 * 1024 },
       (error, stdout) => {
@@ -148,7 +148,7 @@ function queryCim(imageName: string | undefined): Promise<ProcessInfo[]> {
  * 走。永不 reject：枚举失败当「没看到进程」。
  */
 export async function listProcesses(o: ListProcessesOptions = {}): Promise<ProcessInfo[]> {
-  if (process.platform !== 'win32') return []
+  if (!isWindows) return []
   if (o.imageName === undefined) return await queryCim(undefined)
   const wanted = o.imageName.toLowerCase()
   /* 受保护进程读不到 Name 时按空串给：留给调用方按路径兜底，不在这里丢 */

@@ -3,6 +3,7 @@ import { readdir, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { type Logger, mapLimited, noopLogger } from '@poietica/foundation'
 import { createJsonDocument } from '@poietica/fs-kit'
+import { isWindows } from '@poietica/platform-kit'
 import { CHROMIUM_CODE_CACHE_BYTES, CHROMIUM_HTTP_CACHE_BYTES, type DataLayout } from '@poietica/runtime-layout'
 import { type StorageEntryId, StorageUsage } from '../contract/entities'
 
@@ -111,7 +112,7 @@ interface Scan {
 
 function pathKey(p: string): string {
   const resolved = path.resolve(p)
-  return process.platform === 'win32' ? resolved.toLowerCase() : resolved
+  return isWindows ? resolved.toLowerCase() : resolved
 }
 
 export function createStorageService(d: StorageDeps): StorageService {

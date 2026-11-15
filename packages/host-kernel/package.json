@@ -10,6 +10,7 @@
     "@poietica/contract-kit": "workspace:*",
     "@poietica/foundation": "workspace:*",
     "@poietica/logging": "workspace:*",
+    "@poietica/platform-kit": "workspace:*",
     "@poietica/process-kit": "workspace:*",
     "@poietica/rpc": "workspace:*",
     "@poietica/runtime-layout": "workspace:*"

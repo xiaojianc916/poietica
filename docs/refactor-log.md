@@ -83,11 +83,12 @@
 - **P7 升级报告**：`check:omp-upgrade` 的基线从「版本 + 导出名」扩成「版本 + 导出名 + 内置工具名 + 设置 id/类型」，omp 新增工具或设置即使不改根导出也会失败；未知事件保留截断后的原始 JSON。自动发版流水线仍未做。
 - **P4 审计**：新增 `features/audit` 的只读 `audit.query`：按线程从 Journal 读策略裁决 / 审批 / 检查点 / 运行终态，不另存副本；`audit.query` 可按类别过滤，`audit.export` 导出同一份 JSON 文本。授权管理页仍未做。
 - **P5 隔离工作区后端**：`DataLayout` 增加 `worktreesDir`；Workspace 记录 `mode/sourcePath/baseRef/branch`（迁移 v2，老行默认 local）；`workspaces.createIsolated / deliver / discard` 接上 `@poietica/worktree`——创建 worktree、补丁三方应用到主仓库、回收 worktree/分支。线程绑定隔离工作区后，运行时、检查点、审查都只用 worktree 路径。界面模式选择与交付按钮未接。
+- **P4 平台能力收拢**：新增 `packages/platform-kit`（平台家族、可执行名、System32 命令、PATH 扩展、shell 选择、SDK OS 标签）；process-kit、terminal、python、platform、desktop、host-kernel、workbuddy 的平台判断全部改为调用它。ratchet 的 `platform-branch` 从 46 降到 0；能力包与「文件类型图标名 / 线协议固定字面量」走显式豁免。
 - **P4 只读档**：`Posture` / ARP 会话档位加 `read-only`；策略门按只读预设拒绝写入与命令，产品权限选择器与定时任务编辑器都能选「只读」。omp 自己的 approvalMode 仍由策略门让位给宿主。
 - **P4 授权记录**：审批选「本会话都批准」后，Worker 经 ARP `policy.grant` 写 `policy_grants`（24 小时）；Core 裁决时先查放行记录；`policy.grants` / `policy.revoke` 列出与撤销，记录跨 Core 重启保留。
 - **Journal 完整性**：Journal 新增 `integrity`（seq 从 1 连续检查）；conversation 启动时逐线程检查，发现缺口只记 warn（当前单表，没有分段可重建）。
 - **协议**：review turnFilePatch 的描述变化，`PROTOCOL_VERSION` 67→68；结构化审批升到 69；audit 契约升到 70（导出升到 74）；隔离工作区升到 71；只读档升到 72；授权记录升到 73，快照已重生成。
-- **仍未做**：L2 受限令牌 / 低完整性级别、网络白名单代理、审批授权管理页、隔离 worktree 的侧栏入口与冲突合并界面、启动对账其余步骤（过期租约、缺失 worktree 的 UI 提示、Journal 分段）。
+- **仍未做**：L2 受限令牌 / 低完整性级别、网络白名单代理、审批授权管理页、隔离 worktree 的侧栏入口与冲突合并界面、缺失 worktree 的 UI 提示、Journal 分段重建。
 - **验证**：`typecheck`、`format:check`、`lint`、全量 `bun test` 全绿（新增 sandbox 3 条、reconciliation 2 条、checkpoint scheduler 2 条、review shell-only 1 条）。
 
 ### P4 / P5 / P6 阶段收口（2026-11-15）

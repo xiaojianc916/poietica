@@ -6,7 +6,9 @@
   "exports": {
     ".": "./src/index.ts"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@poietica/platform-kit": "workspace:*"
+  },
   "devDependencies": {
     "@types/bun": "catalog:"
   }

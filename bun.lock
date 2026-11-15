@@ -76,6 +76,7 @@
       "dependencies": {
         "@lydell/node-pty": "catalog:",
         "@poietica/feature-composer": "workspace:*",
+        "@poietica/platform-kit": "workspace:*",
         "electron-updater": "^6.8.11",
       },
       "devDependencies": {
@@ -481,6 +482,7 @@
         "@poietica/foundation": "workspace:*",
         "@poietica/fs-kit": "workspace:*",
         "@poietica/host-kernel": "workspace:*",
+        "@poietica/platform-kit": "workspace:*",
         "@poietica/runtime-layout": "workspace:*",
         "@poietica/ui-kernel": "workspace:*",
         "lucide-react": "catalog:",
@@ -545,6 +547,7 @@
         "@poietica/design-system": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/fs-kit": "workspace:*",
+        "@poietica/platform-kit": "workspace:*",
         "@poietica/rpc": "workspace:*",
         "@poietica/ui-kernel": "workspace:*",
         "lucide-react": "catalog:",
@@ -648,6 +651,7 @@
         "@poietica/feature-workspaces": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/host-kernel": "workspace:*",
+        "@poietica/platform-kit": "workspace:*",
         "@poietica/process-kit": "workspace:*",
         "@poietica/stream-kit": "workspace:*",
         "@poietica/ui-kernel": "workspace:*",
@@ -959,6 +963,7 @@
         "@poietica/contract-kit": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/logging": "workspace:*",
+        "@poietica/platform-kit": "workspace:*",
         "@poietica/process-kit": "workspace:*",
         "@poietica/rpc": "workspace:*",
         "@poietica/runtime-layout": "workspace:*",
@@ -992,9 +997,19 @@
         "@oh-my-pi/pi-tui": "catalog:",
       },
     },
+    "packages/platform-kit": {
+      "name": "@poietica/platform-kit",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@types/node": "catalog:",
+      },
+    },
     "packages/process-kit": {
       "name": "@poietica/process-kit",
       "version": "0.0.0",
+      "dependencies": {
+        "@poietica/platform-kit": "workspace:*",
+      },
       "devDependencies": {
         "@types/node": "catalog:",
       },
@@ -1171,6 +1186,9 @@
     "packages/workbuddy-client": {
       "name": "@poietica/workbuddy-client",
       "version": "0.0.0",
+      "dependencies": {
+        "@poietica/platform-kit": "workspace:*",
+      },
       "devDependencies": {
         "@types/bun": "catalog:",
       },
@@ -1649,6 +1667,8 @@
     "@poietica/logging": ["@poietica/logging@workspace:packages/logging"],
 
     "@poietica/omp-types": ["@poietica/omp-types@workspace:packages/omp-types"],
+
+    "@poietica/platform-kit": ["@poietica/platform-kit@workspace:packages/platform-kit"],
 
     "@poietica/process-kit": ["@poietica/process-kit@workspace:packages/process-kit"],
 

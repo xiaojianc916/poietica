@@ -1,5 +1,6 @@
 import { stat } from 'node:fs/promises'
 import path from 'node:path'
+import { defaultPathExtensions } from '@poietica/platform-kit'
 
 type Env = Readonly<Record<string, string | undefined>>
 
@@ -36,7 +37,9 @@ export async function which(name: string, env: Env = process.env): Promise<strin
   const exts =
     path.extname(name) !== ''
       ? ['']
-      : (getEnv(env, 'PATHEXT') ?? '.COM;.EXE;.BAT;.CMD').split(';').filter((e) => e.length > 0)
+      : (getEnv(env, 'PATHEXT')
+          ?.split(';')
+          .filter((e) => e.length > 0) ?? defaultPathExtensions())
   if (name.includes('\\') || name.includes('/')) {
     for (const ext of exts) if (await isFile(name + ext)) return path.resolve(name + ext)
     return null

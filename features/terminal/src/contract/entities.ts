@@ -5,7 +5,7 @@ export const TerminalInfo = z.object({
   terminalId: TerminalId,
   cwd: z.string(),
   shell: z.string(), // 可执行文件的完整路径
-  title: z.string(), // 显示名：'pwsh' | 'powershell' | 'cmd'
+  title: z.string(), // 终端解析器给的显示名
   exited: z.boolean(),
   exitCode: z.number().int().nullable(),
 })

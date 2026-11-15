@@ -12,6 +12,9 @@
       "path": "../logging"
     },
     {
+      "path": "../platform-kit"
+    },
+    {
       "path": "../process-kit"
     },
     {

@@ -1,5 +1,9 @@
 {
   "extends": "../../tooling/tsconfig/bun.json",
   "include": ["src"],
-  "references": []
+  "references": [
+    {
+      "path": "../platform-kit"
+    }
+  ]
 }

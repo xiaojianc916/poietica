@@ -51,7 +51,15 @@ const SKIP_DIRS = new Set([
 ])
 
 /** 平台能力模块：只有这里可以写平台判断（sandbox-win 是 Windows 沙箱能力包）。 */
-const PLATFORM_MODULES: readonly string[] = ['packages/sandbox-win']
+const PLATFORM_MODULES: readonly string[] = ['packages/sandbox-win', 'packages/platform-kit']
+
+/** 不是平台判断：文件类型图标名、线协议里的固定字面量。 */
+const PLATFORM_DATA = new Set([
+  'features/conversation/src/ui/timeline/tools/view-kit.ts',
+  'features/platform/src/contract/entities.ts',
+  'packages/design-system/src/mark/file-mark-assets.ts',
+  'packages/design-system/src/mark/file-type-mark.tsx',
+])
 
 const DEEP_OMP = /(['"`])@oh-my-pi\/[\w.-]+\/[^'"`\s]+\1/g
 
@@ -102,6 +110,11 @@ function isUiFile(rel: string): boolean {
   )
 }
 
+/** 平台判断可以出现的位置：能力包，以及不是判断的数据/线协议字面量。 */
+function platformExempt(rel: string): boolean {
+  return PLATFORM_MODULES.some((p) => rel === p || rel.startsWith(`${p}/`)) || PLATFORM_DATA.has(rel)
+}
+
 /** 一个文件在各规则下的计数（纯函数，测试直接调用） */
 export function countFile(source: string, rel: string): Partial<Record<RuleId, number>> {
   const out: Partial<Record<RuleId, number>> = {}
@@ -110,7 +123,7 @@ export function countFile(source: string, rel: string): Partial<Record<RuleId, n
   }
   const ui = isUiFile(rel)
   const usesViewKit = ui && /from ['"][^'"]*view-kit['"]/.test(source)
-  const platformAllowed = PLATFORM_MODULES.some((p) => rel === p || rel.startsWith(`${p}/`))
+  const platformAllowed = platformExempt(rel)
   /* omp-types 是唯一的公开类型出口：它按定义要写 omp 的子路径，不算集成层之外的深层 import */
   const typeBoundary = rel.startsWith('packages/omp-types/')
   let previous = ''

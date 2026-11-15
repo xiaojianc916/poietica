@@ -16,6 +16,7 @@
     "@poietica/feature-workspaces": "workspace:*",
     "@poietica/foundation": "workspace:*",
     "@poietica/host-kernel": "workspace:*",
+    "@poietica/platform-kit": "workspace:*",
     "@poietica/process-kit": "workspace:*",
     "@poietica/stream-kit": "workspace:*",
     "@poietica/ui-kernel": "workspace:*",

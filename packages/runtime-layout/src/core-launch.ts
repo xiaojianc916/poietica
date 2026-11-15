@@ -54,7 +54,7 @@ export const CORE_EXIT_CODES = {
 export const CORE_SHUTDOWN_BUDGET_MS = 8_000
 
 export interface CoreLaunchInput {
-  readonly coreExe: string // <resources>/core/poietica-core.exe
+  readonly coreExe: string // <resources>/core/ 下的 Core 可执行文件
   readonly dataRoot: string
   readonly homeDir: string // os.homedir()
   readonly logLevel: 'debug' | 'info' | 'warn' | 'error'

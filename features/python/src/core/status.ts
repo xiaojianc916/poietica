@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { isInside } from '@poietica/fs-kit'
+import { windowsExecutable } from '@poietica/platform-kit'
 import type { InstallMarker, PythonStatus } from '../contract'
 import { PYTHON_ASSET_SHA256, PYTHON_RELEASE_TAG, PYTHON_VERSION } from './release'
 
@@ -35,7 +36,7 @@ export function onReadyPlan(args: {
 }): { readonly ready: boolean; readonly exePath: string | null; readonly clearInterpreter: boolean } {
   const marker = args.marker === null || typeof args.marker !== 'object' ? null : (args.marker as InstallMarker)
   if (markerMatches(marker) && args.exeExists) {
-    return { ready: true, exePath: path.join(args.pythonDir, 'python.exe'), clearInterpreter: false }
+    return { ready: true, exePath: path.join(args.pythonDir, windowsExecutable('python')), clearInterpreter: false }
   }
   return {
     ready: false,

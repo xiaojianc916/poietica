@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
-import { system32 } from './system32'
+import { windowsCommands } from '@poietica/platform-kit'
 
-const TASKKILL = system32('taskkill.exe')
+const TASKKILL = windowsCommands.taskkill()
 
 /**
  * 杀掉 pid 及其全部子孙进程（taskkill /T /F）。进程已不存在也视为成功。最多等待 5 秒。永不 reject。

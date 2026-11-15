@@ -14,6 +14,7 @@
     "@poietica/design-system": "workspace:*",
     "@poietica/foundation": "workspace:*",
     "@poietica/fs-kit": "workspace:*",
+    "@poietica/platform-kit": "workspace:*",
     "@poietica/rpc": "workspace:*",
     "@poietica/ui-kernel": "workspace:*",
     "lucide-react": "catalog:",

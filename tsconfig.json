@@ -326,6 +326,9 @@
       "path": "packages/omp-types"
     },
     {
+      "path": "packages/platform-kit"
+    },
+    {
       "path": "packages/process-kit"
     },
     {

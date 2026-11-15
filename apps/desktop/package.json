@@ -15,6 +15,7 @@
   "dependencies": {
     "@lydell/node-pty": "catalog:",
     "@poietica/feature-composer": "workspace:*",
+    "@poietica/platform-kit": "workspace:*",
     "electron-updater": "^6.8.11"
   },
   "devDependencies": {

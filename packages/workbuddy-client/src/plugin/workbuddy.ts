@@ -24,6 +24,7 @@ import { closeSync, openSync, readFileSync, readSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import { gzipSync } from 'node:zlib'
+import { osFamily, sdkOsLabel } from '@poietica/platform-kit'
 import type {
   Auth,
   AuthStore,
@@ -463,14 +464,6 @@ function cliAgent(site: Site) {
 // (Electron 37.10.3, ELECTRON_RUN_AS_NODE).
 const OPENAI_SDK = '6.25.0'
 const NODE = 'v22.21.1'
-const SDK_OS: Record<string, string> = {
-  darwin: 'MacOS',
-  win32: 'Windows',
-  linux: 'Linux',
-  freebsd: 'FreeBSD',
-  openbsd: 'OpenBSD',
-  android: 'Android',
-}
 const SDK_ARCH: Record<string, string> = { x64: 'x64', arm64: 'arm64', arm: 'arm', ia32: 'x32', x32: 'x32' }
 
 // chatHeaders sets on a chat what WorkBuddy's CLI adds to its model
@@ -488,10 +481,7 @@ function chatHeaders(site: Site, headers: Headers) {
   headers.set('X-Stainless-Timeout', '1200')
   headers.set('X-Stainless-Lang', 'js')
   headers.set('X-Stainless-Package-Version', OPENAI_SDK)
-  headers.set(
-    'X-Stainless-OS',
-    SDK_OS[process.platform] ?? (process.platform ? `Other:${process.platform}` : 'Unknown'),
-  )
+  headers.set('X-Stainless-OS', sdkOsLabel())
   headers.set('X-Stainless-Arch', SDK_ARCH[process.arch] ?? (process.arch ? `other:${process.arch}` : 'unknown'))
   headers.set('X-Stainless-Runtime', 'node')
   headers.set('X-Stainless-Runtime-Version', NODE)
@@ -2159,9 +2149,9 @@ function success(site: Site, a: Auth, name: string) {
 function desktopFile(site: Site): string {
   const home = homedir()
   const base =
-    process.platform === 'darwin'
+    osFamily === 'macos'
       ? join(home, 'Library', 'Application Support', 'CodeBuddyExtension')
-      : process.platform === 'win32'
+      : osFamily === 'windows'
         ? join(home, 'AppData', 'Local', 'CodeBuddyExtension')
         : join(home, '.local', 'share', 'CodeBuddyExtension')
   return join(base, 'Data', 'Public', 'auth', `${site.authID}.info`)

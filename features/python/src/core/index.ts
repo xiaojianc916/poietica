@@ -2,6 +2,7 @@ import { mkdir, rename, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { defineCoreModule } from '@poietica/core-kernel'
 import { AppError } from '@poietica/foundation'
+import { windowsExecutable } from '@poietica/platform-kit'
 import { pythonContract, pythonErrors } from '../contract'
 import { createInstaller } from './installer'
 import { onReadyPlan, statusOf } from './status'
@@ -74,7 +75,7 @@ export default defineCoreModule({
       await removeStagingLeftovers()
 
       const marker = await readMarker()
-      const exe = path.join(pythonDir, 'python.exe')
+      const exe = path.join(pythonDir, windowsExecutable('python'))
       const plan = onReadyPlan({
         marker,
         exeExists: await Bun.file(exe).exists(),
@@ -132,7 +133,7 @@ export default defineCoreModule({
         /* 同上：这一处命中的是 installer.install() 这个名字，链路本身钉死了来源与哈希。 */
         // react-doctor-disable-next-line react-doctor/plugin-update-trust-risk
         await installer.install()
-        const exe = path.join(pythonDir, 'python.exe')
+        const exe = path.join(pythonDir, windowsExecutable('python'))
         setStatus(statusOf('ready', null, null, exe))
         await ctx.agentRuntime.settings.setPythonInterpreter(exe)
       } catch (e) {

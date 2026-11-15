@@ -2,7 +2,7 @@
 
 ## 1. 一句话
 
-Poietica 是「四类进程（UI / Host / Core / Runtime Worker）× 三个微内核 × 30 个平台包 + 28 个功能包」的 Windows 桌面 agent 应用：
+Poietica 是「四类进程（UI / Host / Core / Runtime Worker）× 三个微内核 × 31 个平台包 + 28 个功能包」的 Windows 桌面 agent 应用：
 omp（Oh My Pi）经 ARP 接入独立的 Runtime Worker，随包发布，与用户机器上的全局 omp 完全隔离。
 
 ```

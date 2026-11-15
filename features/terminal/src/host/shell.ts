@@ -1,25 +1,14 @@
-import path from 'node:path'
+import { resolveShell as resolvePlatformShell, type ShellSpec } from '@poietica/platform-kit'
 import { which } from '@poietica/process-kit'
 
-export interface ShellSpec {
-  readonly file: string
-  readonly args: readonly string[]
-  readonly title: string
-}
+export type { ShellSpec }
 
-export async function resolveShell(
+/** 终端 shell 的选择规则在 platform-kit；这里只把宿主可用的 `which` 注入进去。 */
+export function resolveShell(
   env: NodeJS.ProcessEnv,
   find: (name: string) => Promise<string | null> = which,
 ): Promise<ShellSpec> {
-  const pwsh = await find('pwsh.exe')
-  if (pwsh !== null) return { file: pwsh, args: ['-NoLogo'], title: 'pwsh' }
-  const powershell = await find('powershell.exe')
-  if (powershell !== null) return { file: powershell, args: ['-NoLogo'], title: 'powershell' }
-  const comspec = env.ComSpec ?? env.COMSPEC
-  if (comspec !== undefined && comspec.length > 0) {
-    return { file: comspec, args: [], title: path.basename(comspec, path.extname(comspec)).toLowerCase() }
-  }
-  return { file: path.join(env.SystemRoot ?? 'C:\\Windows', 'System32', 'cmd.exe'), args: [], title: 'cmd' }
+  return resolvePlatformShell(env, find)
 }
 
 export function terminalEnv(env: NodeJS.ProcessEnv): Record<string, string> {

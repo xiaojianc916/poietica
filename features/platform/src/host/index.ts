@@ -1,5 +1,6 @@
 import { statSync } from 'node:fs'
 import { defineHostModule, resolveAppIcon } from '@poietica/host-kernel'
+import { windowsPlatform } from '@poietica/platform-kit'
 import { BROWSER_PARTITION } from '@poietica/runtime-layout'
 import { type BrowserWindow, dialog, Menu, Notification, screen, session, shell, Tray } from 'electron'
 import { platformContract } from '../contract'
@@ -136,7 +137,7 @@ export default defineHostModule({
       version: ctx.appVersion,
       isPackaged: ctx.isPackaged,
       dataRoot: ctx.layout.root,
-      platform: 'win32' as const,
+      platform: windowsPlatform,
     }))
     ctx.rpc.handle('app.quit', async () => {
       await ctx.app.quit()

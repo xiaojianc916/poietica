@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { AppError } from '@poietica/foundation'
+import { windowsExecutable } from '@poietica/platform-kit'
 import type { InstallMarker } from '../contract'
 import { pythonErrors } from '../contract/errors'
 import {
@@ -171,7 +172,7 @@ export function createInstaller(deps: InstallerDeps, stagingDir: string, targetD
           throw new AppError(pythonErrors.extract_failed, 'Python 解压失败', { detail: String(e) })
         }
 
-        const exe = path.join(staging, 'python', 'python.exe')
+        const exe = path.join(staging, 'python', windowsExecutable('python'))
         const verify = await deps.run(exe, ['-c', `import sys;print(sys.version.split()[0])`], 30_000)
         const version = verify.stdout.trim()
         if (version !== PYTHON_VERSION) {

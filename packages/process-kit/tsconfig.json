@@ -1,5 +1,9 @@
 {
   "extends": "../../tooling/tsconfig/node.json",
   "include": ["src"],
-  "references": []
+  "references": [
+    {
+      "path": "../platform-kit"
+    }
+  ]
 }

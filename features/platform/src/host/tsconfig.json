@@ -12,6 +12,9 @@
       "path": "../../../../packages/host-kernel"
     },
     {
+      "path": "../../../../packages/platform-kit"
+    },
+    {
       "path": "../../../../packages/runtime-layout"
     },
     {

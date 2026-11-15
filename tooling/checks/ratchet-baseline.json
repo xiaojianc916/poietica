@@ -40,6 +40,7 @@
   },
   "tool-payload-parsing": {
     "features/attachments/src/ui/draft-refs.ts": 1,
+    "features/composer/src/ui/composer-store.ts": 1,
     "features/conversation/src/ui/setup/actions.ts": 1,
     "features/extensions/src/ui/catalog-grid.tsx": 3,
     "features/extensions/src/ui/catalog.ts": 4,
@@ -47,27 +48,7 @@
     "features/extensions/src/ui/mcp-settings.tsx": 1,
     "features/intelligent-ui/src/ui/bridge.ts": 16,
     "packages/ui-kernel/src/services/layout.ts": 3,
-    "packages/ui-kernel/src/services/logging.ts": 4,
-    "features/composer/src/ui/composer-store.ts": 1
+    "packages/ui-kernel/src/services/logging.ts": 4
   },
-  "platform-branch": {
-    "apps/desktop/src/main/index.ts": 2,
-    "features/conversation/src/ui/timeline/tools/view-kit.ts": 1,
-    "features/platform/src/contract/entities.ts": 1,
-    "features/platform/src/host/index.ts": 1,
-    "features/platform/src/host/storage-service.ts": 2,
-    "features/python/src/core/index.ts": 2,
-    "features/python/src/core/installer.ts": 1,
-    "features/python/src/core/status.ts": 1,
-    "features/terminal/src/contract/entities.ts": 2,
-    "features/terminal/src/host/shell.ts": 12,
-    "packages/design-system/src/mark/file-mark-assets.ts": 2,
-    "packages/design-system/src/mark/file-type-mark.tsx": 5,
-    "packages/host-kernel/src/core-reaper.ts": 1,
-    "packages/process-kit/src/kill-tree.ts": 1,
-    "packages/process-kit/src/list-processes.ts": 4,
-    "packages/process-kit/src/which.ts": 1,
-    "packages/runtime-layout/src/core-launch.ts": 1,
-    "packages/workbuddy-client/src/plugin/workbuddy.ts": 6
-  }
+  "platform-branch": {}
 }
