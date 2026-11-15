@@ -80,7 +80,7 @@
 - **P6 启动对账第 5 步**：内核新增 `jobHandlers` / `workflowHandlers` 注册表，在 `core.ready` 前 `resumeWorkflows`，随后启动持久 job 分发器；只读模式跳过。
 - **P4 结构化审批**：ARP `policy.check` 的裁决结果增加 `risk` / `category` / `checkpoint`；Worker 的审批卡片、`Interaction`、`TranscriptInteraction` 一路带到 UI，扩展自己发的审批仍可缺省。`ARP_VERSION` 1→2，`PROTOCOL_VERSION` 68→69。
 - **P6 启动对账第 1 步**：Journal 新增 `readTyped`；conversation 在 onReady 时扫描每条线程的 `run.started`/`run.completed`，只有开始没有终态的补 `run.completed { outcome: 'interrupted' }`，重复启动不会重复补。
-- **P7 未知事件**：未识别的 omp 事件不再只留事件名；警告卡片的正文带截断后的原始事件 JSON（最多 4000 字），复制即可交回升级排查。
+- **P7 升级报告**：`check:omp-upgrade` 的基线从「版本 + 导出名」扩成「版本 + 导出名 + 内置工具名 + 设置 id/类型」，omp 新增工具或设置即使不改根导出也会失败；未知事件保留截断后的原始 JSON。自动发版流水线仍未做。
 - **P4 审计**：新增 `features/audit` 的只读 `audit.query`：按线程从 Journal 读策略裁决 / 审批 / 检查点 / 运行终态，不另存副本；`audit.query` 可按类别过滤。授权管理页仍未做。
 - **P5 隔离工作区后端**：`DataLayout` 增加 `worktreesDir`；Workspace 记录 `mode/sourcePath/baseRef/branch`（迁移 v2，老行默认 local）；`workspaces.createIsolated / deliver / discard` 接上 `@poietica/worktree`——创建 worktree、补丁三方应用到主仓库、回收 worktree/分支。线程绑定隔离工作区后，运行时、检查点、审查都只用 worktree 路径。界面模式选择与交付按钮未接。
 - **P4 只读档**：`Posture` / ARP 会话档位加 `read-only`；策略门按只读预设拒绝写入与命令，产品权限选择器与定时任务编辑器都能选「只读」。omp 自己的 approvalMode 仍由策略门让位给宿主。
