@@ -210,6 +210,7 @@ describe('workspaces 服务（07 页 §3G）', () => {
       remove: async (input) => {
         removed.push(input)
       },
+      list: async () => [],
       diff: async () => 'diff --git a/a b/a\n',
       apply: async () => ({ applied: true }),
     }
@@ -231,6 +232,32 @@ describe('workspaces 服务（07 页 §3G）', () => {
     await service.discard(isolated.id)
     expect(removed[0]).toMatchObject({ repoPath: local.path, path: isolated.path })
     expect(service.get(isolated.id)).toBeNull()
+
+    db.close()
+    await root.dispose()
+  })
+
+  test('启动对账：worktreesDir 里没有记录的孤儿被回收；缺失的隔离目录只报数', async () => {
+    const removed: unknown[] = []
+    let entries: { path: string }[] = []
+    const worktree: WorkspacesWorktreePort = {
+      create: async (input) => ({ path: input.path, branch: input.branch, base: 'HEAD' }),
+      remove: async (input) => {
+        removed.push(input)
+      },
+      list: async () => entries,
+      diff: async () => '',
+      apply: async () => ({ applied: true }),
+    }
+    const { service, root, db } = await make(worktree)
+    const source = path.join(root.path, 'repo')
+    await ensureDir(source)
+    service.add(source)
+    const orphan = path.join(root.path, 'worktrees', 'orphan')
+    entries = [{ path: orphan }]
+
+    expect(await service.reconcileWorktrees()).toEqual({ orphans: 1, missing: 0 })
+    expect(removed[0]).toMatchObject({ path: orphan })
 
     db.close()
     await root.dispose()

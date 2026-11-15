@@ -27,4 +27,5 @@
 - 检查点优先的列表不再要求这一轮有工具账：没有 `review_turn_files` 行的 shell-only 轮从起止检查点的 `diffNumstat` 取得文件与行数；右坞 diff 从起止快照各读一份。撤销状态单独存在 `review_reverted_turns`，重启后仍知道哪一轮撤过。
 - 写租约已进入提交路径：真正的 `turn` 在交给 omp 前按工作区 `acquire`，轮次收口 / 提交失败 / 线程删除时释放；另一条线程抢同一本地工作区会收成 `workspaces.write_busy`，不会并发写。
 - 隔离工作区的后端已接：Workspace 记录 `mode/sourcePath/baseRef/branch`；`workspaces.createIsolated` 从本地工作区建 worktree（路径在数据目录 `worktrees/`），`workspaces.deliver` 用 worktree 相对基线的补丁 `git apply --3way` 到主仓库，`discard/remove` 回收 worktree 与分支。线程绑定隔离工作区后，运行时/检查点/审查都只看见 worktree 路径。命令面板已有「创建隔离副本 / 交付 / 丢弃」三项；侧栏还没有独立按钮。
+- 启动对账已回收 worktreesDir 里没有工作区记录的孤儿 worktree；缺失的隔离目录只统计（UI 显示 exists=false）。
 - 仍未做：隔离 worktree 的侧栏入口与冲突合并界面、每次变更型工具之后的细粒度（同一步多个工具）、大文件/二进制阈值与还原警告、三方冲突的合并界面。

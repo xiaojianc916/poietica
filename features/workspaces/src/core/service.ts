@@ -20,6 +20,7 @@ export interface WorkspacesWorktreePort {
     readonly base?: string
   }): Promise<unknown>
   remove(input: { readonly repoPath: string; readonly path: string; readonly branch?: string }): Promise<void>
+  list(repoPath: string): Promise<readonly { readonly path: string }[]>
   diff(input: { readonly path: string; readonly base: string }): Promise<string>
   apply(input: {
     readonly repoPath: string
@@ -53,6 +54,8 @@ export interface WorkspacesApi extends WorkspacesService {
   deliver(id: string): Promise<{ readonly applied: true } | { readonly applied: false; readonly reason: string }>
   /** 删除隔离工作区与它的 worktree。 */
   discard(id: string): Promise<void>
+  /** 启动对账：回收 worktreesDir 里没有记录的孤儿，统计缺失的隔离目录。 */
+  reconcileWorktrees(): Promise<{ readonly orphans: number; readonly missing: number }>
 }
 
 /** path.basename('C:\\') 是空串，特殊处理为 'C:'。 */
@@ -62,6 +65,27 @@ export function nameOfPath(p: string): string {
   if (base !== '') return base
   const parsed = path.parse(resolved)
   return parsed.root.replace(/[\\/]+$/, '') || parsed.root
+}
+
+async function pruneOrphans(
+  worktree: WorkspacesWorktreePort,
+  repoPath: string,
+  root: string,
+  known: ReadonlySet<string>,
+): Promise<number> {
+  let removed = 0
+  try {
+    const entries = await worktree.list(repoPath)
+    for (const entry of entries) {
+      const absolute = path.resolve(entry.path)
+      if (!absolute.startsWith(root) || known.has(absolute)) continue
+      await worktree.remove({ repoPath, path: absolute })
+      removed += 1
+    }
+  } catch {
+    /* 不是 git 仓库 / 读不了：这条工作区这轮跳过，不影响启动。 */
+  }
+  return removed
 }
 
 export function createWorkspacesService(d: WorkspacesServiceDeps): WorkspacesApi {
@@ -227,6 +251,18 @@ export function createWorkspacesService(d: WorkspacesServiceDeps): WorkspacesApi
       // 不发通知：打开线程时会 touch，每次都发会让列表反复重排。
       requireRow(id)
       d.repo.update(id, { lastOpenedAt: d.clock.now() })
+    },
+    async reconcileWorktrees() {
+      if (d.worktree === undefined || d.worktreesDir === undefined) return { orphans: 0, missing: 0 }
+      const rows = d.repo.list()
+      const known = new Set(rows.filter((row) => row.mode === 'isolated').map((row) => path.resolve(row.path)))
+      const root = path.resolve(d.worktreesDir) + path.sep
+      let orphans = 0
+      for (const local of rows.filter((row) => row.mode === 'local')) {
+        orphans += await pruneOrphans(d.worktree, local.path, root, known)
+      }
+      const missing = rows.filter((row) => row.mode === 'isolated' && !exists(row.path)).length
+      return { orphans, missing }
     },
   }
 }

@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import { defineCoreModule } from '@poietica/core-kernel'
-import { applyPatch, createWorktree, removeWorktree, worktreeDiff } from '@poietica/worktree'
+import { applyPatch, createWorktree, listWorktrees, removeWorktree, worktreeDiff } from '@poietica/worktree'
 import { workspacesContract } from '../contract'
 import {
   WORKSPACE_REMOVED_TOPIC,
@@ -39,6 +39,7 @@ export default defineCoreModule({
       worktree: {
         create: (input) => createWorktree(input),
         remove: (input) => removeWorktree(input),
+        list: (repoPath) => listWorktrees(repoPath),
         diff: (input) => worktreeDiff(input),
         apply: (input) => applyPatch(input),
       },
@@ -47,6 +48,12 @@ export default defineCoreModule({
 
     ctx.services.provide(WriteLeaseServiceToken, createWriteLeaseService({ clock: ctx.clock }))
     registerHandlers(ctx, service)
+    ctx.lifecycle.onReady(async () => {
+      const result = await service.reconcileWorktrees()
+      if (result.orphans > 0 || result.missing > 0) {
+        ctx.logger.info('workspace worktrees reconciled', { ...result })
+      }
+    })
     ctx.services.provide(WorkspacesServiceToken, {
       get: service.get,
       requireUsable: service.requireUsable,
