@@ -81,7 +81,8 @@
 - **P4 结构化审批**：ARP `policy.check` 的裁决结果增加 `risk` / `category` / `checkpoint`；Worker 的审批卡片、`Interaction`、`TranscriptInteraction` 一路带到 UI，扩展自己发的审批仍可缺省。`ARP_VERSION` 1→2，`PROTOCOL_VERSION` 68→69。
 - **P6 启动对账第 1 步**：Journal 新增 `readTyped`；conversation 在 onReady 时扫描每条线程的 `run.started`/`run.completed`，只有开始没有终态的补 `run.completed { outcome: 'interrupted' }`，重复启动不会重复补。
 - **P7 未知事件**：未识别的 omp 事件不再只留事件名；警告卡片的正文带截断后的原始事件 JSON（最多 4000 字），复制即可交回升级排查。
-- **协议**：review turnFilePatch 的描述变化，`PROTOCOL_VERSION` 67→68；结构化审批再升到 69，快照已重生成。
+- **P4 审计**：新增 `features/audit` 的只读 `audit.query`：按线程从 Journal 读策略裁决 / 审批 / 检查点 / 运行终态，不另存副本；`audit.query` 可按类别过滤。授权管理页仍未做。
+- **协议**：review turnFilePatch 的描述变化，`PROTOCOL_VERSION` 67→68；结构化审批升到 69；新增 audit 契约后升到 70，快照已重生成。
 - **仍未做**：L2 受限令牌 / 低完整性级别、网络白名单代理、审批授权管理页、隔离 worktree 的界面装配与交付、启动对账其余步骤（过期租约、孤儿 worktree、Journal 分段）。
 - **验证**：`typecheck`、`format:check`、`lint`、全量 `bun test` 全绿（新增 sandbox 3 条、reconciliation 2 条、checkpoint scheduler 2 条、review shell-only 1 条）。
 

@@ -3,6 +3,7 @@
 import type { Contract } from '@poietica/contract-kit'
 import { agentSettingsContract } from '@poietica/feature-agent-settings/contract'
 import { attachmentsContract } from '@poietica/feature-attachments/contract'
+import { auditContract } from '@poietica/feature-audit/contract'
 import { automationsContract } from '@poietica/feature-automations/contract'
 import { browserContract } from '@poietica/feature-browser/contract'
 import { checkpointsContract } from '@poietica/feature-checkpoints/contract'
@@ -27,6 +28,7 @@ import { workspacesContract } from '@poietica/feature-workspaces/contract'
 export const featureContracts = [
   agentSettingsContract,
   attachmentsContract,
+  auditContract,
   automationsContract,
   browserContract,
   checkpointsContract,

@@ -12,6 +12,9 @@
       "path": "../../features/attachments/src/core"
     },
     {
+      "path": "../../features/audit/src/core"
+    },
+    {
       "path": "../../features/automations/src/core"
     },
     {

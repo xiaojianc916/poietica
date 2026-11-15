@@ -9,6 +9,7 @@
     "@poietica/core-kernel": "workspace:*",
     "@poietica/feature-agent-settings": "workspace:*",
     "@poietica/feature-attachments": "workspace:*",
+    "@poietica/feature-audit": "workspace:*",
     "@poietica/feature-automations": "workspace:*",
     "@poietica/feature-browser": "workspace:*",
     "@poietica/feature-checkpoints": "workspace:*",

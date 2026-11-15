@@ -3,6 +3,7 @@
 import type { CoreModule, ModuleKind } from '@poietica/core-kernel'
 import agentSettings from '@poietica/feature-agent-settings/core'
 import attachments from '@poietica/feature-attachments/core'
+import audit from '@poietica/feature-audit/core'
 import automations from '@poietica/feature-automations/core'
 import browser from '@poietica/feature-browser/core'
 import checkpoints from '@poietica/feature-checkpoints/core'
@@ -27,6 +28,7 @@ import workspaces from '@poietica/feature-workspaces/core'
 export const coreModuleKinds = {
   'agent-settings': 'domain',
   attachments: 'domain',
+  audit: 'domain',
   automations: 'domain',
   browser: 'domain',
   checkpoints: 'domain',
@@ -52,6 +54,7 @@ export const coreModuleKinds = {
 export const coreModules: readonly CoreModule[] = [
   agentSettings,
   attachments,
+  audit,
   automations,
   browser,
   checkpoints,

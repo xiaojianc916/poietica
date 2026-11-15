@@ -38,6 +38,12 @@
       "path": "features/attachments/src/ui-api"
     },
     {
+      "path": "features/audit/src/contract"
+    },
+    {
+      "path": "features/audit/src/core"
+    },
+    {
       "path": "features/automations/src/contract"
     },
     {

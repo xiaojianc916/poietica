@@ -1,0 +1,25 @@
+{
+  "name": "@poietica/feature-audit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contract": "./src/contract/index.ts",
+    "./core": "./src/core/index.ts"
+  },
+  "dependencies": {
+    "@poietica/agent-model": "workspace:*",
+    "@poietica/contract-kit": "workspace:*",
+    "@poietica/core-kernel": "workspace:*",
+    "@poietica/feature-journal": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@poietica/runtime-protocol-testkit": "workspace:*",
+    "@poietica/test-kit": "workspace:*",
+    "@types/bun": "catalog:"
+  },
+  "poietica": {
+    "kind": "domain"
+  }
+}

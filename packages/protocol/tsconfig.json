@@ -9,6 +9,9 @@
       "path": "../../features/attachments/src/contract"
     },
     {
+      "path": "../../features/audit/src/contract"
+    },
+    {
       "path": "../../features/automations/src/contract"
     },
     {
