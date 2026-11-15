@@ -306,6 +306,23 @@ describe('ThreadReducer', () => {
     expect(materialize(withOutput).tasks.get('tk_1')?.outputTail).toBe('building')
   })
 
+  /*
+   * 覆盖层压到已提交层上时只碰点到的那几个格子：其余条目、段、帧必须保持**原引用** ——
+   * 下游（时间线投影、presentation）全靠引用判「没变」，每批流式都换一份新的等于每批全量重算。
+   */
+  test('materialize 只重建被覆盖的那几个格子，其余帧与段保持原引用', () => {
+    const state = final()
+    const streaming = reduceAll(state, [textDelta(0, '先写'), textDelta(2, '一句')])
+    const before = materialize(state)
+    const after = materialize(streaming)
+    expect(after).not.toBe(before)
+    const framesBefore = framesOfState(before)
+    const framesAfter = framesOfState(after)
+    const merged = framesAfter.filter((frame, index) => frame !== framesBefore[index]).map((frame) => frame.frameId)
+    expect(merged).toEqual([F1])
+    expect(after.turnIndex).toBe(before.turnIndex)
+  })
+
   test('快照往返保留状态', () => {
     const state = final()
     const snapshot: ThreadSnapshot = snapshotOf(state, { hasMoreOlder: false })
@@ -329,6 +346,10 @@ describe('ThreadReducer', () => {
     for (const event of events) expect(agentEventSchema.safeParse(event).success).toBe(true)
   })
 })
+
+function framesOfState(state: AgentState): readonly TranscriptFrame[] {
+  return state.items.flatMap((item) => (item.kind === 'turn' ? item.steps.flatMap((step) => step.frames) : []))
+}
 
 function textOf(state: AgentState, id: string): string {
   return state.items

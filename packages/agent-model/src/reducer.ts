@@ -2,6 +2,7 @@ import type { OmpToolInputOf } from '@poietica/omp-types'
 import type { AgentEvent, CommittedAgentEvent, EphemeralAgentEvent, ThreadSnapshot } from './events'
 import type { ToolFrameProgress, TranscriptFrame } from './model/frame'
 import type { TranscriptInteraction } from './model/interaction'
+import type { TranscriptItem } from './model/item'
 import type { TranscriptTask } from './model/task'
 import type { TranscriptTurn } from './model/turn'
 import type { AgentState } from './ops/apply'
@@ -352,38 +353,124 @@ function turnHeaderOf(turn: TranscriptTurn): TurnHeader {
 export function materialize(state: ThreadState): AgentState {
   const { frames, tasks } = state.overlay
   if (frames.size === 0 && tasks.size === 0) return state.committed
-  const items = state.committed.items.map((item) => {
-    if (item.kind !== 'turn') return item
-    let changed = false
-    const steps = item.steps.map((step) => {
-      let stepChanged = false
-      const nextFrames = step.frames.map((frame) => {
-        const overlay = frames.get(frame.frameId)
-        if (overlay === undefined) return frame
-        const merged = mergeFrame(frame, overlay)
-        if (merged !== frame) {
-          stepChanged = true
-          changed = true
-        }
-        return merged
-      })
-      return stepChanged ? { ...step, frames: nextFrames } : step
-    })
-    return changed ? { ...item, steps } : item
-  })
-  const nextTasks = new Map(state.committed.tasks)
-  if (tasks.size > 0) {
-    for (const [taskId, text] of tasks) {
-      const task = nextTasks.get(taskId)
-      if (task === undefined) continue
-      nextTasks.set(taskId, { ...task, outputTail: text })
-    }
-  }
+  const committed = state.committed
+  /*
+   * 只碰覆盖层点到的那几个格子。
+   *
+   * 从前是「把每个条目、每一段、每一帧都走一遍，没覆盖的照样交回原引用」—— 结果等价，但代价是 O(全部帧)：
+   * 一条几百轮的对话里，每来一批流式增量都要重扫几千帧，聊得越久每一批越贵（实测 600 轮时每批 0.19ms，
+   * 其中 0.12ms 就花在这趟全表）。覆盖层只认几个 frameId，按位置表直达就行；
+   * 数组本身仍要按不可变语义复制 —— 但只复制被改写的那几个 turn / step，其余位置原样留引用。
+   */
+  const touched = patchOf(committed, frames)
+  const items = touched.size === 0 ? committed.items : patched(committed.items, touched)
+  const nextTasks = tasksWithOutput(committed.tasks, tasks)
+  if (items === committed.items && nextTasks === committed.tasks) return committed
   return {
-    ...state.committed,
+    ...committed,
     items,
     tasks: nextTasks,
-    turnIndex: state.committed.turnIndex,
+    turnIndex: committed.turnIndex,
+  }
+}
+
+/** 任务输出覆盖：没有一条落到已知任务上时交回原表（调用方据此跳过整份状态的重建） */
+function tasksWithOutput(tasks: AgentState['tasks'], overlay: ReadonlyMap<string, string>): AgentState['tasks'] {
+  let next: Map<string, TranscriptTask> | undefined
+  for (const [taskId, text] of overlay) {
+    const task = tasks.get(taskId)
+    if (task === undefined) continue
+    next ??= new Map(tasks)
+    next.set(taskId, { ...task, outputTail: text })
+  }
+  return next ?? tasks
+}
+
+/**(条目位置, 段位置) → (帧位置 → 合并后的帧)：覆盖层落到哪几个格子。一个都没落到时交回空表 */
+function patchOf(
+  committed: AgentState,
+  frames: ReadonlyMap<string, FrameOverlay>,
+): Map<number, Map<number, Map<number, TranscriptFrame>>> {
+  const places = placesOf(committed)
+  const touched = new Map<number, Map<number, Map<number, TranscriptFrame>>>()
+  for (const [frameId, overlay] of frames) {
+    const place = places.get(frameId)
+    if (place === undefined) continue
+    const merged = mergedFrameAt(committed, place, overlay)
+    if (merged === undefined) continue
+    const steps = touched.get(place.turn) ?? new Map<number, Map<number, TranscriptFrame>>()
+    const inStep = steps.get(place.step) ?? new Map<number, TranscriptFrame>()
+    inStep.set(place.frame, merged)
+    steps.set(place.step, inStep)
+    touched.set(place.turn, steps)
+  }
+  return touched
+}
+
+/** 某一格被覆盖后的帧；那一位不存在或内容没变时交回 undefined（不必改） */
+function mergedFrameAt(committed: AgentState, place: FramePlace, overlay: FrameOverlay): TranscriptFrame | undefined {
+  const turn = committed.items[place.turn]
+  if (turn?.kind !== 'turn') return undefined
+  const frame = turn.steps[place.step]?.frames[place.frame]
+  if (frame === undefined) return undefined
+  const merged = mergeFrame(frame, overlay)
+  return merged === frame ? undefined : merged
+}
+
+/** 把记下的那几帧写进条目表：只复制被改写的 turn 与 step，其余位置保留原引用 */
+function patched(
+  items: readonly TranscriptItem[],
+  touched: ReadonlyMap<number, ReadonlyMap<number, ReadonlyMap<number, TranscriptFrame>>>,
+): readonly TranscriptItem[] {
+  const next = items.slice()
+  for (const [turnAt, steps] of touched) {
+    const turn = items[turnAt]
+    if (turn?.kind !== 'turn') continue
+    const nextSteps = turn.steps.slice()
+    for (const [stepAt, framesAt] of steps) {
+      const step = turn.steps[stepAt]
+      if (step === undefined) continue
+      const nextFrames = step.frames.slice()
+      for (const [frameAt, frame] of framesAt) nextFrames[frameAt] = frame
+      nextSteps[stepAt] = { ...step, frames: nextFrames }
+    }
+    next[turnAt] = { ...turn, steps: nextSteps }
+  }
+  return next
+}
+
+interface FramePlace {
+  readonly turn: number
+  readonly step: number
+  readonly frame: number
+}
+
+/*
+ * 帧号 → 它在条目里的位置。建一次 O(全部帧)，之后每批都是直达；committed 换新对象时重建
+ * （提交事件才会换，流式增量只换覆盖层）。
+ */
+const PLACES = new WeakMap<AgentState, ReadonlyMap<string, FramePlace>>()
+
+function placesOf(committed: AgentState): ReadonlyMap<string, FramePlace> {
+  const held = PLACES.get(committed)
+  if (held !== undefined) return held
+  const places = new Map<string, FramePlace>()
+  for (let turnAt = 0; turnAt < committed.items.length; turnAt += 1) {
+    const item = committed.items[turnAt]
+    if (item?.kind === 'turn') collectTurnPlaces(item, turnAt, places)
+  }
+  PLACES.set(committed, places)
+  return places
+}
+
+function collectTurnPlaces(turn: TranscriptTurn, turnAt: number, into: Map<string, FramePlace>): void {
+  for (let stepAt = 0; stepAt < turn.steps.length; stepAt += 1) {
+    const step = turn.steps[stepAt]
+    if (step === undefined) continue
+    for (let frameAt = 0; frameAt < step.frames.length; frameAt += 1) {
+      const frame = step.frames[frameAt]
+      if (frame !== undefined) into.set(frame.frameId, { turn: turnAt, step: stepAt, frame: frameAt })
+    }
   }
 }
 
