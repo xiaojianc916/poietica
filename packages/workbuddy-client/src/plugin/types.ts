@@ -176,6 +176,8 @@ export interface ModelInfo {
 export interface ModelItem {
   id: string
   name?: string
+  /** 这个模型走哪条协议：chat completions，还是 Anthropic 的 Messages。 */
+  api?: 'chat' | 'messages'
   context?: number
   output?: number
   efforts?: readonly string[]

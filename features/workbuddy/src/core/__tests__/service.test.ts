@@ -36,7 +36,13 @@ interface Harness {
   readonly setNow: (value: number) => void
   readonly close: () => void
   /** 写进模型目录的自定义服务商（每次 upsert 一份） */
-  readonly providers: { id: string; name: string; baseUrl: string; custom?: boolean }[]
+  readonly providers: {
+    id: string
+    name: string
+    baseUrl: string
+    custom?: boolean
+    models?: readonly { id: string; contextWindow: number | null }[]
+  }[]
   readonly setProviders: (value: { id: string; name: string; custom: boolean }[]) => void
 }
 
@@ -105,11 +111,11 @@ function seed(
     updatedAt: NOW,
     ...record,
   })
-  const written: { id: string; name: string; baseUrl: string; custom?: boolean }[] = []
+  const written: Harness['providers'][number][] = []
   let catalog = options.providers ?? []
   const models = {
     providers: async () => catalog,
-    upsertCustomProvider: async (def: { id: string; name: string; baseUrl: string }) => {
+    upsertCustomProvider: async (def: Harness['providers'][number]) => {
       written.push(def)
     },
     removeCustomProvider: async () => undefined,
@@ -143,6 +149,27 @@ function seed(
     providers: written,
     setProviders: (value) => {
       catalog = value
+    },
+  }
+}
+
+/**
+ * 拦掉上游的 fetch，只答 /v3/config（模型目录要走的那一条）；null 表示这一条失败。
+ * 其余请求一律空对象，免得登录续期之类顺手打真网。
+ */
+function stubConfig(data: unknown | null) {
+  const real = globalThis.fetch
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    if (new URL(url).pathname === '/v3/config') {
+      if (data === null) return Response.json({ code: 500, msg: 'boom' }, { status: 500 })
+      return Response.json({ code: 0, data })
+    }
+    return Response.json({ code: 0, data: null })
+  }) as unknown as typeof fetch
+  return {
+    restore: () => {
+      globalThis.fetch = real
     },
   }
 }
@@ -283,6 +310,41 @@ describe('WorkBuddy 反代与模型目录', () => {
     expect(enabled.proxy.providerMessage).toBe('workbuddy 是内置服务商，不能覆盖')
     expect(h.providers).toEqual([])
     h.close()
+  })
+
+  test('模型目录跟着账号走：上游有的模型写进 models.yml，静态表里没有的也在', async () => {
+    /* 账号已经登录，目录就该问上游（/v3/config）而不是读插件里那份静态表 */
+    const stub = stubConfig({
+      agents: [{ name: 'cli', models: ['deepseek-v4.1-flash', 'glm-6-preview'] }],
+      models: [
+        { id: 'deepseek-v4.1-flash', name: 'Deepseek-V4.1-Flash', maxInputTokens: 1000000 },
+        { id: 'glm-6-preview', name: 'GLM-6 Preview', maxInputTokens: 800000 },
+      ],
+    })
+    try {
+      const h = seed()
+      const enabled = await h.service.setEnabled(true)
+      const ids = h.providers.at(-1)?.models?.map((model) => model.id)
+      expect(ids).toEqual(['deepseek-v4.1-flash', 'glm-6-preview'])
+      expect(h.providers.at(-1)?.models?.find((model) => model.id === 'glm-6-preview')?.contextWindow).toBe(800000)
+      expect(enabled.proxy.providerState).toBe('registered')
+      h.close()
+    } finally {
+      stub.restore()
+    }
+  })
+
+  test('上游读不到时退回静态表，反代照样注册', async () => {
+    const stub = stubConfig(null)
+    try {
+      const h = seed()
+      const enabled = await h.service.setEnabled(true)
+      expect(h.providers.at(-1)?.models?.map((model) => model.id)).toContain('deepseek-v4.1-flash')
+      expect(enabled.proxy.providerState).toBe('registered')
+      h.close()
+    } finally {
+      stub.restore()
+    }
   })
 })
 

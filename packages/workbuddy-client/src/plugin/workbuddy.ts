@@ -3682,6 +3682,37 @@ function configModels(site: Site): Record<string, ProviderConfig> {
   )
 }
 
+/*
+ * itemOf 是 provider.models 里那一行的反过程：把插件自己的 ModelInfo 收回成 host 认的
+ * ModelItem（会话层从这里读 context / efforts / images / api）。只留这几格：ModelInfo 的
+ * cost 全是 0、capabilities 是给 OpenCode 看的，会话层用不上。
+ */
+export function itemOf(info: unknown, id = ''): ModelItem | null {
+  if (!info || typeof info !== 'object') return null
+  const m = info as Record<string, unknown>
+  const key = typeof m.id === 'string' && m.id ? m.id : id
+  if (!key) return null
+  const limit = (m.limit ?? {}) as { context?: unknown; output?: unknown }
+  const api = (m.api ?? {}) as { npm?: unknown }
+  const caps = (m.capabilities ?? {}) as { input?: { image?: unknown } }
+  const modalities = (m.modalities ?? {}) as { input?: unknown }
+  const variants = (m.variants ?? {}) as Record<string, unknown>
+  const images = caps.input?.image === true || (Array.isArray(modalities.input) && modalities.input.includes('image'))
+  const item: ModelItem = {
+    id: key,
+    name: typeof m.name === 'string' ? m.name : key,
+    /* 一份 provider.models 的行带 api.npm；一份 configModels 的行带 provider.npm。都没有就是 chat。 */
+    api: (api.npm ?? (m.provider as { npm?: unknown } | undefined)?.npm) === NPM_MESSAGES ? 'messages' : 'chat',
+  }
+  if (typeof limit.context === 'number' && limit.context > 0) item.context = limit.context
+  if (typeof limit.output === 'number' && limit.output > 0) item.output = limit.output
+  if (images) item.images = true
+  const efforts = Object.keys(variants)
+  if (efforts.length > 0) item.efforts = efforts
+  if (m.free === true) item.free = true
+  return item
+}
+
 function modelOf(site: Site, provider: ProviderConfig, m: ModelItem): ModelInfo {
   return {
     id: m.id,

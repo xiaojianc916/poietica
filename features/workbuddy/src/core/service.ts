@@ -507,7 +507,44 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
     }
   }
 
-  const chatModels = (): readonly WorkBuddyModel[] => (modelsCache ?? []).filter((model) => model.api === 'chat')
+  /**
+   * 反代只挂 chat 协议的模型：omp 的自定义服务商只有一条 api（openai-completions），
+   * Messages 那条它接不上。读目录时把被滤掉的报一次，免得模型"莫名其妙消失"。
+   */
+  const chatModels = (): readonly WorkBuddyModel[] => {
+    const all = modelsCache ?? []
+    const chat = all.filter((model) => model.api === 'chat')
+    if (chat.length !== all.length) {
+      logger.info('WorkBuddy 有模型只走 Messages，反代挂不上', {
+        models: all.filter((model) => model.api !== 'chat').map((model) => model.id),
+      })
+    }
+    return chat
+  }
+
+  /** 拿一个能问上游的账号：首选优先，其次是排序后的第一个能用的。没有账号就没有实时目录。 */
+  function catalogueAccount(): WorkBuddyCredentials | null {
+    const at = now()
+    const ordered = orderedRecords(at)
+    const pick = [preferredId, ...ordered.map((record) => record.id)]
+    for (const id of pick) {
+      const record = id === null ? null : repository.get(id)
+      if (record === null || record.status === 'expired') continue
+      return credentialsOf(record)
+    }
+    return null
+  }
+
+  /** 问一次上游的模型目录，落回静态表（listModels 自己兜底）；失败不抛出，只是目录不变。 */
+  async function loadCatalogue(): Promise<void> {
+    const account = catalogueAccount()
+    try {
+      modelsCache = await listModels(account ?? undefined)
+    } catch (cause) {
+      logger.warn('读取 WorkBuddy 模型目录失败', { error: errorMessageOf(cause) })
+      if (modelsCache === null) modelsCache = await listModels()
+    }
+  }
 
   function providerDef(): CustomProviderDef {
     return {
@@ -558,7 +595,7 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
   }
 
   async function ensureProvider(): Promise<void> {
-    if (modelsCache === null) modelsCache = await listModels()
+    if (modelsCache === null) await loadCatalogue()
     if (chatModels().length === 0) throw new AppError(workbuddyErrors.proxy_failed, 'WorkBuddy 没有可用模型')
     const existing = (await models.providers()).find((provider) => provider.id === PROVIDER_ID)
     /* 没有、或者是自己那一份（provider_registered 丢掉时的收养）：写回并认领 */
@@ -715,7 +752,7 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
       return
     }
     try {
-      if (modelsCache === null) modelsCache = await listModels()
+      if (modelsCache === null) await loadCatalogue()
       await startServer()
       await ensureProvider()
     } catch (cause) {
@@ -855,6 +892,11 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
     emitLogin({ loginId, state: 'done', accountId, message: null })
     changed()
     void refreshUsage(accountId).catch((cause) => logger.warn('登录后读取积分失败', { error: errorMessageOf(cause) }))
+    /*
+     * 刚登录进来的账号就是目录的主人：先让它问一次上游，再写回模型服务商。
+     * 不置空的话，新号的套餐模型要等 Core 重启才看得见。
+     */
+    modelsCache = null
     void syncProxy().catch((cause) => logger.warn('登录后启动 WorkBuddy 反代失败', { error: errorMessageOf(cause) }))
   }
 
@@ -1035,6 +1077,8 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
       }
       repository.remove(accountId)
       sessions.delete(accountId)
+      /* 目录可能来自刚删掉的号（企业号有它自己的模型）：下次同步重新问一次 */
+      modelsCache = null
       if (preferredId === accountId) {
         preferredId = repository.list()[0]?.id ?? null
         if (preferredId === null) repository.setSetting(SETTING_PREFERRED, '')
@@ -1075,6 +1119,8 @@ export function createWorkBuddyService(deps: WorkBuddyServiceDeps): WorkBuddySer
       await stopServer()
       providerState = 'missing'
       providerMessage = null
+      /* 重新注册也是「重读一次目录」的唯一入口：上游加了模型、换了套餐都靠它 */
+      modelsCache = null
       await syncProxy()
       changed()
       return snapshot()

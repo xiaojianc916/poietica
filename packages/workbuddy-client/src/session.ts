@@ -1,7 +1,7 @@
 import { WorkBuddyClientError } from './errors'
 import { isRecord } from './guard'
-import type { Auth, AuthStore, Plugin, ProviderConfig } from './plugin/types'
-import { WorkBuddyAuthPlugin } from './plugin/workbuddy'
+import type { Auth, AuthStore, ModelItem, Plugin, ProviderConfig } from './plugin/types'
+import { itemOf, WorkBuddyAuthPlugin } from './plugin/workbuddy'
 import type {
   WorkBuddyCheckin,
   WorkBuddyCheckinOutcome,
@@ -178,13 +178,50 @@ export async function startBrowserSignIn(): Promise<WorkBuddySignIn> {
   }
 }
 
-/** 目录来自插件自己的静态表；账户的实时表要请求上游，留给 usage 刷新。 */
-export async function listModels(): Promise<readonly WorkBuddyModel[]> {
+function liveOf(items: readonly ModelItem[], fallback: readonly WorkBuddyModel[]): readonly WorkBuddyModel[] {
+  return items.map((item) => {
+    const known = fallback.find((model) => model.id === item.id)
+    return {
+      id: item.id,
+      name: item.name ?? item.id,
+      /* 上游没给上下文就退回静态表那一格；两处都没有才是 null（读不到就不编造）。 */
+      contextWindow: item.context ?? known?.contextWindow ?? null,
+      reasoning: (item.efforts?.length ?? 0) > 0 || known?.reasoning === true,
+      vision: item.images === true || known?.vision === true,
+      /* 两条协议并存：Claude 系走 Messages，其余走 chat。omp 那侧仍只挂 chat（见 service）。 */
+      api: item.api === 'messages' ? 'messages' : 'chat',
+    }
+  })
+}
+
+/**
+ * 模型目录。给了账号就问上游自己的表（/v3/config 的 cli agent，企业号还含 custom: 模型）；
+ * 没给、或上游没答上来，就用插件里那份静态表。
+ *
+ * 只增不猜：实时表读不回来时原样退回静态表 —— 一份读不到的目录比一份旧的更糟。
+ */
+export async function listModels(auth?: WorkBuddyCredentials): Promise<readonly WorkBuddyModel[]> {
   const plugin = await pluginFor({})
   const config: PluginConfig = {}
   await plugin.config(config)
   const models: Record<string, ModelConfigShape> = config.provider?.workbuddy?.models ?? {}
-  return Object.entries(models).map(([id, model]) => modelOf(id, model))
+  const declared = Object.entries(models).map(([id, model]) => modelOf(id, model))
+  if (auth === undefined) return declared
+  let live: Record<string, unknown>
+  try {
+    live = (await plugin.provider.models({}, { auth: vendorAuthOf(auth) })) as Record<string, unknown>
+  } catch {
+    return declared
+  }
+  /*
+   * 插件读不到上游时把自己那份静态表交回来（甚至什么都没有），两者都不算「实时目录」：
+   * 那时直接用上面那份 declared，免得同一份表被当成上游答案。
+   */
+  if (!isRecord(live)) return declared
+  /* provider.models 以 id 为键；itemOf 从那一行里取回几格，id 由键兜底。 */
+  const items: ModelItem[] = Object.entries(live).map(([id, info]) => itemOf(info, id) ?? { id })
+  if (items.length === 0) return declared
+  return liveOf(items, declared)
 }
 
 /** 建立一个账号的通道。插件刷新 token 时经 hooks.onUpdate 交回宿主。 */
