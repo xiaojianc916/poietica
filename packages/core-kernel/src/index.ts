@@ -8,6 +8,7 @@ export {
   type CoreDataMode,
   type CoreModule,
   type CoreModuleContext,
+  type CoreModuleDescriptor,
   type CoreRuntimeInfo,
   defineCoreModule,
   type ModuleKind,

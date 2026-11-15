@@ -1,6 +1,6 @@
 // 由 tooling/assembly/core-modules.ts 生成；不要手改。
 
-import type { CoreModule, ModuleKind } from '@poietica/core-kernel'
+import type { CoreModule, CoreModuleDescriptor } from '@poietica/core-kernel'
 import agentSettings from '@poietica/feature-agent-settings/core'
 import attachments from '@poietica/feature-attachments/core'
 import audit from '@poietica/feature-audit/core'
@@ -25,54 +25,174 @@ import usage from '@poietica/feature-usage/core'
 import workbuddy from '@poietica/feature-workbuddy/core'
 import workspaces from '@poietica/feature-workspaces/core'
 
-export const coreModuleKinds = {
-  'agent-settings': 'domain',
-  attachments: 'domain',
-  audit: 'domain',
-  automations: 'domain',
-  browser: 'domain',
-  checkpoints: 'domain',
-  conversation: 'domain',
-  extensions: 'domain',
-  files: 'domain',
-  'intelligent-ui': 'agent-tool',
-  journal: 'domain',
-  models: 'domain',
-  platform: 'domain',
-  policy: 'domain',
-  python: 'integration',
-  review: 'domain',
-  runs: 'domain',
-  settings: 'domain',
-  threads: 'domain',
-  timeline: 'domain',
-  usage: 'domain',
-  workbuddy: 'integration',
-  workspaces: 'domain',
-} as const satisfies Record<string, ModuleKind>
+export interface FeatureDescriptor extends CoreModuleDescriptor {
+  readonly hasContract: boolean
+}
 
-export const coreModules: readonly CoreModule[] = [
-  agentSettings,
-  attachments,
-  audit,
-  automations,
-  browser,
-  checkpoints,
-  conversation,
-  extensions,
-  files,
-  intelligentUi,
-  journal,
-  models,
-  platform,
-  policy,
-  python,
-  review,
-  runs,
-  settings,
-  threads,
-  timeline,
-  usage,
-  workbuddy,
-  workspaces,
-]
+export const featureDescriptors = {
+  'agent-settings': {
+    id: 'agent-settings',
+    kind: 'domain',
+    tier: 4,
+    hasContract: true,
+    module: agentSettings,
+  },
+  attachments: {
+    id: 'attachments',
+    kind: 'domain',
+    tier: 2,
+    hasContract: true,
+    module: attachments,
+  },
+  audit: {
+    id: 'audit',
+    kind: 'domain',
+    tier: 4,
+    hasContract: true,
+    module: audit,
+  },
+  automations: {
+    id: 'automations',
+    kind: 'domain',
+    tier: 4,
+    hasContract: true,
+    module: automations,
+  },
+  browser: {
+    id: 'browser',
+    kind: 'domain',
+    tier: 4,
+    hasContract: true,
+    module: browser,
+  },
+  checkpoints: {
+    id: 'checkpoints',
+    kind: 'domain',
+    tier: 1,
+    hasContract: true,
+    module: checkpoints,
+  },
+  conversation: {
+    id: 'conversation',
+    kind: 'domain',
+    tier: 3,
+    hasContract: true,
+    module: conversation,
+  },
+  extensions: {
+    id: 'extensions',
+    kind: 'domain',
+    tier: 4,
+    hasContract: true,
+    module: extensions,
+  },
+  files: {
+    id: 'files',
+    kind: 'domain',
+    tier: 4,
+    hasContract: true,
+    module: files,
+  },
+  'intelligent-ui': {
+    id: 'intelligent-ui',
+    kind: 'agent-tool',
+    tier: 4,
+    hasContract: true,
+    module: intelligentUi,
+  },
+  journal: {
+    id: 'journal',
+    kind: 'domain',
+    tier: 1,
+    hasContract: false,
+    module: journal,
+  },
+  models: {
+    id: 'models',
+    kind: 'domain',
+    tier: 2,
+    hasContract: true,
+    module: models,
+  },
+  platform: {
+    id: 'platform',
+    kind: 'domain',
+    tier: 0,
+    hasContract: true,
+    module: platform,
+  },
+  policy: {
+    id: 'policy',
+    kind: 'domain',
+    tier: 1,
+    hasContract: true,
+    module: policy,
+  },
+  python: {
+    id: 'python',
+    kind: 'integration',
+    tier: 4,
+    hasContract: true,
+    module: python,
+  },
+  review: {
+    id: 'review',
+    kind: 'domain',
+    tier: 4,
+    hasContract: true,
+    module: review,
+  },
+  runs: {
+    id: 'runs',
+    kind: 'domain',
+    tier: 1,
+    hasContract: false,
+    module: runs,
+  },
+  settings: {
+    id: 'settings',
+    kind: 'domain',
+    tier: 0,
+    hasContract: true,
+    module: settings,
+  },
+  threads: {
+    id: 'threads',
+    kind: 'domain',
+    tier: 1,
+    hasContract: false,
+    module: threads,
+  },
+  timeline: {
+    id: 'timeline',
+    kind: 'domain',
+    tier: 1,
+    hasContract: false,
+    module: timeline,
+  },
+  usage: {
+    id: 'usage',
+    kind: 'domain',
+    tier: 4,
+    hasContract: true,
+    module: usage,
+  },
+  workbuddy: {
+    id: 'workbuddy',
+    kind: 'integration',
+    tier: 4,
+    hasContract: true,
+    module: workbuddy,
+  },
+  workspaces: {
+    id: 'workspaces',
+    kind: 'domain',
+    tier: 1,
+    hasContract: true,
+    module: workspaces,
+  },
+} as const satisfies Record<string, FeatureDescriptor>
+
+export const coreModules: readonly CoreModule[] = Object.values(featureDescriptors).map(
+  (descriptor) => descriptor.module,
+)

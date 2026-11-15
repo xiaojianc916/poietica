@@ -13,6 +13,14 @@ import type { WorkflowRecord, WorkflowService } from './workflows'
 
 export type ModuleKind = 'domain' | 'capability' | 'agent-runtime' | 'agent-tool' | 'integration' | 'surface'
 
+/** 生成式装配的描述符：模块实现 + 包清单里的类型 + 功能级别（feature-tiers.json）。 */
+export interface CoreModuleDescriptor {
+  readonly id: string
+  readonly kind: ModuleKind
+  readonly tier: number
+  readonly module: CoreModule
+}
+
 /** 模块在 setup 里登记自己的 outbox 消费者；同一 topic 可以有多个消费者，分发器按注册顺序串行调用。 */
 export interface OutboxHandlerRegistry {
   register(topic: string, handle: (payload: unknown) => void | Promise<void>): void

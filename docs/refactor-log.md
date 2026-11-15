@@ -78,6 +78,7 @@
 - **P4 写入边界**：`path.relative` 取代 `startsWith`；产品工具只报「写」但没有目标路径时 auto-edit 也先询问，不再盲放。
 - **P6 线程删除持久化**：`ThreadService.cleanup` 在删行事务内调 `onThreadDeleted`，conversation 写入 `conversation.threadRemoved` outbox；automations / review / intelligent-ui 改为 handler。原来的进程内 `threadRemoved` 事件已无消费者并删除。
 - **P6 启动对账第 5 步**：内核新增 `jobHandlers` / `workflowHandlers` 注册表，在 `core.ready` 前 `resumeWorkflows`，随后启动持久 job 分发器；只读模式跳过。
+- **P6 模块描述符**：`core-modules` 生成 `featureDescriptors`（id / kind / tier / 是否有契约 / 实现），`coreModules` 从它派生；Core 启动校验「一模块一描述符、依赖 tier 严格更低、数量一致」。RPC/事件/表/设置/UI 仍未全部进描述符。
 - **P4 结构化审批**：ARP `policy.check` 的裁决结果增加 `risk` / `category` / `checkpoint`；Worker 的审批卡片、`Interaction`、`TranscriptInteraction` 一路带到 UI，扩展自己发的审批仍可缺省。`ARP_VERSION` 1→2，`PROTOCOL_VERSION` 68→69。
 - **P6 启动对账第 1 步**：Journal 新增 `readTyped`；conversation 在 onReady 时扫描每条线程的 `run.started`/`run.completed`，只有开始没有终态的补 `run.completed { outcome: 'interrupted' }`，重复启动不会重复补。
 - **P7 升级报告**：`check:omp-upgrade` 的基线从「版本 + 导出名」扩成「版本 + 导出名 + 内置工具名 + 设置 id/类型」，omp 新增工具或设置即使不改根导出也会失败；未知事件保留截断后的原始 JSON。自动发版流水线仍未做。

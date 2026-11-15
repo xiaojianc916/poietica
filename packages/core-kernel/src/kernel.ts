@@ -31,6 +31,7 @@ import type {
   CoreDataMode,
   CoreModule,
   CoreModuleContext,
+  CoreModuleDescriptor,
   JobHandlerRegistry,
   OutboxHandlerRegistry,
   RetiredCoreModule,
@@ -61,6 +62,8 @@ export interface CoreKernelOptions {
    * 真的删掉了东西的那些再在 onReady 之后跑一次各自的 cleanup（例如撤掉它写进引擎配置的服务商）。
    */
   readonly retiredModules?: readonly RetiredCoreModule[]
+  /** 生成式装配的描述符；生产由 modules.generated.ts 提供，测试可缺省。 */
+  readonly moduleDescriptors?: readonly CoreModuleDescriptor[]
   /** 迁移前备份保留几份；默认 3 */
   readonly backupKeep?: number
   /** 测试可关掉 outbox 定时器（假时钟推进大跨度时不必空转）；默认开。 */
@@ -139,6 +142,33 @@ async function startPersistentWorkers(o: {
   return runner
 }
 
+function descriptorOf(byId: ReadonlyMap<string, CoreModuleDescriptor>, module: CoreModule): CoreModuleDescriptor {
+  const descriptor = byId.get(module.id)
+  if (descriptor === undefined) {
+    throw new AppError(SystemErrorCode.moduleGraphInvalid, `模块 ${module.id} 没有描述符`)
+  }
+  if (descriptor.module !== module) {
+    throw new AppError(SystemErrorCode.moduleGraphInvalid, `模块 ${module.id} 的描述符指向另一份实现`)
+  }
+  return descriptor
+}
+
+function assertTierOrder(
+  byId: ReadonlyMap<string, CoreModuleDescriptor>,
+  module: CoreModule,
+  descriptor: CoreModuleDescriptor,
+): void {
+  for (const dependency of module.dependsOn ?? []) {
+    const upstream = byId.get(dependency)
+    if (upstream !== undefined && upstream.tier >= descriptor.tier) {
+      throw new AppError(
+        SystemErrorCode.moduleGraphInvalid,
+        `模块 ${module.id}（第 ${descriptor.tier} 级）不能依赖同级或更高的 ${dependency}（第 ${upstream.tier} 级）`,
+      )
+    }
+  }
+}
+
 /** engine.dispose 的时间下限：即使前面把预算花光了也要给它。 */
 const ENGINE_DISPOSE_FLOOR_MS = 1_000
 const DEFAULT_BACKUP_KEEP = 3
@@ -211,6 +241,18 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
     }
   }
 
+  function validateDescriptors(sorted: readonly CoreModule[]): void {
+    const descriptors = opts.moduleDescriptors
+    if (descriptors === undefined || descriptors.length === 0) return
+    const byId = new Map(descriptors.map((descriptor) => [descriptor.id, descriptor]))
+    for (const module of sorted) {
+      assertTierOrder(byId, module, descriptorOf(byId, module))
+    }
+    if (byId.size !== sorted.length) {
+      throw new AppError(SystemErrorCode.moduleGraphInvalid, '描述符数量与模块清单不一致')
+    }
+  }
+
   function assertAllCoreMethodsHandled(): void {
     const missing: string[] = []
     for (const [name, def] of opts.appContract.methods) {
@@ -278,6 +320,7 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
     })
     const sorted = sortModules(opts.modules)
     validateModules(sorted)
+    validateDescriptors(sorted)
     db = openStorage(sorted)
     const outbox = createOutbox(db, { clock: opts.clock, readonly: dataMode.mode === 'readOnly' })
     const outboxHandlerMap = new Map<string, OutboxHandler[]>()

@@ -15,7 +15,7 @@ import {
   runIsolationSelfCheck,
 } from '@poietica/runtime-protocol-omp/bootstrap/core'
 import { type SandboxLevel, type SandboxOptions, sandboxSelfCheck } from '@poietica/sandbox-win'
-import { coreModules, retiredCoreModules } from './modules'
+import { coreModules, featureDescriptors, retiredCoreModules } from './modules'
 import { CORE_VERSION } from './version'
 
 export async function serve(): Promise<void> {
@@ -47,6 +47,7 @@ export async function serve(): Promise<void> {
   const engine = await createRealEngine(layout, logger)
   const kernel = createCoreKernel({
     modules: coreModules,
+    moduleDescriptors: Object.values(featureDescriptors),
     retiredModules: retiredCoreModules,
     engine,
     layout,

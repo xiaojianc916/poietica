@@ -1,4 +1,4 @@
-export { coreModules } from './modules.generated'
+export { coreModules, featureDescriptors } from './modules.generated'
 
 import type { RetiredCoreModule } from '@poietica/core-kernel'
 

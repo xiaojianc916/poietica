@@ -14,12 +14,18 @@ const FEATURES = path.join(ROOT, 'features')
 const OUTPUT = path.join(ROOT, 'apps/core/src/modules.generated.ts')
 
 const KINDS = new Set(['domain', 'capability', 'agent-runtime', 'agent-tool', 'integration', 'surface'])
+const TIERS = JSON.parse(readFileSync(path.join(ROOT, 'tooling/depcruise/feature-tiers.json'), 'utf8')) as Record<
+  string,
+  number
+>
 
 interface Feature {
   readonly id: string
   readonly packageName: string
   readonly variable: string
   readonly kind: string
+  readonly tier: number
+  readonly contract: boolean
 }
 
 function features(): Feature[] {
@@ -38,7 +44,16 @@ function features(): Feature[] {
       throw new Error(`features/${id}/package.json 缺少合法 poietica.kind（${[...KINDS].join('/')}）`)
     }
     const variable = id.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())
-    out.push({ id, packageName: pkg.name, variable, kind })
+    const tier = TIERS[id]
+    if (tier === undefined) throw new Error(`features/${id} 没有在 tooling/depcruise/feature-tiers.json 登记级别`)
+    out.push({
+      id,
+      packageName: pkg.name,
+      variable,
+      kind,
+      tier,
+      contract: pkg.exports['./contract'] !== undefined,
+    })
   }
   return out.sort((a, b) => a.id.localeCompare(b.id))
 }
@@ -46,9 +61,13 @@ function features(): Feature[] {
 function render(): string {
   const list = features()
   const imports = list.map((f) => `import ${f.variable} from '${f.packageName}/core'`).join('\n')
-  const entries = list.map((f) => `  ${f.variable},`).join('\n')
-  const kinds = list.map((f) => `  ${f.id.includes('-') ? `'${f.id}'` : f.id}: '${f.kind}',`).join('\n')
-  return `// 由 tooling/assembly/core-modules.ts 生成；不要手改。\n\nimport type { CoreModule, ModuleKind } from '@poietica/core-kernel'\n${imports}\n\nexport const coreModuleKinds = {\n${kinds}\n} as const satisfies Record<string, ModuleKind>\n\nexport const coreModules: readonly CoreModule[] = [\n${entries}\n]\n`
+  const descriptors = list
+    .map(
+      (f) =>
+        `  ${f.id.includes('-') ? `'${f.id}'` : f.id}: {\n    id: '${f.id}',\n    kind: '${f.kind}',\n    tier: ${f.tier},\n    hasContract: ${f.contract},\n    module: ${f.variable},\n  },`,
+    )
+    .join('\n')
+  return `// 由 tooling/assembly/core-modules.ts 生成；不要手改。\n\nimport type { CoreModule, CoreModuleDescriptor } from '@poietica/core-kernel'\n${imports}\n\nexport interface FeatureDescriptor extends CoreModuleDescriptor {\n  readonly hasContract: boolean\n}\n\nexport const featureDescriptors = {\n${descriptors}\n} as const satisfies Record<string, FeatureDescriptor>\n\nexport const coreModules: readonly CoreModule[] = Object.values(featureDescriptors).map(\n  (descriptor) => descriptor.module,\n)\n`
 }
 
 const expected = render()
