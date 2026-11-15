@@ -55,7 +55,6 @@ import type {
   UsageWindow,
 } from './types'
 
-const APP_VERSION = '2.0.0' // the version WorkBuddy's sign-in page is opened with
 const POLL_MS = 1000
 const SIGN_IN_MS = 5 * 60 * 1000
 const EARLY_MS = 60 * 1000 // a token this close to its end is refreshed before a request
@@ -1376,6 +1375,17 @@ function fitSchema(s: JsonSchema | JsonSchema[] | undefined | null, depth = 0): 
       changed = true
     }
   }
+  /*
+   * REA 的代理项守卫 ^[^\uD800-\uDFFF]*$ 原样发出去会被拒（0.2.34, zhbcn #1080）：
+   * WorkBuddy AI 的 DeepSeek 在任何工具被调用之前就回 400 "invalid function call
+   * parameters"。同一个模型在中国站是 deepseek-v4.1-flash-sg，所以两个站都摘。
+   * 只摘这一条一模一样的串：混着别的字符类的、或者写成字面量转义的，都原样留着 ——
+   * 前后各自的路径约束与 REA 自己的校验也照旧。
+   */
+  if (s.pattern === '^[^\\uD800-\\uDFFF]*$') {
+    delete s.pattern
+    changed = true
+  }
   if (Array.isArray(s.items)) {
     const list = s.items.filter((v) => asSchema(v) !== null)
     s.items = list.length === 0 ? {} : list.length === 1 ? list[0] : { anyOf: list }
@@ -2093,7 +2103,12 @@ async function browserSignIn(site: Site): Promise<SignIn> {
   if (!state?.state || !state?.authUrl) throw new Error(`${site.name} gave no sign-in page`)
   const url = new URL(String(state.authUrl))
   if (url.protocol !== 'https:') throw new Error(`${site.name}'s sign-in page isn't https`)
-  url.searchParams.set('version', APP_VERSION)
+  /*
+   * 用桌面端自己的版本开登录页（0.2.21, shenyebuwu）：中国站这一页对 version < 5.8.0
+   * 会藏掉企业微信登录，而 2.0.0 那个版本号就没有那条路。桌面端的 openAuthUrl 拿的是
+   * CLIENT_INFO_PLUGIN_VERSION，也就是 app 的版本，所以这里传 site.app。
+   */
+  url.searchParams.set('version', site.app)
   url.searchParams.set('loginSessionId', hex())
   return {
     url: url.toString(),
@@ -2745,12 +2760,14 @@ const compact = (n: number): string =>
 // caps: the same phone number can be signed in to both, and their ledgers
 // stay apart — one build's spending must not fill the other's window.
 //
-// The China cap is a soft one. Measured at about 2e8 (two accounts refusing
-// at 200.39M and 200.49M), the card stops the model at 1.9e8: 5% of headroom
-// for the account's spending on other machines (which this ledger cannot
-// see), so routing rests the model before the vendor's refusal does. A
-// refusal in force still reads the window full whatever the sum says.
-const FREE_WINDOW_CN = { provider: 'workbuddy', cap: 1.9e8, short: '190M' }
+// The China cap is measured, not the vendor's word: about 2e8, from two
+// accounts refused at 200.39M and 200.49M on 2026-11-02. It is an estimate —
+// this ledger is one machine's, so an account also spent elsewhere reads
+// short — and the card says so (a tilde, "(est.)"). It is shown only, set
+// aside (see the card below): a cap gone stale costs a wrong percentage,
+// never a model wrongly rested. A refusal in force still reads the window
+// full whatever the sum says, and that card is the vendor's own.
+const FREE_WINDOW_CN = { provider: 'workbuddy', cap: 2e8, short: '~200M (est.)' }
 const FREE_WINDOW_AI = { provider: 'workbuddy-ai', cap: 1e8, short: '100M' }
 const FREE_WINDOW_SPAN = 24 * 3600 * 1000
 // The lead: how far back of an edge the read goes on. A chain read from a row
@@ -2892,7 +2909,8 @@ function freeWindowOf(rows: LedgerRow[], account: string, now: number = Date.now
   if (now >= end) return null // lapsed: nothing is exhausted, a new window opens on the next request
 
   const card = (amount: number, resetsAt: number, refused: boolean): UsageWindow => ({
-    name: 'Free model tokens',
+    /* 拒绝是上游给的精确值；求和出来的那格是估算，名字里就写清楚。 */
+    name: refused ? 'Free model tokens' : 'Free model tokens (est.)',
     used: Math.min(100, (100 * amount) / win.cap),
     amount,
     limit: win.cap,
@@ -2901,7 +2919,13 @@ function freeWindowOf(rows: LedgerRow[], account: string, now: number = Date.now
     resetsAt: new Date(resetsAt).toISOString(),
     span: FREE_WINDOW_SPAN / 1000,
     models: FREE_WINDOW_MODELS.slice(),
-    ...(refused ? { refused: true } : {}),
+    /*
+     * 账本求和是**估算**：它是本机的账本，账号在别的机器上用掉的不在里面。只有上游的
+     * 真实拒绝才算数（0.2.14 / 0.2.24）。所以估出来的这一格标 aside —— 只是摆着看，
+     * 不参与「这个号停不停」；把它当硬闸会出的事见 XiaoFeiyu9 #641：一个付费号被读到
+     * 99%、其实还有 2,457 积分，从没被拒绝过。
+     */
+    ...(refused ? { refused: true } : { aside: true }),
   })
 
   // A refusal still in force is exact: the account is spending this window
@@ -3829,11 +3853,28 @@ function defaultEffortOf(d: ModelDetail, efforts: readonly string[] | undefined)
   return typeof own === 'string' && (efforts ?? []).includes(own) ? own : undefined
 }
 
+// SMALL_BUDGET is the largest output budget a chat can name and still be one
+// no client meant to think in (0.2.15, itspig #643): Anthropic's API takes
+// thinking only with a budget of at least 1024 tokens and a max_tokens above
+// it, so a request of 1024 or less cannot have asked for thinking there, and a
+// client's own short asks name such budgets — omp asks a title, a
+// classification or a health probe at 32, 512, 1024 or 1200 tokens. A default
+// effort spends those on reasoning: itspig saw 230+ title requests at
+// max_tokens 64 on deepseek-v4-pro end out=64, reasoning=64, no text.
+// Measured 2026-11-03 on www.workbuddy.ai, deepseek-v4.1-flash-sg at its
+// default high: max_tokens 64 ended "length" with 64 reasoning tokens and no
+// text; without an effort it answered the title.
+const SMALL_BUDGET = 1024
+
 // withDefaultEffort gives a chat that names no effort the model's default
 // (defaultEffortOf), as WorkBuddy's client sends it; true when it did. An
-// effort the client named, "none" too, goes as it came.
+// effort the client named, "none" too, goes as it came. A chat whose
+// max_tokens is SMALL_BUDGET or less is given none: WorkBuddy does not think
+// without one, so its budget goes to the answer.
 function withDefaultEffort(chat: Chat, list: readonly { id: string; free?: boolean; effort?: string }[] | null) {
   if (!chat || typeof chat !== 'object' || namesEffort(chat)) return false
+  const limit = chat.max_tokens ?? chat.max_completion_tokens
+  if (typeof limit === 'number' && limit > 0 && limit <= SMALL_BUDGET) return false
   const m = list?.find((x) => x.id === chat.model)
   if (!m?.effort) return false
   chat.reasoning_effort = m.effort
@@ -4085,12 +4126,13 @@ async function enrichUsage(
     } catch {}
   }
   await spareFree(site, a, out.windows)
-  // the free model's own window, which the credit meter above does
-  // not show: what actually refuses a chat long before 160 credits
-  // are spent. Both builds: WorkBuddy AI at 1e8 (ten days of
-  // refusals), the China build's refusals measured at about 2e8 on
-  // 2026-11-02, its card stopping at the 1.9e8 soft cap (see the
-  // window definitions above)
+  /*
+   * 免费模型自己的窗口，积分表上看不见它：真正拒绝一次对话的是它，不是积分。
+   * 两种读法分开：上游写过拒绝（窗口按它命名的重置时刻算满）那格是精确的，照旧给出去；
+   * 只有本机账本求和的那格是估算，标成 aside —— 摆着看，不参与「这个号停不停」
+   * （0.2.14 / 0.2.24，XiaoFeiyu9 #641）。契约里 aside 的语义正是这一条：另一格才决定
+   * 账号停不停，所以估算卡不能顶替真实拒绝。估算卡还没出现时什么都不加。
+   */
   {
     const account = a.accountId || a.user || a.uid || ''
     const win = site.ai ? FREE_WINDOW_AI : FREE_WINDOW_CN
@@ -4766,6 +4808,7 @@ export const _internal = {
   OFF_TAKEN,
   replyAfterToolsOn,
   withDefaultEffort,
+  SMALL_BUDGET,
   defaultEffortOf,
   gzipped,
   FREE_ONLY,

@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { _internal } from '../plugin/workbuddy'
 import { createSession } from '../session'
 import type { WorkBuddyCredentials } from '../types'
 
@@ -102,5 +103,49 @@ describe('WorkBuddy 会话', () => {
     } finally {
       stub.restore()
     }
+  })
+})
+
+/* 免费模型那一格（0.2.14 / 0.2.24）：本机账本求和出来的读数是估算，标 aside 只摆着看；
+ * 上游真写过拒绝的那一格才是精确的，才参与「这个号停不停」（XiaoFeiyu9 #641）。 */
+describe('免费模型窗口的两种读法', () => {
+  const NOW = Date.UTC(2026, 10, 15, 6, 0, 0)
+  const row = (extra: Record<string, unknown>) => ({
+    provider: 'workbuddy',
+    providerAccount: 'acct',
+    model: 'deepseek-v4.1-flash',
+    t: new Date(NOW - 3_600_000).toISOString(),
+    in: 5_000_000,
+    cache_read: 0,
+    out: 500_000,
+    ...extra,
+  })
+
+  test('只有账本求和时，这一格是估算且不拦账号', () => {
+    const rows = [row({ status: 200 })]
+    const card = _internal.freeWindowOf(rows, 'acct', NOW, _internal.FREE_WINDOW_CN)
+    expect(card).not.toBeNull()
+    expect(card?.aside).toBe(true)
+    expect(card?.refused).toBeUndefined()
+    /* 估算的名字自己说是估算；上限是中国站实测出来的 2e8 */
+    expect(card?.name).toContain('est.')
+    expect(card?.limit).toBe(2e8)
+  })
+
+  test('上游写过拒绝时，那一格是精确的，且不当成估算', () => {
+    const rows = [
+      row({ status: 200 }),
+      row({
+        status: 429,
+        t: new Date(NOW - 60_000).toISOString(),
+        err: 'WorkBuddy: 您的使用量已超出频率限制，将在 2026-11-15 15:00:00 UTC+8 重置，您也可以切换其他模型继续使用。',
+      }),
+    ]
+    const card = _internal.freeWindowOf(rows, 'acct', NOW, _internal.FREE_WINDOW_CN)
+    expect(card?.refused).toBe(true)
+    expect(card?.aside).toBeUndefined()
+    expect(card?.name).toBe('Free model tokens')
+    /* 重置时刻就是上游写的那一个 */
+    expect(card?.resetsAt).toBe(new Date(Date.UTC(2026, 10, 15, 7, 0, 0)).toISOString())
   })
 })

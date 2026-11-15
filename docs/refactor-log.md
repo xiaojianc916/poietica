@@ -166,6 +166,17 @@
 - **服务商注册**：复用 models.yml 的自定义 provider 机制，id 固定 `workbuddy`；`provider_registered` 只用于判断“是不是本功能写的”。若进程在写 models.yml 与写设置之间退出，下次启动按 `custom && name === 'WorkBuddy'` 收养，避免把用户锁在冲突里。
 - **有意收窄（2026-11-02 与上游对照后的裁决，不做）**：只做中国站（`copilot.tencent.com`），不接国际站 `workbuddy-ai`；不接 WorkBuddy 桌面端自身的登录文件（会读 `%LOCALAPPDATA%\CodeBuddyExtension`，破坏「数据只落 DataLayout」）；不做 API Key 录入（没有可信的校验接口，`/v3/config` 对任何 token 都回 200）；不接「仅免费模型」开关（它的拦截面依赖插件里的 `magpie` 宿主选项）；不复刻上游 magpie 的免费窗口账本（那是 magpie 自己的 `usage.jsonl`，Poietica 没有这份账本，读不到就不显示，不编造读数）。**反代侧的账号休息、失败分类、签到退避照做**——那些是缺陷，不是功能范围。
 
+### 2026-11-15 WorkBuddy 反代对齐 magpie 插件 0.2.35（第四轮，A 组）
+
+与上游 `magpie-community/plugins` 对照：本仓移植的底本是 0.2.13（2026-11-03），协议层函数一个不缺；之后上游走到 0.2.35，这一轮只补**不依赖 magpie 宿主、也不需要契约变化**的四条。
+
+- **0.2.21 登录页版本**（`a90b7aa`）：`version` 从写死的 `2.0.0` 改成 `site.app`（桌面端 5.9.3）。中国站这一页对 version < 5.8.0 会藏掉企业微信登录——我们发 2.0.0 等于那条路一直不存在。`APP_VERSION` 常量随之删除。
+- **0.2.15 小预算不补思考档**（`d51bd50`，itspig #643）：`max_tokens`/`max_completion_tokens` ≤ 1024 的请求不给默认档。omp 会发 32（探活）、512、1024、1200（起名/摘要）；openai-completions 这条路上 pi-ai 不替我们挡（它只在 `reasoning === undefined` 时挡，而 omp 一律带 level），于是起名请求会把整个预算烧在思考上、答案为空。
+- **0.2.34 摘掉 REA 的代理项守卫**（`d6dcb6e`，#1080）：`fitSchema` 删掉 `^[^\\uD800-\\uDFFF]*$` 这**一条一模一样的串**，混着别的字符类或写成字面量转义的都不动。上游在国际站 `deepseek-v4.1-flash-sg` 上撞到，中国站同一个模型同 id，所以一并照做。
+- **0.2.14 / 0.2.24 估算窗口只摆着看**（`eea8c9b` / `5026f63`，XiaoFeiyu9 #641）：免费模型那格由本机账本求和得来，是估算，现在标 `aside: true`、名字带 `(est.)`；中国站上限从 1.9e8 改回实测的 2e8。上游的**真实拒绝**（窗口按 429 命名的重置时刻算满）不标 aside，它才是精确的。
+- **没动的**：积分窗口拆法（`CreditGroups` / `Total credits`）、企业 `custom:` 模型、云托管企业端点、`extra_vars`/`/v2/report`、routing trace 与 `hide_dsh`，理由见同轮的对照结论（要改契约，或只对国际站/magpie 自身账本有意义）。模型级休息与 per-account 并发闸门仍是待决。
+- **验证**：`bun test packages/workbuddy-client features/workbuddy` 78 pass；新增 `request.test.ts` 6 条、`session.test.ts` 2 条。
+
 ### 2026-11-03 WorkBuddy 反代对齐 magpie 网关（第二轮）
 
 与 `.scratch/magpie-src`（HEAD `59fdab0`）逐条对照后的补齐。协议层本来就移植得扎实，这一轮动的是**网关与路由**这两层：上一版只学了「四类固定休息时长」，magpie 真正的中枢——失败即休息 + 分层放行 + 按额度/到期排序——没学到。五项审计的完整对照（含判定与证据）在 `.scratch/wb-audit/`（gitignore）。
