@@ -12,6 +12,11 @@ export function createWorkspacesApi(ctx: UiFeatureContext) {
       rpc.call('workspaces.rename', { workspaceId, name }),
     remove: (workspaceId: string): Promise<void> =>
       rpc.call('workspaces.remove', { workspaceId }).then(() => undefined),
+    createIsolated: (sourceWorkspaceId: string): Promise<Workspace> =>
+      rpc.call('workspaces.createIsolated', { sourceWorkspaceId }),
+    deliver: (workspaceId: string) => rpc.call('workspaces.deliver', { workspaceId }),
+    discard: (workspaceId: string): Promise<void> =>
+      rpc.call('workspaces.discard', { workspaceId }).then(() => undefined),
     touch: (workspaceId: string): Promise<void> => rpc.call('workspaces.touch', { workspaceId }).then(() => undefined),
     onChanged: (l: (p: { workspaces: Workspace[] }) => void) => rpc.on('workspaces.changed', l),
   }

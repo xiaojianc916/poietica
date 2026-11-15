@@ -21,6 +21,8 @@ export interface DataLayout {
   /** browser relay `/ext` 口令（Core 生成并持久化，见 engine-omp 的 bootstrap/relay-token.ts；Host 的 browser 功能只读） */
   readonly relayTokenFile: string
   readonly attachmentsDir: string
+  /** 隔离模式的工作树；由 workspaces 创建/回收（§14.1）。 */
+  readonly worktreesDir: string
   readonly ompRoot: string
   readonly ompAgentDir: string
   /**
@@ -59,6 +61,7 @@ export function dataLayout(root: string): DataLayout {
     coreCwd: path.join(coreDir, 'cwd'),
     relayTokenFile: path.join(coreDir, 'relay.token'),
     attachmentsDir: path.join(r, 'attachments'),
+    worktreesDir: path.join(r, 'worktrees'),
     ompRoot,
     ompAgentDir: path.join(ompRoot, 'agent'),
     ompBlobsDir: path.join(ompRoot, 'agent', 'blobs'),

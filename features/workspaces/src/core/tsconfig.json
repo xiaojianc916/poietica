@@ -12,6 +12,9 @@
       "path": "../../../../packages/storage-sqlite"
     },
     {
+      "path": "../../../../packages/worktree"
+    },
+    {
       "path": "../contract"
     },
     {

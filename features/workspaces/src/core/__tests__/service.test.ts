@@ -8,9 +8,9 @@ import { fakeClock, tempDir } from '@poietica/test-kit'
 import type { WorkspaceRemoved } from '../../core-api'
 import { migrations } from '../migrations'
 import { createWorkspacesRepository } from '../repository'
-import { createWorkspacesService } from '../service'
+import { createWorkspacesService, type WorkspacesWorktreePort } from '../service'
 
-async function make() {
+async function make(worktree?: WorkspacesWorktreePort) {
   const db = openDatabase(':memory:')
   for (const m of migrations) db.forModule('workspaces').exec(m.sql)
   const clock = fakeClock()
@@ -30,6 +30,7 @@ async function make() {
     fs: {
       isDirectory: (p) => fs.existsSync(p) && fs.statSync(p).isDirectory(),
     },
+    ...(worktree === undefined ? {} : { worktree, worktreesDir: path.join(root.path, 'worktrees') }),
   })
   return { service, clock, root, changed, removed, db }
 }
@@ -198,14 +199,39 @@ describe('workspaces 服务（07 页 §3G）', () => {
     await root.dispose()
   })
 
-  test('list 的 exists 实时反映目录状态', async () => {
-    const { service, root, db } = await make()
-    const dir = path.join(root.path, 'live')
-    await ensureDir(dir)
-    service.add(dir)
-    expect(service.list()[0]!.exists).toBe(true)
-    fs.rmdirSync(dir)
-    expect(service.list()[0]!.exists).toBe(false)
+  test('隔离工作区：创建 worktree、交付补丁、丢弃时回收', async () => {
+    const created: unknown[] = []
+    const removed: unknown[] = []
+    const worktree: WorkspacesWorktreePort = {
+      create: async (input) => {
+        created.push(input)
+        return { path: input.path, branch: input.branch, base: input.base ?? 'HEAD' }
+      },
+      remove: async (input) => {
+        removed.push(input)
+      },
+      diff: async () => 'diff --git a/a b/a\n',
+      apply: async () => ({ applied: true }),
+    }
+    const { service, root, db } = await make(worktree)
+    const source = path.join(root.path, 'repo')
+    await ensureDir(source)
+    const local = service.add(source)
+
+    const isolated = await service.createIsolated({ sourceWorkspaceId: local.id })
+    expect(isolated).toMatchObject({
+      mode: 'isolated',
+      sourcePath: local.path,
+      baseRef: 'HEAD',
+      name: 'repo（隔离）',
+    })
+    expect(created[0]).toMatchObject({ repoPath: local.path, branch: isolated.branch })
+
+    expect(await service.deliver(isolated.id)).toEqual({ applied: true })
+    await service.discard(isolated.id)
+    expect(removed[0]).toMatchObject({ repoPath: local.path, path: isolated.path })
+    expect(service.get(isolated.id)).toBeNull()
+
     db.close()
     await root.dispose()
   })

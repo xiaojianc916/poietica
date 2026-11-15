@@ -27,6 +27,30 @@ export const workspacesContract = defineContract({
       description: '添加一个文件夹工作区；已存在则返回已有记录并更新最近打开时间',
     }),
     defineMethod({
+      name: 'workspaces.createIsolated',
+      owner: 'core',
+      params: z.object({ sourceWorkspaceId: z.string().min(1), branch: z.string().min(1).optional() }),
+      result: Workspace,
+      description: '从本地工作区创建一个隔离 worktree 工作区；失败不留下半截记录',
+    }),
+    defineMethod({
+      name: 'workspaces.deliver',
+      owner: 'core',
+      params: z.object({ workspaceId: z.string().min(1) }),
+      result: z.union([
+        z.object({ applied: z.literal(true) }),
+        z.object({ applied: z.literal(false), reason: z.string() }),
+      ]),
+      description: '把隔离工作区相对基线的补丁应用到主仓库；冲突返回原因，不半写',
+    }),
+    defineMethod({
+      name: 'workspaces.discard',
+      owner: 'core',
+      params: z.object({ workspaceId: z.string().min(1) }),
+      result: empty,
+      description: '丢弃隔离工作区（删 worktree 与记录）',
+    }),
+    defineMethod({
       name: 'workspaces.rename',
       owner: 'core',
       params: z.object({ workspaceId: z.string().min(1), name: z.string() }),

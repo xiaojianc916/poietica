@@ -8,6 +8,10 @@ export interface WorkspaceRow {
   name: string
   createdAt: number
   lastOpenedAt: number
+  mode: 'local' | 'isolated'
+  sourcePath: string | null
+  baseRef: string | null
+  branch: string | null
 }
 
 interface Row {
@@ -17,6 +21,10 @@ interface Row {
   name: string
   created_at: number
   last_opened_at: number
+  mode: string
+  source_path: string | null
+  base_ref: string | null
+  branch: string | null
 }
 
 export interface WorkspacesRepository {
@@ -28,7 +36,19 @@ export interface WorkspacesRepository {
   delete(id: string): void
 }
 
-const COLUMNS = 'id, path, path_key, name, created_at, last_opened_at'
+const COLUMNS = 'id, path, path_key, name, created_at, last_opened_at, mode, source_path, base_ref, branch'
+
+const UPDATABLE = [
+  ['path', 'path'],
+  ['pathKey', 'path_key'],
+  ['name', 'name'],
+  ['createdAt', 'created_at'],
+  ['lastOpenedAt', 'last_opened_at'],
+  ['mode', 'mode'],
+  ['sourcePath', 'source_path'],
+  ['baseRef', 'base_ref'],
+  ['branch', 'branch'],
+] as const satisfies readonly (readonly [keyof Omit<WorkspaceRow, 'id'>, string])[]
 
 function toRow(r: Row): WorkspaceRow {
   return {
@@ -38,6 +58,10 @@ function toRow(r: Row): WorkspaceRow {
     name: r.name,
     createdAt: r.created_at,
     lastOpenedAt: r.last_opened_at,
+    mode: r.mode === 'isolated' ? 'isolated' : 'local',
+    sourcePath: r.source_path,
+    baseRef: r.base_ref,
+    branch: r.branch,
   }
 }
 
@@ -50,19 +74,27 @@ export function workspaceOf(row: WorkspaceRow, exists: boolean): Workspace {
     createdAt: row.createdAt,
     lastOpenedAt: row.lastOpenedAt,
     exists,
+    mode: row.mode,
+    sourcePath: row.sourcePath,
+    baseRef: row.baseRef,
+    branch: row.branch,
   }
 }
 
 export function createWorkspacesRepository(db: ModuleDatabase): WorkspacesRepository {
   return {
     insert(row) {
-      db.prepare(`INSERT INTO workspaces_workspaces (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?)`).run(
+      db.prepare(`INSERT INTO workspaces_workspaces (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
         row.id,
         row.path,
         row.pathKey,
         row.name,
         row.createdAt,
         row.lastOpenedAt,
+        row.mode,
+        row.sourcePath,
+        row.baseRef,
+        row.branch,
       )
     },
     get(id) {
@@ -82,15 +114,12 @@ export function createWorkspacesRepository(db: ModuleDatabase): WorkspacesReposi
     update(id, patch) {
       const sets: string[] = []
       const params: SqlValue[] = []
-      const put = (col: string, value: SqlValue): void => {
-        sets.push(`${col} = ?`)
+      for (const [key, column] of UPDATABLE) {
+        const value = patch[key]
+        if (value === undefined) continue
+        sets.push(`${column} = ?`)
         params.push(value)
       }
-      if (patch.path !== undefined) put('path', patch.path)
-      if (patch.pathKey !== undefined) put('path_key', patch.pathKey)
-      if (patch.name !== undefined) put('name', patch.name)
-      if (patch.createdAt !== undefined) put('created_at', patch.createdAt)
-      if (patch.lastOpenedAt !== undefined) put('last_opened_at', patch.lastOpenedAt)
       if (sets.length === 0) return
       params.push(id)
       db.prepare(`UPDATE workspaces_workspaces SET ${sets.join(', ')} WHERE id = ?`).run(...params)

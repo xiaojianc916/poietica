@@ -1,4 +1,5 @@
 import { platformContract } from '@poietica/feature-platform/contract'
+import { AppError } from '@poietica/foundation'
 import { BannersToken, builtinPoints, type CommandItem, createFeatureStore, defineUiFeature } from '@poietica/ui-kernel'
 import type { Workspace } from '../contract'
 import { WorkspacesUiToken } from '../ui-api'
@@ -87,10 +88,77 @@ export default defineUiFeature({
      * 组头」（2026-10-08 已补记为偏差 #74）。选择器组件本身仍住在 ui-api，输入框下方那一行由 conversation 取用。
      *
      * 设置页不再有「工作区」一格：legacy 的 SECTIONS 里没有这一页，它是设计阶段加出来的，工作区仍由侧栏的「打开文件夹…」与会话列表里的组头管理。 */
-    const command = (id: string, title: string, run: () => void): void => {
-      ctx.contribute(builtinPoints.commands, { id, title, category: '工作区', run } satisfies CommandItem)
+    const createIsolated = async (id: string): Promise<Workspace | null> => {
+      try {
+        const workspace = await api.createIsolated(id)
+        await reload()
+        store.setState({ activeId: workspace.id })
+        return workspace
+      } catch (e) {
+        banners.error(e)
+        return null
+      }
+    }
+    const deliver = async (id: string): Promise<boolean> => {
+      try {
+        const result = await api.deliver(id)
+        if (!result.applied) {
+          banners.error(new AppError('workspaces.deliver_failed', `交付失败：${result.reason}`))
+          return false
+        }
+        return true
+      } catch (e) {
+        banners.error(e)
+        return false
+      }
+    }
+    const discard = async (id: string): Promise<void> => {
+      try {
+        await api.discard(id)
+        if (store.getState().activeId === id) store.setState({ activeId: null })
+        await reload()
+      } catch (e) {
+        banners.error(e)
+      }
+    }
+
+    const command = (id: string, title: string, run: () => void, enabled?: () => boolean): void => {
+      ctx.contribute(builtinPoints.commands, {
+        id,
+        title,
+        category: '工作区',
+        run,
+        ...(enabled === undefined ? {} : { enabled }),
+      } satisfies CommandItem)
     }
     command('workspaces.open', '打开文件夹…', () => void pickAndAdd())
+    command(
+      'workspaces.isolate',
+      '为当前项目创建隔离副本',
+      () => {
+        const workspace = active()
+        if (workspace !== null) void createIsolated(workspace.id)
+      },
+      () => active()?.mode !== 'isolated',
+    )
+    command(
+      'workspaces.deliver',
+      '交付隔离副本到主仓库',
+      () => {
+        const workspace = active()
+        if (workspace !== null) void deliver(workspace.id)
+      },
+      () => active()?.mode === 'isolated',
+    )
+    command(
+      'workspaces.discard',
+      '丢弃隔离副本',
+      () => {
+        const workspace = active()
+        if (workspace !== null) void discard(workspace.id)
+      },
+      () => active()?.mode === 'isolated',
+    )
     ctx.contribute(builtinPoints.keybindings, { command: 'workspaces.open', key: 'Ctrl+O' })
 
     // ── ui-api ────────────────────────────────────────────────────────────
@@ -125,6 +193,9 @@ export default defineUiFeature({
           banners.error(e)
         }
       },
+      createIsolated,
+      deliver,
+      discard,
     })
   },
 })

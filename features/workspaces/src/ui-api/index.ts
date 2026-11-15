@@ -23,6 +23,12 @@ export interface WorkspacesUi {
    * `activeId` 回到 null —— 「还没选项目」于是又成立，入口页照规矩禁用发送。
    */
   remove(id: string): Promise<void>
+  /** 从本地工作区建隔离副本，并切到它；失败弹横幅返回 null。 */
+  createIsolated(id: string): Promise<Workspace | null>
+  /** 把当前隔离工作区的补丁应用到主仓库；返回是否成功。 */
+  deliver(id: string): Promise<boolean>
+  /** 丢弃隔离工作区与它的 worktree。 */
+  discard(id: string): Promise<void>
 }
 export const WorkspacesUiToken = defineServiceToken<WorkspacesUi>('workspaces', 'WorkspacesUi')
 

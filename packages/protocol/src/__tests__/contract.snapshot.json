@@ -1,5 +1,5 @@
 {
-  "version": 70,
+  "version": 71,
   "methods": [
     {
       "name": "agentSettings.capabilities",
@@ -31200,6 +31200,31 @@
           },
           "exists": {
             "type": "boolean"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "local",
+              "isolated"
+            ]
+          },
+          "sourcePath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "baseRef": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "branch": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -31210,6 +31235,171 @@
           "lastOpenedAt",
           "exists"
         ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "workspaces.createIsolated",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "从本地工作区创建一个隔离 worktree 工作区；失败不留下半截记录",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "sourceWorkspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "branch": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "sourceWorkspaceId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "lastOpenedAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "exists": {
+            "type": "boolean"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "local",
+              "isolated"
+            ]
+          },
+          "sourcePath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "baseRef": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "branch": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "path",
+          "name",
+          "createdAt",
+          "lastOpenedAt",
+          "exists"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "workspaces.deliver",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "把隔离工作区相对基线的补丁应用到主仓库；冲突返回原因，不半写",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "workspaceId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "applied": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "required": [
+              "applied"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "applied": {
+                "type": "boolean",
+                "const": false
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "applied",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "workspaces.discard",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "丢弃隔离工作区（删 worktree 与记录）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "workspaceId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
         "additionalProperties": false
       }
     },
@@ -31254,6 +31444,31 @@
                 },
                 "exists": {
                   "type": "boolean"
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "local",
+                    "isolated"
+                  ]
+                },
+                "sourcePath": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "baseRef": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "branch": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
               "required": [
@@ -31347,6 +31562,31 @@
           },
           "exists": {
             "type": "boolean"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "local",
+              "isolated"
+            ]
+          },
+          "sourcePath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "baseRef": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "branch": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -40610,6 +40850,31 @@
                 },
                 "exists": {
                   "type": "boolean"
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "local",
+                    "isolated"
+                  ]
+                },
+                "sourcePath": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "baseRef": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "branch": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
               "required": [
@@ -41057,12 +41322,28 @@
       "message": "工作区文件夹已不存在"
     },
     {
+      "code": "workspaces.isolation_unavailable",
+      "message": "当前版本没有装配隔离工作区"
+    },
+    {
       "code": "workspaces.not_a_directory",
       "message": "所选路径不是文件夹"
     },
     {
       "code": "workspaces.not_found",
       "message": "工作区不存在"
+    },
+    {
+      "code": "workspaces.not_isolated",
+      "message": "只有隔离工作区可以交付或丢弃"
+    },
+    {
+      "code": "workspaces.not_local",
+      "message": "只能从本地工作区创建隔离副本"
+    },
+    {
+      "code": "workspaces.worktree_failed",
+      "message": "创建隔离工作区失败"
     }
   ]
 }

@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import { defineCoreModule } from '@poietica/core-kernel'
+import { applyPatch, createWorktree, removeWorktree, worktreeDiff } from '@poietica/worktree'
 import { workspacesContract } from '../contract'
 import {
   WORKSPACE_REMOVED_TOPIC,
@@ -35,6 +36,13 @@ export default defineCoreModule({
       fs: {
         isDirectory: (p) => fs.statSync(p, { throwIfNoEntry: false })?.isDirectory() ?? false,
       },
+      worktree: {
+        create: (input) => createWorktree(input),
+        remove: (input) => removeWorktree(input),
+        diff: (input) => worktreeDiff(input),
+        apply: (input) => applyPatch(input),
+      },
+      worktreesDir: ctx.layout.worktreesDir,
     })
 
     ctx.services.provide(WriteLeaseServiceToken, createWriteLeaseService({ clock: ctx.clock }))

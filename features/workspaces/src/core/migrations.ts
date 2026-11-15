@@ -19,4 +19,13 @@ export const migrations: readonly Migration[] = [
 );
 CREATE INDEX workspaces_workspaces_by_opened ON workspaces_workspaces (last_opened_at DESC);`,
   },
+  {
+    version: 2,
+    name: 'isolation',
+    /* 隔离工作区是一个独立 row：path 指向 worktree，source_path 才是用户主仓库。 */
+    sql: `ALTER TABLE workspaces_workspaces ADD COLUMN mode TEXT NOT NULL DEFAULT 'local';
+ALTER TABLE workspaces_workspaces ADD COLUMN source_path TEXT;
+ALTER TABLE workspaces_workspaces ADD COLUMN base_ref TEXT;
+ALTER TABLE workspaces_workspaces ADD COLUMN branch TEXT;`,
+  },
 ]
