@@ -1,11 +1,11 @@
-import { Button, formatBytes, SettingRow, SettingsGroup, SettingsPage } from '@poietica/design-system'
+import { Button, SettingRow, SettingsGroup, SettingsPage } from '@poietica/design-system'
 import { useKernel } from '@poietica/ui-kernel'
 import { type ReactElement, useCallback, useEffect, useRef, useState } from 'react'
 import type { StorageUsage } from '../contract'
 import type { PlatformApi } from './api'
-import { StorageBar } from './storage-usage'
+import { StorageOverview } from './storage-usage'
 
-/* 先看见、再清理；占用那张卡里是一条用量条加一排图例，每一格的读数在图例里。
+/* 先看见、再清理；占用那张卡是「总账 + 对账单」：总量一枚读数、一枚测量按钮，下面是逐格的账。
  * 数据来自 platform 契约的 storageUsage / storageClear：Host 把上次测量连时刻一起缓存在数据根里，
  * 进页面直接就画上一份结果，不再每次白屏等一遍目录扫描；只有「重新测量」才真的重扫。
  * 契约里的 id 在界面上按「谁的数据」合成几格（数据库、omp 的其余数据都是「Agent 数据」）：类多了没人看得懂。
@@ -80,33 +80,19 @@ export function StoragePage({ api }: { readonly api: PlatformApi }): ReactElemen
     }
   }
 
-  const entries = usage?.entries ?? []
-  const total = entries.reduce((sum, entry) => sum + entry.bytes, 0)
-
   return (
     <SettingsPage>
       <SettingsGroup title="占用">
-        {/* 不写「数据根」这个名字：这张卡本身就是数据根的占用，标题已在上方。第一行只报总量。 */}
-        <SettingRow
-          label={usage === null ? '正在测量…' : `共 ${formatBytes(total)}`}
-          warning={failure?.where === 'read' ? failure.text : undefined}
-        >
-          <Button
-            disabled={busy}
-            onClick={() => {
+        {/* 不写「数据根」这个名字：这张卡本身就是数据根的占用，标题已在上方。 */}
+        <div className="settings-usage__panel">
+          <StorageOverview
+            busy={busy}
+            onRemeasure={() => {
               void load(true)
             }}
-            size="xs"
-            type="button"
-            variant="soft"
-          >
-            {busy ? '测量中…' : '重新测量'}
-          </Button>
-        </SettingRow>
-
-        {/* 加载前后画的是同一副骨架：空条 + 「正在测量…」占的高度与条 + 图例完全一致。 */}
-        <div className="settings-usage__panel">
-          <StorageBar usage={usage} />
+            usage={usage}
+            warning={failure?.where === 'read' ? failure.text : undefined}
+          />
         </div>
       </SettingsGroup>
 
