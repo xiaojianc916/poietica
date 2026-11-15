@@ -53,6 +53,8 @@ export interface CreatePolicyGateOptions {
   readonly check: (request: ArpPolicyCheckParams) => Promise<ArpPolicyDecision>
   /** 产品工具自报的能力等级；内置工具没有。 */
   readonly approvalOf: (tool: string) => 'read' | 'write' | 'exec' | undefined
+  /** 用户选了「本会话都放行」：把放行记回 Core。 */
+  readonly grant?: (toolName: string) => Promise<void> | void
 }
 
 const RESTRICTIVENESS: Record<ArpPolicyPreset, number> = {
@@ -157,7 +159,10 @@ export function createPolicyGate(o: CreatePolicyGateOptions): PolicyGate {
       category: decision.category,
     })
     if (!answer.approved) return { block: true, reason: `用户拒绝：${decision.reason}（${decision.rule}）` }
-    if (answer.session) granted.add(event.toolName)
+    if (answer.session) {
+      granted.add(event.toolName)
+      await o.grant?.(event.toolName)
+    }
     return
   }
 

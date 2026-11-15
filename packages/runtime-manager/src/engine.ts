@@ -4,6 +4,7 @@ import { jsonValue } from '@poietica/rpc'
 import type {
   AgentEngine,
   ArpPolicyDecision,
+  ArpPolicyGrantParams,
   ArpPolicyPreset,
   CommandCatalogOptions,
   Controls,
@@ -25,6 +26,7 @@ import {
   arpLoginPromptParams,
   arpMethods,
   arpPolicyCheckParams,
+  arpPolicyGrantParams,
   arpPortEventMethod,
   arpPortEventParams,
   arpToolExecuteParams,
@@ -77,6 +79,7 @@ export class ArpEngine implements AgentEngine {
     snapshot: ReturnType<typeof arpEngineSnapshotResult.parse>,
     private readonly tools: Map<string, EngineToolSpec>,
     private readonly logger: Logger,
+    private grantPolicy?: (grant: ArpPolicyGrantParams) => Promise<void> | void,
   ) {
     this.info = info
     this.snapshot = snapshot
@@ -87,6 +90,8 @@ export class ArpEngine implements AgentEngine {
     logger: RuntimeProcessOptions['logger']
     readyTimeoutMs?: number
     sandbox?: SandboxOptions
+    /** 用户选「本会话都放行」时，把记录交给 Core 的策略服务。 */
+    grantPolicy?: (grant: ArpPolicyGrantParams) => Promise<void> | void
     onError?: (error: unknown) => void
   }): Promise<ArpEngine> {
     const tools = new Map<string, EngineToolSpec>()
@@ -105,6 +110,8 @@ export class ArpEngine implements AgentEngine {
         const params = jsonValue(rawParams)
         const login = await handleLoginRequest(method, params, () => engineRef?.logins)
         if (login.handled) return login.value
+        const grant = await handlePolicyGrantRequest(method, params, engineRef?.grantPolicy ?? o.grantPolicy)
+        if (grant.handled) return grant.value
         if (method === arpMethods.policyCheck) {
           const input = arpPolicyCheckParams.parse(params)
           const decide = engineRef?.toolPolicy
@@ -137,7 +144,14 @@ export class ArpEngine implements AgentEngine {
     const hello = runtime.hello
     if (hello === null) throw new AppError(SystemErrorCode.coreUnavailable, 'Runtime Worker 没有 hello')
     const snapshot = arpEngineSnapshotResult.parse(await runtime.request(arpMethods.engineSnapshot, {}))
-    const engine = new ArpEngine(runtime, { name: 'omp', version: hello.engineVersion }, snapshot, tools, o.logger)
+    const engine = new ArpEngine(
+      runtime,
+      { name: 'omp', version: hello.engineVersion },
+      snapshot,
+      tools,
+      o.logger,
+      o.grantPolicy,
+    )
     engineRef = engine
     engine.portSubscription = runtime.onNotification((method, params) => {
       if (method === arpPortEventMethod) {
@@ -242,6 +256,11 @@ export class ArpEngine implements AgentEngine {
   /** Core 在策略模块就绪后注入；产品工具与内置工具都经 ARP `policy.check` 走同一份裁决。 */
   setToolPolicy(policy: (tool: ToolPolicyContext) => ToolPolicyDecision | Promise<ToolPolicyDecision>): void {
     this.toolPolicy = policy
+  }
+
+  /** Core 内核起来后注入：把「本会话放行」写成持久记录。 */
+  setPolicyGrant(grant: (input: ArpPolicyGrantParams) => Promise<void> | void): void {
+    this.grantPolicy = grant
   }
 
   async dispose(): Promise<void> {
@@ -352,6 +371,18 @@ export class ArpEngine implements AgentEngine {
 
 function cleanArgs(args: readonly unknown[]): unknown[] {
   return args.map((arg) => (typeof arg === 'function' || arg instanceof AbortSignal ? undefined : arg))
+}
+
+async function handlePolicyGrantRequest(
+  method: string,
+  params: unknown,
+  grant: ((input: ArpPolicyGrantParams) => Promise<void> | void) | undefined,
+): Promise<{ handled: boolean; value?: unknown }> {
+  if (method !== arpMethods.policyGrant) return { handled: false }
+  const input = arpPolicyGrantParams.parse(params)
+  if (grant === undefined) throw new AppError(SystemErrorCode.coreUnavailable, '策略放行服务尚未就绪')
+  await grant(input)
+  return { handled: true, value: { ok: true } }
 }
 
 async function handleLoginRequest(

@@ -1,13 +1,19 @@
 import type { Logger } from '@poietica/foundation'
 import type { Transport } from '@poietica/rpc'
 import { createRuntimeKernel, type RuntimeKernel } from '@poietica/runtime-kernel'
-import type { AgentEngine, ArpPolicyCheckParams, ArpPolicyDecision } from '@poietica/runtime-protocol'
+import type {
+  AgentEngine,
+  ArpPolicyCheckParams,
+  ArpPolicyDecision,
+  ArpPolicyGrantParams,
+} from '@poietica/runtime-protocol'
 import { arpMethods, arpPolicyDecision, arpPortEventMethod } from '@poietica/runtime-protocol'
 import { installPolicyBridge } from '../session/policy-gate'
 import { createArpHandlers } from './handlers'
 
 interface PolicyInstallable {
   setPolicyCheck(check: (request: ArpPolicyCheckParams) => Promise<ArpPolicyDecision>): void
+  setPolicyGrant(grant: (input: ArpPolicyGrantParams) => Promise<void>): void
 }
 
 /** 只有真实 omp 引擎接受宿主策略；FakeEngine 保持原样。 */
@@ -42,6 +48,9 @@ export function createOmpRuntimeWorker(o: {
     engine.setPolicyCheck(async (request) =>
       arpPolicyDecision.parse(await kernel.peer.request(arpMethods.policyCheck, request)),
     )
+    engine.setPolicyGrant(async (input) => {
+      await kernel.peer.request(arpMethods.policyGrant, input)
+    })
   }
   const subscriptions = [
     o.engine.models.onDidChange(() => kernel.peer.notify(arpPortEventMethod, { port: 'models', event: 'change' })),

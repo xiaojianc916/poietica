@@ -3,6 +3,7 @@ import {
   type AgentEngine,
   type ArpPolicyCheckParams,
   type ArpPolicyDecision,
+  type ArpPolicyGrantParams,
   type BrowserRelayEndpoint,
   type CommandCatalogOptions,
   type Controls,
@@ -60,6 +61,7 @@ export class OmpEngine implements AgentEngine {
   private frozen = false
   private disposed = false
   private policyCheck: ((request: ArpPolicyCheckParams) => Promise<ArpPolicyDecision>) | undefined
+  private policyGrantHandler: ((grant: ArpPolicyGrantParams) => Promise<void>) | undefined
 
   constructor(private readonly o: OmpEngineOptions) {
     this.info = o.info
@@ -138,6 +140,15 @@ export class OmpEngine implements AgentEngine {
   /** SessionFactory 建会话时取当前裁决器；还没装时不给策略扩展（测试替身）。 */
   get policy(): ((request: ArpPolicyCheckParams) => Promise<ArpPolicyDecision>) | undefined {
     return this.policyCheck
+  }
+
+  /** 用户选「本会话都放行」时，Worker 经 ARP 把记录交回 Core（`policy.grant`）。 */
+  setPolicyGrant(grant: (input: ArpPolicyGrantParams) => Promise<void>): void {
+    this.policyGrantHandler = grant
+  }
+
+  get policyGrant(): ((input: ArpPolicyGrantParams) => Promise<void>) | undefined {
+    return this.policyGrantHandler
   }
 
   freezeTools(): void {

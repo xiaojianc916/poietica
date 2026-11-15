@@ -22,6 +22,7 @@ export const arpMethods = {
   engineCall: 'engine.call',
   engineSnapshot: 'engine.snapshot',
   policyCheck: 'policy.check',
+  policyGrant: 'policy.grant',
   engineRegisterTool: 'engine.registerTool',
   engineUnregisterTool: 'engine.unregisterTool',
   toolExecute: 'tool.execute',
@@ -179,6 +180,13 @@ export const arpPolicyDecision = z.object({
   checkpoint: z.boolean(),
 })
 export type ArpPolicyDecision = z.infer<typeof arpPolicyDecision>
+
+/** 用户在审批卡片里选了「本会话都批准」：Worker 把放行记回 Core（重启后仍在）。 */
+export const arpPolicyGrantParams = z.object({
+  sessionKey: z.string().min(1),
+  toolName: z.string().min(1),
+})
+export type ArpPolicyGrantParams = z.infer<typeof arpPolicyGrantParams>
 
 export const arpLoginParams = z.object({ providerId: z.string().min(1), loginId: z.string().min(1) })
 export type ArpLoginParams = z.infer<typeof arpLoginParams>

@@ -39,6 +39,8 @@ export interface SessionFactoryOptions {
   readonly tools: ReadonlyMap<string, EngineToolSpec>
   /** Core 的执行策略裁决（ARP `policy.check`）；会话打开时现取，Worker 晚于引擎安装。不给则不装策略扩展。 */
   readonly policyCheck?: () => ((request: ArpPolicyCheckParams) => Promise<ArpPolicyDecision>) | undefined
+  /** 把「本会话放行」记回 Core；不给就只留在 Worker 内存。 */
+  readonly policyGrant?: (sessionKey: string, toolName: string) => Promise<void> | void
   /** 策略门的文件扩展路径；给了就装进主会话，并由 omp 的 task 执行器继承给子代理。 */
   readonly policyExtensionPath?: string
   /** 测试缝：存在时跳过模型解析、直接用注入的 mock */
@@ -159,6 +161,7 @@ export class SessionFactory {
       cwd: spec.cwd,
       check,
       approvalOf: (tool) => this.o.tools.get(tool)?.approval,
+      ...(this.o.policyGrant === undefined ? {} : { grant: (tool: string) => this.o.policyGrant?.(spec.key, tool) }),
     })
   }
 

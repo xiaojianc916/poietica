@@ -79,12 +79,21 @@ export async function serve(): Promise<void> {
     const journal = kernel.services.get(JournalServiceToken)
     engine.setToolPolicy((tool) => {
       const preset = (tool.preset ?? settings.get('policy.preset').value) as Parameters<typeof policy.evaluate>[0]
-      const decision =
+      const raw =
         tool.approval === undefined
           ? policy.evaluate(preset, tool.name, policyContextOf(tool.input ?? {}, tool.cwd))
           : policy.evaluateClassification(preset, classificationOfApproval(tool.approval), {
               workspaceRoot: tool.cwd,
             })
+      const decision =
+        raw.action === 'ask' && policy.isGranted(tool.sessionKey, tool.name)
+          ? {
+              ...raw,
+              action: 'allow' as const,
+              rule: 'policy.session_grant',
+              reason: '本会话已放行该工具',
+            }
+          : raw
       try {
         journal.append(tool.sessionKey, 'main', [
           {
@@ -113,6 +122,9 @@ export async function serve(): Promise<void> {
         checkpoint: decision.classification.checkpoint,
       }
     })
+    engine.setPolicyGrant?.((grant) => {
+      policy.grant(grant)
+    })
   }
   await Bun.write(path.join(layout.coreDir, 'core.pid'), String(process.pid))
 }
@@ -128,6 +140,7 @@ interface PolicyToolContext {
 
 interface PolicyInstallable {
   setToolPolicy(policy: (tool: PolicyToolContext) => unknown): void
+  setPolicyGrant?(grant: (input: { sessionKey: string; toolName: string }) => Promise<void> | void): void
 }
 
 function classificationOfApproval(approval: 'read' | 'write' | 'exec') {

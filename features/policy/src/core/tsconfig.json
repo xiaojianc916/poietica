@@ -6,6 +6,12 @@
       "path": "../../../../packages/core-kernel"
     },
     {
+      "path": "../../../../packages/foundation"
+    },
+    {
+      "path": "../../../../packages/storage-sqlite"
+    },
+    {
       "path": "../../../settings/src/core-api"
     },
     {

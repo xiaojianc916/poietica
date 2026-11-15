@@ -195,6 +195,7 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
     registry,
     tools,
     policyCheck: () => engine.policy,
+    policyGrant: (sessionKey, toolName) => engine.policyGrant?.({ sessionKey, toolName }),
     ...(policyExtensionPath === undefined ? {} : { policyExtensionPath }),
     mcp,
     testSeams: seams,

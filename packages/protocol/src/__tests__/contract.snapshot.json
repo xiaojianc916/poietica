@@ -1,5 +1,5 @@
 {
-  "version": 72,
+  "version": 73,
   "methods": [
     {
       "name": "agentSettings.capabilities",
@@ -13100,6 +13100,97 @@
           "reason",
           "preset",
           "classification"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "policy.grants",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "列出未过期的工具放行记录（授权管理页）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {}
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "grants": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sessionKey": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "toolName": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "createdAt": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "expiresAt": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "id",
+                "sessionKey",
+                "toolName",
+                "createdAt",
+                "expiresAt"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "grants"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "policy.revoke",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "撤销一条工具放行记录",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "grantId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "grantId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "revoked": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "revoked"
         ],
         "additionalProperties": false
       }

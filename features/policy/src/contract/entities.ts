@@ -46,3 +46,12 @@ export const PolicyDecision = z.object({
   classification: ToolClassification,
 })
 export type PolicyDecision = z.infer<typeof PolicyDecision>
+
+export const PolicyGrant = z.object({
+  id: z.string().min(1),
+  sessionKey: z.string().min(1),
+  toolName: z.string().min(1),
+  createdAt: z.number().int(),
+  expiresAt: z.number().int(),
+})
+export type PolicyGrant = z.infer<typeof PolicyGrant>

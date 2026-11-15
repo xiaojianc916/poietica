@@ -24,14 +24,19 @@ function harness(options?: {
   readonly approved?: boolean
   readonly session?: boolean
   readonly approval?: 'read' | 'write' | 'exec'
+  readonly grants?: string[]
 }) {
   const requests: ArpPolicyCheckParams[] = []
   const approvals: PolicyApprovalRequest[] = []
+  const grants: string[] = []
   let handler: Handler | undefined
   const gate = createPolicyGate({
     sessionKey: 'thread-1',
     preset: 'ask',
     approvalOf: () => options?.approval,
+    grant: (tool) => {
+      grants.push(tool)
+    },
     check: async (request) => {
       requests.push(request)
       if (options?.checkThrows === true) throw new Error('core offline')
@@ -56,7 +61,7 @@ function harness(options?: {
       if (event === 'tool_call') handler = fn
     },
   } as unknown as Parameters<ExtensionFactory>[0])
-  return { gate, requests, approvals, run: (event: ToolCallEvent = BASH) => handler!(event, { cwd: 'D:/ws' }) }
+  return { gate, requests, approvals, grants, run: (event: ToolCallEvent = BASH) => handler!(event, { cwd: 'D:/ws' }) }
 }
 
 describe('policy gate', () => {
@@ -123,6 +128,7 @@ describe('policy gate', () => {
     expect(await h.run()).toBeUndefined()
     expect(h.requests).toHaveLength(1)
     expect(h.approvals).toHaveLength(1)
+    expect(h.grants).toEqual(['bash'])
   })
 
   test('产品工具把自报的能力等级一起交给 Core', async () => {
