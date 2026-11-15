@@ -506,9 +506,11 @@
       "name": "@poietica/feature-policy",
       "version": "0.0.0",
       "dependencies": {
+        "@poietica/agent-model": "workspace:*",
         "@poietica/contract-kit": "workspace:*",
         "@poietica/core-kernel": "workspace:*",
         "@poietica/design-system": "workspace:*",
+        "@poietica/feature-journal": "workspace:*",
         "@poietica/feature-settings": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/rpc": "workspace:*",
@@ -519,7 +521,9 @@
         "zod": "catalog:",
       },
       "devDependencies": {
+        "@poietica/runtime-protocol-testkit": "workspace:*",
         "@poietica/test-kit": "workspace:*",
+        "@testing-library/react": "catalog:",
         "@types/bun": "catalog:",
         "@types/react": "catalog:",
       },

@@ -1,5 +1,6 @@
 import path from 'node:path'
 import type {
+  NetworkVerdict,
   PolicyAction,
   PolicyContext,
   PolicyDecision,
@@ -96,7 +97,7 @@ export function evaluateClassification(
     return execDecision(preset, context, decision)
   }
   if (classification.category === 'file.write') return writeDecision(preset, context, decision)
-  if (classification.category === 'network') return networkDecision(preset, decision)
+  if (classification.category === 'network') return networkDecision(preset, context, decision)
   if (classification.category === 'agent') return agentDecision(preset, decision)
   return otherDecision(preset, decision)
 }
@@ -138,13 +139,108 @@ function writeDecision(
   return decision('allow', 'file.write.workspace', '工作树内写入')
 }
 
+/*
+ * 网络出口规则（§13.1 的「关闭 / 白名单 / 全部开放」）。判定顺序是「预设先关门 → 目标能解析才谈得上规则 →
+ * 白名单先于预设放行」：只读档没有网络，白名单对它也不开口子；其余档位里，命中白名单的立刻放行，
+ * 命不中才回落到该档位的默认行为。真强制（经本地代理执行）还没做，所以这里只裁决、不拦截流量。
+ *
+ * 规则码是稳定契约：审批卡片与审计都按它分类，不要为了文案改它。
+ */
+const NETWORK_HOSTS: Readonly<Record<PolicyPreset, readonly string[]>> = {
+  /* 只读档的网络是关的，白名单不存在（列在这里只为了类型齐全） */
+  'read-only': [],
+  ask: [],
+  'auto-edit': [
+    '*.github.com',
+    'github.com',
+    '*.githubusercontent.com',
+    '*.npmjs.com',
+    'registry.npmjs.org',
+    '*.pypi.org',
+    'files.pythonhosted.org',
+    '*.microsoft.com',
+    '*.windowsupdate.com',
+  ],
+  'full-access': [],
+}
+
+/**
+ * 主机名是否命中一条白名单规则。支持三种写法：精确（`example.com`）、子域通配（`*.example.com`，含裸域）
+ * 与裸后缀（`.example.com`）。匹配一律按小写、按标签边界 —— `evil-example.com` 不该命中 `example.com`。
+ */
+export function hostMatches(rule: string, host: string): boolean {
+  const target = host.toLowerCase()
+  const pattern = rule.toLowerCase().trim()
+  if (pattern === '' || target === '') return false
+  if (pattern === '*') return true
+  if (pattern.startsWith('*.')) {
+    const base = pattern.slice(2)
+    return target === base || target.endsWith(`.${base}`)
+  }
+  if (pattern.startsWith('.')) {
+    const base = pattern.slice(1)
+    return target === base || target.endsWith(`.${base}`)
+  }
+  return target === pattern
+}
+
+/** 从目标里取主机名：不是合法 URL 就是 undefined（不猜、不把路径当主机）。 */
+export function hostOf(url: string): string | undefined {
+  try {
+    const parsed = new URL(url)
+    /* 只有 http(s) 是网络出口；file: / data: / chrome: 之类的目标没有主机，也不该由白名单放行 */
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined
+    return parsed.hostname === '' ? undefined : parsed.hostname
+  } catch {
+    return undefined
+  }
+}
+
 function networkDecision(
   preset: PolicyPreset,
+  context: PolicyContext,
   decision: (action: PolicyAction, rule: string, reason: string) => PolicyDecision,
 ): PolicyDecision {
-  if (preset === 'read-only') return decision('deny', 'preset.read_only.network', '只读预设关闭网络')
-  if (preset === 'auto-edit' || preset === 'ask') return decision('ask', 'preset.network_ask', '网络访问要确认')
-  return decision('allow', 'preset.full_access', '完全访问')
+  if (preset === 'read-only') {
+    return withNetwork(decision('deny', 'preset.read_only.network', '只读预设关闭网络'), {
+      action: 'deny',
+      rule: 'preset.read_only.network',
+      reason: '只读预设关闭网络',
+    })
+  }
+  const target = context.url
+  /* 没有目标就退到原来的档位判断：产品工具只报了「这是网络」，没有可判定的主机 */
+  if (target === undefined || target === '') {
+    const action: PolicyAction = preset === 'full-access' ? 'allow' : 'ask'
+    const rule = preset === 'full-access' ? 'preset.full_access' : 'preset.network_ask'
+    const reason = preset === 'full-access' ? '完全访问' : '网络访问要确认'
+    return withNetwork(decision(action, rule, reason), { action, rule, reason })
+  }
+  const host = hostOf(target)
+  if (host === undefined) {
+    return withNetwork(decision('ask', 'network.unparsed', '网络目标不是可判定的 http(s) 地址'), {
+      action: 'ask',
+      rule: 'network.unparsed',
+      reason: '网络目标不是可判定的 http(s) 地址',
+    })
+  }
+  const hit = NETWORK_HOSTS[preset].find((rule) => hostMatches(rule, host))
+  if (hit !== undefined) {
+    return withNetwork(decision('allow', 'network.allowlist', `命中出口白名单：${hit}`), {
+      action: 'allow',
+      rule: 'network.allowlist',
+      reason: `命中出口白名单：${hit}`,
+      host,
+    })
+  }
+  const action: PolicyAction = preset === 'full-access' ? 'allow' : 'ask'
+  const rule = preset === 'full-access' ? 'preset.full_access' : 'network.not_allowlisted'
+  const reason = preset === 'full-access' ? '完全访问' : `目标不在出口白名单内：${host}`
+  return withNetwork(decision(action, rule, reason), { action, rule, reason, host })
+}
+
+function withNetwork(decision: PolicyDecision, network: NetworkVerdict): PolicyDecision {
+  return { ...decision, network }
 }
 
 function agentDecision(

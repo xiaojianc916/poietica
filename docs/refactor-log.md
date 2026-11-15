@@ -75,6 +75,24 @@
 - **四处保持串行**：outbox 同 topic 的消费者按注册顺序生效，并发会打乱消费序；worktree 的 remove 与启动对账共用一个仓库的 git worktree 元数据，并发会撞锁，启动路径也不该铺开一批 git 子进程；rewind 的逐轮 `diffNumstat` 打在同一份 git 对象库上，串行把并发 git 进程压在 1。都按既有惯例在循环处 `react-doctor-disable-next-line react-doctor/async-await-in-loop` 并写明理由，不改并发。
 - **验证**：react-doctor 100 / 0 诊断；`format:check`、`lint`、`typecheck`、`bun test features/workspaces features/review packages/core-kernel` 均通过。
 
+### P4 收尾：授权管理、策略审计、网络出口规则、凭据只读化（2026-11-15）
+
+四件事都是 P4「执行安全平面」的剩余项，按架构设计 §13.1 / §13.5 与 ADR-008 的验收口径补齐。
+
+- **授权管理页接上**：`features/policy` 的方法名按事实归属改名 —— `policy.grants` → `policy.grants.list`、`policy.revoke` → `policy.grants.revoke`（记录是产品事实，撤销是产品动作，都不属于某一次工具执行）。设置页入口早已贡献（`settingsPages` 的 `policy.grants`，`SETTINGS_GROUPS.system`），之前缺的只是可用的方法名。顺带修掉页面一个真缺陷：刷新列表时会把「这条授权已经不存在了」的说明一并清掉，等于什么都没告诉用户 —— 现在 `load` 只管列表，清提示由发起动作的那一侧负责。
+- **策略裁决统一进审计**：`policy.check` 成为裁决 + 会话放行覆盖 + 写 Journal 的唯一入口（引擎钩子与 RPC 走同一条），`PolicyService.check()` 把它交给 `apps/core/src/serve.ts`。放行 / 询问 / 拒绝、发放放行、撤销放行三件事都落 `policy.decided` / `policy.granted` / `policy.revoked`；审计写失败只记 warn，不让「记不上」变成「用不了」。`policy.decided` 补 `risk` / `workspaceRoot` / `toolCallId` 三个字段（只增不改，schema 版本仍为 1）。
+- **在 HEAD 上修掉两个启动阻断（都不是本轮引入的）**：①`features/policy/src/core/index.ts` 的 handler 解构了契约里没有的 `sessionKey`，`typecheck` 直接红；②`policy` 声明依赖 `journal`，但两者都登记在第 1 级，内核 `assertTierOrder` 在真机启动时直接拒绝装配（`kernel.module_graph_invalid`，界面只报「引擎启动失败」）。**后者是闸门漏网**：`createCoreHarness` 只装被测模块、不带描述符，所以单测全绿。`policy` 升到第 2 级（它读 Journal、依赖 settings，比 journal 高一级是对的），并补 `apps/core/src/__tests__/assembly.test.ts` —— 用**真实装配清单**校验「一模块一描述符 + 依赖级别严格更低」，并真的把内核拉到 `core.ready`。两条断言都做过「把 tier 改回 1 → 变红」的反向验证。
+- **网络出口规则层**：`PolicyContext` 增加 `url`；`networkDecision` 按「预设先关门 → 目标能解析才谈规则 → 白名单先于预设放行」判定，规则码 `network.allowlist` / `network.not_allowlisted` / `network.unparsed` 是稳定契约，命中的规则名与主机名单独放进 `PolicyDecision.network`（`NetworkVerdict`），审批卡片与审计不必再从 reason 里猜。`hostMatches` 按标签边界匹配（`evil-example.com` 不命中 `example.com`），只认 http(s)。`serve.ts` 的 `policyContextOf` 从 `url` / `target` / `href` / `endpoint` 取第一个像 http(s) 的目标。**真强制（经本地代理执行）仍未做**：这里只裁决，不拦流量 —— 与 §13.3 的「注入代理环境变量」是两件事，后者要等 Worker 环境注入口。
+- **审计查询按工具 / 风险 / 工作区**：`journal` 服务新增跨线程 `query(types, { threadId?, fields?, limit? })`，过滤在 SQL 里做（`json_extract`，字段名来自调用方的固定清单、值走占位符）；`audit.query` 的 `threadId` 改为可选（不给就是跨线程），新增 `tool` / `risk` / `workspaceRoot`。字段条件与类别取交集：给了 `risk` 就不会把没有这个字段的审批事件带出来。跨线程结果按发生时刻排序 —— `seq` 只在一条线程里可比。
+- **凭据只读化的收尾与它的边界**：`restoreApiKeys` 现在交回 `{ moved, remaining, delivered }`，搬不动的明文由 `features/models` 在启动时报 **error**（从前只有一句 warn，磁盘上还留着一份没人看得见）；补两条「磁盘上搜不到明文」的测试 —— `features/secrets/src/host/__tests__/vault-disk.test.ts`（真实 `createSecretVault`，逐文件搜数据根）与 `packages/engine-omp/src/ports/__tests__/credentials-on-disk.test.ts`（`config.yml` / `models.yml` 的实际字节）。**仍未达成的部分如实记在这里**：`features/workbuddy` 的账号令牌（`access` / `refresh` / `api_key`）仍以明文存在自己功能的 SQLite 表里，`models.yml` 里的 WorkBuddy 服务商 `baseUrl` 还带着每次启动新生成的反代口令（`/p/<secret>/v1`）。搬迁被一个次序卡住：Worker 在 `serve` 的 `kernel.start() **之前**启动，而反代口令要等 workbuddy 模块 onReady 才生成 —— 想让 Worker 拿到它，得先有「onReady 之后把环境补给运行中的 Worker」的注入口，否则现在改就是把手功能接口换成坏的。omp 侧已实测：`models.yml`的`headers` 支持环境变量间接（`authorization: <ENV_NAME>` 会解析成该变量的值），`baseUrl` 不支持；`auth: apiKey`而不写内联`apiKey` 会让整个服务商被丢掉。这条留作待决，见下面的「待决问题」。
+- **协议**：`PROTOCOL_VERSION` 74→75（policy 方法改名与新增字段、audit 查询参数形状变化），`bun run protocol:snapshot` 已重生成。
+- **验证**：`typecheck`、`format:check`、`lint`（含 depcruise 与 ratchet）、全量 `bun test` 全绿；新增 policy 18 条（含网络规则 6 条）、audit 7 条、凭据落盘 3 + 2 条、装配 2 条；授权管理页只改样式与文案，按 AGENTS §10 不写外观测试。
+
+#### 待决问题（本轮记入）
+
+- **WorkBuddy 明文的搬迁次序**：需要「Worker 已就绪后补注入环境」的注入口（或让反代口令改走 `secrets.lease` 的短期租约），否则 `models.yml` 里的 `baseUrl` 口令与功能表里的令牌只能继续明文。前提已确认：现有 `safeStorage` 通道（`secrets.put` / `secrets.lease`）可直接复用，不需要新通道。
+- **网络出口规则的强制面**：当前只裁决不拦截。真强制要按 §13.3 给 Worker 注入代理环境变量（`HTTPS_PROXY` 等）并由本地代理放行白名单域名；这需要在 `RuntimeLaunch.env` 与 `engine-omp` 的 bootstrap 之间开一条注入路径，且要和隔离自检的环境清洗顺序对齐。
+
 ### P4 / P5 / P6 第二轮（2026-11-15）
 
 - **P5 检查点优先的审查**：review 的轮次列表不再要求 `review_turn_files` 有行；shell-only 轮从起止 checkpoint 的 `diffNumstat` 取文件与行数，右坞 diff 从两个快照各读一份。撤销状态新增 `review_reverted_turns`，重启后仍知道哪一轮撤过。没有检查点的旧轮继续走指标本。

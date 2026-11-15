@@ -1,5 +1,5 @@
 {
-  "version": 74,
+  "version": 75,
   "methods": [
     {
       "name": "agentSettings.capabilities",
@@ -874,15 +874,29 @@
               ]
             }
           },
+          "tool": {
+            "type": "string",
+            "minLength": 1
+          },
+          "risk": {
+            "type": "string",
+            "enum": [
+              "none",
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "workspaceRoot": {
+            "type": "string",
+            "minLength": 1
+          },
           "limit": {
             "type": "integer",
             "minimum": 1,
             "maximum": 5000
           }
-        },
-        "required": [
-          "threadId"
-        ]
+        }
       },
       "result": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -908,7 +922,7 @@
       "name": "audit.query",
       "owner": "core",
       "timeoutMs": 30000,
-      "description": "按线程读审计事件（策略裁决 / 审批 / 检查点 / 运行终态）；事实源是 Journal，不另存副本",
+      "description": "按线程 / 类别 / 工具 / 风险等级 / 工作区读审计事件；事实源是 Journal，不另存副本",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -929,15 +943,29 @@
               ]
             }
           },
+          "tool": {
+            "type": "string",
+            "minLength": 1
+          },
+          "risk": {
+            "type": "string",
+            "enum": [
+              "none",
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "workspaceRoot": {
+            "type": "string",
+            "minLength": 1
+          },
           "limit": {
             "type": "integer",
             "minimum": 1,
             "maximum": 5000
           }
-        },
-        "required": [
-          "threadId"
-        ]
+        }
       },
       "result": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -958,6 +986,9 @@
                   "minLength": 1
                 },
                 "at": {
+                  "type": "string"
+                },
+                "threadId": {
                   "type": "string"
                 },
                 "event": {}
@@ -13041,11 +13072,15 @@
       "name": "policy.check",
       "owner": "core",
       "timeoutMs": 30000,
-      "description": "对一次工具执行做策略裁决（allow / ask / deny）",
+      "description": "对一次工具执行做策略裁决（allow / ask / deny），并把裁决写进 Journal",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
+          "sessionKey": {
+            "type": "string",
+            "minLength": 1
+          },
           "preset": {
             "type": "string",
             "enum": [
@@ -13073,11 +13108,15 @@
                 "items": {
                   "type": "string"
                 }
+              },
+              "url": {
+                "type": "string"
               }
             }
           }
         },
         "required": [
+          "sessionKey",
           "preset",
           "toolName"
         ]
@@ -13147,6 +13186,34 @@
               "checkpoint"
             ],
             "additionalProperties": false
+          },
+          "network": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "allow",
+                  "ask",
+                  "deny"
+                ]
+              },
+              "rule": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "host": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "action",
+              "rule",
+              "reason"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -13160,7 +13227,7 @@
       }
     },
     {
-      "name": "policy.grants",
+      "name": "policy.grants.list",
       "owner": "core",
       "timeoutMs": 30000,
       "description": "列出未过期的工具放行记录（授权管理页）",
@@ -13219,10 +13286,10 @@
       }
     },
     {
-      "name": "policy.revoke",
+      "name": "policy.grants.revoke",
       "owner": "core",
       "timeoutMs": 30000,
-      "description": "撤销一条工具放行记录",
+      "description": "撤销一条工具放行记录，并把撤销写进 Journal",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -23916,6 +23983,21 @@
                           },
                           "preset": {
                             "type": "string"
+                          },
+                          "risk": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "low",
+                              "medium",
+                              "high"
+                            ]
+                          },
+                          "workspaceRoot": {
+                            "type": "string"
+                          },
+                          "toolCallId": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -23929,6 +24011,158 @@
                           "rule",
                           "reason",
                           "preset"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "schema": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "at": {
+                            "type": "string"
+                          },
+                          "threadId": {
+                            "type": "string"
+                          },
+                          "agentId": {
+                            "type": "string"
+                          },
+                          "runId": {
+                            "type": "string"
+                          },
+                          "itemId": {
+                            "type": "string"
+                          },
+                          "seq": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "ompRef": {
+                            "type": "object",
+                            "properties": {
+                              "sessionFile": {
+                                "type": "string"
+                              },
+                              "entryId": {
+                                "type": "string"
+                              },
+                              "toolCallId": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "durability": {
+                            "type": "string",
+                            "const": "committed"
+                          },
+                          "type": {
+                            "type": "string",
+                            "const": "policy.granted"
+                          },
+                          "toolName": {
+                            "type": "string"
+                          },
+                          "grantId": {
+                            "type": "string"
+                          },
+                          "sessionKey": {
+                            "type": "string"
+                          },
+                          "expiresAt": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "schema",
+                          "at",
+                          "durability",
+                          "type",
+                          "toolName",
+                          "grantId",
+                          "sessionKey",
+                          "expiresAt"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "schema": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "at": {
+                            "type": "string"
+                          },
+                          "threadId": {
+                            "type": "string"
+                          },
+                          "agentId": {
+                            "type": "string"
+                          },
+                          "runId": {
+                            "type": "string"
+                          },
+                          "itemId": {
+                            "type": "string"
+                          },
+                          "seq": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "ompRef": {
+                            "type": "object",
+                            "properties": {
+                              "sessionFile": {
+                                "type": "string"
+                              },
+                              "entryId": {
+                                "type": "string"
+                              },
+                              "toolCallId": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "durability": {
+                            "type": "string",
+                            "const": "committed"
+                          },
+                          "type": {
+                            "type": "string",
+                            "const": "policy.revoked"
+                          },
+                          "grantId": {
+                            "type": "string"
+                          },
+                          "toolName": {
+                            "type": "string"
+                          },
+                          "sessionKey": {
+                            "type": "string"
+                          },
+                          "removed": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "schema",
+                          "at",
+                          "durability",
+                          "type",
+                          "grantId",
+                          "removed"
                         ],
                         "additionalProperties": false
                       },
@@ -40514,6 +40748,21 @@
                     },
                     "preset": {
                       "type": "string"
+                    },
+                    "risk": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "low",
+                        "medium",
+                        "high"
+                      ]
+                    },
+                    "workspaceRoot": {
+                      "type": "string"
+                    },
+                    "toolCallId": {
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -40527,6 +40776,158 @@
                     "rule",
                     "reason",
                     "preset"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "schema": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "threadId": {
+                      "type": "string"
+                    },
+                    "agentId": {
+                      "type": "string"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "itemId": {
+                      "type": "string"
+                    },
+                    "seq": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "ompRef": {
+                      "type": "object",
+                      "properties": {
+                        "sessionFile": {
+                          "type": "string"
+                        },
+                        "entryId": {
+                          "type": "string"
+                        },
+                        "toolCallId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "durability": {
+                      "type": "string",
+                      "const": "committed"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "policy.granted"
+                    },
+                    "toolName": {
+                      "type": "string"
+                    },
+                    "grantId": {
+                      "type": "string"
+                    },
+                    "sessionKey": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "schema",
+                    "at",
+                    "durability",
+                    "type",
+                    "toolName",
+                    "grantId",
+                    "sessionKey",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "schema": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "threadId": {
+                      "type": "string"
+                    },
+                    "agentId": {
+                      "type": "string"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "itemId": {
+                      "type": "string"
+                    },
+                    "seq": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "ompRef": {
+                      "type": "object",
+                      "properties": {
+                        "sessionFile": {
+                          "type": "string"
+                        },
+                        "entryId": {
+                          "type": "string"
+                        },
+                        "toolCallId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "durability": {
+                      "type": "string",
+                      "const": "committed"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "policy.revoked"
+                    },
+                    "grantId": {
+                      "type": "string"
+                    },
+                    "toolName": {
+                      "type": "string"
+                    },
+                    "sessionKey": {
+                      "type": "string"
+                    },
+                    "removed": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "schema",
+                    "at",
+                    "durability",
+                    "type",
+                    "grantId",
+                    "removed"
                   ],
                   "additionalProperties": false
                 },

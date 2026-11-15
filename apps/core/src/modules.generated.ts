@@ -138,8 +138,8 @@ export const featureDescriptors = {
   policy: {
     id: 'policy',
     kind: 'domain',
-    tier: 1,
-    processes: ['core'],
+    tier: 2,
+    processes: ['core', 'ui'],
     hasContract: true,
     module: policy,
   },

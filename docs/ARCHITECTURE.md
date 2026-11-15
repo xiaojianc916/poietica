@@ -176,9 +176,25 @@ omp 的实现只在独立的 `poietica-runtime.exe` 里加载；Core 的 `serve`
 明确记录并降级到 off。L2 的受限令牌 / 低完整性级别（限制工作区外写入）仍未实现，`restricted` 会明确报不支持。
 
 执行策略（P4 第一道防线）：Worker 在每个工具执行前经 ARP `policy.check` 把工具名、入参与会话档位交给 Core 的
-`policy` 模块；Core 按工具分类与命令/路径裁决，并把 `policy.decided` 追加进 Journal。装了策略门后
+`policy` 模块；Core 按工具分类、命令、路径与网络目标裁决，并把 `policy.decided` 追加进 Journal。装了策略门后
 `tools.approvalMode` 固定为 `yolo`，omp 自己的审批让位；审批由产品自己的结构化 `approval` 交互卡片完成，
 全链路不解析界面文案。Core 不可用时 fail closed。
+
+裁决的四条入口与它们的分工（同一个服务方法，RPC 与引擎钩子不各写一份）：
+
+| 事实                   | 写什么                                                         |
+| ---------------------- | -------------------------------------------------------------- |
+| 放行 / 询问 / 拒绝     | `policy.decided`（带 `risk` / `workspaceRoot` / `toolCallId`） |
+| 用户选「本会话都批准」 | `policy.granted`（`policy_grants` 一行，24 小时）              |
+| 在授权管理页撤销       | `policy.revoked`                                               |
+| 网络目标命中出口白名单 | `policy.decided` 的 `network` 附注（规则名 + 主机名）          |
+
+网络出口规则（`networkDecision`）按「预设先关门 → 目标能解析才谈规则 → 白名单先于预设放行」判定，规则码
+`network.allowlist` / `network.not_allowlisted` / `network.unparsed` 是稳定契约。**这一层只裁决、不拦流量**：
+真强制要按 §13.3 给 Worker 注入代理环境变量，仍未做。
+
+审计（`features/audit`）不另存副本：它按类别读 Journal，并可再按工具、风险等级与工作区跨线程查询
+（`threadId` 可选，过滤在 SQL 里做）。
 
 隔离的三条硬要求：
 

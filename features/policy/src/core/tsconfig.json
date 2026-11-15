@@ -3,6 +3,9 @@
   "include": ["."],
   "references": [
     {
+      "path": "../../../../packages/agent-model"
+    },
+    {
       "path": "../../../../packages/core-kernel"
     },
     {
@@ -10,6 +13,9 @@
     },
     {
       "path": "../../../../packages/storage-sqlite"
+    },
+    {
+      "path": "../../../journal/src/core-api"
     },
     {
       "path": "../../../settings/src/core-api"

@@ -152,15 +152,22 @@ describe('models 服务（14 页 §6.5）', () => {
     const vault = memoryVault()
     vault.data.set('anthropic', 'sk-ant-vault')
     const logger = createTestLogger()
-    expect(await restoreApiKeys({ vault, models: engine.models, logger })).toEqual(['openai'])
+    const adopted = await restoreApiKeys({ vault, models: engine.models, logger })
+    expect(adopted).toEqual({ moved: ['openai'], remaining: [], delivered: ['anthropic', 'openai'] })
     expect(vault.data.get('openai')).toBe('sk-legacy')
     expect(engine.apiKeys.get('openai')).toBe('sk-legacy')
     expect(engine.apiKeys.get('anthropic')).toBe('sk-ant-vault')
     expect(await engine.models.storedApiKeys()).toEqual([])
     expect(JSON.stringify(logger.records)).not.toContain('sk-')
 
+    /*
+     * 搬不动的明文还在引擎那里：交回 remaining，调用方据此报一条 error ——
+     * 「磁盘上还有一份明文」这件事不能只留一句 warn 就没人看得见。
+     */
     const stuck = createFakeEngine({ storedApiKeys: [{ provider: 'openai', key: 'sk-legacy' }] })
-    expect(await restoreApiKeys({ vault: memoryVault({ failPut: true }), models: stuck.models, logger })).toEqual([])
+    const blocked = await restoreApiKeys({ vault: memoryVault({ failPut: true }), models: stuck.models, logger })
+    expect(blocked.remaining).toEqual(['openai'])
+    expect(blocked.moved).toEqual([])
     expect(await stuck.models.storedApiKeys()).toEqual([{ provider: 'openai', key: 'sk-legacy' }])
   })
 

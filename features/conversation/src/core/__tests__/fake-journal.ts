@@ -7,6 +7,7 @@ export function fakeJournal(): JournalService {
     appendAndStamp: (_threadId, _agentId, events) => events,
     read: () => [],
     readTyped: () => [],
+    query: () => [],
     latestSeq: () => 0,
     integrity: () => ({ ok: true, gaps: [], segments: [], corruptSegments: [] }),
     clear: () => 0,

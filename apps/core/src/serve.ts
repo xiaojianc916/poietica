@@ -1,7 +1,6 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { createCoreKernel } from '@poietica/core-kernel'
-import { JournalServiceToken } from '@poietica/feature-journal/core-api'
 import { PolicyServiceToken } from '@poietica/feature-policy/core-api'
 import { SettingsServiceToken } from '@poietica/feature-settings/core-api'
 import { systemClock } from '@poietica/foundation'
@@ -77,43 +76,27 @@ export async function serve(): Promise<void> {
   if (hasToolPolicy(engine)) {
     const policy = kernel.services.get(PolicyServiceToken)
     const settings = kernel.services.get(SettingsServiceToken)
-    const journal = kernel.services.get(JournalServiceToken)
+    /*
+     * 引擎钩子与 `policy.check` RPC 走同一条：裁决、会话放行覆盖、写 Journal 都在 policy.check 里，
+     * 这里只把引擎的入参翻译成它要的形状。产品工具带 spec.approval（分类由它自报），内置工具按名字查表。
+     */
     engine.setToolPolicy((tool) => {
       const preset = (tool.preset ?? settings.get('policy.preset').value) as Parameters<typeof policy.evaluate>[0]
-      const raw =
-        tool.approval === undefined
-          ? policy.evaluate(preset, tool.name, policyContextOf(tool.input ?? {}, tool.cwd))
-          : policy.evaluateClassification(preset, classificationOfApproval(tool.approval), {
-              workspaceRoot: tool.cwd,
-            })
       const decision =
-        raw.action === 'ask' && policy.isGranted(tool.sessionKey, tool.name)
-          ? {
-              ...raw,
-              action: 'allow' as const,
-              rule: 'policy.session_grant',
-              reason: '本会话已放行该工具',
-            }
-          : raw
-      try {
-        journal.append(tool.sessionKey, 'main', [
-          {
-            schema: 1,
-            at: new Date().toISOString(),
-            durability: 'committed',
-            type: 'policy.decided',
-            toolName: tool.name,
-            category: decision.classification.category,
-            action: decision.action,
-            rule: decision.rule,
-            reason: decision.reason,
-            preset,
-          },
-        ])
-      } catch (error) {
-        /* 只读模式或库故障：审计落不下，但裁决本身仍然有效。 */
-        logger.warn('policy decision not journaled', { error: String(error), tool: tool.name })
-      }
+        tool.approval === undefined
+          ? policy.check({
+              sessionKey: tool.sessionKey,
+              preset,
+              toolName: tool.name,
+              context: policyContextOf(tool.input ?? {}, tool.cwd),
+            })
+          : policy.check({
+              sessionKey: tool.sessionKey,
+              preset,
+              toolName: tool.name,
+              context: { workspaceRoot: tool.cwd },
+              classification: classificationOfApproval(tool.approval),
+            })
       return {
         action: decision.action,
         rule: decision.rule,
@@ -155,11 +138,15 @@ function hasToolPolicy(engine: object): engine is PolicyInstallable {
   return 'setToolPolicy' in engine && typeof engine.setToolPolicy === 'function'
 }
 
-/** 内置工具的裁决上下文：命令正文与它显式点名的路径。路径按会话 cwd 解析，策略表只认绝对路径。 */
+/**
+ * 内置工具的裁决上下文：命令正文、它显式点名的路径，以及网络工具要访问的那个地址。
+ * 路径按会话 cwd 解析，策略表只认绝对路径；URL 只认第一个像 http(s) 的字符串 ——
+ * 网络出口规则按它的主机名判定（features/policy 的 networkDecision）。
+ */
 function policyContextOf(
   input: Record<string, unknown>,
   cwd: string,
-): { workspaceRoot: string; command?: string; paths?: string[] } {
+): { workspaceRoot: string; command?: string; paths?: string[]; url?: string } {
   const command = typeof input.command === 'string' ? input.command : undefined
   const paths = new Set<string>()
   const add = (value: unknown): void => {
@@ -176,11 +163,22 @@ function policyContextOf(
       if (match?.[1] !== undefined) add(match[1])
     }
   }
+  const url = urlOf(input)
   return {
     workspaceRoot: cwd,
     ...(command === undefined ? {} : { command }),
     ...(paths.size === 0 ? {} : { paths: [...paths] }),
+    ...(url === undefined ? {} : { url }),
   }
+}
+
+/** 网络工具的目标地址：omp 的 fetch 用 url、browser 用 url 或 target、MCP 远程服务器用 server。 */
+function urlOf(input: Record<string, unknown>): string | undefined {
+  for (const key of ['url', 'target', 'href', 'endpoint']) {
+    const value = input[key]
+    if (typeof value === 'string' && /^https?:\/\//i.test(value)) return value
+  }
+  return undefined
 }
 
 async function resolveSandbox(logger: Parameters<typeof createCoreKernel>[0]['logger']): Promise<SandboxOptions> {

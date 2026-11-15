@@ -9,11 +9,21 @@ export default defineCoreModule({
   contract: modelsContract,
   async setup(ctx) {
     const vault = hostApiKeyVault(ctx.host)
-    /* 在任何会话打开之前把钥匙交给引擎（ADR-008：Core 不持久化凭据，每次启动从凭据库取回） */
-    const adoptKeys = (): Promise<unknown> =>
-      restoreApiKeys({ vault, models: ctx.agentRuntime.models, logger: ctx.logger }).catch((e: unknown) => {
+    /*
+     * 在任何会话打开之前把钥匙交给引擎（ADR-008：Core 不持久化凭据，每次启动从凭据库取回）。
+     * 搬不动的明文（系统加密不可用、Host 不应答）明确报出来：磁盘上还留着一份这件事必须能被看见，
+     * 不能只在日志里 quiet 一句。
+     */
+    const adoptKeys = async (): Promise<void> => {
+      try {
+        const result = await restoreApiKeys({ vault, models: ctx.agentRuntime.models, logger: ctx.logger })
+        if (result.remaining.length > 0) {
+          ctx.logger.error('api keys still stored in plaintext by the engine', { providers: result.remaining })
+        }
+      } catch (e) {
         ctx.logger.error('api key restore failed', { error: String(e) })
-      })
+      }
+    }
     await adoptKeys()
     const service = createModelsService({
       models: ctx.agentRuntime.models,

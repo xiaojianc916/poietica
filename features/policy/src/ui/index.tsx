@@ -3,7 +3,7 @@ import { builtinPoints, defineUiFeature, SETTINGS_GROUPS } from '@poietica/ui-ke
 import { ShieldCheck } from 'lucide-react'
 import { PolicyGrantsPage } from './grants-page'
 
-/** 授权管理页：读 policy.grants、撤销 policy.revoke；值仍由 policy 的持久表持有。 */
+/** 授权管理页：读 policy.grants.list、撤销 policy.grants.revoke；值仍由 policy 的持久表持有。 */
 export default defineUiFeature({
   id: 'policy',
   setup(ctx) {

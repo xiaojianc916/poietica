@@ -169,6 +169,27 @@ export type AgentEvent =
       readonly rule: string
       readonly reason: string
       readonly preset: string
+      /** 工具分类的风险等级：审计按风险筛选要它（缺省来自分类表） */
+      readonly risk?: 'none' | 'low' | 'medium' | 'high'
+      /** 这次调用发生在哪个工作区：审计按工作区筛选要它 */
+      readonly workspaceRoot?: string
+      /** omp 的工具调用号：把它挂回时间线上的那一格 */
+      readonly toolCallId?: string
+    })
+  | (CommittedBase & {
+      readonly type: 'policy.granted'
+      readonly toolName: string
+      readonly grantId: string
+      readonly sessionKey: string
+      readonly expiresAt: number
+    })
+  | (CommittedBase & {
+      readonly type: 'policy.revoked'
+      readonly grantId: string
+      readonly toolName?: string
+      readonly sessionKey?: string
+      /** 撤销时那条记录还在不在：false = 早就过期或已被删掉，列表因此要重读 */
+      readonly removed: boolean
     })
   | (CommittedBase & {
       readonly type: 'usage.recorded'
@@ -367,6 +388,27 @@ export const agentEventSchema = z.discriminatedUnion('type', [
     rule: z.string(),
     reason: z.string(),
     preset: z.string(),
+    risk: z.enum(['none', 'low', 'medium', 'high']).optional(),
+    workspaceRoot: z.string().optional(),
+    toolCallId: z.string().optional(),
+  }),
+  z.object({
+    ...envelope,
+    ...committed,
+    type: z.literal('policy.granted'),
+    toolName: z.string(),
+    grantId: z.string(),
+    sessionKey: z.string(),
+    expiresAt: z.number().int(),
+  }),
+  z.object({
+    ...envelope,
+    ...committed,
+    type: z.literal('policy.revoked'),
+    grantId: z.string(),
+    toolName: z.string().optional(),
+    sessionKey: z.string().optional(),
+    removed: z.boolean(),
   }),
   z.object({
     ...envelope,

@@ -8,6 +8,11 @@ interface EventRow {
   readonly payload: string
 }
 
+interface QueryRow {
+  readonly thread_id: string
+  readonly payload: string
+}
+
 interface SegmentRow {
   readonly segment_id: number
   readonly start_seq: number
@@ -264,6 +269,39 @@ export function createJournalRepository(db: ModuleDatabase, options: CreateJourn
         )
         .all(threadId, agentId, ...types, limit)
       return rows.map((row) => JSON.parse(row.payload) as AgentEvent)
+    },
+
+    query(types, options = {}) {
+      if (types.length === 0) return []
+      const typePlaceholders = types.map(() => '?').join(', ')
+      const where = [`type IN (${typePlaceholders})`]
+      /* json_extract 对布尔返回 0 / 1：布尔条件按整数绑定，否则 SQLite 根本不认这个绑定值 */
+      const params: (string | number)[] = [...types]
+      if (options.threadId !== undefined) {
+        where.push('thread_id = ?')
+        params.push(options.threadId)
+      }
+      if (options.agentId !== undefined) {
+        where.push('agent_id = ?')
+        params.push(options.agentId)
+      }
+      for (const [field, value] of Object.entries(options.fields ?? {})) {
+        /* 字段名只来自调用方的固定清单（不是用户输入），值一律走占位符 */
+        where.push('json_extract(payload, ?) = ?')
+        params.push(`$."${field}"`, typeof value === 'boolean' ? Number(value) : value)
+      }
+      params.push(options.limit ?? 500)
+      const rows = db
+        .prepare<QueryRow>(
+          `SELECT thread_id, payload FROM journal_events
+           WHERE ${where.join(' AND ')}
+           ORDER BY thread_id ASC, seq ASC LIMIT ?`,
+        )
+        .all(...params)
+      return rows.map((row) => ({
+        threadId: row.thread_id,
+        event: JSON.parse(row.payload) as AgentEvent,
+      }))
     },
 
     latestSeq,

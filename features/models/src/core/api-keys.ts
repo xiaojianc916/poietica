@@ -26,18 +26,27 @@ export function hostApiKeyVault(host: HostCaller): ApiKeyVault {
 }
 
 /**
- * 把引擎落在磁盘上的明文 API Key 搬进凭据库（v0.5.20 及以前的 setApiKey、omp 的「浏览器授权换钥匙」登录都会留下），
- * 再把凭据库里的全部钥匙交给引擎的内存层；交过去的那一家，引擎会删掉磁盘上的旧行。
+ * 启动时把引擎落在磁盘上的明文 API Key 搬进凭据库，结果分两栏交回去：
+ * - `moved`：搬进来了（引擎那边那一行随后被删掉）；
+ * - `remaining`：**没搬动**，明文还在引擎的 agent.db 里。
  *
- * 搬不进去（系统加密不可用、Host 不应答）的那几家**原样留在引擎那里**：宁可暂时还是旧样子，也不能把用户的钥匙弄丢。
- * 返回搬进去的服务商（只有名字）。
+ * 搬不动（系统加密不可用、Host 不应答）时原样留着，宁可暂时还是旧样子，也不能把用户的钥匙弄丢；
+ * 但这件事**必须能被看见** —— 组合根据此报一条 warn，审计页与诊断导出才说得出「本机还有明文凭据」。
  */
+export interface AdoptApiKeysResult {
+  readonly moved: readonly string[]
+  readonly remaining: readonly string[]
+  /** 凭据库里实际交回引擎的（只有名字） */
+  readonly delivered: readonly string[]
+}
+
 export async function restoreApiKeys(d: {
   readonly vault: ApiKeyVault
   readonly models: ModelsPort
   readonly logger: Logger
-}): Promise<readonly string[]> {
+}): Promise<AdoptApiKeysResult> {
   const moved: string[] = []
+  const remaining: string[] = []
   for (const entry of await d.models.storedApiKeys()) {
     try {
       /* 逐家写：一家失败不影响别家；写完才算搬进来 */
@@ -45,6 +54,7 @@ export async function restoreApiKeys(d: {
       await d.vault.put(entry.provider, entry.key)
       moved.push(entry.provider)
     } catch (e) {
+      remaining.push(entry.provider)
       d.logger.warn('legacy api key not moved to vault, left in engine store', {
         provider: entry.provider,
         error: String(e),
@@ -56,11 +66,12 @@ export async function restoreApiKeys(d: {
     leased = await d.vault.all()
   } catch (e) {
     d.logger.error('api keys could not be read from vault', { error: String(e) })
-    return moved
+    return { moved, remaining, delivered: [] }
   }
   const entries: ApiKeyEntry[] = Object.entries(leased).map(([provider, key]) => ({ provider, key }))
   await d.models.loadApiKeys(entries)
+  const delivered = entries.map((entry) => entry.provider)
   if (moved.length > 0) d.logger.info('legacy api keys moved to vault', { providers: moved })
-  d.logger.info('api keys restored', { providers: entries.map((e) => e.provider) })
-  return moved
+  d.logger.info('api keys restored', { providers: delivered })
+  return { moved, remaining, delivered }
 }

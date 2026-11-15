@@ -1,10 +1,8 @@
 import { Banner, Button, SettingsGroup, SettingsPage } from '@poietica/design-system'
-import { useCallback, useEffect, useState } from 'react'
 import type { TypedRpcClient } from '@poietica/rpc'
-import type { PolicyGrant } from '../contract'
-import { policyContract } from '../contract'
+import { useCallback, useEffect, useState } from 'react'
+import type { PolicyGrant, policyContract } from '../contract'
 import './grants.css'
-
 
 function expiryOf(at: number): string {
   return new Date(at).toLocaleString('zh-CN', { dateStyle: 'medium', timeStyle: 'short' })
@@ -20,10 +18,13 @@ export function PolicyGrantsPage({ policy }: { readonly policy: TypedRpcClient<t
   const [revoked, setRevoked] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
 
+  /*
+   * 只读列表、只管列表：它**不**顺手清 failure —— 撤销一条已经不存在的记录时正要靠那条说明
+   * 告诉用户「它已经没了」，刷新一次就把它抹掉等于什么都没说。清提示由发起动作的那一侧负责。
+   */
   const load = useCallback(async (): Promise<void> => {
-    const result = await policy.call('policy.grants', {})
+    const result = await policy.call('policy.grants.list', {})
     setGrants(result.grants)
-    setFailure(null)
   }, [policy])
 
   useEffect(() => {
@@ -39,8 +40,9 @@ export function PolicyGrantsPage({ policy }: { readonly policy: TypedRpcClient<t
   const revoke = async (grant: PolicyGrant): Promise<void> => {
     setBusy(grant.id)
     setRevoked(null)
+    setFailure(null)
     try {
-      const result = await policy.call('policy.revoke', { grantId: grant.id })
+      const result = await policy.call('policy.grants.revoke', { grantId: grant.id })
       if (!result.revoked) {
         setFailure('这条授权已经不存在了；列表已刷新。')
       } else {
@@ -56,28 +58,30 @@ export function PolicyGrantsPage({ policy }: { readonly policy: TypedRpcClient<t
 
   return (
     <SettingsPage>
-      <SettingsGroup title="长期授权">
-        {failure === null ? null : <Banner
-          onDone={() => { setFailure(null) }}
-          text={`授权记录读取失败：${failure}`}
-          tone="error"
-        />}
+      <SettingsGroup>
+        {failure === null ? null : (
+          <Banner
+            onDone={() => {
+              setFailure(null)
+            }}
+            text={`授权记录读取失败：${failure}`}
+            tone="error"
+          />
+        )}
         {revoked === null ? null : (
           <Banner
-            onDone={() => { setRevoked(null) }}
+            onDone={() => {
+              setRevoked(null)
+            }}
             text={`已撤销 ${revoked} 的放行；下次执行会重新询问。`}
             tone="success"
           />
         )}
 
-        <p className="policy-grants__intro">
-          这里的记录是用户选择“本会话允许”后留下的；过期或撤销后会重新走审批。授权按线程会话隔离，不会跨工作区生效。
-        </p>
-
         {grants === null ? (
           <p className="policy-grants__empty">正在读取…</p>
         ) : grants.length === 0 ? (
-          <p className="policy-grants__empty">没有生效中的工具放行记录。</p>
+          <p className="policy-grants__empty">没有生效中的放行记录</p>
         ) : (
           <ul className="policy-grants">
             {grants.map((grant) => (
@@ -106,4 +110,3 @@ export function PolicyGrantsPage({ policy }: { readonly policy: TypedRpcClient<t
     </SettingsPage>
   )
 }
-

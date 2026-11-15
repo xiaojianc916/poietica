@@ -13,6 +13,23 @@ export interface JournalSegment {
   readonly issue?: string
 }
 
+/** 审计查询的过滤条件：全部可选，给的越多范围越窄。 */
+export interface JournalQueryOptions {
+  /** 只读这一条线程；不给就是全部线程 */
+  readonly threadId?: string
+  readonly agentId?: string
+  /** 载荷顶层字段的等值匹配（字符串 / 数字 / 布尔）；不存在的字段不匹配 */
+  readonly fields?: Readonly<Record<string, string | number | boolean>>
+  /** 升序取多少条；缺省 500 */
+  readonly limit?: number
+}
+
+/** 跨线程读回来的一条事件：事件本体 + 它归属的线程（事件自己的 threadId 是写入时盖上的同一份）。 */
+export interface JournaledEvent {
+  readonly threadId: string
+  readonly event: AgentEvent
+}
+
 export interface JournalIntegrity {
   readonly ok: boolean
   readonly gaps: readonly number[]
@@ -38,6 +55,12 @@ export interface JournalService {
     types: readonly AgentEvent['type'][],
     limit?: number,
   ): readonly AgentEvent[]
+  /**
+   * 跨线程按事件类型读（审计视图用），可以再按载荷顶层的标量字段等值过滤（工具名、风险等级、工作区……）。
+   * 过滤在 SQL 里做：审计要看的是「这一周哪些高风险裁决被拒绝过」，把全部事件读进内存再筛不算数。
+   * 返回按 (threadId, seq) 升序。
+   */
+  query(types: readonly AgentEvent['type'][], options?: JournalQueryOptions): readonly JournaledEvent[]
   latestSeq(threadId: string, agentId: string): number
   /** 启动对账：seq 是否从 1 连续，以及每个分段的计数/校验和是否对得上。 */
   integrity(threadId: string, agentId: string): JournalIntegrity
