@@ -87,8 +87,8 @@ describe('消息数量数的是准入账，不是采样条数', () => {
 })
 
 describe('当前 schema', () => {
-  test('迁移表只有一条 init，准入账就在它里面', () => {
-    expect(migrations.map((m) => m.version)).toEqual([1])
+  test('迁移表是 init + event_id 去重，准入账在 init 里', () => {
+    expect(migrations.map((m) => m.version)).toEqual([1, 2])
     expect(migrations[0]?.sql).toContain('usage_messages')
   })
 

@@ -3,8 +3,9 @@ import { CheckpointServiceToken } from '@poietica/feature-checkpoints/core-api'
 import {
   ConversationServiceToken,
   THREAD_REMOVED_TOPIC,
+  TURN_FILE_CHANGED_TOPIC,
   threadRemovedPayload,
-  turnFileChanged,
+  turnFileChangedPayload,
 } from '@poietica/feature-conversation/core-api'
 import {
   WORKSPACE_REMOVED_TOPIC,
@@ -79,7 +80,9 @@ export default defineCoreModule({
     ctx.outboxHandlers.register(WORKSPACE_REMOVED_TOPIC, (payload) => {
       watcher.forget(workspaceRemovedPayload.parse(payload).workspaceId)
     })
-    ctx.disposables.add(ctx.events.on(turnFileChanged, (fact) => ledger.record(fact)))
+    ctx.outboxHandlers.register(TURN_FILE_CHANGED_TOPIC, (payload) => {
+      ledger.record(turnFileChangedPayload.parse(payload))
+    })
     ctx.outboxHandlers.register(THREAD_REMOVED_TOPIC, (payload) => {
       rewind.forgetThread(threadRemovedPayload.parse(payload).threadId)
     })

@@ -15,7 +15,7 @@ import { fakeClock, tempDir } from '@poietica/test-kit'
 import { automationsContract } from '../../contract'
 import automations from '../index'
 
-async function harness(script?: ScenarioScript) {
+async function harness(script?: ScenarioScript, outboxDispatch = false) {
   const clock = fakeClock()
   const engine = createFakeEngine({ clock, ...(script === undefined ? {} : { script }) })
   const h = await createCoreHarness({
@@ -32,6 +32,7 @@ async function harness(script?: ScenarioScript) {
     ],
     engine,
     clock,
+    outboxDispatch,
   })
   const dir = await tempDir('automations-')
   const ws = await h.client(workspacesContract).call('workspaces.add', { path: dir.path })
@@ -179,7 +180,7 @@ describe('automations core 模块', () => {
 
   /* 句子没送达时运行记录必须自己收口 —— 一条永远 running 的记录会让 runner.isRunning 从此为真，之后每次调度与手动运行都被跳过。 */
   test('R-06 A6 冷打开失败：运行收成 failed，恢复后下一次手动运行照常起来', async () => {
-    const { h, engine, dir, ws, clock } = await harness()
+    const { h, engine, dir, ws, clock } = await harness(undefined, true)
     const api = h.client(automationsContract)
     const automation = await api.call('automations.create', {
       title: '打不开工作区',
@@ -195,7 +196,7 @@ describe('automations core 模块', () => {
     engine.openSession = () => Promise.reject(new Error('工作区目录已改名'))
 
     const first = await api.call('automations.runNow', { automationId: automation.id })
-    await runBeats(clock, 4)
+    await runBeats(clock, 16)
 
     const settled = (await api.call('automations.runs', { automationId: automation.id, limit: 10 })).runs.find(
       (r) => r.id === first.id,

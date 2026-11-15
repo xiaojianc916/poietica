@@ -124,3 +124,44 @@ export interface TurnContextRegistry {
   register(provider: TurnContextProvider): Disposable
 }
 export const TurnContextRegistryToken = defineServiceToken<TurnContextRegistry>('conversation', 'TurnContextRegistry')
+
+/* 跨模块事实的持久主题（ADR-011）：消费方不在同一事务里，但崩溃后必须补投。 */
+export const TURN_SETTLED_TOPIC = 'conversation.turnSettled'
+export const TURN_FILE_CHANGED_TOPIC = 'conversation.turnFileChanged'
+export const SUBMISSION_FAILED_TOPIC = 'conversation.submissionFailed'
+export const USAGE_SAMPLED_TOPIC = 'conversation.usageSampled'
+export const USER_MESSAGE_SUBMITTED_TOPIC = 'conversation.userMessageSubmitted'
+
+export const turnSettledPayload = z.object({
+  threadId: z.string(),
+  outcome: z.enum(['completed', 'cancelled', 'failed']),
+  error: z.object({ code: z.string(), message: z.string() }).nullable(),
+})
+
+export const turnFileChangedPayload = z.object({
+  threadId: z.string(),
+  turn: z.number().int().nonnegative(),
+  path: z.string(),
+  before: z.string().nullable(),
+  after: z.string().nullable(),
+})
+
+export const submissionFailedPayload = z.object({
+  threadId: z.string(),
+  clientTurnId: z.string(),
+  deliverAs: z.enum(['turn', 'steer', 'followUp']),
+  error: z.object({ code: z.string(), message: z.string() }),
+})
+
+export const usageSampledPayload = z.object({
+  eventId: z.string(),
+  threadId: z.string(),
+  sample: z.custom<UsageSample>(),
+  at: z.number(),
+})
+
+export const userMessageSubmittedPayload = z.object({
+  eventId: z.string(),
+  threadId: z.string(),
+  at: z.number(),
+})

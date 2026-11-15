@@ -11,6 +11,17 @@ import type { Migration } from '@poietica/storage-sqlite'
  *   天 × 模型读合计，读的是「天数 × 模型数」那么几行，不必为一年窗口扫几十万行明细回表排序；
  *   WITHOUT ROWID 让主键即表，按天区间扫描直接是顺序 IO。
  */
+const dedupeMigration: Migration = {
+  version: 2,
+  name: 'usage-event-ids',
+  sql: `ALTER TABLE usage_events ADD COLUMN event_id TEXT;
+        UPDATE usage_events SET event_id = 'legacy-' || id;
+        CREATE UNIQUE INDEX usage_events_event ON usage_events (event_id);
+        ALTER TABLE usage_messages ADD COLUMN event_id TEXT;
+        UPDATE usage_messages SET event_id = 'legacy-' || id;
+        CREATE UNIQUE INDEX usage_messages_event ON usage_messages (event_id);`,
+}
+
 export const migrations: readonly Migration[] = [
   {
     version: 1,
@@ -47,4 +58,5 @@ CREATE TABLE usage_daily (
   PRIMARY KEY (day, provider, model)
 ) WITHOUT ROWID;`,
   },
+  dedupeMigration,
 ]

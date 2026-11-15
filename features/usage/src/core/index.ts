@@ -1,5 +1,10 @@
 import { defineCoreModule } from '@poietica/core-kernel'
-import { usageSampled, userMessageSubmitted } from '@poietica/feature-conversation/core-api'
+import {
+  USAGE_SAMPLED_TOPIC,
+  USER_MESSAGE_SUBMITTED_TOPIC,
+  usageSampledPayload,
+  userMessageSubmittedPayload,
+} from '@poietica/feature-conversation/core-api'
 import { usageContract } from '../contract'
 import { migrations } from './migrations'
 import { createUsageRepo, localDay } from './repo'
@@ -11,13 +16,14 @@ export default defineCoreModule({
   migrations,
   setup(ctx) {
     const repo = createUsageRepo(ctx.db)
-    /* 采样落账。落账与通知无关：设置页那三张图直接查账，不靠推送重读。 */
-    ctx.disposables.add(
-      ctx.events.on(usageSampled, ({ threadId, sample }) => {
-        repo.insert({ threadId, day: localDay(sample.at), ...sample })
-      }),
-    )
-    ctx.disposables.add(ctx.events.on(userMessageSubmitted, (p) => repo.insertMessage(p)))
+    /* 采样落账。outbox 至少一次投递，仓库用唯一键去重；设置页那三张图直接查账。 */
+    ctx.outboxHandlers.register(USAGE_SAMPLED_TOPIC, (payload) => {
+      const { eventId, threadId, sample } = usageSampledPayload.parse(payload)
+      repo.insert({ eventId, threadId, day: localDay(sample.at), ...sample })
+    })
+    ctx.outboxHandlers.register(USER_MESSAGE_SUBMITTED_TOPIC, (payload) => {
+      repo.insertMessage(userMessageSubmittedPayload.parse(payload))
+    })
 
     ctx.rpc.handle('usage.tokenDays', (p) => {
       const days = repo

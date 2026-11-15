@@ -1,12 +1,12 @@
 import { defineCoreModule } from '@poietica/core-kernel'
 import {
   ConversationServiceToken,
-  type SubmissionFailed,
-  submissionFailed,
+  SUBMISSION_FAILED_TOPIC,
+  submissionFailedPayload,
   THREAD_REMOVED_TOPIC,
-  type TurnSettled,
+  TURN_SETTLED_TOPIC,
   threadRemovedPayload,
-  turnSettled,
+  turnSettledPayload,
 } from '@poietica/feature-conversation/core-api'
 import {
   WORKSPACE_REMOVED_TOPIC,
@@ -57,17 +57,13 @@ export default defineCoreModule({
       localTimeZone,
     })
 
-    ctx.disposables.add(
-      ctx.events.on<TurnSettled>(turnSettled, (e) => {
-        runner.onTurnSettled(e)
-      }),
-    )
+    ctx.outboxHandlers.register(TURN_SETTLED_TOPIC, (payload) => {
+      runner.onTurnSettled(turnSettledPayload.parse(payload))
+    })
 
-    ctx.disposables.add(
-      ctx.events.on<SubmissionFailed>(submissionFailed, (e) => {
-        runner.onSubmissionFailed(e)
-      }),
-    )
+    ctx.outboxHandlers.register(SUBMISSION_FAILED_TOPIC, (payload) => {
+      runner.onSubmissionFailed(submissionFailedPayload.parse(payload))
+    })
     ctx.outboxHandlers.register(THREAD_REMOVED_TOPIC, (payload) => {
       const e = threadRemovedPayload.parse(payload)
       runner.onThreadRemoved(e)

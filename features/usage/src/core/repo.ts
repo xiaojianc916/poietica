@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type { UsageSample } from '@poietica/runtime-protocol'
 import type { ModuleDatabase } from '@poietica/storage-sqlite'
 
@@ -8,8 +9,8 @@ export function localDay(at: number): string {
 
 export function createUsageRepo(db: ModuleDatabase) {
   const ins =
-    db.prepare(`INSERT INTO usage_events (thread_id, day, at, provider, model, input, output, cache_read, cache_write, cost)
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    db.prepare(`INSERT OR IGNORE INTO usage_events (event_id, thread_id, day, at, provider, model, input, output, cache_read, cache_write, cost)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
   /* 按天汇总（usage_daily）：与明细同一个事务累加，读的一侧只碰这张小表 */
   const rollup =
     db.prepare(`INSERT INTO usage_daily (day, provider, model, input, output, cache_read, cache_write, cost)
@@ -18,17 +19,33 @@ export function createUsageRepo(db: ModuleDatabase) {
                             input = input + excluded.input, output = output + excluded.output,
                             cache_read = cache_read + excluded.cache_read, cache_write = cache_write + excluded.cache_write,
                             cost = cost + excluded.cost`)
-  const insMessage = db.prepare('INSERT INTO usage_messages (thread_id, day, at) VALUES (?, ?, ?)')
+  const insMessage = db.prepare(
+    'INSERT OR IGNORE INTO usage_messages (event_id, thread_id, day, at) VALUES (?, ?, ?, ?)',
+  )
   return {
-    insert(r: { threadId: string; day: string } & UsageSample): void {
+    insert(r: { threadId: string; day: string; eventId?: string } & UsageSample): void {
       db.transaction(() => {
-        ins.run(r.threadId, r.day, r.at, r.provider, r.model, r.input, r.output, r.cacheRead, r.cacheWrite, r.cost)
-        rollup.run(r.day, r.provider, r.model, r.input, r.output, r.cacheRead, r.cacheWrite, r.cost)
+        const result = ins.run(
+          r.eventId ?? randomUUID(),
+          r.threadId,
+          r.day,
+          r.at,
+          r.provider,
+          r.model,
+          r.input,
+          r.output,
+          r.cacheRead,
+          r.cacheWrite,
+          r.cost,
+        )
+        if (result.changes > 0) {
+          rollup.run(r.day, r.provider, r.model, r.input, r.output, r.cacheRead, r.cacheWrite, r.cost)
+        }
       })
     },
     /** 用户发出去一句话（准入）—— 数的是它，不是模型采样条数（ADR 0039）。 */
-    insertMessage(r: { threadId: string; at: number }): void {
-      insMessage.run(r.threadId, localDay(r.at), r.at)
+    insertMessage(r: { threadId: string; at: number; eventId?: string }): void {
+      insMessage.run(r.eventId ?? randomUUID(), r.threadId, localDay(r.at), r.at)
     },
     tokenDays(from: string, to: string) {
       return db

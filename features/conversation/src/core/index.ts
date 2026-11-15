@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { defineCoreModule } from '@poietica/core-kernel'
 import { AttachmentsServiceToken } from '@poietica/feature-attachments/core-api'
 import { CheckpointServiceToken } from '@poietica/feature-checkpoints/core-api'
@@ -20,10 +21,15 @@ import {
 import { conversationContract } from '../contract'
 import {
   ConversationServiceToken,
+  SUBMISSION_FAILED_TOPIC,
   submissionFailed,
   THREAD_REMOVED_TOPIC,
+  TURN_FILE_CHANGED_TOPIC,
+  TURN_SETTLED_TOPIC,
   turnFileChanged,
   turnSettled,
+  USAGE_SAMPLED_TOPIC,
+  USER_MESSAGE_SUBMITTED_TOPIC,
   usageSampled,
   userMessageSubmitted,
 } from '../core-api'
@@ -114,7 +120,7 @@ export default defineCoreModule({
       emitSideTopic: (p) => ctx.rpc.emit('side.topic', p),
       emitSideDelta: (p) => sideHub.push(p),
       emitSideNotice: (p) => ctx.rpc.emit('side.notice', p),
-      emitFileChanged: (p) => ctx.events.emit(turnFileChanged, p),
+      emitFileChanged: (p) => ctx.outbox.enqueue({ topic: TURN_FILE_CHANGED_TOPIC, payload: p }),
       emitInteractionRequested: (p) => ctx.rpc.emit('interactions.requested', p),
       emitInteractionResolved: (p) => ctx.rpc.emit('interactions.resolved', p),
       emitSubmissionChanged: (submission) =>
@@ -123,11 +129,26 @@ export default defineCoreModule({
       emitTurnSettled: (p) => {
         checkpointScheduler.atTurnEnd(p.threadId)
         submissionsService.releaseWriteLease(p.threadId)
-        ctx.events.emit(turnSettled, p)
+        ctx.outbox.enqueue({ topic: TURN_SETTLED_TOPIC, payload: p })
       },
-      emitSubmissionFailed: (p) => ctx.events.emit(submissionFailed, p),
-      emitUsageSampled: (p) => ctx.events.emit(usageSampled, p),
-      emitUserMessage: (p) => ctx.events.emit(userMessageSubmitted, p),
+      emitSubmissionFailed: (p) =>
+        ctx.outbox.enqueue({
+          topic: SUBMISSION_FAILED_TOPIC,
+          payload: p,
+          idempotencyKey: `${p.threadId}:${p.clientTurnId}`,
+        }),
+      emitUsageSampled: (p) => {
+        const eventId = randomUUID()
+        ctx.outbox.enqueue({ topic: USAGE_SAMPLED_TOPIC, payload: { ...p, eventId }, idempotencyKey: eventId })
+      },
+      emitUserMessage: (p) => {
+        const eventId = randomUUID()
+        ctx.outbox.enqueue({
+          topic: USER_MESSAGE_SUBMITTED_TOPIC,
+          payload: { ...p, eventId },
+          idempotencyKey: eventId,
+        })
+      },
       turnContext,
     })
 

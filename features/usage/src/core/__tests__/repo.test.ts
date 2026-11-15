@@ -65,3 +65,29 @@ describe('US-5: from > to', () => {
     }
   })
 })
+
+describe('outbox 重放', () => {
+  test('同一个 eventId 的采样/消息只落一次账', () => {
+    const { db, repo } = makeRepo()
+    const sample = {
+      eventId: 'e1',
+      threadId: 't1',
+      day: '2026-10-01',
+      at: new Date(2026, 9, 1, 10).getTime(),
+      provider: 'p',
+      model: 'm',
+      input: 10,
+      output: 2,
+      cacheRead: 0,
+      cacheWrite: 0,
+      cost: 0,
+    }
+    repo.insert(sample)
+    repo.insert(sample)
+    repo.insertMessage({ eventId: 'm1', threadId: 't1', at: new Date(2026, 9, 1, 10).getTime() })
+    repo.insertMessage({ eventId: 'm1', threadId: 't1', at: new Date(2026, 9, 1, 10).getTime() })
+    expect(repo.tokenDays('2026-10-01', '2026-10-01')[0]?.input).toBe(10)
+    expect(repo.messageCount('2026-10-01', '2026-10-01')[0]?.count).toBe(1)
+    db.close()
+  })
+})

@@ -7,7 +7,7 @@ import { CheckpointServiceToken } from '@poietica/feature-checkpoints/core-api'
 import {
   ConversationServiceToken,
   THREAD_REMOVED_TOPIC,
-  turnFileChanged,
+  TURN_FILE_CHANGED_TOPIC,
 } from '@poietica/feature-conversation/core-api'
 import { WorkspacesServiceToken } from '@poietica/feature-workspaces/core-api'
 import { DisposableStore } from '@poietica/foundation'
@@ -145,7 +145,7 @@ async function wire(
       return await handler(params as never)
     },
     emitFileChanged: (fact) => {
-      for (const listener of listeners.get(turnFileChanged as CoreEvent<unknown>) ?? []) listener(fact)
+      outboxHandlers.get(TURN_FILE_CHANGED_TOPIC)?.(fact)
     },
     emitThreadRemoved: (threadId) => {
       outboxHandlers.get(THREAD_REMOVED_TOPIC)?.({ threadId })

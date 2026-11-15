@@ -33,3 +33,4 @@
 - Journal 已从单表升级为「事件 + 分段」：迁移 v2 增加 `journal_segments` 与 `journal_events.segment_id`。段满（默认 1000 条 / 2 MiB）后封段并写 SHA-256 校验和；读取仍按 seq 走同一张事件表。
 - 启动对账第 6 步已接上 Journal 部分：`integrity` 除 seq gap 外，还核对每段的起止序号、事件数、字节数与校验和；不符的段标记为 `corrupt` 并保持只读隔离，由 conversation 启动日志告警。
 - 时间线索引与 omp 会话文件不一致时的后台重建仍未做（当前时间线索引由 omp 会话回读，没有独立持久索引）。
+- `turnSettled`、`submissionFailed`、`turnFileChanged`、`usageSampled`、`userMessageSubmitted` 已全部从进程内事件迁到 outbox：conversation 只入队，automations / review / usage 按 topic 消费。usage 在迁移 v2 增加 `event_id` 唯一键，outbox 重放不会重复计数；`turnFileChanged` 的账本按 (thread, turn, path) upsert，重复投递无副作用。

@@ -496,5 +496,7 @@
 | v2-P6c TurnService     | 2026-11-13 | TurnService、时间线分页辅助迁入 runs；conversation 只剩 EventRouter、组合根与 composer 接线                                                                                                                    |
 | v2-P6c EventRouter     | 2026-11-13 | EventRouter 与回合运行时表迁入 timeline；conversation 只剩组合根、handler、composer 接线                                                                                                                       |
 | v2-P6c Composer        | 2026-11-14 | composer 输入框、草稿、队列、侧问与工具名册抽为独立 feature（tier 2，`surface` 入口）；conversation 只经 surface 组合；`ui/shared` 下沉 `packages/conversation-kit`；贡献点改名 `composer.*`                   |
+
 - **P6 Journal 分段**：迁移 v2 增加 `journal_segments` 与事件表的 `segment_id`；默认 1000 条 / 2 MiB 封段并写 SHA-256。启动 `integrity` 核对起止序号、事件数、字节数与校验和，坏段标记 `corrupt` 并告警。
 - **P6 描述符合成**：生成描述符增加进程列表；`describeCoreModules` 把契约方法/通知、迁移表名、模块事件与设置声明合成运行时视图，`CoreKernel.descriptors` 暴露；conversation / policy 补 events / settings 声明。
+- **P6 跨模块事实全部入 outbox**：turnSettled / submissionFailed / turnFileChanged / usageSampled / userMessageSubmitted 不再走 `ctx.events`；automations / review / usage 改为 topic handler。usage 增加 event_id 唯一键，重放幂等。
