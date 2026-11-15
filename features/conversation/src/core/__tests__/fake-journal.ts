@@ -6,6 +6,7 @@ export function fakeJournal(): JournalService {
     append: () => 0,
     appendAndStamp: (_threadId, _agentId, events) => events,
     read: () => [],
+    readTyped: () => [],
     latestSeq: () => 0,
     clear: () => 0,
   }

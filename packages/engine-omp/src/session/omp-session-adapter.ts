@@ -214,13 +214,17 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
       }),
   )
   /* 策略门的「询问」直接开产品审批卡片：不经过 omp 的对话框，也不解析任何界面文案。 */
-  input.policyGate?.bindApproval(async ({ tool, detail }) => {
+  input.policyGate?.bindApproval(async ({ tool, detail, rule, reason, risk, category }) => {
     const answer = await broker.ask({
       kind: 'approval',
       tool,
       title: `允许使用工具：${tool}`,
       detail,
       allowSessionScope: true,
+      risk,
+      rule,
+      category,
+      reason,
     })
     if (answer.kind !== 'approval') return { approved: false, session: false }
     return {
@@ -1072,6 +1076,16 @@ const KNOWN_OMP_EVENTS: ReadonlySet<string> = new Set([
   'irc_message',
 ])
 
+function unknownEventMessage(eventType: string, event: Record<string, unknown>): string {
+  let raw = ''
+  try {
+    raw = JSON.stringify(event).slice(0, 4_000)
+  } catch {
+    raw = '[无法序列化]'
+  }
+  return `未识别的 omp 事件：${eventType}\n${raw}`
+}
+
 function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void {
   const { session, projector } = pump
   const eventType = typeof event.type === 'string' ? event.type : 'unknown'
@@ -1137,7 +1151,7 @@ function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void
       break
     default:
       if (!KNOWN_OMP_EVENTS.has(eventType)) {
-        session.requestTimeline(projector.notice('warning', `未识别的 omp 事件：${eventType}`, 'omp-upgrade'))
+        session.requestTimeline(projector.notice('warning', unknownEventMessage(eventType, event), 'omp-upgrade'))
       }
       break
   }

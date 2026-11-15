@@ -21,6 +21,10 @@ export interface ApprovalRequest {
   readonly title: string
   readonly detail: string
   readonly allowSessionScope: boolean
+  readonly risk?: 'low' | 'medium' | 'high'
+  readonly rule?: string
+  readonly category?: string
+  readonly reason?: string
 }
 
 export interface PlanRequest {

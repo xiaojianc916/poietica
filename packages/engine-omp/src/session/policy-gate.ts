@@ -13,6 +13,10 @@ import type { ArpPolicyCheckParams, ArpPolicyDecision, ArpPolicyPreset } from '@
 export interface PolicyApprovalRequest {
   readonly tool: string
   readonly detail: string
+  readonly rule: string
+  readonly reason: string
+  readonly risk: 'low' | 'medium' | 'high'
+  readonly category: string
 }
 
 export interface PolicyApprovalResult {
@@ -109,7 +113,14 @@ export function createPolicyGate(o: CreatePolicyGateOptions): PolicyGate {
 
   const decide = async (event: ToolCallEvent, cwd: string): Promise<ArpPolicyDecision> => {
     if (granted.has(event.toolName)) {
-      return { action: 'allow', rule: 'runtime.session_grant', reason: '本会话已放行该工具' }
+      return {
+        action: 'allow',
+        rule: 'runtime.session_grant',
+        reason: '本会话已放行该工具',
+        risk: 'low',
+        category: 'meta',
+        checkpoint: false,
+      }
     }
     try {
       const approvalCategory = o.approvalOf(event.toolName)
@@ -128,13 +139,23 @@ export function createPolicyGate(o: CreatePolicyGateOptions): PolicyGate {
         action: 'deny',
         rule: 'policy.unavailable',
         reason: error instanceof Error ? error.message : String(error),
+        risk: 'high',
+        category: 'unknown',
+        checkpoint: false,
       }
     }
   }
 
   const ask = async (event: ToolCallEvent, decision: ArpPolicyDecision): Promise<ToolCallResult> => {
     if (approval === undefined) return { block: true, reason: '策略要求审批，但当前没有可用的交互界面' }
-    const answer = await approval({ tool: event.toolName, detail: describeToolCall(event) })
+    const answer = await approval({
+      tool: event.toolName,
+      detail: describeToolCall(event),
+      rule: decision.rule,
+      reason: decision.reason,
+      risk: decision.risk,
+      category: decision.category,
+    })
     if (!answer.approved) return { block: true, reason: `用户拒绝：${decision.reason}（${decision.rule}）` }
     if (answer.session) granted.add(event.toolName)
     return

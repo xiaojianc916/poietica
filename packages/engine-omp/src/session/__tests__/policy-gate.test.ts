@@ -9,6 +9,14 @@ import { createPolicyGate, ensurePolicyExtensionFile, type PolicyApprovalRequest
 type Handler = (event: ToolCallEvent, ctx: { cwd: string }) => Promise<{ block?: boolean; reason?: string } | undefined>
 
 const BASH = { toolName: 'bash', toolCallId: 'call-1', input: { command: 'ls' } } as ToolCallEvent
+const ASK_DECISION: ArpPolicyDecision = {
+  action: 'ask',
+  rule: 'command.unknown',
+  reason: '命令不在安全表内',
+  risk: 'high',
+  category: 'exec',
+  checkpoint: true,
+}
 
 function harness(options?: {
   readonly decision?: ArpPolicyDecision
@@ -27,7 +35,16 @@ function harness(options?: {
     check: async (request) => {
       requests.push(request)
       if (options?.checkThrows === true) throw new Error('core offline')
-      return options?.decision ?? { action: 'allow', rule: 'test.allow', reason: 'ok' }
+      return (
+        options?.decision ?? {
+          action: 'allow',
+          rule: 'test.allow',
+          reason: 'ok',
+          risk: 'low',
+          category: 'meta',
+          checkpoint: false,
+        }
+      )
     },
   })
   gate.bindApproval(async (request) => {
@@ -59,7 +76,14 @@ describe('policy gate', () => {
 
   test('deny 拦下工具，原因里带规则码', async () => {
     const h = harness({
-      decision: { action: 'deny', rule: 'command.system_destructive', reason: '命中危险命令规则' },
+      decision: {
+        action: 'deny',
+        rule: 'command.system_destructive',
+        reason: '命中危险命令规则',
+        risk: 'high',
+        category: 'exec',
+        checkpoint: true,
+      },
     })
     expect(await h.run()).toEqual({
       block: true,
@@ -68,14 +92,23 @@ describe('policy gate', () => {
   })
 
   test('ask 批准后放行，审批卡片拿到工具名与具体命令', async () => {
-    const h = harness({ decision: { action: 'ask', rule: 'command.unknown', reason: '命令不在安全表内' } })
+    const h = harness({ decision: ASK_DECISION })
     expect(await h.run()).toBeUndefined()
-    expect(h.approvals).toEqual([{ tool: 'bash', detail: 'Command: ls' }])
+    expect(h.approvals).toEqual([
+      {
+        tool: 'bash',
+        detail: 'Command: ls',
+        rule: 'command.unknown',
+        reason: '命令不在安全表内',
+        risk: 'high',
+        category: 'exec',
+      },
+    ])
   })
 
   test('ask 拒绝后拦下', async () => {
     const h = harness({
-      decision: { action: 'ask', rule: 'command.unknown', reason: '命令不在安全表内' },
+      decision: ASK_DECISION,
       approved: false,
     })
     expect(await h.run()).toEqual({ block: true, reason: '用户拒绝：命令不在安全表内（command.unknown）' })
@@ -83,7 +116,7 @@ describe('policy gate', () => {
 
   test('选了本会话放行后，下一次不再问 Core，也不再审批', async () => {
     const h = harness({
-      decision: { action: 'ask', rule: 'command.unknown', reason: '命令不在安全表内' },
+      decision: ASK_DECISION,
       session: true,
     })
     expect(await h.run()).toBeUndefined()
@@ -112,7 +145,14 @@ describe('policy gate', () => {
 })
 
 describe('策略门注册表与文件扩展', () => {
-  const allow = async (): Promise<ArpPolicyDecision> => ({ action: 'allow', rule: 'test', reason: '' })
+  const allow = async (): Promise<ArpPolicyDecision> => ({
+    action: 'allow',
+    rule: 'test',
+    reason: '',
+    risk: 'low',
+    category: 'meta',
+    checkpoint: false,
+  })
 
   test('同 cwd 取最严格的门；子代理的未知 cwd 落到最近的门', () => {
     const lenient = createPolicyGate({

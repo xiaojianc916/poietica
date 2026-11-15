@@ -72,6 +72,19 @@ export function createJournalRepository(db: ModuleDatabase): JournalService {
       return read.all(threadId, agentId, afterSeq, limit).map((row) => JSON.parse(row.payload) as AgentEvent)
     },
 
+    readTyped(threadId, agentId, types, limit = 5_000) {
+      if (types.length === 0) return []
+      const placeholders = types.map(() => '?').join(', ')
+      const rows = db
+        .prepare<EventRow>(
+          `SELECT payload FROM journal_events
+           WHERE thread_id = ? AND agent_id = ? AND type IN (${placeholders})
+           ORDER BY seq ASC LIMIT ?`,
+        )
+        .all(threadId, agentId, ...types, limit)
+      return rows.map((row) => JSON.parse(row.payload) as AgentEvent)
+    },
+
     latestSeq,
 
     clear(threadId) {

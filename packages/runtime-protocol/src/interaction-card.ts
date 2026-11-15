@@ -1,4 +1,5 @@
 import type {
+  ApprovalRequest,
   InteractionState,
   QuestionAnswerValue,
   QuestionRequest,
@@ -23,6 +24,19 @@ export function interactionStateOf(answer: InteractionAnswer | undefined): Exclu
   }
   if (answer.kind === 'confirm') return answer.value ? 'approved' : 'rejected'
   return 'answered'
+}
+
+function approvalRequestOf(interaction: Extract<Interaction, { kind: 'approval' }>): ApprovalRequest {
+  return {
+    toolName: interaction.tool,
+    title: interaction.title,
+    detail: interaction.detail,
+    allowSessionScope: interaction.allowSessionScope,
+    ...(interaction.risk === undefined ? {} : { risk: interaction.risk }),
+    ...(interaction.rule === undefined ? {} : { rule: interaction.rule }),
+    ...(interaction.category === undefined ? {} : { category: interaction.category }),
+    ...(interaction.reason === undefined ? {} : { reason: interaction.reason }),
+  }
 }
 
 /**
@@ -65,12 +79,7 @@ export function interactionCardOf(
       return {
         ...base,
         interactionKind: 'approval',
-        request: {
-          toolName: interaction.tool,
-          title: interaction.title,
-          detail: interaction.detail,
-          allowSessionScope: interaction.allowSessionScope,
-        },
+        request: approvalRequestOf(interaction),
         ...(answer?.kind === 'approval'
           ? { response: { decision: answer.decision, scope: answer.scope, ...feedbackOf(answer.feedback) } }
           : {}),

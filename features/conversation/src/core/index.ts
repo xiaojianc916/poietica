@@ -3,6 +3,7 @@ import { AttachmentsServiceToken } from '@poietica/feature-attachments/core-api'
 import { CheckpointServiceToken } from '@poietica/feature-checkpoints/core-api'
 import { JournalServiceToken } from '@poietica/feature-journal/core-api'
 import {
+  reconcileInterruptedRuns,
   SessionPoolFactoryToken,
   SubmissionServiceToken,
   TurnContextRegistryToken,
@@ -172,6 +173,13 @@ export default defineCoreModule({
      */
     const maintenance = new AbortController()
     ctx.lifecycle.onReady(async () => {
+      const interrupted = await reconcileInterruptedRuns({
+        threadIds: threadsRepository.list({ includeArchived: true }).map((thread) => thread.id),
+        journal,
+        clock: ctx.clock,
+        logger: ctx.logger,
+      })
+      if (interrupted > 0) ctx.logger.info('interrupted runs reconciled', { count: interrupted })
       await core.threads.reconcileSessionFiles()
       void core.threads
         .reclaimPending()

@@ -1,5 +1,5 @@
 {
-  "version": 68,
+  "version": 69,
   "methods": [
     {
       "name": "agentSettings.capabilities",
@@ -10814,6 +10814,23 @@
                     },
                     "allowSessionScope": {
                       "type": "boolean"
+                    },
+                    "risk": {
+                      "type": "string",
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high"
+                      ]
+                    },
+                    "rule": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -20875,6 +20892,23 @@
                                       },
                                       "allowSessionScope": {
                                         "type": "boolean"
+                                      },
+                                      "risk": {
+                                        "type": "string",
+                                        "enum": [
+                                          "low",
+                                          "medium",
+                                          "high"
+                                        ]
+                                      },
+                                      "rule": {
+                                        "type": "string"
+                                      },
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "reason": {
+                                        "type": "string"
                                       }
                                     },
                                     "required": [
@@ -21407,6 +21441,23 @@
                                       },
                                       "allowSessionScope": {
                                         "type": "boolean"
+                                      },
+                                      "risk": {
+                                        "type": "string",
+                                        "enum": [
+                                          "low",
+                                          "medium",
+                                          "high"
+                                        ]
+                                      },
+                                      "rule": {
+                                        "type": "string"
+                                      },
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "reason": {
+                                        "type": "string"
                                       }
                                     },
                                     "required": [
@@ -24710,6 +24761,23 @@
                         },
                         "allowSessionScope": {
                           "type": "boolean"
+                        },
+                        "risk": {
+                          "type": "string",
+                          "enum": [
+                            "low",
+                            "medium",
+                            "high"
+                          ]
+                        },
+                        "rule": {
+                          "type": "string"
+                        },
+                        "category": {
+                          "type": "string"
+                        },
+                        "reason": {
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -26658,6 +26726,23 @@
                             },
                             "allowSessionScope": {
                               "type": "boolean"
+                            },
+                            "risk": {
+                              "type": "string",
+                              "enum": [
+                                "low",
+                                "medium",
+                                "high"
+                              ]
+                            },
+                            "rule": {
+                              "type": "string"
+                            },
+                            "category": {
+                              "type": "string"
+                            },
+                            "reason": {
+                              "type": "string"
                             }
                           },
                           "required": [
@@ -32344,6 +32429,23 @@
                   },
                   "allowSessionScope": {
                     "type": "boolean"
+                  },
+                  "risk": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ]
+                  },
+                  "rule": {
+                    "type": "string"
+                  },
+                  "category": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -37146,6 +37248,23 @@
                                 },
                                 "allowSessionScope": {
                                   "type": "boolean"
+                                },
+                                "risk": {
+                                  "type": "string",
+                                  "enum": [
+                                    "low",
+                                    "medium",
+                                    "high"
+                                  ]
+                                },
+                                "rule": {
+                                  "type": "string"
+                                },
+                                "category": {
+                                  "type": "string"
+                                },
+                                "reason": {
+                                  "type": "string"
                                 }
                               },
                               "required": [
@@ -37678,6 +37797,23 @@
                                 },
                                 "allowSessionScope": {
                                   "type": "boolean"
+                                },
+                                "risk": {
+                                  "type": "string",
+                                  "enum": [
+                                    "low",
+                                    "medium",
+                                    "high"
+                                  ]
+                                },
+                                "rule": {
+                                  "type": "string"
+                                },
+                                "category": {
+                                  "type": "string"
+                                },
+                                "reason": {
+                                  "type": "string"
                                 }
                               },
                               "required": [

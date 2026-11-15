@@ -24,4 +24,6 @@
 - 同一 topic 现在支持多个消费者：注册表按 topic 收一组 handler，分发器按注册顺序串行调用，全部成功才把记录标记完成；失败则整条记录按退避重试。
 - 启动对账第 5 步已接上：模块可注册 `jobHandlers` / `workflowHandlers`，内核在 `core.ready` 前续跑未完成 workflow，并启动持久 job 分发器（只读模式跳过）。
 - 测试 harness 默认关闭 outbox 定时器（`outboxDispatch: false`），避免假时钟推进 25 小时时定时器空转；测 outbox 的用例显式打开。
-- 本次只收口「工作区/线程删除」与「jobs/workflows 续跑」；启动对账其余步骤（运行中断、租约、worktree、Journal 分段）保持原状。
+- 启动对账第 1 步已接上：conversation 在 onReady 扫描每条线程的 `run.started` / `run.completed`，只有开始没有终态的补 `run.completed { outcome: 'interrupted' }`；Journal 新增按类型读取的 `readTyped`，重复启动不会重复补。
+- 写租约是内存态：Core 重启后旧租约自然消失，因此没有「启动时释放过期租约」这一步；运行中的 Worker 崩溃由事件路由收口并释放。
+- 本次只收口「工作区/线程删除」「中断 Run」「jobs/workflows 续跑」；worktree 对账与 Journal 分段完整性保持原状。

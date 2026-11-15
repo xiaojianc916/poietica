@@ -113,6 +113,9 @@ export class ArpEngine implements AgentEngine {
               action: 'deny',
               rule: 'policy.unavailable',
               reason: '策略引擎尚未就绪',
+              risk: 'high',
+              category: 'unknown',
+              checkpoint: false,
             } satisfies ArpPolicyDecision
           }
           return await decide({

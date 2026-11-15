@@ -47,6 +47,8 @@ export interface SubmissionsRepository {
 
 export const SubmissionsRepositoryToken = defineServiceToken<SubmissionsRepository>('runs', 'SubmissionsRepository')
 
+export * from './reconcile'
+
 export * from './session-pool'
 export * from './submission-service'
 export * from './turn-context'

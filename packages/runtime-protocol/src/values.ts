@@ -132,6 +132,11 @@ export const Interaction = z.discriminatedUnion('kind', [
     title: z.string(),
     detail: z.string(),
     allowSessionScope: z.boolean(),
+    /** 宿主策略裁决的结构化字段；omp 扩展自己发的审批可以没有。 */
+    risk: z.enum(['low', 'medium', 'high']).optional(),
+    rule: z.string().optional(),
+    category: z.string().optional(),
+    reason: z.string().optional(),
   }),
   InteractionBase.extend({
     kind: z.literal('question'),

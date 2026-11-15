@@ -168,6 +168,8 @@ export interface PermissionItem extends TimelineEntry {
   readonly kind: ToolKind
   readonly subject: string
   readonly locations: readonly ToolCallLocation[]
+  /** 宿主策略给出的风险等级；omp 扩展自己发的审批没有。 */
+  readonly risk?: 'low' | 'medium' | 'high'
   readonly resolution?: {
     readonly decision: ApprovalDecision
     readonly scope?: ApprovalScope

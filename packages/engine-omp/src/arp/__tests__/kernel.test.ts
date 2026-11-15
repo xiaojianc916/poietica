@@ -3,7 +3,7 @@ import { RpcPeer } from '@poietica/rpc'
 import { transportPair } from '@poietica/rpc/testing'
 import { createRuntimeKernel } from '@poietica/runtime-kernel'
 import { ArpSession } from '@poietica/runtime-manager'
-import { arpMethods } from '@poietica/runtime-protocol'
+import { ARP_VERSION, arpMethods } from '@poietica/runtime-protocol'
 import { createFakeEngine } from '@poietica/runtime-protocol-testkit'
 import { createTestLogger, fakeClock, tempDir } from '@poietica/test-kit'
 import { createArpHandlers } from '../handlers'
@@ -112,7 +112,7 @@ describe('omp ARP over runtime-kernel', () => {
     const core = new RpcPeer({ name: 'arp-test-core', transport: coreSide, logger: createTestLogger() })
     const dir = await tempDir('omp-arp-kernel-')
     try {
-      const hello = (await core.request(arpMethods.hello, { protocolVersion: 1, coreVersion: '0.5.20' })) as {
+      const hello = (await core.request(arpMethods.hello, { protocolVersion: ARP_VERSION, coreVersion: '0.5.20' })) as {
         capabilities: string[]
       }
       expect(hello.capabilities).toEqual(expect.arrayContaining([arpMethods.sessionOpen, arpMethods.sessionPage]))

@@ -200,7 +200,14 @@ describe('执行策略门（架构设计 §13）', () => {
   test('F-P-1 装了策略门：文件扩展交给 omp（子代理可继承），审批模式交给宿主', async () => {
     let wrapped: Parameters<SessionFactoryOptions['wrapSession']>[0] | undefined
     const options = await optionsOf(SPEC, {
-      policyCheck: () => async () => ({ action: 'allow', rule: 'test.allow', reason: 'ok' }),
+      policyCheck: () => async () => ({
+        action: 'allow',
+        rule: 'test.allow',
+        reason: 'ok',
+        risk: 'low',
+        category: 'meta',
+        checkpoint: false,
+      }),
       policyExtensionPath: 'C:\\data\\poietica-policy.mjs',
       wrapSession: async (input) => {
         wrapped = input

@@ -8,7 +8,7 @@ import { Controls, Interaction, QueueSnapshot, SessionState } from './values'
  * 协议版本只用来检测「半更新」，不一致就重启 Worker。这里先放握手与生命周期，
  * 会话/Run/审批方法随 Worker 外壳一起长。
  */
-export const ARP_VERSION = 1
+export const ARP_VERSION = 2
 
 export const arpMethods = {
   hello: 'runtime.hello',
@@ -173,6 +173,10 @@ export const arpPolicyDecision = z.object({
   action: z.enum(['allow', 'ask', 'deny']),
   rule: z.string().min(1),
   reason: z.string(),
+  risk: z.enum(['low', 'medium', 'high']),
+  category: z.string().min(1),
+  /** 这次调用之后要不要为步骤打检查点（策略的分类已经算好）。 */
+  checkpoint: z.boolean(),
 })
 export type ArpPolicyDecision = z.infer<typeof arpPolicyDecision>
 

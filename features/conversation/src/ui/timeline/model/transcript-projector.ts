@@ -430,6 +430,7 @@ function permissionItemOf(interaction: ApprovalInteraction, turn: number, stamp:
     kind: 'other',
     subject: toolName,
     locations: [],
+    ...(interaction.request.risk === undefined ? {} : { risk: interaction.request.risk }),
     ...(resolved ? { resolution: { decision: approvalDecision(interaction.state) } } : {}),
   }
 }

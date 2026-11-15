@@ -104,7 +104,14 @@ export async function serve(): Promise<void> {
         /* 只读模式或库故障：审计落不下，但裁决本身仍然有效。 */
         logger.warn('policy decision not journaled', { error: String(error), tool: tool.name })
       }
-      return { action: decision.action, rule: decision.rule, reason: decision.reason }
+      return {
+        action: decision.action,
+        rule: decision.rule,
+        reason: decision.reason,
+        risk: decision.classification.risk,
+        category: decision.classification.category,
+        checkpoint: decision.classification.checkpoint,
+      }
     })
   }
   await Bun.write(path.join(layout.coreDir, 'core.pid'), String(process.pid))

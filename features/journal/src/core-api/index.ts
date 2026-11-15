@@ -12,6 +12,13 @@ export interface JournalService {
   appendAndStamp(threadId: string, agentId: string, events: readonly AgentEvent[]): readonly AgentEvent[]
   /** 读 afterSeq 之后的事件（升序）；limit 缺省 500。 */
   read(threadId: string, agentId: string, afterSeq: number, limit?: number): readonly AgentEvent[]
+  /** 按事件类型读（启动对账用），升序；limit 缺省 5000。 */
+  readTyped(
+    threadId: string,
+    agentId: string,
+    types: readonly AgentEvent['type'][],
+    limit?: number,
+  ): readonly AgentEvent[]
   latestSeq(threadId: string, agentId: string): number
   /** 线程删除时一起清掉；返回删掉的行数。 */
   clear(threadId: string): number

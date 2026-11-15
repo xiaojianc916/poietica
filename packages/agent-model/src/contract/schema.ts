@@ -146,6 +146,10 @@ export const interactionSchema = z.discriminatedUnion('interactionKind', [
       title: z.string(),
       detail: z.string(),
       allowSessionScope: z.boolean(),
+      risk: z.enum(['low', 'medium', 'high']).optional(),
+      rule: z.string().optional(),
+      category: z.string().optional(),
+      reason: z.string().optional(),
     }),
     response: z
       .object({
