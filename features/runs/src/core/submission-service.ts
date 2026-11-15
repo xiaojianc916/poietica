@@ -58,6 +58,10 @@ export class SubmissionService implements SubmissionServiceContract {
   private readonly turnIds = new Map<string, Map<string, string | null>>()
   /** clientTurnId → 排队项随附的上下文，等 `queueSettled` 收口；线程删除时随 `forget` 清掉 */
   private readonly queuedContexts = new Map<string, QueuedContext>()
+  /** threadId → 当前持有写租约的 `clientTurnId`；工作区仲裁用 */
+  private readonly leaseHolders = new Map<string, string>()
+  /** threadId → 租约 id（release 用） */
+  private readonly leaseIds = new Map<string, string>()
 
   constructor(private readonly d: SubmissionServiceBaseDeps) {}
 
@@ -269,6 +273,13 @@ export class SubmissionService implements SubmissionServiceContract {
     this.markFailed(row, error)
   }
 
+  releaseWriteLease(threadId: string): void {
+    const leaseId = this.leaseIds.get(threadId)
+    this.leaseHolders.delete(threadId)
+    this.leaseIds.delete(threadId)
+    if (leaseId !== undefined) this.p.writeLease?.release(leaseId)
+  }
+
   /** 取消：还没交给 omp 的 pending 直接收成 failed（交给 omp 的照旧走 session.cancel）。 */
   cancelUnhanded(threadId: string): void {
     const id = this.pendingTurn.get(threadId)
@@ -321,6 +332,7 @@ export class SubmissionService implements SubmissionServiceContract {
    * 自动化不断建线程而只增不减（R-03 §2.3、R-08-2）。
    */
   forget(threadId: string): void {
+    this.releaseWriteLease(threadId)
     this.lanes.delete(threadId)
     const pending = this.pendingTurn.get(threadId)
     if (pending !== undefined) this.handed.delete(pending)
@@ -418,7 +430,10 @@ export class SubmissionService implements SubmissionServiceContract {
     if (deliveredAs === 'turn') this.pendingTurn.set(row.threadId, row.clientTurnId)
 
     const context = this.contextFor(row, deliveredAs)
-    if (deliveredAs === 'turn') await this.checkpointAtTurnStart(row)
+    if (deliveredAs === 'turn') {
+      this.acquireWriteLease(row)
+      await this.checkpointAtTurnStart(row)
+    }
     try {
       await session.submit({
         text: row.text,
@@ -444,6 +459,29 @@ export class SubmissionService implements SubmissionServiceContract {
       context?.delivered()
     }
     this.p.emitUserMessage({ threadId: row.threadId, at: this.d.clock.now() })
+  }
+
+  /**
+   * §14.4：一次真正的写轮先拿工作区写租约。租约在 Core 内存里，Core 退出就消失，
+   * 所以 TTL 只用来挡住「进程还活着但轮次永远不收口」的极端情况；正常路径靠轮次收口释放。
+   */
+  private acquireWriteLease(row: SubmissionRow): void {
+    const port = this.p.writeLease
+    if (port === undefined) return
+    const thread = this.p.requireThread(row.threadId)
+    const result = port.acquire({
+      workspaceId: thread.workspaceId,
+      threadId: row.threadId,
+      runId: row.clientTurnId,
+      ttlMs: 24 * 60 * 60 * 1000,
+    })
+    if (!result.granted) {
+      throw new AppError('workspaces.write_busy', '这个工作区正被另一条对话写入，请等它结束或换到隔离工作区', {
+        holderThreadId: result.holder.threadId,
+      })
+    }
+    this.leaseHolders.set(row.threadId, row.clientTurnId)
+    this.leaseIds.set(row.threadId, result.lease.id)
   }
 
   private async checkpointAtTurnStart(row: SubmissionRow): Promise<void> {
@@ -519,6 +557,8 @@ export class SubmissionService implements SubmissionServiceContract {
   /** 失败结局（没送达 → failed，错误码原样存下）。 */
   private fail(clientTurnId: string, threadId: string, cause: unknown): void {
     if (this.pendingTurn.get(threadId) === clientTurnId) this.pendingTurn.delete(threadId)
+    /* 只有持有者本人失败才释放：同线程排队项的失败不能放掉正在跑那一轮的租约。 */
+    if (this.leaseHolders.get(threadId) === clientTurnId) this.releaseWriteLease(threadId)
     const row = this.d.repo.get(clientTurnId)
     if (row === null) return
     const mapped = toAppError(cause)

@@ -347,6 +347,9 @@
       "path": "packages/runtime-protocol"
     },
     {
+      "path": "packages/sandbox-win"
+    },
+    {
       "path": "packages/storage-sqlite"
     },
     {

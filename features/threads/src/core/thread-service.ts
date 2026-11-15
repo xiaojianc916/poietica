@@ -376,6 +376,7 @@ export class ThreadService implements ThreadsService {
     this.d.transaction(() => {
       this.d.repo.delete(row.id)
       if (sessionFile !== null) this.d.reclaim.enqueue(sessionFile, row.id, this.d.clock.now())
+      this.p.onThreadDeleted?.(row.id)
     })
     this.p.hub.disposeThread(row.id)
     this.p.onThreadRemoved(row.id)

@@ -2,7 +2,7 @@
 
 ## 1. 一句话
 
-Poietica 是「四类进程（UI / Host / Core / Runtime Worker）× 三个微内核 × 29 个平台包 + 27 个功能包」的 Windows 桌面 agent 应用：
+Poietica 是「四类进程（UI / Host / Core / Runtime Worker）× 三个微内核 × 30 个平台包 + 27 个功能包」的 Windows 桌面 agent 应用：
 omp（Oh My Pi）经 ARP 接入独立的 Runtime Worker，随包发布，与用户机器上的全局 omp 完全隔离。
 
 ```
@@ -171,7 +171,9 @@ import `@oh-my-pi/*` 的地方（`apps/core/scripts` 的构建脚本是唯一例
 不再按字段名探测 `unknown`；认不出的工具只有 generic 兜底那一档。
 
 omp 的实现只在独立的 `poietica-runtime.exe` 里加载；Core 的 `serve` 只持有 ARP 客户端（`runtime-manager`），
-进程边界负责故障隔离，沙箱边界仍待 P4 第二道防线。
+进程边界负责故障隔离。第二道防线先落地 L1：`packages/sandbox-win` 在启动 Worker 时建 Job Object，
+限制进程树、内存与进程数，`TerminateJobObject` 能带走 `taskkill /T` 抓不到的脱离进程；启动自检失败会
+明确记录并降级到 off。L2 的受限令牌 / 低完整性级别（限制工作区外写入）仍未实现，`restricted` 会明确报不支持。
 
 执行策略（P4 第一道防线）：Worker 在每个工具执行前经 ARP `policy.check` 把工具名、入参与会话档位交给 Core 的
 `policy` 模块；Core 按工具分类与命令/路径裁决，并把 `policy.decided` 追加进 Journal。装了策略门后
@@ -250,4 +252,4 @@ omp 的版本锁在根 `package.json` 的 catalog（四个 `@oh-my-pi/*` 同一�
 
 ## P0 架构决策与过渡
 
-唯一引擎为 omp；UI/Host/Core/Runtime 分工已落地 Runtime 外置（P3），UI–Core 直连仍按 ADR-006 默认关闭。执行安全已落地第一道防线（宿主策略与结构化审批），OS 沙箱待 P4。事实归属与后续计划见 `docs/adr/`。Host 的 safeStorage 凭据库通过受调用方限制的 `secrets.lease` 提供内存凭据，Core/Runtime 不应把新凭据写入引擎配置。四类债务以 `bun run check:ratchet` 在 CI 检查只减不增。
+唯一引擎为 omp；UI/Host/Core/Runtime 分工已落地 Runtime 外置（P3），UI–Core 直连仍按 ADR-006 默认关闭。执行安全已落地第一道防线（宿主策略与结构化审批）与 L1 Job Object 沙箱；L2 受限令牌待做。事实归属与后续计划见 `docs/adr/`。Host 的 safeStorage 凭据库通过受调用方限制的 `secrets.lease` 提供内存凭据，Core/Runtime 不应把新凭据写入引擎配置。四类债务以 `bun run check:ratchet` 在 CI 检查只减不增。

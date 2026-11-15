@@ -58,6 +58,11 @@ export class EventRouter implements EventRouterContract {
         const events = this.d.journal.appendAndStamp(threadId, event.agentId, event.events)
         const attributed = event.agentId === MAIN_AGENT_ID ? this.attributeClientTurn(threadId, events) : events
         this.d.hub.push(threadId, event.agentId, attributed)
+        for (const one of attributed) {
+          if (one.type === 'step.completed') {
+            this.d.onStepCompleted?.({ threadId, stepId: one.step.stepId })
+          }
+        }
         break
       }
       case 'timelineReset':

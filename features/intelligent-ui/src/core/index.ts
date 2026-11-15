@@ -1,5 +1,9 @@
 import { defineCoreModule } from '@poietica/core-kernel'
-import { ConversationServiceToken, threadRemoved } from '@poietica/feature-conversation/core-api'
+import {
+  ConversationServiceToken,
+  THREAD_REMOVED_TOPIC,
+  threadRemovedPayload,
+} from '@poietica/feature-conversation/core-api'
 import { TurnContextRegistryToken } from '@poietica/feature-runs/core-api'
 import { AppError } from '@poietica/foundation'
 import { intelligentUiContract, intelligentUiErrors } from '../contract'
@@ -13,7 +17,7 @@ import { registerIntelligentUiTools } from './tool'
  * - 给 agent 注册 intelligent_ui 与 intelligent_ui_guide（工具集在全部 setup 之后冻结，所以必须在 setup 里注册）；
  * - 界面状态的读写（intelligentUi.getState / setState）；
  * - 向 conversation 的轮次上下文登记处交「上次之后变过的 model / tweaks 状态」，下一句话随之交给模型；
- * - 线程删除时清掉它的全部状态（threadRemoved；启动时再对一次账）。
+ * - 线程删除时清掉它的全部状态（`conversation.threadRemoved` outbox；启动时再对一次账）。
  */
 export default defineCoreModule({
   id: 'intelligent-ui',
@@ -47,7 +51,9 @@ export default defineCoreModule({
     })
 
     ctx.disposables.add(ctx.services.get(TurnContextRegistryToken).register(stateContextProvider(repo)))
-    ctx.disposables.add(ctx.events.on(threadRemoved, ({ threadId }) => repo.removeThread(threadId)))
+    ctx.outboxHandlers.register(THREAD_REMOVED_TOPIC, (payload) => {
+      repo.removeThread(threadRemovedPayload.parse(payload).threadId)
+    })
     /* 进程内事件会丢（Core 在删线程与发事件之间崩掉）：启动时对一次账，删掉已经不存在的线程留下的行 */
     ctx.lifecycle.onReady(() => {
       for (const threadId of repo.threadIds()) {

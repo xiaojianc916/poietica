@@ -41,19 +41,19 @@ export interface TurnRewind {
     readonly after: string | null
   }): void
   /** 一条线程的全部轮次（升序）；workspaceRoot 用来把绝对路径转回界面显示的相对路径。 */
-  list(threadId: string, workspaceRoot: string): TurnChanges
+  list(threadId: string, workspaceRoot: string): Promise<TurnChanges>
   /**
    * 这一轮某文件改前改后的正文（右坞那一格 diff 的两半）。
    *
-   * 按**显示路径**找：界面手里的是相对路径（正斜杠），账本里存的是绝对路径。撤销之后照样
-   * 交原来的两半 —— 人点开「已撤销」那一轮该看的是「当初改成了什么」，不是一片空白。
+   * 账本有这一笔就交账本；只有检查点（shell / 脚本写入）时，从起止快照里各读一份。
+   * 按**显示路径**找：界面手里的是相对路径（正斜杠），账本里存的是绝对路径。
    */
   patch(
     threadId: string,
     turn: number,
     workspaceRoot: string,
     shownPath: string,
-  ): { before: string | null; after: string | null }
+  ): Promise<{ before: string | null; after: string | null }>
   preview(threadId: string, turn: number, workspaceRoot: string): Promise<TurnRewindPreview>
   /** 撤销一轮：有任何不安全就整轮拒绝，不做部分写回。 */
   apply(threadId: string, turn: number, workspaceRoot: string): Promise<{ turn: number; reverted: true }>
@@ -105,7 +105,7 @@ async function turnCheckpoints(
   logger: Logger,
 ): Promise<TurnCheckpoints | null> {
   try {
-    const all = await checkpoints.list(workspaceRoot, 200)
+    const all = await checkpoints.list(workspaceRoot, 2_000)
     const mine = all.filter((entry) => entry.threadId === threadId).reverse()
     const start = mine.filter((entry) => entry.label === CHECKPOINT_TURN_START_LABEL)[turn - 1]
     const end = mine.filter((entry) => entry.label === CHECKPOINT_TURN_END_LABEL)[turn - 1]
@@ -177,6 +177,47 @@ async function previewCheckpointPlan(
     .filter((entry) => drift.has(entry))
     .map((entry) => ({ path: entry, reason: 'externally_modified' as const }))
   return { safe, unsafe, canApply: unsafe.length === 0 }
+}
+
+interface CheckpointTurnSummary {
+  readonly files: readonly { readonly path: string; readonly added: number; readonly removed: number }[]
+}
+
+/**
+ * 每条线程的检查点轮次摘要。检查点是唯一能看见 shell / 脚本写入的地方：这些轮没有工具账，
+ * 但起止快照之间确实有 diff。轮次编号按 Start/End 两侧各自的顺序配对。
+ */
+async function checkpointSummaries(
+  checkpoints: CheckpointService,
+  threadId: string,
+  workspaceRoot: string,
+  logger: Logger,
+  haveLedger: ReadonlySet<number>,
+): Promise<Map<number, CheckpointTurnSummary>> {
+  const summaries = new Map<number, CheckpointTurnSummary>()
+  try {
+    const all = await checkpoints.list(workspaceRoot, 2_000)
+    const mine = all.filter((entry) => entry.threadId === threadId).reverse()
+    const starts = mine.filter((entry) => entry.label === CHECKPOINT_TURN_START_LABEL)
+    const ends = mine.filter((entry) => entry.label === CHECKPOINT_TURN_END_LABEL)
+    const count = Math.min(starts.length, ends.length)
+    for (let index = 0; index < count; index++) {
+      /* 有工具账的轮直接用账本（不必为每一轮起一次 git）；检查点只补「一行账都没有」的轮。 */
+      if (haveLedger.has(index + 1)) continue
+      const start = starts[index]
+      const end = ends[index]
+      if (start === undefined || end === undefined) continue
+      try {
+        const files = await checkpoints.diffNumstat({ workspaceRoot, from: start.id, to: end.id })
+        if (files.length > 0) summaries.set(index + 1, { files })
+      } catch (error) {
+        logger.warn('checkpoint numstat failed', { threadId, turn: index + 1, error: String(error) })
+      }
+    }
+  } catch (error) {
+    logger.warn('checkpoint turn list failed', { threadId, error: String(error) })
+  }
+  return summaries
 }
 
 /** 一次撤销的一个落点：target 是这一轮之前那一份（null = 这一轮建的，撤销就是删掉）。 */
@@ -297,31 +338,46 @@ async function restoreAll(targets: readonly Restore[], workspaceRoot: string, lo
 export function createTurnRewind(d: TurnRewindDeps): TurnRewind {
   const now = d.now ?? Date.now
 
-  const list = (threadId: string, workspaceRoot: string): TurnChanges => {
+  const list = async (threadId: string, workspaceRoot: string): Promise<TurnChanges> => {
     const byTurn = new Map<number, TurnFileRow[]>()
     for (const row of d.repo.listByThread(threadId)) {
       const held = byTurn.get(row.turn)
       if (held === undefined) byTurn.set(row.turn, [row])
       else held.push(row)
     }
+    const summaries =
+      d.checkpoints === undefined
+        ? new Map<number, CheckpointTurnSummary>()
+        : await checkpointSummaries(d.checkpoints, threadId, workspaceRoot, d.logger, new Set(byTurn.keys()))
+    const reverted = d.repo.revertedTurns(threadId)
     const turns: TurnChangesEntry[] = []
-    for (const [turn, rows] of [...byTurn].sort((a, b) => a[0] - b[0])) {
+    const turnNumbers = [...new Set([...byTurn.keys(), ...summaries.keys()])].sort((a, b) => a - b)
+    for (const turn of turnNumbers) {
+      const rows = byTurn.get(turn) ?? []
+      const summary = summaries.get(turn)
       let added = 0
       let removed = 0
-      const files = rows.map((row) => {
-        const stat = statOf(row.before, row.after)
-        added += stat.added
-        removed += stat.removed
+      const files =
+        summary === undefined
+          ? rows.map((row) => {
+              const stat = statOf(row.before, row.after)
+              added += stat.added
+              removed += stat.removed
 
-        return { path: displayPath(workspaceRoot, row.path), added: stat.added, removed: stat.removed }
-      })
+              return { path: displayPath(workspaceRoot, row.path), added: stat.added, removed: stat.removed }
+            })
+          : summary.files.map((file) => {
+              added += file.added
+              removed += file.removed
+              return { path: file.path, added: file.added, removed: file.removed }
+            })
       turns.push({
         turn,
         fileCount: files.length,
         added,
         removed,
         /* 撤销之后行数仍报原值（那一轮确实改过这么多），只有这一格翻成 true。 */
-        reverted: rows.every((row) => row.state === 'reverted'),
+        reverted: reverted.has(turn) || (rows.length > 0 && rows.every((row) => row.state === 'reverted')),
         files,
       })
     }
@@ -331,10 +387,9 @@ export function createTurnRewind(d: TurnRewindDeps): TurnRewind {
 
   const preview = async (threadId: string, turn: number, workspaceRoot: string): Promise<TurnRewindPreview> => {
     const rows = d.repo.listByTurn(threadId, turn)
-    if (rows.length === 0) throw notAvailable(threadId, turn)
-    /* 已经撤销过的轮不能再撤一次：那一轮的 after 早已不在盘上，按内容比会全部报不安全，
-     * 但真正的理由是「撤销过了」，说法要分开。 */
-    if (rows.every((row) => row.state === 'reverted')) throw notAvailable(threadId, turn)
+    const alreadyReverted =
+      d.repo.isTurnReverted(threadId, turn) || (rows.length > 0 && rows.every((row) => row.state === 'reverted'))
+    if (alreadyReverted) throw notAvailable(threadId, turn)
 
     const checkpoints = d.checkpoints
     if (checkpoints !== undefined) {
@@ -352,6 +407,7 @@ export function createTurnRewind(d: TurnRewindDeps): TurnRewind {
       }
     }
 
+    if (rows.length === 0) throw notAvailable(threadId, turn)
     return await ledgerPreview(rows, workspaceRoot)
   }
 
@@ -371,37 +427,48 @@ export function createTurnRewind(d: TurnRewindDeps): TurnRewind {
 
     list,
 
-    patch(threadId, turn, workspaceRoot, shownPath) {
+    async patch(threadId, turn, workspaceRoot, shownPath) {
       const wanted = shownPath.replaceAll('\\', '/')
       const row = d.repo.listByTurn(threadId, turn).find((held) => displayPath(workspaceRoot, held.path) === wanted)
 
-      if (row === undefined) {
-        throw new AppError(reviewErrors.turn_file_missing, '这一轮没有改过这个文件', { turn, path: shownPath })
+      if (row !== undefined) return { before: row.before, after: row.after }
+
+      const checkpoints = d.checkpoints
+      if (checkpoints !== undefined) {
+        const plan = await checkpointPlan(checkpoints, threadId, workspaceRoot, turn, d.logger)
+        if (plan?.paths.includes(wanted) === true) {
+          const [before, after] = await Promise.all([
+            checkpoints.readFile({ workspaceRoot, checkpoint: plan.start.id, path: wanted }),
+            checkpoints.readFile({ workspaceRoot, checkpoint: plan.end.id, path: wanted }),
+          ])
+          return { before, after }
+        }
       }
 
-      return { before: row.before, after: row.after }
+      throw new AppError(reviewErrors.turn_file_missing, '这一轮没有改过这个文件', { turn, path: shownPath })
     },
 
     preview,
 
     async apply(threadId, turn, workspaceRoot) {
       const rows = d.repo.listByTurn(threadId, turn)
-      if (rows.length === 0 || rows.every((row) => row.state === 'reverted')) {
-        throw notAvailable(threadId, turn)
-      }
+      const alreadyReverted =
+        d.repo.isTurnReverted(threadId, turn) || (rows.length > 0 && rows.every((row) => row.state === 'reverted'))
+      if (alreadyReverted) throw notAvailable(threadId, turn)
       const checkpoints = d.checkpoints
       if (checkpoints !== undefined) {
         const plan = await checkpointPlan(checkpoints, threadId, workspaceRoot, turn, d.logger)
         if (plan !== null) {
           await restoreCheckpointPlan(checkpoints, workspaceRoot, plan)
-          d.repo.markReverted(threadId, turn)
+          d.repo.markReverted(threadId, turn, now())
           d.emitChanged(threadId)
           return { turn, reverted: true }
         }
       }
+      if (rows.length === 0) throw notAvailable(threadId, turn)
       const targets = await verified(rows, workspaceRoot)
       await restoreAll(targets, workspaceRoot, d.logger)
-      d.repo.markReverted(threadId, turn)
+      d.repo.markReverted(threadId, turn, now())
       d.emitChanged(threadId)
 
       return { turn, reverted: true }

@@ -30,11 +30,25 @@ export interface SubmissionJournalPort {
   append(threadId: string, agentId: string, events: readonly AgentEvent[]): number
 }
 
+/** §14.4：工作区同一时刻只允许一个写租约；实现由 workspaces 提供。 */
+export interface SubmissionWriteLeasePort {
+  acquire(input: {
+    workspaceId: string
+    threadId: string
+    runId?: string
+    ttlMs?: number
+  }):
+    | { readonly granted: true; readonly lease: { readonly id: string } }
+    | { readonly granted: false; readonly holder: { readonly threadId: string } }
+  release(leaseId: string): void
+}
+
 export interface SubmissionServicePorts {
   readonly workspaces: SubmissionWorkspacesPort
   readonly attachments: SubmissionAttachmentsPort
   readonly checkpoints?: SubmissionCheckpointsPort
   readonly journal?: SubmissionJournalPort
+  readonly writeLease?: SubmissionWriteLeasePort
   readonly requireThread: (threadId: string) => { readonly id: string; readonly workspaceId: string }
   readonly autoTitle: (threadId: string, text: string) => void
   readonly markActivity: (threadId: string) => void
@@ -71,6 +85,8 @@ export interface SubmissionService {
   claimPendingTurn(threadId: string): string | null
   markTurn(threadId: string, clientTurnId: string, turnId: string): void
   settleUnstarted(threadId: string, error: { code: string; message: string }): void
+  /** 这一轮的写租约结束（轮次收口 / 线程删除 / 提交失败）。没有租约时是空操作。 */
+  releaseWriteLease(threadId: string): void
   cancelUnhanded(threadId: string): void
   recoverOnStart(): void
   forget(threadId: string): void

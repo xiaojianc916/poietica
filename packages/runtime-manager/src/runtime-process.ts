@@ -4,6 +4,7 @@ import { killTree } from '@poietica/process-kit'
 import { type InboundContext, jsonValue, RpcPeer } from '@poietica/rpc'
 import { createChildProcessTransport } from '@poietica/rpc/stdio'
 import { ARP_VERSION, arpMethods } from '@poietica/runtime-protocol'
+import { isSandboxedChild, type SandboxedChild, type SandboxOptions, spawnSandboxed } from '@poietica/sandbox-win'
 
 /**
  * 单个 Runtime Worker 的生命周期（架构设计 §10）。只管「起进程、握手、停进程」，
@@ -24,6 +25,8 @@ export interface RuntimeProcessOptions {
   readonly spawn?: typeof nodeSpawn
   /** 意外退出后自动重启；默认关闭，由上层（RuntimePool/工作树路由）决定。 */
   readonly autoRestart?: boolean
+  /** Windows 沙箱（Job Object）；缺省 off（测试与开发），生产由 Core 显式打开。 */
+  readonly sandbox?: SandboxOptions
   readonly backoffMs?: readonly number[]
   readonly restartWindowMs?: number
   /** 心跳间隔；0/缺省 = 关闭。心跳失败会杀掉 Worker，并按 autoRestart 决定是否重启。 */
@@ -39,6 +42,7 @@ export type RuntimeProcessState = 'idle' | 'starting' | 'ready' | 'restarting' |
 
 export class RuntimeProcess {
   private child: ChildProcess | undefined
+  private sandboxedChild: SandboxedChild | undefined
   private peer: RpcPeer | undefined
   private state: RuntimeProcessState = 'idle'
   private lastError: string | null = null
@@ -81,19 +85,36 @@ export class RuntimeProcess {
     return { dispose: () => this.notificationListeners.delete(listener) }
   }
 
+  private spawnWorker(): ChildProcess {
+    const spawnOptions = {
+      cwd: this.o.launch.cwd,
+      env: { ...process.env, ...this.o.launch.env },
+      stdio: ['pipe', 'pipe', 'pipe'] as ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    }
+    try {
+      if (this.o.spawn !== undefined) {
+        return this.o.spawn(this.o.launch.command, [...this.o.launch.args], spawnOptions)
+      }
+      if (this.o.sandbox !== undefined) {
+        return spawnSandboxed(this.o.launch.command, this.o.launch.args, spawnOptions, this.o.sandbox)
+      }
+      return nodeSpawn(this.o.launch.command, [...this.o.launch.args], spawnOptions)
+    } catch (error) {
+      this.lastError = error instanceof Error ? error.message : String(error)
+      this.setState('failed')
+      throw error
+    }
+  }
+
   async start(): Promise<void> {
     if (this.state === 'ready' || this.state === 'starting') return
     this.stopping = false
     this.setState('starting')
     this.lastError = null
-    const spawn = this.o.spawn ?? nodeSpawn
-    const child = spawn(this.o.launch.command, [...this.o.launch.args], {
-      cwd: this.o.launch.cwd,
-      env: { ...process.env, ...this.o.launch.env },
-      stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true,
-    })
+    const child = this.spawnWorker()
     this.child = child
+    this.sandboxedChild = isSandboxedChild(child) ? child : undefined
     child.stderr?.on('data', (chunk) => this.o.logger.warn('runtime stderr', { text: String(chunk).trim() }))
     const transport = createChildProcessTransport(child, {
       onStray: (text) => this.o.logger.warn('runtime stray stdout', { text }),
@@ -114,6 +135,7 @@ export class RuntimeProcess {
       this.peer?.dispose()
       this.peer = undefined
       this.child = undefined
+      this.sandboxedChild = undefined
       if (this.stopping || this.state === 'stopped') return
       this.lastError = `Worker 退出：${code ?? signal ?? 'unknown'}`
       if (this.o.autoRestart === true) {
@@ -162,13 +184,16 @@ export class RuntimeProcess {
     }
     const peer = this.peer
     const child = this.child
+    const sandboxed = this.sandboxedChild
     if (peer !== undefined) {
       await peer.request(arpMethods.shutdown, {}, { timeoutMs: 2_000 }).catch(() => undefined)
       peer.dispose()
     }
+    sandboxed?.terminateSandbox()
     if (child?.pid !== undefined) await killTree(child.pid).catch(() => undefined)
     this.peer = undefined
     this.child = undefined
+    this.sandboxedChild = undefined
     this.setState('stopped')
   }
 

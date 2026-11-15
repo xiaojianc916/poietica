@@ -14,7 +14,7 @@ import type { Migration } from '@poietica/storage-sqlite'
  * - state 记这一轮是否已经撤销过。撤销以轮为单位整批退，所以同轮的每一行一起翻成 reverted；
  *   行数不在表里 —— 加减行数由 before/after 现算（@poietica/diff 的 computeFile），
  *   同一轮同一文件改多次时，最初 before 与最终 after 一比就是这一轮真正的增减；
- * - 不挂外键：线程删除走 conversation 的 threadRemoved 事件清账（库里的线程行归 conversation，
+ * - 不挂外键：线程删除走 conversation 的 `conversation.threadRemoved` outbox 清账（库里的线程行归 conversation，
  *   本功能不引它的表）。
  *
  * 主键 (thread_id, turn, path) 就是查与合并的形状：同一轮同一文件的重复写入落成同一行；
@@ -35,5 +35,19 @@ export const migrations: readonly Migration[] = [
   PRIMARY KEY (thread_id, turn, path)
 );
 CREATE INDEX review_turn_files_by_turn ON review_turn_files (thread_id, turn);`,
+  },
+  {
+    version: 2,
+    name: 'reverted_turns',
+    /*
+     * 检查点优先的撤销不再要求这一轮有工具写账：shell / 脚本改过的轮可能一行账都没有。
+     * 撤销状态因此单独存一张表，按（线程, 轮）记；有账的轮仍同步翻 review_turn_files.state。
+     */
+    sql: `CREATE TABLE review_reverted_turns (
+  thread_id  TEXT NOT NULL,
+  turn       INTEGER NOT NULL,
+  reverted_at INTEGER NOT NULL,
+  PRIMARY KEY (thread_id, turn)
+);`,
   },
 ]

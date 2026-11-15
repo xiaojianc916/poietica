@@ -105,6 +105,9 @@
       "path": "../../packages/runtime-manager"
     },
     {
+      "path": "../../packages/sandbox-win"
+    },
+    {
       "path": "../../packages/storage-sqlite"
     }
   ]

@@ -3,9 +3,9 @@ import {
   ConversationServiceToken,
   type SubmissionFailed,
   submissionFailed,
-  type ThreadRemoved,
+  THREAD_REMOVED_TOPIC,
   type TurnSettled,
-  threadRemoved,
+  threadRemovedPayload,
   turnSettled,
 } from '@poietica/feature-conversation/core-api'
 import {
@@ -68,12 +68,11 @@ export default defineCoreModule({
         runner.onSubmissionFailed(e)
       }),
     )
-    ctx.disposables.add(
-      ctx.events.on<ThreadRemoved>(threadRemoved, (e) => {
-        runner.onThreadRemoved(e)
-        if (repo.clearThread(e.threadId, ctx.clock.now()) > 0) ctx.rpc.emit('automations.changed', {})
-      }),
-    )
+    ctx.outboxHandlers.register(THREAD_REMOVED_TOPIC, (payload) => {
+      const e = threadRemovedPayload.parse(payload)
+      runner.onThreadRemoved(e)
+      if (repo.clearThread(e.threadId, ctx.clock.now()) > 0) ctx.rpc.emit('automations.changed', {})
+    })
 
     ctx.outboxHandlers.register(WORKSPACE_REMOVED_TOPIC, (payload) => {
       const e = workspaceRemovedPayload.parse(payload)

@@ -1,6 +1,7 @@
 import { type CoreEvent, defineCoreEvent } from '@poietica/core-kernel/events'
 import { type Disposable, defineServiceToken } from '@poietica/foundation'
 import type { ModelRef, Posture, UsageSample } from '@poietica/runtime-protocol'
+import { z } from 'zod'
 import type { Thread } from '../contract'
 
 export interface ConversationService {
@@ -65,11 +66,13 @@ export const submissionFailed: CoreEvent<SubmissionFailed> = defineCoreEvent<Sub
   'submissionFailed',
 )
 
-/** 线程被删除（用户删除 / 工作区级联）：按线程索引的订阅方靠它清账 */
+/** 线程被删除的载荷（outbox payload 与 runner 共用）。 */
 export interface ThreadRemoved {
   readonly threadId: string
 }
-export const threadRemoved: CoreEvent<ThreadRemoved> = defineCoreEvent<ThreadRemoved>('conversation', 'threadRemoved')
+/** 持久副作用：删除线程与写 outbox 在同一事务里（ADR-011），进程崩在中间也能补投。 */
+export const THREAD_REMOVED_TOPIC = 'conversation.threadRemoved'
+export const threadRemovedPayload = z.object({ threadId: z.string().min(1) })
 
 export interface UsageSampled {
   readonly threadId: string

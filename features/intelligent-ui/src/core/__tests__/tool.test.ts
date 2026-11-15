@@ -177,6 +177,7 @@ describe('intelligent_ui 经真内核', () => {
       ],
       engine,
       clock,
+      outboxDispatch: true,
     })
     const ws = await h.client(workspacesContract).call('workspaces.add', { path: dir.path })
     const api = h.client(conversationContract)
@@ -252,6 +253,7 @@ describe('intelligent_ui 经真内核', () => {
     )
 
     await api.call('threads.delete', { threadId: thread.id })
+    await clock.advanceAsync(300)
     const gone = await errorOf(
       ui.call('intelligentUi.setState', {
         threadId: thread.id,

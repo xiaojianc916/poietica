@@ -37,6 +37,7 @@
     "@poietica/runtime-layout": "workspace:*",
     "@poietica/runtime-manager": "workspace:*",
     "@poietica/runtime-protocol-omp": "workspace:*",
+    "@poietica/sandbox-win": "workspace:*",
     "@poietica/storage-sqlite": "workspace:*"
   },
   "devDependencies": {

@@ -37,6 +37,8 @@ export interface ThreadServicePorts {
   readonly emitThreadUpdated: (thread: Thread) => void
   readonly emitThreadRemoved: (threadId: string) => void
   readonly onThreadRemoved: (threadId: string) => void
+  /** 删行事务内写持久副作用（outbox）；没有组合根时可为空。 */
+  readonly onThreadDeleted?: (threadId: string) => void
 }
 
 export interface ThreadsService {

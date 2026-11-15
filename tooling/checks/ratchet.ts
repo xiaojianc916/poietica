@@ -50,8 +50,8 @@ const SKIP_DIRS = new Set([
   'scripts',
 ])
 
-/** 平台能力模块：只有这里可以写平台判断（D9 的平台层建成后放进来；现在为空） */
-const PLATFORM_MODULES: readonly string[] = []
+/** 平台能力模块：只有这里可以写平台判断（sandbox-win 是 Windows 沙箱能力包）。 */
+const PLATFORM_MODULES: readonly string[] = ['packages/sandbox-win']
 
 const DEEP_OMP = /(['"`])@oh-my-pi\/[\w.-]+\/[^'"`\s]+\1/g
 

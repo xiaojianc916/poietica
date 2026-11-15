@@ -54,6 +54,14 @@ describe('影子检查点', () => {
     const end = await service.create({ workspaceRoot: root, threadId: 't1', label: '轮次结束' })
 
     expect(await service.diffPaths({ workspaceRoot: root, from: start.id, to: end.id })).toEqual(['a.txt', 'b.txt'])
+    expect(await service.diffNumstat({ workspaceRoot: root, from: start.id, to: end.id })).toEqual([
+      { path: 'a.txt', added: 1, removed: 1 },
+      { path: 'b.txt', added: 1, removed: 0 },
+    ])
+    expect(await service.readFile({ workspaceRoot: root, checkpoint: start.id, path: 'a.txt' })).toBe('one')
+    expect(await service.readFile({ workspaceRoot: root, checkpoint: end.id, path: 'a.txt' })).toBe('two')
+    expect(await service.readFile({ workspaceRoot: root, checkpoint: start.id, path: 'b.txt' })).toBeNull()
+    expect(await service.readFile({ workspaceRoot: root, checkpoint: end.id, path: 'b.txt' })).toBe('new')
     expect((await service.changedPaths({ workspaceRoot: root, checkpoint: start.id })).sort()).toEqual([
       'a.txt',
       'b.txt',

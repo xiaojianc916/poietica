@@ -20,6 +20,8 @@
 
 - 工作区删除已经改成持久事实：`workspaces.remove` 在删行的同一事务里写 `kernel_outbox`（topic `workspaces.removed`，幂等键为工作区 id），内存事件只负责让 UI 立刻刷新。
 - conversation / automations / files / review 各自注册 outbox handler；进程在「删行」与「级联清理」之间退出时，下次启动由分发器补投。
+- 线程删除同样进入 outbox（topic `conversation.threadRemoved`）：删行事务内入队，automations / review / intelligent-ui 改由 handler 清账；原来的进程内 `threadRemoved` 事件已无消费者并删除。
 - 同一 topic 现在支持多个消费者：注册表按 topic 收一组 handler，分发器按注册顺序串行调用，全部成功才把记录标记完成；失败则整条记录按退避重试。
+- 启动对账第 5 步已接上：模块可注册 `jobHandlers` / `workflowHandlers`，内核在 `core.ready` 前续跑未完成 workflow，并启动持久 job 分发器（只读模式跳过）。
 - 测试 harness 默认关闭 outbox 定时器（`outboxDispatch: false`），避免假时钟推进 25 小时时定时器空转；测 outbox 的用例显式打开。
-- 本次只收口「工作区删除」这一条；启动对账其余步骤与工作流续跑保持原状。
+- 本次只收口「工作区/线程删除」与「jobs/workflows 续跑」；启动对账其余步骤（运行中断、租约、worktree、Journal 分段）保持原状。

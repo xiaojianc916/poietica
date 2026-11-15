@@ -1,3 +1,4 @@
+import path from 'node:path'
 import type {
   PolicyAction,
   PolicyContext,
@@ -124,9 +125,15 @@ function writeDecision(
   if (preset === 'read-only') return decision('deny', 'preset.read_only.write', '只读预设禁止写文件')
   if (preset === 'full-access') return decision('allow', 'preset.full_access', '完全访问')
   if (preset === 'ask') return decision('ask', 'preset.ask.write', '询问预设下写入要确认')
-  const outside = (context.paths ?? []).some(
-    (path) => context.workspaceRoot !== undefined && !path.startsWith(context.workspaceRoot),
-  )
+  const paths = context.paths ?? []
+  /* 没有显式路径（产品工具只报了「这是写」）：自动档也不能盲放，先问。 */
+  if (paths.length === 0) return decision('ask', 'file.write.unknown_scope', '这次写入没有可判定的目标路径')
+  const root = context.workspaceRoot
+  if (root === undefined) return decision('ask', 'file.write.outside_workspace', '没有工作区根，无法确认写入范围')
+  const outside = paths.some((entry) => {
+    const relative = path.relative(path.resolve(root), path.resolve(root, entry))
+    return relative !== '' && (relative.startsWith('..') || path.isAbsolute(relative))
+  })
   if (outside) return decision('ask', 'file.write.outside_workspace', '目标在工作区之外')
   return decision('allow', 'file.write.workspace', '工作树内写入')
 }

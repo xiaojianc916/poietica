@@ -49,8 +49,12 @@ export interface TurnFilesRepository {
   listByThread(threadId: string): TurnFileRow[]
   /** 这一轮的全部行；没有就返回空数组（调用方据此报 rewind_not_available）。 */
   listByTurn(threadId: string, turn: number): TurnFileRow[]
-  /** 撤销以轮为单位：同轮的每一行一起翻成 reverted。 */
-  markReverted(threadId: string, turn: number): void
+  /** 撤销以轮为单位：同轮的每一行一起翻成 reverted，并在轮次表里记一笔（没有账的轮也记得住）。 */
+  markReverted(threadId: string, turn: number, at?: number): void
+  /** 这一轮是否已经撤销过（检查点优先的路径没有账本行，不能只看行状态）。 */
+  isTurnReverted(threadId: string, turn: number): boolean
+  /** 这条线程撤销过的轮次集合。 */
+  revertedTurns(threadId: string): Set<number>
   removeThread(threadId: string): void
 }
 
@@ -88,11 +92,32 @@ export function createTurnFilesRepository(db: ModuleDatabase): TurnFilesReposito
         .all(threadId, turn)
         .map(toRow)
     },
-    markReverted(threadId, turn) {
+    markReverted(threadId, turn, at = Date.now()) {
       run("UPDATE review_turn_files SET state = 'reverted' WHERE thread_id = ? AND turn = ?", threadId, turn)
+      run(
+        `INSERT INTO review_reverted_turns (thread_id, turn, reverted_at) VALUES (?, ?, ?)
+         ON CONFLICT (thread_id, turn) DO UPDATE SET reverted_at = excluded.reverted_at`,
+        threadId,
+        turn,
+        at,
+      )
+    },
+    isTurnReverted(threadId, turn) {
+      return (
+        db.prepare('SELECT 1 FROM review_reverted_turns WHERE thread_id = ? AND turn = ?').get(threadId, turn) !== null
+      )
+    },
+    revertedTurns(threadId) {
+      return new Set(
+        db
+          .prepare<{ turn: number }>('SELECT turn FROM review_reverted_turns WHERE thread_id = ?')
+          .all(threadId)
+          .map((row) => row.turn),
+      )
     },
     removeThread(threadId) {
       run('DELETE FROM review_turn_files WHERE thread_id = ?', threadId)
+      run('DELETE FROM review_reverted_turns WHERE thread_id = ?', threadId)
     },
   }
 }

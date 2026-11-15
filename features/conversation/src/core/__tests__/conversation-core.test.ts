@@ -88,10 +88,11 @@ async function makeCore(
   const submissionFailures: { threadId: string; clientTurnId: string; deliverAs: string; code: string }[] = []
   const submissionRemoved: string[] = []
   const queues: { threadId: string; queue: QueueView }[] = []
-  const threadRemovedEvents: string[] = []
+  const threadDeleted: string[] = []
   const states: { threadId: string; state: string }[] = []
   const fileChanges: { threadId: string; turn: number; path: string; before: string | null; after: string | null }[] =
     []
+  const completedSteps: { threadId: string; stepId: string }[] = []
 
   const engine: FakeEngine = overrides.runtime ?? createFakeEngine()
   engine.freezeTools()
@@ -148,8 +149,8 @@ async function makeCore(
         code: p.error.code,
       })
     },
-    emitThreadRemovedEvent: (p) => {
-      threadRemovedEvents.push(p.threadId)
+    enqueueThreadRemoved: (threadId) => {
+      threadDeleted.push(threadId)
     },
     emitTurnSettled: (p) => {
       settled.push({ threadId: p.threadId, outcome: p.outcome })
@@ -163,6 +164,9 @@ async function makeCore(
     /* 工具的写账交出去（照 turnSettled 那条：转发这一层自身就该被钉住，不是靠订阅方去测） */
     emitFileChanged: (p) => {
       fileChanges.push({ ...p })
+    },
+    onStepCompleted: (p) => {
+      completedSteps.push(p)
     },
   })
 
@@ -184,9 +188,10 @@ async function makeCore(
     submissionFailures,
     submissionRemoved,
     queues,
-    threadRemovedEvents,
+    threadDeleted,
     states,
     fileChanges,
+    completedSteps,
     hub,
   }
 }
@@ -236,6 +241,30 @@ describe('conversation core（不经内核的直连测试）', () => {
     expect(
       appended.flatMap((entry) => entry.events).some((event) => (event as { type?: string }).type === 'run.started'),
     ).toBe(true)
+    await core.dispose()
+    db.close()
+    await dir.dispose()
+  })
+
+  test('step.completed 交给 Core 的增量检查点钩子', async () => {
+    const { core, completedSteps, dir, db } = await makeCore()
+    const row = core.threads.create({ workspaceId: 'ws1' })
+    core.onEvent(row.id, {
+      type: 'timeline',
+      agentId: 'main',
+      events: [
+        {
+          type: 'step.completed',
+          durability: 'committed',
+          schema: 1,
+          at: new Date(0).toISOString(),
+          runId: 't1',
+          turnId: 't1',
+          step: { kind: 'step', stepId: 't1.2', turnId: 't1', ordinal: 2, state: 'completed' },
+        },
+      ],
+    })
+    expect(completedSteps).toEqual([{ threadId: row.id, stepId: 't1.2' }])
     await core.dispose()
     db.close()
     await dir.dispose()
@@ -338,7 +367,6 @@ describe('conversation core（不经内核的直连测试）', () => {
       emitSubmissionChanged: () => undefined,
       emitSubmissionRemoved: () => undefined,
       emitSubmissionFailed: () => undefined,
-      emitThreadRemovedEvent: () => undefined,
       emitTurnSettled: () => undefined,
       emitUsageSampled: () => undefined,
       emitCommandOutput: () => undefined,
@@ -1125,7 +1153,6 @@ describe('conversation core（不经内核的直连测试）', () => {
         emitSubmissionChanged: (s) => submissions.push({ status: s.status }),
         emitSubmissionRemoved: () => undefined,
         emitSubmissionFailed: (p) => failures.push({ clientTurnId: p.clientTurnId, code: p.error.code }),
-        emitThreadRemovedEvent: () => undefined,
         emitTurnSettled: () => undefined,
         emitUsageSampled: () => undefined,
         emitUserMessage: () => undefined,
@@ -1143,8 +1170,8 @@ describe('conversation core（不经内核的直连测试）', () => {
       await dir.dispose()
     })
 
-    test('删除线程：threadRemoved 事件与 RPC 通知同时发出（钩子只有一个发出点）', async () => {
-      const { core, removed, threadRemovedEvents, dir, db } = await makeCore()
+    test('删除线程：outbox 入队与 RPC 通知同时发出（钩子只有一个发出点）', async () => {
+      const { core, removed, threadDeleted, dir, db } = await makeCore()
       const row = core.threads.create({ workspaceId: 'ws1' })
       await submit(core, row.id, 'hi')
       await new Promise((r) => setTimeout(r, 40))
@@ -1152,7 +1179,7 @@ describe('conversation core（不经内核的直连测试）', () => {
       await core.threads.delete(row.id)
 
       expect(removed).toEqual([row.id])
-      expect(threadRemovedEvents).toEqual([row.id])
+      expect(threadDeleted).toEqual([row.id])
 
       await core.dispose()
       db.close()

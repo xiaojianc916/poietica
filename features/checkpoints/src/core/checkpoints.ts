@@ -11,7 +11,7 @@ import type {
   CheckpointRestoreParams,
   CheckpointRestoreResult,
 } from '../contract/entities'
-import type { CheckpointService } from '../core-api'
+import type { CheckpointNumstat, CheckpointReadFileParams, CheckpointService } from '../core-api'
 
 export interface CreateCheckpointServiceOptions {
   /** 影子仓库根目录（应用数据目录内，不放用户项目里） */
@@ -172,7 +172,7 @@ export function createCheckpointService(o: CreateCheckpointServiceOptions): Chec
 
   const list = async (workspaceRootInput: string, limit = 50): Promise<Checkpoint[]> => {
     const workspaceRoot = path.resolve(workspaceRootInput)
-    const n = Math.min(Math.max(limit, 1), 200)
+    const n = Math.min(Math.max(limit, 1), 2_000)
     const result = await shadow(workspaceRoot, ['log', '-n', String(n), '--format=%H%x00%cI%x00%s', '--'])
     return result.stdout
       .split(/\r?\n/)
@@ -204,6 +204,42 @@ export function createCheckpointService(o: CreateCheckpointServiceOptions): Chec
     const workspaceRoot = path.resolve(input.workspaceRoot)
     const result = await shadow(workspaceRoot, ['diff', '--name-only', '-z', input.from, input.to, '--'])
     return visiblePaths(workspaceRoot, splitNul(result.stdout))
+  }
+
+  const diffNumstat = async (input: CheckpointDiffParams): Promise<CheckpointNumstat[]> => {
+    const workspaceRoot = path.resolve(input.workspaceRoot)
+    /* 关闭 rename 检测：-z 下重命名会多带一个路径，解析形状不稳定；审查按路径各自报增删即可。 */
+    const result = await shadow(workspaceRoot, ['diff', '--numstat', '--no-renames', '-z', input.from, input.to, '--'])
+    const entries: CheckpointNumstat[] = []
+    for (const record of splitNul(result.stdout)) {
+      const first = record.indexOf('\t')
+      const second = record.indexOf('\t', first + 1)
+      if (first < 0 || second < 0) continue
+      const added = record.slice(0, first)
+      const removed = record.slice(first + 1, second)
+      entries.push({
+        path: record.slice(second + 1),
+        added: added === '-' ? 0 : Number(added),
+        removed: removed === '-' ? 0 : Number(removed),
+      })
+    }
+    const visible = new Set(
+      visiblePaths(
+        workspaceRoot,
+        entries.map((entry) => entry.path),
+      ),
+    )
+    return entries.filter((entry) => visible.has(entry.path))
+  }
+
+  const readFile = async (input: CheckpointReadFileParams): Promise<string | null> => {
+    const workspaceRoot = path.resolve(input.workspaceRoot)
+    const relative = safeRelative(workspaceRoot, input.path)
+    const result = await shadow(workspaceRoot, ['show', `${input.checkpoint}:${relative}`], {
+      okExitCodes: [0, 128],
+      maxOutputBytes: 8 * 1024 * 1024,
+    })
+    return result.exitCode === 0 ? result.stdout : null
   }
 
   const changedPaths = async (input: CheckpointChangedPathsParams): Promise<string[]> => {
@@ -242,7 +278,7 @@ export function createCheckpointService(o: CreateCheckpointServiceOptions): Chec
     return { restored: paths }
   }
 
-  return { create, list, diff, diffPaths, changedPaths, restore }
+  return { create, list, diff, diffPaths, diffNumstat, changedPaths, readFile, restore }
 }
 
 /** git 的 `-z` 输出：NUL 分隔、路径原样（不转义空格与中文）。 */

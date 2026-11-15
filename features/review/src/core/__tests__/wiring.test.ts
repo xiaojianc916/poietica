@@ -6,7 +6,7 @@ import type { CoreEvent } from '@poietica/core-kernel/events'
 import { CheckpointServiceToken } from '@poietica/feature-checkpoints/core-api'
 import {
   ConversationServiceToken,
-  threadRemoved as threadRemovedEvent,
+  THREAD_REMOVED_TOPIC,
   turnFileChanged,
 } from '@poietica/feature-conversation/core-api'
 import { WorkspacesServiceToken } from '@poietica/feature-workspaces/core-api'
@@ -40,7 +40,6 @@ interface Wiring {
 
 async function wire(
   opts: {
-    readonly threadRemoved?: CoreEvent<{ threadId: string }>
     /** 假 conversation 认得的线程：给了就让这条线程「还在」 */
     readonly threads?: readonly string[]
   } = {},
@@ -54,10 +53,10 @@ async function wire(
   const clock = fakeClock()
 
   /* 线程 → 工作区：假 conversation 只回答这一件事（get 回 null = 线程已删） */
+  const outboxHandlers = new Map<string, (payload: unknown) => void>()
   const threads = new Map<string, { workspaceId: string }>(
     (opts.threads ?? []).map((threadId) => [threadId, { workspaceId: 'w1' }]),
   )
-  const threadRemovedEvent = opts.threadRemoved
 
   const ctx = {
     moduleId: 'review',
@@ -72,7 +71,11 @@ async function wire(
       emit: () => undefined,
     },
     host: { call: () => Promise.reject(new Error('Host 不在测试里')) },
-    outboxHandlers: { register: () => undefined },
+    outboxHandlers: {
+      register: (topic: string, handle: (payload: unknown) => void) => {
+        outboxHandlers.set(topic, handle)
+      },
+    },
     services: {
       get: (token: { ownerModule: string }) => {
         if (token === WorkspacesServiceToken) {
@@ -145,8 +148,7 @@ async function wire(
       for (const listener of listeners.get(turnFileChanged as CoreEvent<unknown>) ?? []) listener(fact)
     },
     emitThreadRemoved: (threadId) => {
-      if (threadRemovedEvent === undefined) return
-      for (const listener of listeners.get(threadRemovedEvent as CoreEvent<unknown>) ?? []) listener({ threadId })
+      outboxHandlers.get(THREAD_REMOVED_TOPIC)?.({ threadId })
     },
     async dispose() {
       disposables.dispose()
@@ -165,9 +167,10 @@ const fact = {
 }
 
 describe('review 模块装配', () => {
-  test('migrations 挂在模块上，且只有一条 init；三个方法与通知都在契约里', () => {
+  test('migrations 挂在模块上，且是 init + reverted_turns 两条；三个方法与通知都在契约里', () => {
     expect(review.migrations).toBe(migrations)
-    expect(migrations).toHaveLength(1)
+    expect(migrations).toHaveLength(2)
+    expect(migrations.map((m) => m.name)).toEqual(['init', 'reverted_turns'])
     expect(review.dependsOn).toEqual(['workspaces', 'conversation', 'checkpoints'])
     const names = reviewContract.methods.map((m) => m.name)
     expect(names).toContain('review.turnChanges')
@@ -224,8 +227,8 @@ describe('review 模块装配', () => {
     await w.dispose()
   })
 
-  test('线程删除事件：它的账一起清掉', async () => {
-    const w = await wire({ threads: ['t1'], threadRemoved: threadRemovedEvent })
+  test('线程删除 outbox：它的账一起清掉', async () => {
+    const w = await wire({ threads: ['t1'] })
     await fs.writeFile(path.join(w.root, 'a.txt'), 'new\n', 'utf8')
     w.emitFileChanged(fact)
     expect(((await w.call('review.turnChanges', { threadId: 't1' })) as { turns: unknown[] }).turns).toHaveLength(1)

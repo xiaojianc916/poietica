@@ -25,12 +25,22 @@ import {
 import { createAgentToolRegistry } from './agent-tools'
 import { createEventHub } from './events'
 import { createIdempotency } from './idempotency'
-import { createKernelJobs } from './jobs'
-import type { CoreDataMode, CoreModule, CoreModuleContext, OutboxHandlerRegistry, RetiredCoreModule } from './module'
+import { createJobRunner, type JobHandler, type JobRunner } from './job-runner'
+import { createKernelJobs, type KernelJobsService } from './jobs'
+import type {
+  CoreDataMode,
+  CoreModule,
+  CoreModuleContext,
+  JobHandlerRegistry,
+  OutboxHandlerRegistry,
+  RetiredCoreModule,
+  WorkflowHandlerRegistry,
+} from './module'
 import { createOutbox } from './outbox'
 import { createOutboxDispatcher, type OutboxDispatcher, type OutboxHandler } from './outbox-dispatcher'
 import { createCoreRpcBinding, createHostCaller } from './rpc-binding'
-import { createWorkflowService } from './workflows'
+import { resumeWorkflows, type WorkflowHandler } from './workflow-resume'
+import { createWorkflowService, type WorkflowService } from './workflows'
 
 export interface CoreKernelOptions {
   readonly modules: readonly CoreModule[]
@@ -98,6 +108,37 @@ function createRuntimeServices(engine: AgentEngine): RuntimeServices {
   }
 }
 
+/** 启动对账第 5 步：续跑未完成 workflow，再起持久 job 分发器。 */
+async function startPersistentWorkers(o: {
+  readonly workflows: WorkflowService
+  readonly workflowHandlers: readonly WorkflowHandler[]
+  readonly jobs: KernelJobsService
+  readonly jobHandlers: readonly JobHandler[]
+  readonly logger: Logger
+  readonly clock: Clock
+}): Promise<JobRunner | undefined> {
+  try {
+    const resumed = await resumeWorkflows({
+      workflows: o.workflows,
+      handlers: o.workflowHandlers,
+      logger: o.logger,
+    })
+    if (resumed > 0) o.logger.info('workflows resumed', { count: resumed })
+  } catch (error) {
+    o.logger.warn('workflow resume failed', { error: String(error) })
+  }
+  if (o.jobHandlers.length === 0) return undefined
+  const runner = createJobRunner({
+    jobs: o.jobs,
+    handlers: o.jobHandlers,
+    logger: o.logger,
+    clock: o.clock,
+  })
+  runner.start()
+  void runner.tick().catch((error: unknown) => o.logger.warn('job tick failed', { error: String(error) }))
+  return runner
+}
+
 /** engine.dispose 的时间下限：即使前面把预算花光了也要给它。 */
 const ENGINE_DISPOSE_FLOOR_MS = 1_000
 const DEFAULT_BACKUP_KEEP = 3
@@ -122,6 +163,7 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
   let db: Database | undefined
   let toolsFrozen = false
   let outboxDispatcher: OutboxDispatcher | undefined
+  let jobRunner: JobRunner | undefined
   let dataMode: CoreDataMode = { mode: 'readWrite' }
   let inflight = 0
   let drained: Deferred<void> | undefined
@@ -249,6 +291,20 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
     const jobs = createKernelJobs(db, { clock: opts.clock, readonly: dataMode.mode === 'readOnly' })
     const idempotency = createIdempotency(db, { clock: opts.clock, readonly: dataMode.mode === 'readOnly' })
     const workflows = createWorkflowService(db, { clock: opts.clock, readonly: dataMode.mode === 'readOnly' })
+    const jobHandlerMap = new Map<string, JobHandler>()
+    const jobHandlers: JobHandlerRegistry = {
+      register(kind, handle) {
+        if (jobHandlerMap.has(kind)) throw new Error(`job kind 已有主人：${kind}`)
+        jobHandlerMap.set(kind, { kind, handle })
+      },
+    }
+    const workflowHandlerMap = new Map<string, WorkflowHandler>()
+    const workflowHandlers: WorkflowHandlerRegistry = {
+      register(kind, resume) {
+        if (workflowHandlerMap.has(kind)) throw new Error(`workflow kind 已有主人：${kind}`)
+        workflowHandlerMap.set(kind, { kind, resume })
+      },
+    }
     /*
      * setup 必须按拓扑序逐个完成：依赖方的 setup 会在此时取服务、注册 handler、订阅事件，
      * 上游没装配完就开始下游会把「暂时没有」当成「永远没有」。这不是可以并发的 I/O 批量。
@@ -266,8 +322,10 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
         outbox,
         outboxHandlers,
         jobs,
+        jobHandlers,
         idempotency,
         workflows,
+        workflowHandlers,
         agentRuntime: createRuntimeServices(opts.engine),
         rpc: createCoreRpcBinding(m.contract, { moduleId: m.id, router, peer: getPeer, strict: opts.strict }),
         host: createHostCaller({ peer: getPeer }),
@@ -301,6 +359,16 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
       })
       outboxDispatcher.start()
       void outboxDispatcher.tick().catch((error: unknown) => log.warn('outbox tick failed', { error: String(error) }))
+    }
+    if (dataMode.mode !== 'readOnly') {
+      jobRunner = await startPersistentWorkers({
+        workflows,
+        workflowHandlers: [...workflowHandlerMap.values()],
+        jobs,
+        jobHandlers: [...jobHandlerMap.values()],
+        logger: log.child({ scope: 'workers' }),
+        clock: opts.clock,
+      })
     }
     assertAllCoreMethodsHandled()
     opts.engine.freezeTools()
@@ -387,6 +455,8 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
     state = 'stopping'
     outboxDispatcher?.stop()
     outboxDispatcher = undefined
+    jobRunner?.stop()
+    jobRunner = undefined
     log.info('shutting down', { reason })
     // 总截止时间：所有分阶段预算都必须从这里算，Host 的宽限期比它更长（R-05 §3.3）
     const deadline = opts.clock.now() + CORE_SHUTDOWN_BUDGET_MS

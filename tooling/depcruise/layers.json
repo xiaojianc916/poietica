@@ -6,6 +6,7 @@
   "runtime-protocol": 1,
   "runtime-layout": 2,
   "process-kit": 2,
+  "sandbox-win": 2,
   "fs-kit": 2,
   "logging": 2,
   "storage-sqlite": 2,

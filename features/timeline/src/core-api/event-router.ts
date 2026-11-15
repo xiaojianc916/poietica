@@ -76,6 +76,8 @@ export interface EventRouterDeps {
   readonly emitCommandOutput: (p: { threadId: string; text: string; tone: CommandOutputTone }) => void
   readonly emitCommandsChanged: (p: { threadId: string }) => void
   readonly emitFileChanged: (p: { threadId: string } & FileChange) => void
+  /** 每个模型步骤结束：Core 在该步骤之后打增量检查点（§14.2）。 */
+  readonly onStepCompleted?: (p: { threadId: string; stepId: string }) => void
   readonly emitSideTopic: (p: { threadId: string; topic: import('@poietica/runtime-protocol').SideTopic }) => void
   readonly emitSideDelta: (p: SideDelta) => void
   readonly emitSideNotice: (p: { threadId: string; message: string }) => void

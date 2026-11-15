@@ -5,6 +5,7 @@ import type {
   CreateSessionPool,
   SessionPool,
   SubmissionService,
+  SubmissionWriteLeasePort,
   TurnContextRegistry,
   TurnService,
 } from '@poietica/feature-runs/core-api'
@@ -17,6 +18,7 @@ import type {
   ContextUsage,
   Controls,
   EngineSessionEvent,
+  FileChange,
   Interaction,
   SideTopic,
   UsageSample,
@@ -40,6 +42,8 @@ export interface ConversationCoreDeps {
   readonly hub: TimelineService
   readonly workspaces: WorkspacesService
   readonly attachments: AttachmentsService
+  /** §14.4 工作区写租约；测试替身与只读装配可以不传。 */
+  readonly writeLease?: SubmissionWriteLeasePort
   readonly clock: Clock
   readonly logger: Logger
   /**
@@ -47,7 +51,8 @@ export interface ConversationCoreDeps {
    * 不传等于可写。
    */
   readonly readOnly?: boolean
-  /** 线程状态变化 → threads.updated / turns.state */
+  /** 线程删除的持久副作用：与删行同一事务写 outbox。 */
+  readonly enqueueThreadRemoved?: (threadId: string) => void
   readonly emitThreadUpdated: (thread: Thread) => void
   readonly emitThreadRemoved: (threadId: string) => void
   readonly emitTurnState: (state: TurnState) => void
@@ -60,7 +65,9 @@ export interface ConversationCoreDeps {
   readonly emitCommandOutput: (p: { threadId: string; text: string; tone: CommandOutputTone }) => void
   readonly emitCommandsChanged: (p: { threadId: string }) => void
   /** 工具写了一处文件（引擎写的那一刻报）：Core 事件，账单归 review */
-  readonly emitFileChanged: (p: { threadId: string } & import('@poietica/runtime-protocol').FileChange) => void
+  readonly emitFileChanged: (p: { threadId: string } & FileChange) => void
+  /** 模型步骤结束：conversation 在该步骤后打增量检查点。 */
+  readonly onStepCompleted?: (p: { threadId: string; stepId: string }) => void
   /** 侧边提问（右坞辅助对话）的三条通知：side.topic / side.delta / side.notice */
   readonly emitSideTopic: (p: { threadId: string; topic: SideTopic }) => void
   readonly emitSideDelta: (p: SideDelta) => void
@@ -83,8 +90,6 @@ export interface ConversationCoreDeps {
     deliverAs: 'turn' | 'steer' | 'followUp'
     error: { code: string; message: string }
   }) => void
-  /** 线程被删除（R-06）：按线程索引的订阅方清账 */
-  readonly emitThreadRemovedEvent: (p: { threadId: string }) => void
   readonly emitUsageSampled: (p: { threadId: string; sample: UsageSample; at: number }) => void
   /** 轮次上下文登记处（index.ts 建一个、同时作为 TurnContextRegistryToken 提供出去）；测试可缺省 */
   readonly turnContext?: TurnContextRegistry
@@ -138,8 +143,8 @@ export class ConversationCore {
       onThreadRemoved: (threadId) => {
         this.router.forget(threadId)
         this.submissions.forget(threadId)
-        d.emitThreadRemovedEvent({ threadId })
       },
+      ...(d.enqueueThreadRemoved === undefined ? {} : { onThreadDeleted: d.enqueueThreadRemoved }),
     })
 
     this.pool = d.createSessionPool({
@@ -180,6 +185,7 @@ export class ConversationCore {
       attachments: d.attachments,
       ...(d.checkpoints === undefined ? {} : { checkpoints: d.checkpoints }),
       ...(d.journal === undefined ? {} : { journal: d.journal }),
+      ...(d.writeLease === undefined ? {} : { writeLease: d.writeLease }),
       requireThread: (threadId) => this.threads.requireRow(threadId),
       autoTitle: (threadId, text) => this.threads.autoTitle(threadId, text),
       markActivity: (threadId) => this.threads.markActivity(threadId),
@@ -216,6 +222,7 @@ export class ConversationCore {
       emitCommandOutput: d.emitCommandOutput,
       emitCommandsChanged: d.emitCommandsChanged,
       emitFileChanged: d.emitFileChanged,
+      ...(d.onStepCompleted === undefined ? {} : { onStepCompleted: d.onStepCompleted }),
       emitSideTopic: d.emitSideTopic,
       emitSideDelta: d.emitSideDelta,
       emitSideNotice: d.emitSideNotice,

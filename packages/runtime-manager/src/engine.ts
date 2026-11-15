@@ -29,6 +29,7 @@ import {
   arpPortEventParams,
   arpToolExecuteParams,
 } from '@poietica/runtime-protocol'
+import type { SandboxOptions } from '@poietica/sandbox-win'
 import { z } from 'zod'
 import { type RuntimeLaunch, RuntimeProcess, type RuntimeProcessOptions } from './runtime-process'
 import { ArpSession } from './session'
@@ -85,6 +86,7 @@ export class ArpEngine implements AgentEngine {
     launch: RuntimeLaunch
     logger: RuntimeProcessOptions['logger']
     readyTimeoutMs?: number
+    sandbox?: SandboxOptions
     onError?: (error: unknown) => void
   }): Promise<ArpEngine> {
     const tools = new Map<string, EngineToolSpec>()
@@ -93,6 +95,7 @@ export class ArpEngine implements AgentEngine {
       launch: o.launch,
       logger: o.logger,
       autoRestart: true,
+      ...(o.sandbox === undefined ? {} : { sandbox: o.sandbox }),
       ...(o.readyTimeoutMs === undefined ? {} : { readyTimeoutMs: o.readyTimeoutMs }),
       onState: (status) => {
         if (status.state === 'restarting' || status.state === 'failed') engineRef?.markInterrupted()

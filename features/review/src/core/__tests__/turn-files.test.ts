@@ -112,7 +112,7 @@ describe('review 一轮文件改动的账本', () => {
     b.record({ turn: 1, path: path.join('src', 'a.ts'), before: null, after: 'one\ntwo\n' })
     b.record({ turn: 2, path: 'c.txt', before: null, after: 'c\n' })
 
-    const { turns } = b.rewind.list('t1', b.root)
+    const { turns } = await b.rewind.list('t1', b.root)
     expect(turns.map((t) => t.turn)).toEqual([1, 2])
     expect(turns[0]).toMatchObject({ fileCount: 1, added: 2, removed: 0, reverted: false })
     expect(turns[0]?.files).toEqual([{ path: 'src/a.ts', added: 2, removed: 0 }])
@@ -127,7 +127,7 @@ describe('review 一轮文件改动的账本', () => {
   test('path 落账时按工作区根解析成绝对路径，读出来转回相对、正斜杠', async () => {
     const b = await bench()
     b.record({ turn: 1, path: path.join('src', 'deep.ts'), before: null, after: 'x\n' })
-    const { turns } = b.rewind.list('t1', b.root)
+    const { turns } = await b.rewind.list('t1', b.root)
     expect(turns[0]?.files[0]?.path).toBe('src/deep.ts')
     await b.dispose()
   })
@@ -139,7 +139,7 @@ describe('review 一轮文件改动的账本', () => {
     b.record({ turn: 1, path: 'a.txt', before: 'one\ntwo\n', after: 'one\ntwo\nthree\n' })
     b.record({ turn: 1, path: 'a.txt', before: 'one\ntwo\nthree\n', after: 'one\nTWO\nthree\n' })
 
-    const { turns } = b.rewind.list('t1', b.root)
+    const { turns } = await b.rewind.list('t1', b.root)
     expect(turns).toHaveLength(1)
     /* 最初 before（one）→ 最终 after（one/TWO/three）：多的两行就是这一轮真正加的行 */
     expect(turns[0]?.files).toEqual([{ path: 'a.txt', added: 2, removed: 0 }])
@@ -155,7 +155,7 @@ describe('review 一轮文件改动的账本', () => {
     const b = await bench()
     b.record({ turn: 1, path: 'a.txt', before: 'one\ntwo\nthree\n', after: 'one\ntwo\nthree\nfour\n' })
     b.record({ turn: 1, path: 'a.txt', before: 'one\ntwo\nthree\nfour\n', after: 'one\nTWO\nthree\nfour\n' })
-    const { turns } = b.rewind.list('t1', b.root)
+    const { turns } = await b.rewind.list('t1', b.root)
     expect(turns[0]?.files).toEqual([{ path: 'a.txt', added: 2, removed: 1 }])
     expect(turns[0]).toMatchObject({ added: 2, removed: 1 })
     await b.dispose()
@@ -166,7 +166,7 @@ describe('review 一轮文件改动的账本', () => {
     const fact = { turn: 1, path: 'a.txt', before: null, after: 'x\n' }
     b.record(fact)
     b.record(fact)
-    expect(b.rewind.list('t1', b.root).turns[0]?.files).toEqual([{ path: 'a.txt', added: 1, removed: 0 }])
+    expect((await b.rewind.list('t1', b.root)).turns[0]?.files).toEqual([{ path: 'a.txt', added: 1, removed: 0 }])
     expect(b.changed).toEqual(['t1', 't1'])
     await b.dispose()
   })
@@ -186,7 +186,7 @@ describe('review 落账：线程 / 工作区已经没了', () => {
   test('线程已删（get 回 null）：丢弃这一笔并记一条 warn，不抛', async () => {
     const b = await bench({ threads: { t1: null } })
     b.record({ turn: 1, path: 'a.txt', before: null, after: 'a\n' })
-    expect(b.rewind.list('t1', b.root).turns).toEqual([])
+    expect((await b.rewind.list('t1', b.root)).turns).toEqual([])
     expect(b.warns).toEqual(['turn file change for a removed thread'])
     await b.dispose()
   })
@@ -194,7 +194,7 @@ describe('review 落账：线程 / 工作区已经没了', () => {
   test('工作区目录已经不可用：同样丢弃并 warn，不抛', async () => {
     const b = await bench({ threads: { t1: 'gone' } })
     b.record({ turn: 1, path: 'a.txt', before: null, after: 'a\n' })
-    expect(b.rewind.list('t1', b.root).turns).toEqual([])
+    expect((await b.rewind.list('t1', b.root)).turns).toEqual([])
     expect(b.warns).toEqual(['turn file change for an unusable workspace'])
     await b.dispose()
   })
@@ -265,7 +265,7 @@ describe('review 撤销一轮：写回与状态', () => {
     b.record({ turn: 1, path: 'a.txt', before: 'x\n', after: 'x\ny\n' })
     await b.rewind.apply('t1', 1, b.root)
 
-    const { turns } = b.rewind.list('t1', b.root)
+    const { turns } = await b.rewind.list('t1', b.root)
     expect(turns[0]).toMatchObject({ reverted: true, added: 1, removed: 0, fileCount: 1 })
     expect((await errorOf(b.rewind.apply('t1', 1, b.root))).code).toBe('review.rewind_not_available')
     expect((await errorOf(b.rewind.preview('t1', 1, b.root))).code).toBe('review.rewind_not_available')
@@ -289,7 +289,7 @@ describe('review 撤销一轮：写回与状态', () => {
     await b.rewind.apply('t1', 1, b.root)
     expect(await read(path.join(b.root, 'one.txt'))).toBe('one-before\n')
     expect(await read(path.join(b.root, 'two.txt'))).toBe('two-after\n')
-    expect(b.rewind.list('t1', b.root).turns.map((t) => t.reverted)).toEqual([true, false])
+    expect((await b.rewind.list('t1', b.root)).turns.map((t) => t.reverted)).toEqual([true, false])
     await b.dispose()
   })
 
@@ -297,11 +297,11 @@ describe('review 撤销一轮：写回与状态', () => {
     const b = await bench()
     b.record({ turn: 1, path: 'a.txt', before: null, after: 'a\n' })
     b.rewind.record({ threadId: 't2', turn: 1, workspaceRoot: b.root, path: 'b.txt', before: null, after: 'b\n' })
-    expect(b.rewind.list('t1', b.root).turns).toHaveLength(1)
-    expect(b.rewind.list('t2', b.root).turns[0]?.files[0]?.path).toBe('b.txt')
+    expect((await b.rewind.list('t1', b.root)).turns).toHaveLength(1)
+    expect((await b.rewind.list('t2', b.root)).turns[0]?.files[0]?.path).toBe('b.txt')
     b.rewind.forgetThread('t1')
-    expect(b.rewind.list('t1', b.root).turns).toEqual([])
-    expect(b.rewind.list('t2', b.root).turns).toHaveLength(1)
+    expect((await b.rewind.list('t1', b.root)).turns).toEqual([])
+    expect((await b.rewind.list('t2', b.root)).turns).toHaveLength(1)
     await b.dispose()
   })
 })
@@ -312,8 +312,8 @@ describe('review 右坞那一格 diff 的正文', () => {
     b.record({ turn: 1, path: path.join('src', 'a.ts'), before: null, after: 'one\ntwo\n' })
     b.record({ turn: 1, path: 'gone.ts', before: 'bye\n', after: null })
 
-    expect(b.rewind.patch('t1', 1, b.root, 'src/a.ts')).toEqual({ before: null, after: 'one\ntwo\n' })
-    expect(b.rewind.patch('t1', 1, b.root, 'gone.ts')).toEqual({ before: 'bye\n', after: null })
+    expect(await b.rewind.patch('t1', 1, b.root, 'src/a.ts')).toEqual({ before: null, after: 'one\ntwo\n' })
+    expect(await b.rewind.patch('t1', 1, b.root, 'gone.ts')).toEqual({ before: 'bye\n', after: null })
     await b.dispose()
   })
 
@@ -322,7 +322,7 @@ describe('review 右坞那一格 diff 的正文', () => {
     b.record({ turn: 1, path: 'a.txt', before: 'one\n', after: 'one\ntwo\n' })
     b.record({ turn: 1, path: 'a.txt', before: 'one\ntwo\n', after: 'one\nTWO\n' })
 
-    expect(b.rewind.patch('t1', 1, b.root, 'a.txt')).toEqual({ before: 'one\n', after: 'one\nTWO\n' })
+    expect(await b.rewind.patch('t1', 1, b.root, 'a.txt')).toEqual({ before: 'one\n', after: 'one\nTWO\n' })
     await b.dispose()
   })
 
@@ -334,7 +334,7 @@ describe('review 右坞那一格 diff 的正文', () => {
     await b.rewind.apply('t1', 1, b.root)
 
     expect(await fs.readFile(file, 'utf8')).toBe('old\n')
-    expect(b.rewind.patch('t1', 1, b.root, 'a.txt')).toEqual({ before: 'old\n', after: 'new\n' })
+    expect(await b.rewind.patch('t1', 1, b.root, 'a.txt')).toEqual({ before: 'old\n', after: 'new\n' })
     await b.dispose()
   })
 
@@ -342,8 +342,8 @@ describe('review 右坞那一格 diff 的正文', () => {
     const b = await bench()
     b.record({ turn: 1, path: 'a.txt', before: null, after: 'x\n' })
 
-    expect(() => b.rewind.patch('t1', 1, b.root, 'b.txt')).toThrow()
-    expect(() => b.rewind.patch('t1', 2, b.root, 'a.txt')).toThrow()
+    await expect(b.rewind.patch('t1', 1, b.root, 'b.txt')).rejects.toThrow()
+    await expect(b.rewind.patch('t1', 2, b.root, 'a.txt')).rejects.toThrow()
     await b.dispose()
   })
 
@@ -351,7 +351,7 @@ describe('review 右坞那一格 diff 的正文', () => {
     const b = await bench()
     b.record({ turn: 1, path: path.join('src', 'deep.ts'), before: null, after: 'x\n' })
 
-    expect(b.rewind.patch('t1', 1, b.root, 'src\\deep.ts')).toEqual({ before: null, after: 'x\n' })
+    expect(await b.rewind.patch('t1', 1, b.root, 'src\\deep.ts')).toEqual({ before: null, after: 'x\n' })
     await b.dispose()
   })
 })
@@ -359,7 +359,11 @@ describe('review 右坞那一格 diff 的正文', () => {
 describe('checkpoint 撤销（覆盖 shell / 脚本写入）', () => {
   const NOW = 1_700_000_000_000
 
-  function fakeCheckpoints(paths: readonly string[], drift: readonly string[] = []) {
+  function fakeCheckpoints(
+    paths: readonly string[],
+    drift: readonly string[] = [],
+    files: Readonly<Record<string, string | null>> = {},
+  ) {
     const restores: CheckpointRestoreParams[] = []
     const start: Checkpoint = {
       id: 'start',
@@ -382,7 +386,9 @@ describe('checkpoint 撤销（覆盖 shell / 脚本写入）', () => {
       list: async () => [end, start],
       diff: async () => '',
       diffPaths: async () => [...paths],
+      diffNumstat: async () => paths.map((path) => ({ path, added: 1, removed: 0 })),
       changedPaths: async () => [...drift],
+      readFile: async (input) => files[`${input.checkpoint}:${input.path}`] ?? null,
       restore: async (input) => {
         restores.push(input)
         return { restored: input.paths }
@@ -409,7 +415,41 @@ describe('checkpoint 撤销（覆盖 shell / 脚本写入）', () => {
       expect: 'end',
       paths: ['a.txt', 'b.txt'],
     })
-    expect(b.rewind.list('t1', b.root).turns[0]?.reverted).toBe(true)
+    expect((await b.rewind.list('t1', b.root)).turns[0]?.reverted).toBe(true)
+    await b.dispose()
+  })
+
+  test('没有工具账的轮（shell / 脚本写入）也能列出、预览、看 diff、撤销', async () => {
+    const fake = fakeCheckpoints(['run.sh'], [], {
+      'start:run.sh': 'old\n',
+      'end:run.sh': 'new\n',
+    })
+    const b = await bench({ checkpoints: fake.service, now: () => NOW })
+    /* 一行账都没有：事实只存在起止检查点之间。 */
+    expect(b.repo.listByThread('t1')).toEqual([])
+
+    expect(await b.rewind.list('t1', b.root)).toEqual({
+      turns: [
+        {
+          turn: 1,
+          fileCount: 1,
+          added: 1,
+          removed: 0,
+          reverted: false,
+          files: [{ path: 'run.sh', added: 1, removed: 0 }],
+        },
+      ],
+    })
+    expect(await b.rewind.patch('t1', 1, b.root, 'run.sh')).toEqual({ before: 'old\n', after: 'new\n' })
+    expect(await b.rewind.preview('t1', 1, b.root)).toEqual({
+      safe: [{ path: 'run.sh' }],
+      unsafe: [],
+      canApply: true,
+    })
+
+    await b.rewind.apply('t1', 1, b.root)
+    expect((await b.rewind.list('t1', b.root)).turns[0]?.reverted).toBe(true)
+    expect((await errorOf(b.rewind.apply('t1', 1, b.root))).code).toBe('review.rewind_not_available')
     await b.dispose()
   })
 

@@ -1,6 +1,6 @@
 import { defineCoreModule } from '@poietica/core-kernel'
 import { AttachmentsServiceToken } from '@poietica/feature-attachments/core-api'
-import { CHECKPOINT_TURN_END_LABEL, CheckpointServiceToken } from '@poietica/feature-checkpoints/core-api'
+import { CheckpointServiceToken } from '@poietica/feature-checkpoints/core-api'
 import { JournalServiceToken } from '@poietica/feature-journal/core-api'
 import {
   SessionPoolFactoryToken,
@@ -13,18 +13,20 @@ import { EventRouterFactoryToken, TimelineServiceToken } from '@poietica/feature
 import {
   WORKSPACE_REMOVED_TOPIC,
   WorkspacesServiceToken,
+  WriteLeaseServiceToken,
   workspaceRemovedPayload,
 } from '@poietica/feature-workspaces/core-api'
 import { conversationContract } from '../contract'
 import {
   ConversationServiceToken,
   submissionFailed,
-  threadRemoved,
+  THREAD_REMOVED_TOPIC,
   turnFileChanged,
   turnSettled,
   usageSampled,
   userMessageSubmitted,
 } from '../core-api'
+import { createCheckpointScheduler } from './checkpoint-scheduler'
 import { ConversationCore } from './conversation'
 import { conversationService } from './conversation-service'
 import { registerHandlers } from './handlers'
@@ -62,22 +64,15 @@ export default defineCoreModule({
     const turnContext = ctx.services.get(TurnContextRegistryToken)
     const checkpoints = ctx.services.get(CheckpointServiceToken)
     const workspaces = ctx.services.get(WorkspacesServiceToken)
-
-    /**
-     * 轮次结束再打一个检查点：撤销一轮需要「轮开始」与「轮结束」两个快照做三方比对
-     * （起点 vs 终点 vs 当前磁盘）。失败只记 warn，不挡轮次收口。
-     */
-    const checkpointAtTurnEnd = (threadId: string): void => {
-      const thread = threadsRepository.get(threadId)
-      if (thread === null) return
-      const workspace = workspaces.get(thread.workspaceId)
-      if (workspace === null) return
-      void checkpoints
-        .create({ workspaceRoot: workspace.path, threadId, label: CHECKPOINT_TURN_END_LABEL })
-        .catch((error: unknown) => {
-          ctx.logger.warn('turn end checkpoint failed', { threadId, error: String(error) })
-        })
-    }
+    const writeLease = ctx.services.get(WriteLeaseServiceToken)
+    const journal = ctx.services.get(JournalServiceToken)
+    const checkpointScheduler = createCheckpointScheduler({
+      threads: threadsRepository,
+      workspaces,
+      checkpoints,
+      journal,
+      logger: ctx.logger,
+    })
 
     const core = new ConversationCore({
       db: ctx.db,
@@ -90,11 +85,20 @@ export default defineCoreModule({
       runtime: { ...ctx.agentRuntime.sessions, models: ctx.agentRuntime.models, settings: ctx.agentRuntime.settings },
       journal: ctx.services.get(JournalServiceToken),
       checkpoints,
+      onStepCompleted: checkpointScheduler.atStep,
       hub,
       workspaces,
+      writeLease,
       attachments,
       clock: ctx.clock,
       logger: ctx.logger,
+      enqueueThreadRemoved: (threadId) => {
+        ctx.outbox.enqueue({
+          topic: THREAD_REMOVED_TOPIC,
+          payload: { threadId },
+          idempotencyKey: threadId,
+        })
+      },
       readOnly: ctx.runtime.dataMode.mode === 'readOnly',
       emitThreadUpdated: (thread) => ctx.rpc.emit('threads.updated', thread),
       emitThreadRemoved: (threadId) => ctx.rpc.emit('threads.removed', { threadId }),
@@ -115,11 +119,11 @@ export default defineCoreModule({
         ctx.rpc.emit('submissions.changed', { threadId: submission.threadId, submission }),
       emitSubmissionRemoved: (p) => ctx.rpc.emit('submissions.removed', p),
       emitTurnSettled: (p) => {
-        checkpointAtTurnEnd(p.threadId)
+        checkpointScheduler.atTurnEnd(p.threadId)
+        submissionsService.releaseWriteLease(p.threadId)
         ctx.events.emit(turnSettled, p)
       },
       emitSubmissionFailed: (p) => ctx.events.emit(submissionFailed, p),
-      emitThreadRemovedEvent: (p) => ctx.events.emit(threadRemoved, p),
       emitUsageSampled: (p) => ctx.events.emit(usageSampled, p),
       emitUserMessage: (p) => ctx.events.emit(userMessageSubmitted, p),
       turnContext,

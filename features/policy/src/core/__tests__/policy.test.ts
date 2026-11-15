@@ -44,7 +44,14 @@ describe('policy', () => {
         { category: 'file.write', risk: 'medium', checkpoint: true },
         { workspaceRoot: '/w' },
       ).action,
-    ).toBe('allow')
+    ).toBe('ask')
+    expect(
+      evaluateClassification(
+        'auto-edit',
+        { category: 'file.write', risk: 'medium', checkpoint: true },
+        { workspaceRoot: '/w', paths: ['/w2/a'] },
+      ).action,
+    ).toBe('ask')
     expect(evaluateClassification('auto-edit', { category: 'exec', risk: 'high', checkpoint: true }).action).toBe('ask')
   })
 

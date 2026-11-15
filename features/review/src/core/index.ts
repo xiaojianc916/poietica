@@ -1,6 +1,11 @@
 import { defineCoreModule } from '@poietica/core-kernel'
 import { CheckpointServiceToken } from '@poietica/feature-checkpoints/core-api'
-import { ConversationServiceToken, threadRemoved, turnFileChanged } from '@poietica/feature-conversation/core-api'
+import {
+  ConversationServiceToken,
+  THREAD_REMOVED_TOPIC,
+  threadRemovedPayload,
+  turnFileChanged,
+} from '@poietica/feature-conversation/core-api'
 import {
   WORKSPACE_REMOVED_TOPIC,
   WorkspacesServiceToken,
@@ -75,7 +80,9 @@ export default defineCoreModule({
       watcher.forget(workspaceRemovedPayload.parse(payload).workspaceId)
     })
     ctx.disposables.add(ctx.events.on(turnFileChanged, (fact) => ledger.record(fact)))
-    ctx.disposables.add(ctx.events.on(threadRemoved, ({ threadId }) => rewind.forgetThread(threadId)))
+    ctx.outboxHandlers.register(THREAD_REMOVED_TOPIC, (payload) => {
+      rewind.forgetThread(threadRemovedPayload.parse(payload).threadId)
+    })
 
     ctx.rpc.handle('git.status', (p) => service.status(pathOf(p.workspaceId)))
     ctx.rpc.handle('git.branches', (p) => service.branches(pathOf(p.workspaceId)))
@@ -138,7 +145,7 @@ export default defineCoreModule({
     })
     ctx.rpc.handle('review.previewTurnRewind', (p) => rewind.preview(p.threadId, p.turn, rootOfThread(p.threadId)))
     ctx.rpc.handle('review.applyTurnRewind', (p) => rewind.apply(p.threadId, p.turn, rootOfThread(p.threadId)))
-    /* 右坞那一格 diff：账本里的两半正文（不读磁盘 —— 读回来的是写完之后的样子）。 */
+    /* 右坞那一格 diff：账本有这笔就用账本，否则从起止检查点各读一份（shell / 脚本写入）。 */
     ctx.rpc.handle('review.turnFilePatch', (p) => rewind.patch(p.threadId, p.turn, rootOfThread(p.threadId), p.path))
 
     /* 按 workspaceId 摘，不再问路径：工作区已被移走时也摘得掉（移走那一刻 forget 已经停过，这里是空操作）。 */

@@ -6,16 +6,26 @@ import type { Migration, ModuleDatabase } from '@poietica/storage-sqlite'
 import type { AgentToolRegistry } from './agent-tools'
 import type { CoreEventBus } from './events'
 import type { IdempotencyService } from './idempotency'
-import type { KernelJobsService } from './jobs'
+import type { JobRecord, KernelJobsService } from './jobs'
 import type { OutboxService } from './outbox'
 import type { CoreRpcBinding, HostCaller } from './rpc-binding'
-import type { WorkflowService } from './workflows'
+import type { WorkflowRecord, WorkflowService } from './workflows'
 
 export type ModuleKind = 'domain' | 'capability' | 'agent-runtime' | 'agent-tool' | 'integration' | 'surface'
 
 /** 模块在 setup 里登记自己的 outbox 消费者；同一 topic 可以有多个消费者，分发器按注册顺序串行调用。 */
 export interface OutboxHandlerRegistry {
   register(topic: string, handle: (payload: unknown) => void | Promise<void>): void
+}
+
+/** 持久后台任务的 handler；每个 kind 只能有一个主人。 */
+export interface JobHandlerRegistry {
+  register(kind: string, handle: (payload: unknown, job: JobRecord) => void | Promise<void>): void
+}
+
+/** 未完成工作流的续跑 handler；每个 kind 只能有一个主人。 */
+export interface WorkflowHandlerRegistry {
+  register(kind: string, resume: (record: WorkflowRecord) => void | Promise<void>): void
 }
 
 export interface CoreModule<C extends Contract = Contract> {
@@ -71,8 +81,10 @@ export interface CoreModuleContext<C extends Contract = Contract> {
   /** 登记 outbox 消费者；分发器在全部模块 setup 之后启动。 */
   readonly outboxHandlers: OutboxHandlerRegistry
   readonly jobs: KernelJobsService
+  readonly jobHandlers: JobHandlerRegistry
   readonly idempotency: IdempotencyService
   readonly workflows: WorkflowService
+  readonly workflowHandlers: WorkflowHandlerRegistry
   /** 按能力收窄的运行时门面；注册 agent 工具走 ctx.agentTools（内核在全部 setup 之后冻结工具表）。 */
   readonly agentRuntime: RuntimeServices
   readonly rpc: CoreRpcBinding<C>

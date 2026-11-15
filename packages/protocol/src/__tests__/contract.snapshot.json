@@ -1,5 +1,5 @@
 {
-  "version": 67,
+  "version": 68,
   "methods": [
     {
       "name": "agentSettings.capabilities",
@@ -14344,7 +14344,7 @@
       "name": "review.turnFilePatch",
       "owner": "core",
       "timeoutMs": 30000,
-      "description": "这一轮某文件改前改后的正文（右坞那一格 diff 的两半）；撤销之后仍交原来的两半，没有这一笔 → turn_file_missing",
+      "description": "这一轮某文件改前改后的正文（右坞那一格 diff 的两半）；有工具账用账本，否则读起止检查点；撤销之后仍交原来的两半，没有这一笔 → turn_file_missing",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",

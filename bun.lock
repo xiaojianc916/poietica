@@ -60,6 +60,7 @@
         "@poietica/runtime-layout": "workspace:*",
         "@poietica/runtime-manager": "workspace:*",
         "@poietica/runtime-protocol-omp": "workspace:*",
+        "@poietica/sandbox-win": "workspace:*",
         "@poietica/storage-sqlite": "workspace:*",
       },
       "devDependencies": {
@@ -1058,6 +1059,7 @@
         "@poietica/process-kit": "workspace:*",
         "@poietica/rpc": "workspace:*",
         "@poietica/runtime-protocol": "workspace:*",
+        "@poietica/sandbox-win": "workspace:*",
         "zod": "catalog:",
       },
       "devDependencies": {
@@ -1073,6 +1075,14 @@
         "@poietica/agent-model": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "zod": "catalog:",
+      },
+    },
+    "packages/sandbox-win": {
+      "name": "@poietica/sandbox-win",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "@types/node": "catalog:",
       },
     },
     "packages/storage-sqlite": {
@@ -1635,6 +1645,8 @@
     "@poietica/runtime-protocol-omp": ["@poietica/runtime-protocol-omp@workspace:packages/engine-omp"],
 
     "@poietica/runtime-protocol-testkit": ["@poietica/runtime-protocol-testkit@workspace:packages/engine-testkit"],
+
+    "@poietica/sandbox-win": ["@poietica/sandbox-win@workspace:packages/sandbox-win"],
 
     "@poietica/storage-sqlite": ["@poietica/storage-sqlite@workspace:packages/storage-sqlite"],
 

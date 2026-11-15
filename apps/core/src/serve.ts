@@ -14,6 +14,7 @@ import {
   prepareIsolation,
   runIsolationSelfCheck,
 } from '@poietica/runtime-protocol-omp/bootstrap/core'
+import { type SandboxLevel, type SandboxOptions, sandboxSelfCheck } from '@poietica/sandbox-win'
 import { coreModules, retiredCoreModules } from './modules'
 import { CORE_VERSION } from './version'
 
@@ -161,12 +162,23 @@ function policyContextOf(
   }
 }
 
+async function resolveSandbox(logger: Parameters<typeof createCoreKernel>[0]['logger']): Promise<SandboxOptions> {
+  const requested: SandboxLevel = process.env.POIETICA_SANDBOX === 'off' ? 'off' : 'job'
+  if (requested === 'off') return { level: 'off' }
+  const check = await sandboxSelfCheck(requested)
+  if (check.ok) return { level: requested }
+  /* 自检失败不静默降级：明确记一条，降级行为本身可审计。 */
+  logger.warn('sandbox self-check failed; falling back to off', { level: requested, reason: check.reason })
+  return { level: 'off' }
+}
+
 async function createRealEngine(
   layout: Parameters<typeof createCoreKernel>[0]['layout'],
   logger: Parameters<typeof createCoreKernel>[0]['logger'],
 ) {
   if (process.env.POIETICA_RUNTIME_ARP !== '0') {
     const { ArpEngine } = await import('@poietica/runtime-manager')
+    const sandbox = await resolveSandbox(logger)
     const bun = path.basename(process.execPath).toLowerCase().startsWith('bun')
     const runtimeExe = path.join(path.dirname(process.execPath), ['poietica-runtime', 'exe'].join('.'))
     const standalone = !bun && existsSync(runtimeExe)
@@ -180,6 +192,7 @@ async function createRealEngine(
             : ['runtime', '--data-root', layout.root],
       },
       logger: logger.child({ module: 'runtime' }),
+      sandbox,
     })
   }
   throw new Error('POIETICA_RUNTIME_ARP=0 已移除：Core 必须连接独立的 runtime 可执行文件')

@@ -184,7 +184,6 @@ test('T5 守卫：旧会话的迟到事件不许改现在的标题（sessionFile
     emitSubmissionRemoved: () => undefined,
     emitTurnSettled: () => undefined,
     emitSubmissionFailed: () => undefined,
-    emitThreadRemovedEvent: () => undefined,
     emitUsageSampled: () => undefined,
     emitUserMessage: () => undefined,
   })

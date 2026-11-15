@@ -83,7 +83,6 @@ async function makeCore(options: { readonly contextUsage?: ContextUsage } = {}) 
     emitSubmissionRemoved: () => undefined,
     emitTurnSettled: () => undefined,
     emitSubmissionFailed: () => undefined,
-    emitThreadRemovedEvent: () => undefined,
     emitUsageSampled: () => undefined,
     emitUserMessage: () => undefined,
   })

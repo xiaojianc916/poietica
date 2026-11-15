@@ -1,7 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import { createSubmissionsRepository, SubmissionService } from '@poietica/feature-runs/core'
-import type { CollectedContext, SubmissionRow, SubmissionsRepository } from '@poietica/feature-runs/core-api'
+import type {
+  CollectedContext,
+  SubmissionRow,
+  SubmissionsRepository,
+  SubmissionWriteLeasePort,
+} from '@poietica/feature-runs/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { systemClock } from '@poietica/foundation'
 import type { EngineSession, SubmitInput } from '@poietica/runtime-protocol'
@@ -22,6 +27,7 @@ function serviceOf(
     readonly failures?: { clientTurnId: string; deliverAs: string; code: string }[]
     readonly removed?: string[]
     readonly collectContext?: (threadId: string) => CollectedContext
+    readonly lease?: SubmissionWriteLeasePort
   } = {},
 ): {
   service: SubmissionService
@@ -73,6 +79,7 @@ function serviceOf(
     },
     emitUserMessage: () => undefined,
     ...(overrides.collectContext === undefined ? {} : { collectContext: overrides.collectContext }),
+    ...(overrides.lease === undefined ? {} : { writeLease: overrides.lease }),
   })
   return { service, findCalls: () => calls, repo }
 }
@@ -742,5 +749,53 @@ describe('R1 排队上下文在失败路径收口', () => {
     expect(ctx.service.has('t1')).toBe(false)
     expect(log).toEqual([])
     expect(submits).toHaveLength(1)
+  })
+
+  test('工作区写租约：别的线程持有时提交失败；收口释放后可以再拿', async () => {
+    let holder: string | null = 't2'
+    let nextId = 0
+    const released: string[] = []
+    const failures: { clientTurnId: string; deliverAs: string; code: string }[] = []
+    const ctx = serviceOf({
+      lease: {
+        acquire(input) {
+          if (holder !== null && holder !== input.threadId) return { granted: false, holder: { threadId: holder } }
+          holder = input.threadId
+          return { granted: true, lease: { id: `lease-${++nextId}` } }
+        },
+        release(leaseId) {
+          released.push(leaseId)
+          holder = null
+        },
+      },
+      failures,
+      session: (submits) => fakeSession(submits),
+    })
+
+    ctx.service.submit({
+      threadId: 't1',
+      clientTurnId: 'c1',
+      text: '抢写',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'turn',
+    })
+    await waitFor(() => failures.length === 1)
+    expect(failures[0]).toMatchObject({ clientTurnId: 'c1', code: 'workspaces.write_busy' })
+    expect(released).toEqual([])
+
+    holder = null
+    ctx.service.submit({
+      threadId: 't1',
+      clientTurnId: 'c2',
+      text: '拿到租约',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'turn',
+    })
+    await waitFor(() => holder === 't1')
+    ctx.service.releaseWriteLease('t1')
+    expect(released).toEqual(['lease-1'])
+    expect(holder).toBeNull()
   })
 })

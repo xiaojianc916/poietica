@@ -69,6 +69,19 @@
 
 ## 偏差与裁决
 
+### P4 / P5 / P6 第二轮（2026-11-15）
+
+- **P5 检查点优先的审查**：review 的轮次列表不再要求 `review_turn_files` 有行；shell-only 轮从起止 checkpoint 的 `diffNumstat` 取文件与行数，右坞 diff 从两个快照各读一份。撤销状态新增 `review_reverted_turns`，重启后仍知道哪一轮撤过。没有检查点的旧轮继续走指标本。
+- **P5 写租约进入提交路径**：`SubmissionService` 在真正开轮前按工作区 `acquire`，轮次收口 / 提交失败 / 线程删除时释放；抢同一工作区的另一条线程收成 `workspaces.write_busy`。租约仍在 Core 内存里，TTL 只挡「轮次永远不收口」，Core 重启即消失。
+- **P5 步骤检查点**：timeline 的 `step.completed` 交给 conversation 的 `createCheckpointScheduler`，每个模型步骤后打一个整树快照并把 `checkpoint.created(reason=step)` 写 Journal；轮次结束也补写 Journal。因为步骤点会占满 `checkpoints.list` 的窗口，内部扫描上限从 200 提到 2000，RPC 契约仍保持 200。
+- **P4 沙箱 L1**：新增 `packages/sandbox-win`，用 Bun FFI 调 Win32：Job Object、进程数/内存上限、`KILL_ON_JOB_CLOSE`、`TerminateJobObject`；`runtime-manager` 启动 Worker 时把整个进程放进 Job，停止时先终止 Job 再 `killTree`。启动自检失败明确记录并降级到 off；`restricted` 报未实现。平台判断只在这个能力包里，ratchet 的 `PLATFORM_MODULES` 已登记。
+- **P4 写入边界**：`path.relative` 取代 `startsWith`；产品工具只报「写」但没有目标路径时 auto-edit 也先询问，不再盲放。
+- **P6 线程删除持久化**：`ThreadService.cleanup` 在删行事务内调 `onThreadDeleted`，conversation 写入 `conversation.threadRemoved` outbox；automations / review / intelligent-ui 改为 handler。原来的进程内 `threadRemoved` 事件已无消费者并删除。
+- **P6 启动对账第 5 步**：内核新增 `jobHandlers` / `workflowHandlers` 注册表，在 `core.ready` 前 `resumeWorkflows`，随后启动持久 job 分发器；只读模式跳过。
+- **协议**：review turnFilePatch 的描述变化，`PROTOCOL_VERSION` 67→68，快照已重生成。
+- **仍未做**：L2 受限令牌 / 低完整性级别、网络白名单代理、审批授权管理页、隔离 worktree 的界面装配与交付、启动对账其余步骤（中断 Run、过期租约、孤儿 worktree、Journal 分段）。
+- **验证**：`typecheck`、`format:check`、`lint`、全量 `bun test` 全绿（新增 sandbox 3 条、reconciliation 2 条、checkpoint scheduler 2 条、review shell-only 1 条）。
+
 ### P4 / P5 / P6 阶段收口（2026-11-15）
 
 - **P4 策略门**：policy 模块补齐 omp 工具分类（含 `web_search` / `generate_image` / `computer` / `debug` / `ida` / `github` 等）；Worker 在 omp `tool_call` 处经 ARP `policy.check` 交给 Core 裁决，裁决写 Journal，产品审批走结构化 `approval` 卡片。omp 自己的 `approvalMode` 固定 `yolo`，避免同一件事问两遍；Core 不可用时 fail closed。

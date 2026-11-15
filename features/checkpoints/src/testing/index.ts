@@ -18,7 +18,9 @@ export const checkpointsTestModule = defineCoreModule({
       list: async () => [],
       diff: async () => '',
       diffPaths: async () => [],
+      diffNumstat: async () => [],
       changedPaths: async () => [],
+      readFile: async () => null,
       restore: async (input) => ({ restored: input.paths }),
     })
   },

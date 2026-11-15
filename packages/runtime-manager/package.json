@@ -12,7 +12,8 @@
     "@poietica/rpc": "workspace:*",
     "@poietica/runtime-protocol": "workspace:*",
     "@poietica/agent-model": "workspace:*",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@poietica/sandbox-win": "workspace:*"
   },
   "devDependencies": {
     "@poietica/runtime-kernel": "workspace:*",
