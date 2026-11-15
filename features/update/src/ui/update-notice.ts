@@ -52,8 +52,3 @@ export function updateBannerNotice(
       return null
   }
 }
-
-/** 判据与 `updateBannerNotice` 同源，所以「画不画」与「画什么」不会分家 —— 组件自己按它决定渲不渲染（通用 Banner 由各功能自己挂）。 */
-export function updateBannerVisible(state: UpdateState | null, dismissed: string | null, latest = false): boolean {
-  return updateBannerNotice(state, dismissed, latest) !== null
-}

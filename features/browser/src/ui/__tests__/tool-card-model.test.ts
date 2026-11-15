@@ -28,12 +28,9 @@ describe('parseStep：上游那句 detail → 一步', () => {
     })
   })
 
-  test('close all 与 close <标签>', () => {
+  test('close all / close <标签> / tabs：没有标签或目标的那几格是 null，原话照留', () => {
     expect(parseStep('close all')).toEqual({ action: 'close', tab: null, target: 'all', said: 'close all' })
     expect(parseStep('close main')).toMatchObject({ action: 'close', tab: 'main', target: null })
-  })
-
-  test('tabs 不带标签', () => {
     expect(parseStep('tabs')).toEqual({ action: 'tabs', tab: null, target: null, said: 'tabs' })
   })
 

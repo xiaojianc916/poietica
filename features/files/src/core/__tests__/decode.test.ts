@@ -24,16 +24,10 @@ function swap(bytes: Uint8Array): Uint8Array {
 }
 
 describe('decodeText', () => {
-  test('UTF-8（含中文）原样', () => {
+  test('UTF-8（含中文）原样，BOM 去掉；UTF-16 LE / BE 认 BOM，满是 NUL 也不判成二进制', () => {
     expect(decodeText(utf8('你好\nworld\n'), false)).toEqual({ text: '你好\nworld\n', encoding: 'utf-8' })
-  })
-
-  test('UTF-8 BOM 去掉', () => {
-    const bytes = new Uint8Array([0xef, 0xbb, 0xbf, ...utf8('a')])
-    expect(decodeText(bytes, false)).toEqual({ text: 'a', encoding: 'utf-8' })
-  })
-
-  test('UTF-16 LE / BE 认 BOM（满是 NUL 也不判成二进制）', () => {
+    const withBom = new Uint8Array([0xef, 0xbb, 0xbf, ...utf8('a')])
+    expect(decodeText(withBom, false)).toEqual({ text: 'a', encoding: 'utf-8' })
     expect(decodeText(utf16le('ab中'), false)).toEqual({ text: 'ab中', encoding: 'utf-16le' })
     expect(decodeText(swap(utf16le('ab中')), false)).toEqual({ text: 'ab中', encoding: 'utf-16be' })
   })

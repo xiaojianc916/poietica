@@ -1,8 +1,7 @@
 import { existsSync, statSync } from 'node:fs'
-import { readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { AppError, type Clock, createId, type Logger, mapLimited } from '@poietica/foundation'
-import { ensureDir } from '@poietica/fs-kit'
 import type { Attachment } from '../contract'
 import { MAX_ATTACHMENT_BYTES } from '../contract/entities'
 import { attachmentsErrors } from '../contract/errors'
@@ -123,14 +122,14 @@ export function createAttachmentsService(d: AttachmentsServiceDeps): Attachments
   }
 
   const store = async (bytes: Uint8Array, sha256: string, size: number): Promise<void> => {
-    await ensureDir(d.dir)
+    await mkdir(d.dir, { recursive: true })
     const target = contentPath(d.dir, sha256)
     const now = d.clock.now()
     if (existsSync(target)) {
       d.repo.insertFileIfAbsent({ sha256, size, createdAt: now })
       return
     }
-    await ensureDir(path.dirname(target))
+    await mkdir(path.dirname(target), { recursive: true })
     const tmp = `${target}.tmp-${createId()}`
     await writeFile(tmp, bytes)
     try {

@@ -1,60 +1,32 @@
 import { describe, expect, test } from 'bun:test'
 import { displayHost, isNavigableAddress, normalizeAddress } from '../address'
 
-/* BR-1：地址归一。断言的六条就是点名的六条：localhost:5173、example.com、foo、a b、javascript:alert(1)、file:///C:/x.html。 */
+/* BR-1：地址归一。断言的是那六条规则本身，不是逐个例子各写一个用例。 */
 
 describe('BR-1: normalizeAddress', () => {
-  test('localhost:5173 → http://localhost:5173/', () => {
+  test('补 scheme 与尾斜杠；裸主机名、搜索词、非 http(s)/file 的 scheme 一律拒掉', () => {
     expect(normalizeAddress('localhost:5173')).toBe('http://localhost:5173/')
-  })
-
-  test('example.com → https://example.com/', () => {
     expect(normalizeAddress('example.com')).toBe('https://example.com/')
-  })
-
-  test('foo → null（裸主机名不带点，更像没打完的搜索词）', () => {
-    expect(normalizeAddress('foo')).toBeNull()
-  })
-
-  test('"a b" → null（搜索词不是地址）', () => {
-    expect(normalizeAddress('a b')).toBeNull()
-  })
-
-  test('javascript:alert(1) → null（不是 http(s)/file 的 scheme）', () => {
-    expect(normalizeAddress('javascript:alert(1)')).toBeNull()
-  })
-
-  test('file:///C:/x.html 通过（本地文件是要看的）', () => {
-    expect(normalizeAddress('file:///C:/x.html')).toBe('file:///C:/x.html')
-  })
-
-  test('空串与纯空白 → null', () => {
-    expect(normalizeAddress('')).toBeNull()
-    expect(normalizeAddress('   ')).toBeNull()
-  })
-
-  test('带 scheme 的 http(s) 原样归一（补上路径与尾斜杠）', () => {
     expect(normalizeAddress('https://Example.COM/a?b=1')).toBe('https://example.com/a?b=1')
     expect(normalizeAddress('http://127.0.0.1:5173')).toBe('http://127.0.0.1:5173/')
-  })
+    expect(normalizeAddress('file:///C:/x.html')).toBe('file:///C:/x.html')
 
-  test('带主机的 file: 是歧义写法，拒掉', () => {
+    expect(normalizeAddress('foo')).toBeNull()
+    expect(normalizeAddress('a b')).toBeNull()
+    expect(normalizeAddress('javascript:alert(1)')).toBeNull()
     expect(normalizeAddress('file://host/share/a.txt')).toBeNull()
-  })
-
-  test('打错的地址（URL 解析不了）→ null', () => {
     expect(normalizeAddress('https://')).toBeNull()
+    expect(normalizeAddress('')).toBeNull()
+    expect(normalizeAddress('   ')).toBeNull()
   })
 })
 
 describe('地址判据的另两个入口', () => {
-  test('displayHost 给主机名；不是 URL 的字符串原样交回', () => {
+  test('displayHost 给主机名；isNavigableAddress 只放行 http:、https:、about:', () => {
     expect(displayHost('https://a.example/x')).toBe('a.example')
     expect(displayHost('about:blank')).toBe('')
     expect(displayHost('not a url')).toBe('not a url')
-  })
 
-  test('isNavigableAddress 只放行 http:、https:、about:', () => {
     expect(isNavigableAddress('https://a.example/')).toBe(true)
     expect(isNavigableAddress('about:blank')).toBe(true)
     expect(isNavigableAddress('file:///C:/x.html')).toBe(false)

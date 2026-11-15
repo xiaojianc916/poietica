@@ -62,21 +62,16 @@ describe('命令的挑选与排序', () => {
   ]
   const names = (query: string) => rankCommands(list, query).map((entry) => entry.name)
 
-  test('空串交回整张表，次序不动', () => {
+  test('空串交回整张表且次序不动；名字相等排第一，其次前缀，同档按表的次序', () => {
     expect(names('')).toEqual(['context', 'compact', 'model', 'handoff'])
-  })
-
-  test('名字相等排第一，其次前缀，同档按表的次序', () => {
     expect(names('compact')).toEqual(['compact'])
     expect(names('co')).toEqual(['context', 'compact'])
   })
 
-  test('别名前缀与名字包含也算；大小写不论', () => {
+  test('别名前缀、名字包含、中文说明都算；大小写不论', () => {
     expect(names('MODELS')).toEqual(['model'])
     expect(names('off')).toEqual(['handoff'])
-  })
-
-  test('中文说明也能搜到（敲 /压缩 找得到 /compact）', () => {
+    /* 敲 /压缩 找得到 /compact */
     expect(names('压缩')).toEqual(['compact', 'handoff'])
   })
 })
@@ -89,14 +84,11 @@ describe('选项的过滤', () => {
   ]
   const values = (query: string) => rankChoices(choices, query).map((entry) => entry.value)
 
-  test('空串交回全部；原词或名字都能对上，前缀先于包含', () => {
+  test('空串交回全部；原词或名字都能对上，前缀先于包含；一项都对不上交回空表', () => {
     expect(values('')).toEqual(['on', 'off', 'anthropic/claude-opus'])
     expect(values('关')).toEqual(['off'])
     expect(values('opus')).toEqual(['anthropic/claude-opus'])
     expect(values('o')).toEqual(['on', 'off', 'anthropic/claude-opus'])
-  })
-
-  test('一项都对不上交回空表', () => {
     expect(values('gemini')).toEqual([])
   })
 })

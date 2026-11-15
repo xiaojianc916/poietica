@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
-import { ensureDir } from '@poietica/fs-kit'
 import { tempDir } from '@poietica/test-kit'
 import { createAttachmentAssetHandler } from '../asset-handler'
 
@@ -11,7 +10,7 @@ const FILE_SHA = 'b'.repeat(64)
 async function make() {
   const root = await tempDir('asset-')
   const dir = path.join(root.path, 'attachments')
-  await ensureDir(path.join(dir, FILE_SHA.slice(0, 2)))
+  await fs.promises.mkdir(path.join(dir, FILE_SHA.slice(0, 2)), { recursive: true })
   fs.writeFileSync(path.join(dir, FILE_SHA.slice(0, 2), FILE_SHA), 'PNG')
   const handler = createAttachmentAssetHandler({ attachmentsDir: dir })
   return { handler, dir, root }

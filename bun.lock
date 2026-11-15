@@ -157,7 +157,6 @@
         "@poietica/core-kernel": "workspace:*",
         "@poietica/feature-platform": "workspace:*",
         "@poietica/foundation": "workspace:*",
-        "@poietica/fs-kit": "workspace:*",
         "@poietica/host-kernel": "workspace:*",
         "@poietica/rpc": "workspace:*",
         "@poietica/storage-sqlite": "workspace:*",

@@ -9,7 +9,7 @@ const PROBE = { probeBuild: true }
 const RELEASE = { probeBuild: false }
 
 describe('parseCoreArgs', () => {
-  test('RL-4 完整参数', () => {
+  test('RL-4 完整参数；--strict 位置任意', () => {
     expect(parseCoreArgs(COMPLETE, PROBE)).toEqual({
       mode: 'serve',
       dataRoot: 'C:\\data',
@@ -17,33 +17,19 @@ describe('parseCoreArgs', () => {
       strict: false,
       probeMockModel: false,
     })
-  })
-
-  test('RL-4 --relay-port 不再是启动参数（端口由引擎自己挑）：按未知参数报错', () => {
-    expect(() => parseCoreArgs([...COMPLETE, '--relay-port', '4321'], PROBE)).toThrow('未知参数：--relay-port')
-  })
-
-  test('RL-4 未知参数 --foo 抛错', () => {
-    expect(() => parseCoreArgs([...COMPLETE, '--foo'], PROBE)).toThrow('未知参数：--foo')
-  })
-
-  test('RL-4 重复参数抛错', () => {
-    expect(() => parseCoreArgs([...COMPLETE, '--data-root', 'C:\\other'], PROBE)).toThrow('参数重复：--data-root')
-  })
-
-  test('RL-4 --strict 位置任意', () => {
     expect(
       parseCoreArgs([EXE, ENTRY, 'serve', '--strict', '--data-root', 'C:\\data', '--log-level', 'info'], PROBE).strict,
     ).toBe(true)
     expect(parseCoreArgs([...COMPLETE, '--strict'], PROBE).strict).toBe(true)
   })
 
-  test('RL-4 --probe-mock-model 在正式版抛错、探针版接受', () => {
+  /* --relay-port 不再是启动参数：端口由引擎自己挑，写进来就按未知参数拒掉。 */
+  test('RL-4 未知参数、重复参数、非 serve 模式、正式版的探针开关都报错', () => {
+    expect(() => parseCoreArgs([...COMPLETE, '--foo'], PROBE)).toThrow('未知参数：--foo')
+    expect(() => parseCoreArgs([...COMPLETE, '--relay-port', '4321'], PROBE)).toThrow('未知参数：--relay-port')
+    expect(() => parseCoreArgs([...COMPLETE, '--data-root', 'C:\\other'], PROBE)).toThrow('参数重复：--data-root')
+    expect(() => parseCoreArgs([EXE, ENTRY, 'probe'], PROBE)).toThrow('未知模式：probe')
     expect(() => parseCoreArgs([...COMPLETE, '--probe-mock-model'], RELEASE)).toThrow(CoreArgsError)
     expect(parseCoreArgs([...COMPLETE, '--probe-mock-model'], PROBE).probeMockModel).toBe(true)
-  })
-
-  test('RL-4 非 serve 模式抛错', () => {
-    expect(() => parseCoreArgs([EXE, ENTRY, 'probe'], PROBE)).toThrow('未知模式：probe')
   })
 })

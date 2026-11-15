@@ -9,9 +9,6 @@
       "path": "../../../../packages/foundation"
     },
     {
-      "path": "../../../../packages/fs-kit"
-    },
-    {
       "path": "../../../../packages/storage-sqlite"
     },
     {

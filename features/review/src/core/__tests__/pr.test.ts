@@ -100,22 +100,13 @@ describe('合并可行性的映射', () => {
   const of = (over: Record<string, unknown>): string =>
     mergeStatusOf({ number: 1, title: 't', ...over } as Parameters<typeof mergeStatusOf>[0])
 
-  test('冲突最硬：mergeable=CONFLICTING 就是 conflicting', () => {
+  /* 冲突最硬：mergeable=CONFLICTING 就是 conflicting；草稿优先，草稿 PR 不说它能合；读不出来说 unknown，不猜。 */
+  test('冲突 > 草稿 > mergeStateStatus 分档；读不出来说 unknown', () => {
     expect(of({ mergeable: 'CONFLICTING', mergeStateStatus: 'DIRTY' })).toBe('conflicting')
-  })
-
-  test('草稿优先：草稿 PR 不说它能合', () => {
     expect(of({ isDraft: true, mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN' })).toBe('draft')
-  })
-
-  test('按 mergeStateStatus 分档', () => {
     expect(of({ mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN' })).toBe('clean')
     expect(of({ mergeable: 'MERGEABLE', mergeStateStatus: 'BLOCKED' })).toBe('blocked')
     expect(of({ mergeable: 'MERGEABLE', mergeStateStatus: 'BEHIND' })).toBe('behind')
-    expect(of({ mergeable: 'MERGEABLE', mergeStateStatus: 'DIRTY' })).toBe('conflicting')
-  })
-
-  test('读不出来时说 unknown，不猜', () => {
     expect(of({ mergeable: 'UNKNOWN', mergeStateStatus: 'UNKNOWN' })).toBe('unknown')
   })
 })

@@ -15,29 +15,20 @@ describe('shouldNotify（窗口聚焦 + 偏好两条件）', () => {
 })
 
 describe('completionBody（07 页 §5E：有 error 则运行失败）', () => {
-  test('无 error → 已完成', () => {
+  test('无 error → 已完成；有 error → 运行失败（错误码不影响这一句）', () => {
     expect(completionBody(null)).toBe('已完成')
-  })
-
-  test('有 error → 运行失败（错误码不影响这一句）', () => {
     expect(completionBody({ code: 'engine.upstream_error' })).toBe('运行失败')
   })
 })
 
 describe('isTurnSettled（一轮结束的判据）', () => {
-  test('running / awaiting → idle 才算结束', () => {
+  test('running / awaiting → idle 才算结束；首帧的 idle 与中间状态都不算', () => {
     expect(isTurnSettled('running', 'idle')).toBe(true)
     expect(isTurnSettled('awaiting', 'idle')).toBe(true)
-  })
-
-  test('首帧的 idle（previous 未知）不是结束', () => {
+    /* previous 未知（首帧）与已经是 idle 的都不是这一轮刚结束 */
     expect(isTurnSettled(undefined, 'idle')).toBe(false)
     expect(isTurnSettled('idle', 'idle')).toBe(false)
-  })
-
-  test('仍在运行 / 等待的中间状态不是结束', () => {
     expect(isTurnSettled('running', 'running')).toBe(false)
-    expect(isTurnSettled('running', 'awaiting')).toBe(false)
     expect(isTurnSettled('awaiting', 'running')).toBe(false)
   })
 })

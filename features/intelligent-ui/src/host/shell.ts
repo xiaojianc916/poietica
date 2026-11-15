@@ -43,15 +43,8 @@ import { vendorText } from './vendor'
  * 量高度不用 requestAnimationFrame：Chromium 会停掉不可见（零高、在视口外）的跨源 iframe 的渲染循环，
  * rAF 不来，第一次高度就永远报不上去。DOMContentLoaded / load 时直接量一次，之后交给 ResizeObserver。
  *
- * 第二阶段加的四件事：
- * - 预览：render 带 `preview: true` 时不装小桥、不跑脚本，写一个 body 带 inert 的静态文档，把模型已经写出来的那部分
- *   html 去掉脚本、内联事件、可导航的东西之后放进去；之后端口上来的 `preview` 只换 body，`render` 才在同一个 iframe
- *   里换成真界面（document.open 会清掉预览期间的监听器，小桥只装一次）；
- * - 随包库：写入之前把指向随包库的精确 CDN 地址换成 poietica-asset://intelligent-ui/vendor/…（导出的独立文件里换成
- *   blob: 地址，由 render 的 `libraries` 给）；被换掉的那个 <script> 去掉 integrity / crossorigin / type=module
- *   —— 本地那一份字节不同、资源协议也不走 CORS；
- * - 调整面板：poietica.tweak 登记几组控件，经端口交给卡片画；卡片回送的值写进状态的 tweaks 那一份；
- * - 独立模式（standalone）：导出的 HTML 文件里由一段引导脚本自己发 render，根节点可以滚动、正文居中。
+ * 预览：render 带 `preview: true` 时不装小桥、不跑脚本，写一个 body 带 inert 的静态文档（脚本、内联事件、
+ * 可导航的东西都去掉）；之后的 `preview` 只换 body，`render` 才在同一个 iframe 里换成真界面。
  */
 
 const LIBRARIES = INTELLIGENT_UI_LIBRARY_ORIGINS.join(' ')

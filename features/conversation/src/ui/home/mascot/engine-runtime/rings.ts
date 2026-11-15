@@ -28,12 +28,7 @@ export interface RingsData {
   readonly SHAPES: Readonly<Record<ShapeKey, ShapeRing>>
 }
 
-/* ============================================================
- * 几何数据层（纯数据）
- *   EXPRESSIONS：25 组表情眼环（每组 [左眼环, 右眼环]，各 48 点轮廓）
- *   SHAPES：身体形状环（blob 圆胖 / wedge 三角 / gem 菱形）+ 脸部拟合参数
- *   坐标系：viewBox -15 -15 259 259，头部中心 114.2705
- * ============================================================ */
+/* EXPRESSIONS：25 组表情眼环（每组 [左眼环, 右眼环]，各 48 点轮廓）；SHAPES：身体形状环 + 脸部拟合参数。 */
 export const EB_RINGS: RingsData = {
   HEAD_C: 114.2705,
   EYE_HALF: 21,

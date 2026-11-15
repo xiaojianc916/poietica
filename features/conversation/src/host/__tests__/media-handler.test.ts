@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
-import { ensureDir } from '@poietica/fs-kit'
 import { tempDir } from '@poietica/test-kit'
 import { mediaAssetUrl } from '../../contract'
 import { createMediaAssetHandler } from '../media-handler'
@@ -12,7 +11,7 @@ const MISSING = 'd'.repeat(64)
 async function make() {
   const root = await tempDir('media-')
   const blobsDir = path.join(root.path, 'blobs')
-  await ensureDir(blobsDir)
+  await fs.promises.mkdir(blobsDir, { recursive: true })
   fs.writeFileSync(path.join(blobsDir, HAVE), 'PNG')
   return { handler: createMediaAssetHandler({ blobsDir }), root }
 }

@@ -26,24 +26,17 @@ function keydown(init: Partial<KeyboardEventInit> & { code?: string; key?: strin
 }
 
 describe('normalizeKeyEvent', () => {
-  test('字母与修饰键', () => {
+  /* 规范的键名与修饰键次序；单独的修饰键、认不出的键都不成组合，交回 null。 */
+  test('字母 / 反引号 / 功能键 / 方向键都能归一；单独的修饰键与认不出的键返回 null', () => {
     expect(normalizeKeyEvent({ key: 'P', code: 'KeyP', ctrlKey: true, shiftKey: true } as KeyboardEvent)).toBe(
       'Ctrl+Shift+P',
     )
-  })
-  test('反引号', () => {
     expect(normalizeKeyEvent({ key: '`', code: 'Backquote', ctrlKey: true } as KeyboardEvent)).toBe('Ctrl+`')
-  })
-  test('功能键与方向键', () => {
     expect(normalizeKeyEvent({ key: 'F5', code: 'F5' } as KeyboardEvent)).toBe('F5')
     expect(normalizeKeyEvent({ key: 'ArrowLeft', code: 'ArrowLeft', altKey: true } as KeyboardEvent)).toBe(
       'Alt+ArrowLeft',
     )
-  })
-  test('单独的修饰键返回 null', () => {
     expect(normalizeKeyEvent({ key: 'Control', code: 'ControlLeft' } as KeyboardEvent)).toBeNull()
-  })
-  test('认不出的键返回 null', () => {
     expect(normalizeKeyEvent({ key: 'Dead', code: 'Unknown' } as KeyboardEvent)).toBeNull()
   })
 })

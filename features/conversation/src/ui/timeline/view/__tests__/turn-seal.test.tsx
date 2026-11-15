@@ -41,8 +41,9 @@ function mount(overrides: Overrides = {}): HTMLElement {
 const labelOf = (container: HTMLElement): string => container.querySelector('.turn-seal__label')?.textContent ?? ''
 
 describe('封条的文案三档', () => {
-  it('正常答完：报「已完成，用时 N」', () => {
+  it('正常答完：报「已完成，用时 N」；不足一秒也报 1 秒，屏幕上不出现「0秒」', () => {
     expect(labelOf(mount({ durationMs: 4_000, outcome: 'completed' }))).toBe('已完成，用时 4秒')
+    expect(labelOf(mount({ durationMs: 0, outcome: 'completed', startedAt: 0, endedAt: 0 }))).toBe('已完成，用时 1秒')
   })
 
   it('被人叫停：报「已停止」，不报时长', () => {
@@ -80,10 +81,6 @@ describe('封条的文案三档', () => {
       labelOf(mount({ durationMs: undefined, endedAt: undefined, outcome: 'completed', startedAt: undefined })),
     ).toBe('已完成')
   })
-
-  it('不足一秒也报 1 秒：屏幕上不出现「0秒」', () => {
-    expect(labelOf(mount({ durationMs: 0, outcome: 'completed', startedAt: 0, endedAt: 0 }))).toBe('已完成，用时 1秒')
-  })
 })
 
 describe('封条的折叠', () => {
@@ -103,15 +100,10 @@ describe('封条的折叠', () => {
 })
 
 describe('封条的读屏播报', () => {
-  it('播报结论那一句，不带每秒在变的数字', () => {
-    const container = mount({ canCollapse: true, durationMs: 5_000 })
-    const announce = container.querySelector('.turn-seal__announce')
-
+  it('播报结论那一句，不带每秒在变的数字；出错时播报「处理失败」', () => {
+    const announce = mount({ canCollapse: true, durationMs: 5_000 }).querySelector('.turn-seal__announce')
     expect(announce?.textContent).toBe('已完成')
     expect(announce?.getAttribute('role')).toBe('status')
-  })
-
-  it('出错时播报「处理失败」', () => {
     expect(mount({ outcome: 'error' }).querySelector('.turn-seal__announce')?.textContent).toBe('处理失败')
   })
 })

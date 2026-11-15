@@ -15,7 +15,6 @@ import {
 } from '@poietica/design-system'
 import { ArrowLeft, ChevronDown, Plus, RotateCw, Trash2 } from 'lucide-react'
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import { describeAgentCliFailure } from './agent-cli-text'
 import {
   type CatalogProvider,
   type ModelCatalogData,
@@ -99,7 +98,7 @@ function ModelCatalogPanel({
       await store.mutate(operation)
       return true
     } catch (cause) {
-      setActionError(describeAgentCliFailure(cause, '模型配置写入失败，请重试。'))
+      setActionError(cause instanceof Error ? cause.message : '模型配置写入失败，请重试。')
       return false
     }
   }
@@ -131,7 +130,7 @@ function ModelCatalogPanel({
         onRefresh={() => {
           setActionError(null)
           void store.refreshFromSources().catch((cause: unknown) => {
-            setActionError(describeAgentCliFailure(cause, '模型元数据刷新失败，请重试。'))
+            setActionError(cause instanceof Error ? cause.message : '模型元数据刷新失败，请重试。')
           })
         }}
       />

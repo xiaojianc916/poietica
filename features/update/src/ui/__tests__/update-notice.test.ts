@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { type UpdateState, UpdateState as UpdateStateSchema } from '../../contract'
-import { updateBannerNotice, updateBannerVisible } from '../update-notice'
+import { updateBannerNotice } from '../update-notice'
 
 /* 判据是纯函数，所以这里钉的是**哪一刻该说什么、给哪几个动作** ——「稍后」的作用域（本次运行、只对那一版）、下载中的进度与字形、
  * 待重启那唯一入口，全在这几条里。 */
@@ -63,13 +63,13 @@ describe('ready', () => {
 describe('不说话的那几档', () => {
   test('disabled / idle / checking / error 都没有话说', () => {
     for (const phase of ['disabled', 'idle', 'checking', 'error'] as const) {
-      expect(updateBannerVisible(state({ phase }), null)).toBe(false)
+      expect(updateBannerNotice(state({ phase }), null)).toBeNull()
     }
   })
 
   test('没有版本号就没有可说的对象', () => {
-    expect(updateBannerVisible(state({ phase: 'downloading', version: null }), null)).toBe(false)
-    expect(updateBannerVisible(null, null)).toBe(false)
+    expect(updateBannerNotice(state({ phase: 'downloading', version: null }), null)).toBeNull()
+    expect(updateBannerNotice(null, null)).toBeNull()
   })
 })
 
@@ -90,10 +90,5 @@ describe('latest（手动检查的回话）', () => {
   test('发现新版本时 latest 标记不抢话：有版本号的相位优先', () => {
     const notice = updateBannerNotice(state({ phase: 'available', version: '1.2.3' }), null, true)
     expect(notice?.text).toBe('发现新版本 v1.2.3')
-  })
-
-  test('可见性判据与内容同源', () => {
-    expect(updateBannerVisible(state({ phase: 'idle' }), null, true)).toBe(true)
-    expect(updateBannerVisible(state({ phase: 'idle' }), null, false)).toBe(false)
   })
 })

@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
 import { AppError } from '@poietica/foundation'
-import { ensureDir } from '@poietica/fs-kit'
 import { openDatabase } from '@poietica/storage-sqlite'
 import { fakeClock, tempDir } from '@poietica/test-kit'
 import type { WorkspaceRemoved } from '../../core-api'
@@ -39,7 +38,7 @@ describe('workspaces 服务（07 页 §3G）', () => {
   test('同一目录以不同大小写 add 两次 → 返回同一 id，last_opened_at 被更新', async () => {
     const { service, clock, root, db } = await make()
     const dir = path.join(root.path, 'Proj')
-    await ensureDir(dir)
+    await fs.promises.mkdir(dir, { recursive: true })
     const a = service.add(dir)
     clock.advance(1000)
     const b = service.add(dir.toUpperCase())
@@ -86,7 +85,7 @@ describe('workspaces 服务（07 页 §3G）', () => {
   test('移除工作区 → 目录与其中文件都还在（工作区只有一种，移除一律不动磁盘）', async () => {
     const { service, removed, root, db } = await make()
     const dir = path.join(root.path, 'keep')
-    await ensureDir(dir)
+    await fs.promises.mkdir(dir, { recursive: true })
     fs.writeFileSync(path.join(dir, 'file.txt'), 'important')
     const ws = service.add(dir)
     await service.remove(ws.id)
@@ -101,7 +100,7 @@ describe('workspaces 服务（07 页 §3G）', () => {
     const { service, root, db } = await make()
     let seen: unknown = 'unset'
     const dir = path.join(root.path, 'x')
-    await ensureDir(dir)
+    await fs.promises.mkdir(dir, { recursive: true })
     const ws = service.add(dir)
     const removedCb = (e: WorkspaceRemoved): void => {
       seen = service.get(e.workspaceId)
@@ -128,7 +127,7 @@ describe('workspaces 服务（07 页 §3G）', () => {
   test('requireUsable 一个目录已被删掉的工作区 → workspaces.directory_missing', async () => {
     const { service, root, db } = await make()
     const dir = path.join(root.path, 'temp')
-    await ensureDir(dir)
+    await fs.promises.mkdir(dir, { recursive: true })
     const ws = service.add(dir)
     fs.rmdirSync(dir)
     const err = (() => {
@@ -163,8 +162,8 @@ describe('workspaces 服务（07 页 §3G）', () => {
     const { service, clock, root, changed, db } = await make()
     const a = path.join(root.path, 'a')
     const b = path.join(root.path, 'b')
-    await ensureDir(a)
-    await ensureDir(b)
+    await fs.promises.mkdir(a, { recursive: true })
+    await fs.promises.mkdir(b, { recursive: true })
     const wa = service.add(a)
     clock.advance(10)
     const wb = service.add(b)
@@ -181,7 +180,7 @@ describe('workspaces 服务（07 页 §3G）', () => {
   test('rename 去掉首尾空白；空名字被拒', async () => {
     const { service, root, db } = await make()
     const dir = path.join(root.path, 'r')
-    await ensureDir(dir)
+    await fs.promises.mkdir(dir, { recursive: true })
     const ws = service.add(dir)
     expect(service.rename(ws.id, '  新名字  ').name).toBe('新名字')
     const err = (() => {
@@ -216,7 +215,7 @@ describe('workspaces 服务（07 页 §3G）', () => {
     }
     const { service, root, db } = await make(worktree)
     const source = path.join(root.path, 'repo')
-    await ensureDir(source)
+    await fs.promises.mkdir(source, { recursive: true })
     const local = service.add(source)
 
     const isolated = await service.createIsolated({ sourceWorkspaceId: local.id })
@@ -251,7 +250,7 @@ describe('workspaces 服务（07 页 §3G）', () => {
     }
     const { service, root, db } = await make(worktree)
     const source = path.join(root.path, 'repo')
-    await ensureDir(source)
+    await fs.promises.mkdir(source, { recursive: true })
     service.add(source)
     const orphan = path.join(root.path, 'worktrees', 'orphan')
     entries = [{ path: orphan }]

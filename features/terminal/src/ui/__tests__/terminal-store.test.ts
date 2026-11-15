@@ -110,19 +110,10 @@ function makeRuntime(api: FakeApi, cwd: string | null = 'C:\\work') {
 }
 
 describe('terminal 标签文字（07 页 §11E 的标签条）', () => {
-  test('运行中：`title • 序号`', () => {
+  test('运行中报 `title • 序号`；已退出报 `已退出 (code)`（拿不到 code 就只写「已退出」）；PTY 没开出来时占位', () => {
     expect(terminalTabLabel({ id: 'local-1', info: info('t12') })).toBe('pwsh • 12')
-  })
-
-  test('已退出：`已退出 (code)`', () => {
     expect(terminalTabLabel({ id: 'local-1', info: info('t3', { exited: true, exitCode: 0 }) })).toBe('已退出 (0)')
-  })
-
-  test('退出但拿不到 code：只写「已退出」', () => {
     expect(terminalTabLabel({ id: 'local-1', info: info('t3', { exited: true, exitCode: null }) })).toBe('已退出')
-  })
-
-  test('PTY 还没开出来时标签占位', () => {
     expect(terminalTabLabel({ id: 'local-1', info: null })).toBe('终端')
   })
 })

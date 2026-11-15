@@ -65,19 +65,12 @@ function outcomeOfTurn(state: string): string | undefined {
   return timeline.sealed.at(-1)?.outcome ?? timeline.active.outcome
 }
 
-test('答完那一轮：completed', () => {
+/* 三档终局与「还没结束」：cancelled 读作 aborted（封条报「已停止」）、failed 读作 error（报「处理失败」）；
+ * running / queued 没有终局，也不许编一个。 */
+test('轮的终局三档，未终局不编', () => {
   expect(outcomeOfTurn('completed')).toBe('completed')
-})
-
-test('被人叫停那一轮：aborted（封条要报「已停止」）', () => {
   expect(outcomeOfTurn('cancelled')).toBe('aborted')
-})
-
-test('自己坏了那一轮：error（封条要报「处理失败」）', () => {
   expect(outcomeOfTurn('failed')).toBe('error')
-})
-
-test('还在跑 / 排队：没有终局，也不许编一个', () => {
   expect(outcomeOfTurn('running')).toBeUndefined()
   expect(outcomeOfTurn('queued')).toBeUndefined()
 })

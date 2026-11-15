@@ -96,16 +96,9 @@ describe('声明处', () => {
 })
 
 describe('packageVersion', () => {
-  it('reads the top-level version', () => {
+  it('只读顶层 version：依赖里的同名版本不算，坏 JSON 交 undefined 而不是抛错', () => {
     expect(packageVersion('{"name":"x","version":"0.5.0"}')).toBe('0.5.0')
-  })
-
-  it('does not mistake a nested version for the top-level one', () => {
-    /* 依赖里同名的 version 字段不是声明处：顶层没有就是没有。 */
     expect(packageVersion('{"name":"x","dependencies":{"y":{"version":"9.9.9"}}}')).toBeUndefined()
-  })
-
-  it('returns undefined instead of throwing on malformed JSON', () => {
     expect(packageVersion('{ not json')).toBeUndefined()
   })
 })

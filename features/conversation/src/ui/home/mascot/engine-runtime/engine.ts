@@ -1,27 +1,13 @@
-/* ============================================================
- * 驱动层（依赖 ball.ts；消费 emotions.ts 纯数据）
- *
- * 职责：
- *   1. 配置注册中心 config：校验 / 深合并默认值 / 导入导出
- *   2. EmotionEngine：rAF 状态机 + 动画原语 + 平滑插值 + 兜底 + 待机策略
- *   3. 对外 SDK：createEngine(el, opts) → engine 实例
- *
- * 对外 API（宿主工具只依赖这一层）：
- *   const ball = createEngine(el, { emotion:'02', idle:true })
- *   ball.setEmotion('30');
- *   ball.handleAIMessage({ emotionId:'30', tips:'正在思考' });   // 或 JSON 字符串
- *   ball.on('change'|'tips'|'error', cb);
- *   ball.startTour(ids, interval) / ball.stopTour();
- *   ball.registerEmotion(config); ball.destroy();
- *   config.exportConfig() / importConfig(json);
- *
- * 由上游 emotion-ball 的 engine.js 逐字迁入：IIFE 拆为模块，window 全局与
- * console 收口为 import + 注入 logger，种子配置直接取自数据层；算法未改。
- * ============================================================ */
+/*
+ * 驱动层：rAF 状态机 + 动画原语 + 平滑插值 + 待机策略，对外由 createEngine 交出
+ * 一个引擎实例。由上游 emotion-ball 的 engine.js 逐字迁入：IIFE 拆为模块，window
+ * 全局与 console 收口为 import + 注入 logger，算法未改。
+ */
 
 import { invariant } from '@poietica/foundation'
 import { createBall } from './ball'
 import { EMOTION_GROUPS, EMOTION_SEED } from './emotions'
+import { clamp, rand } from './math'
 import type { EyeRing, RingPoint } from './rings'
 import { EB_RINGS } from './rings'
 import type {
@@ -51,14 +37,8 @@ const FALLBACK_ID = '02'
 
 /* ---------------- 基础工具 ---------------- */
 
-function clamp(v: number, a: number, b: number): number {
-  return v < a ? a : Math.min(v, b)
-}
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
-}
-function rand(a: number, b: number): number {
-  return a + Math.random() * (b - a)
 }
 function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2

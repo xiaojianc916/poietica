@@ -3,17 +3,15 @@ import { PYTHON_ASSET_SHA256, PYTHON_DOWNLOAD_URLS, PYTHON_RELEASE_TAG, PYTHON_V
 import { markerMatches, onReadyPlan, statusOf } from '../status'
 
 describe('PY-7: release.test.ts', () => {
-  it('PYTHON_ASSET_SHA256 是 64 位小写十六进制', () => {
+  /* 占位值（64 个 0）也满足那条正则，却会让每一次真实安装都在校验处失败。这一条把它钉死：
+   * `bun run python:pin` 没跑过，CI 就得红。 */
+  it('PYTHON_ASSET_SHA256 是 64 位小写十六进制，且不是占位值', () => {
     expect(PYTHON_ASSET_SHA256).toMatch(/^[a-f0-9]{64}$/)
-  })
-
-  /* 占位值（64 个 0 / 空串）也满足那条正则，却会让每一次真实安装都在校验处失败。这一条把它钉死：`bun run python:pin` 没跑过，CI 就得红。 */
-  it('PYTHON_ASSET_SHA256 不是占位值（python:pin 已跑过）', () => {
     expect(PYTHON_ASSET_SHA256).not.toBe('0'.repeat(64))
-    expect(PYTHON_ASSET_SHA256.length).toBe(64)
     expect(new Set(PYTHON_ASSET_SHA256).size).toBeGreaterThan(1)
   })
 
+  /* 文件名里的 '+' 必须编码成 %2B，否则下载地址在部分 CDN 上被解成空格。 */
   it('PYTHON_DOWNLOAD_URLS 中包含 %2B', () => {
     expect(PYTHON_DOWNLOAD_URLS.some((url) => url.includes('%2B'))).toBe(true)
   })
@@ -36,19 +34,13 @@ describe('statusOf', () => {
 })
 
 describe('markerMatches', () => {
-  it('标记文件 tag 不一致 → false', () => {
-    expect(markerMatches({ tag: 'wrong', version: PYTHON_VERSION, sha256: PYTHON_ASSET_SHA256, installedAt: 0 })).toBe(
-      false,
-    )
-  })
-
-  it('标记文件完全匹配 → true', () => {
+  it('标记与自己这一版完全一致才算装好；tag 不一致、没有标记都是 false', () => {
     expect(
       markerMatches({ tag: PYTHON_RELEASE_TAG, version: PYTHON_VERSION, sha256: PYTHON_ASSET_SHA256, installedAt: 0 }),
     ).toBe(true)
-  })
-
-  it('null → false', () => {
+    expect(markerMatches({ tag: 'wrong', version: PYTHON_VERSION, sha256: PYTHON_ASSET_SHA256, installedAt: 0 })).toBe(
+      false,
+    )
     expect(markerMatches(null)).toBe(false)
   })
 })

@@ -12,22 +12,17 @@ describe('fitToDisplays', () => {
     expect(fitToDisplays(s, DISPLAY)).toEqual(s)
   })
 
-  test('bounds 在唯一显示器之外 → 没有 x/y，宽高保留', () => {
-    const s: WindowState = { bounds: { x: 5000, y: 5000, width: 1280, height: 800 }, maximized: true }
-    expect(fitToDisplays(s, DISPLAY)).toEqual({ bounds: { width: 1280, height: 800 }, maximized: true })
-  })
+  /* 坐标只在这些时候丢：落在所有显示器之外、可见面积不足 100×100（贴边一点点）、一个显示器都没有。宽高原样保留。 */
+  test('坐标出界 / 几乎看不见 / 没有显示器 → 丢 x、y 保留宽高；本来没有坐标也不加', () => {
+    const offscreen: WindowState = { bounds: { x: 5000, y: 5000, width: 1280, height: 800 }, maximized: true }
+    expect(fitToDisplays(offscreen, DISPLAY)).toEqual({ bounds: { width: 1280, height: 800 }, maximized: true })
 
-  test('可见面积不足 100×100 也丢弃（贴边一点点）', () => {
-    const s: WindowState = { bounds: { x: 1900, y: 1060, width: 1280, height: 800 }, maximized: false }
-    expect(fitToDisplays(s, DISPLAY).bounds.x).toBeUndefined()
-  })
+    const sliver: WindowState = { bounds: { x: 1900, y: 1060, width: 1280, height: 800 }, maximized: false }
+    expect(fitToDisplays(sliver, DISPLAY).bounds.x).toBeUndefined()
 
-  test('没有显示器（全部拔掉）→ 丢弃坐标', () => {
-    const s: WindowState = { bounds: { x: 100, y: 100, width: 1280, height: 800 }, maximized: false }
-    expect(fitToDisplays(s, []).bounds.x).toBeUndefined()
-  })
+    const inView: WindowState = { bounds: { x: 100, y: 100, width: 1280, height: 800 }, maximized: false }
+    expect(fitToDisplays(inView, []).bounds.x).toBeUndefined()
 
-  test('本来就没有坐标时不加坐标', () => {
     expect(fitToDisplays(defaultWindowState(), DISPLAY).bounds.x).toBeUndefined()
   })
 })

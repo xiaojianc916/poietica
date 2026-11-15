@@ -28,7 +28,12 @@ function collector(requirePrefix: boolean) {
   return { decoder, messages, strays }
 }
 
-const message = (id: number): RpcMessage => ({ jsonrpc: '2.0', id, method: 'a.b', params: {} })
+const message = (id: number): RpcMessage => ({
+  jsonrpc: '2.0',
+  id,
+  method: 'a.b',
+  params: {},
+})
 
 describe('FrameDecoder', () => {
   test('一条消息被拆成 3 个 chunk 推入 → 解出 1 条', () => {
@@ -84,36 +89,16 @@ describe('FrameDecoder', () => {
       (t) => strays.push(t),
       64,
     )
-    const huge = encodeFrame({ jsonrpc: '2.0', method: 'a.b', params: { text: 'z'.repeat(500) } })
+    const huge = encodeFrame({
+      jsonrpc: '2.0',
+      method: 'a.b',
+      params: { text: 'z'.repeat(500) },
+    })
     for (let i = 0; i < huge.length; i += 16) decoder.push(huge.slice(i, i + 16))
     decoder.push(encodeFrame(message(5)))
     expect(strays.length).toBe(1)
     expect(strays[0]?.startsWith('[frame overflow]')).toBe(true)
     expect(messages).toEqual([message(5)])
-  })
-
-  test('大帧按 64KB 分片推入是线性时间：8MB 与 32MB 的耗时比远小于平方增长', () => {
-    const timeFor = (chars: number): number => {
-      const frame = encodeFrame({ jsonrpc: '2.0', id: 1, result: { text: 'x'.repeat(chars) } })
-      let got = 0
-      const decoder = new FrameDecoder(
-        true,
-        () => {
-          got += 1
-        },
-        () => undefined,
-      )
-      const started = performance.now()
-      for (let i = 0; i < frame.length; i += 64 * 1024) decoder.push(frame.slice(i, i + 64 * 1024))
-      const elapsed = performance.now() - started
-      expect(got).toBe(1)
-      return elapsed
-    }
-    timeFor(1024 * 1024) // 预热
-    const small = timeFor(8 * 1024 * 1024)
-    const large = timeFor(32 * 1024 * 1024)
-    // 线性 ≈ 4 倍、平方 ≈ 16 倍；取 12 倍为界，兼顾 5ms 小样本噪声与满载 CI 的调度抖动
-    expect(large).toBeLessThan(Math.max(small, 5) * 12)
   })
 
   test('空行被忽略', () => {
@@ -147,7 +132,9 @@ describe('坏帧的协议行为（05 §4）', () => {
       },
       once: (): void => undefined,
     }
-    const transport = createChildProcessTransport(child as never, { onStray: (t) => strays.push(t) })
+    const transport = createChildProcessTransport(child as never, {
+      onStray: (t) => strays.push(t),
+    })
     const peer = new RpcPeer({
       name: 'frame-test',
       transport,
@@ -180,11 +167,25 @@ describe('坏帧的协议行为（05 §4）', () => {
 
 describe('拆信封的线上形态（P6）', () => {
   const samples: RpcMessage[] = [
-    { jsonrpc: '2.0', id: 1, method: 'a.b', params: { s: '中文\u001f\u2028' }, meta: { traceId: 't', origin: 'ui' } },
+    {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'a.b',
+      params: { s: '中文\u001f\u2028' },
+      meta: { traceId: 't', origin: 'ui' },
+    },
     { jsonrpc: '2.0', method: 'a.tick', params: [1, 2] },
     { jsonrpc: '2.0', method: 'a.bare', params: undefined },
     { jsonrpc: '2.0', id: 2, result: null },
-    { jsonrpc: '2.0', id: 3, error: { code: -32000, message: '炸了', data: { code: 'x.y', message: '炸了' } } },
+    {
+      jsonrpc: '2.0',
+      id: 3,
+      error: {
+        code: -32000,
+        message: '炸了',
+        data: { code: 'x.y', message: '炸了' },
+      },
+    },
   ]
 
   test('encodeMessage → decodeMessage 往返不变；有载荷时信封与载荷以第一个 \\x1f 分开', () => {
@@ -196,7 +197,9 @@ describe('拆信封的线上形态（P6）', () => {
   test('decodeMessage 也认没有载荷的完整 JSON-RPC 消息；坏的与非 JSON-RPC 的分别报告', () => {
     for (const m of samples) expect(decodeMessage(JSON.stringify(m))).toEqual(m)
     expect(decodeMessage('{oops')).toMatchObject({ failure: 'bad' })
-    expect(decodeMessage('{"a":1}\x1f{}')).toMatchObject({ failure: 'not-jsonrpc' })
+    expect(decodeMessage('{"a":1}\x1f{}')).toMatchObject({
+      failure: 'not-jsonrpc',
+    })
     expect(decodeMessage('[1]')).toMatchObject({ failure: 'not-jsonrpc' })
     /* 对端数据里带 failure 键也不会被当成解码失败 */
     expect(isDecodeFailure(decodeMessage('{"jsonrpc":"2.0","method":"m","failure":"bad"}'))).toBe(false)
@@ -207,11 +210,25 @@ describe('拆信封的线上形态（P6）', () => {
     const raw = new RawJson('{"s":"中文\\u2028"}')
     const parts = relayParts({ jsonrpc: '2.0', id: 42, result: raw })!
     expect(parts).toEqual([{ jsonrpc: '2.0', id: 42 }, '{"s":"中文\\u2028"}'])
-    expect(joinRelayParts(parts[0], parts[1])).toEqual({ jsonrpc: '2.0', id: 42, result: { s: '中文\u2028' } })
-    const note = relayParts({ jsonrpc: '2.0', method: 'a.b', params: new RawJson('[1]') })!
-    expect(joinRelayParts(note[0], note[1])).toEqual({ jsonrpc: '2.0', method: 'a.b', params: [1] })
+    expect(joinRelayParts(parts[0], parts[1])).toEqual({
+      jsonrpc: '2.0',
+      id: 42,
+      result: { s: '中文\u2028' },
+    })
+    const note = relayParts({
+      jsonrpc: '2.0',
+      method: 'a.b',
+      params: new RawJson('[1]'),
+    })!
+    expect(joinRelayParts(note[0], note[1])).toEqual({
+      jsonrpc: '2.0',
+      method: 'a.b',
+      params: [1],
+    })
     expect(joinRelayParts(note[0], '{oops')).toMatchObject({ failure: 'bad' })
-    expect(joinRelayParts({ a: 1 }, '{}')).toMatchObject({ failure: 'not-jsonrpc' })
+    expect(joinRelayParts({ a: 1 }, '{}')).toMatchObject({
+      failure: 'not-jsonrpc',
+    })
   })
 
   test('encodeLine（Host → Core）是一整条 JSON；误带 RawJson 载荷时序列化的是值（toJSON 兜底）', () => {

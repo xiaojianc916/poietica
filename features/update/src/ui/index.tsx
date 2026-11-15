@@ -4,7 +4,7 @@ import { BannersToken, builtinPoints, DialogsToken, defineUiFeature, useFeatureS
 import { createUpdateApi } from './api'
 import { createUpdateStore, type UpdateUiStore } from './store'
 import { UpdateBanner } from './update-banner'
-import { updateBannerVisible } from './update-notice'
+import { updateBannerNotice } from './update-notice'
 import { UpdateRow } from './update-row'
 import { UpdateAboutGroup } from './update-settings'
 
@@ -15,7 +15,7 @@ function useUpdateBannerVisible(store: UpdateUiStore): boolean {
   const state = useFeatureStore(store.store, (held) => held.state)
   const dismissed = useFeatureStore(store.store, (held) => held.dismissed)
   const latest = useFeatureStore(store.store, (held) => held.latest)
-  return updateBannerVisible(state, dismissed, latest)
+  return updateBannerNotice(state, dismissed, latest) !== null
 }
 
 /**

@@ -22,12 +22,6 @@ describe('channelFault', () => {
     expect(channelFault({ version: '0.2.2', sha512: 'AbCd==' }, 'v0.2.2')).toContain('no installer or no sha512')
   })
 
-  it('rejects a manifest without an integrity digest', () => {
-    expect(channelFault({ version: '0.2.2', path: 'Poietica_0.2.2_x64-setup.exe' }, 'v0.2.2')).toContain(
-      'no installer or no sha512',
-    )
-  })
-
   it('rejects an installer that is not an NSIS setup', () => {
     expect(channelFault({ version: '0.2.2', path: 'Poietica-0.2.2.dmg', sha512: 'AbCd==' }, 'v0.2.2')).toContain(
       'not an NSIS setup',

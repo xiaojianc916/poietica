@@ -1,23 +1,10 @@
-/* ============================================================
- * 渲染层（纯渲染，不含业务逻辑）
- *
- *   坐标系：viewBox -15 -15 259 259，头部中心 HEAD_C = 114.2705
- *   身体：形状轮廓环（blob 圆胖 / wedge 三角 / gem 菱形）折线路径
- *   眼睛：25 组表情眼环（48 点轮廓），由 engine 逐点插值后传入，
- *        本层负责球面投影、变换与 path 更新
- *   球面投影：按眼睛当前高度采样身体轮廓的局部半宽，经度换算 + 余弦压缩，
- *            自旋偏航时眼睛绕到背面自动隐藏（cos <= 0.02 判定）
- *   彩带：两种形态 ——
- *        自旋甩带（角速度达阈值时甩出、减速后回缩的 3D 轨道拖尾）
- *        常驻环带（低倾角水平轨道持续环绕，用于"思考中"等状态）
- *        均使用 5-stop 色相漂移渐变 + 头宽尾细轮廓 + 圆头封口
- *   撒花：一次性物理粒子（速度衰减 + 微重力 + 金色五角星混入）
- *   zzz：睡眠状态右上角循环漂浮的字母粒子
- *
- * 由上游 emotion-ball 的 ball.js 逐字迁入：IIFE 拆为模块、window.EB_RINGS 改为
- * import，其余未改；类型只补在函数签名与缓存结构上。
- * ============================================================ */
+/*
+ * 渲染层：眼环逐点插值后在这里做球面投影、变换与 path 更新；自旋偏航时眼睛绕到
+ * 背面靠 cos <= 0.02 判定隐藏。由上游 emotion-ball 的 ball.js 逐字迁入（IIFE 拆为
+ * 模块、window.EB_RINGS 改为 import），算法未改。
+ */
 
+import { clamp, rand } from './math'
 import type { RingPoint } from './rings'
 import { EB_RINGS } from './rings'
 import type { BallHandle, BallOptions, BodyPose, EyeNode, EyePose, Pose } from './types'
@@ -121,12 +108,6 @@ function el(tag: keyof SVGElementTagNameMap, attrs: SvgAttrs): SVGElement {
 }
 function r2(v: number): number {
   return Math.round(v * 100) / 100
-}
-function clamp(v: number, a: number, b: number): number {
-  return v < a ? a : Math.min(v, b)
-}
-function rand(a: number, b: number): number {
-  return a + Math.random() * (b - a)
 }
 function shade(hex: string, amt: number): string {
   let h = hex.replace('#', '')

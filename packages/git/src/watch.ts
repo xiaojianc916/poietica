@@ -25,7 +25,8 @@ export function isNoteworthy(relativePath: string): boolean {
 /**
  * 递归监听仓库目录（Windows 原生支持 recursive），值得关注的变化在 debounceMs 静默后合并通知一次。
  * 目录被删除等错误交给 onError，之后监听停止（调用方可选择重新 watch）。
- */ export function watchRepository(
+ */
+export function watchRepository(
   root: string,
   onChange: () => void,
   o: { readonly debounceMs?: number; readonly clock?: Clock; readonly onError?: (error: Error) => void } = {},

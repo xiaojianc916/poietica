@@ -183,11 +183,9 @@ describe('UP-5: install', () => {
 })
 
 describe('UP-6: notesToText', () => {
-  test("'<p>a</p><ul><li>b</li></ul>' → 'a\\nb'", () => {
+  test('标签转成换行与段落：<br> 换行、连续空行收成一段；空输入与纯标签交回 null', () => {
     expect(notesToText('<p>a</p><ul><li>b</li></ul>')).toBe('a\nb')
-  })
-
-  test('空输入与纯标签交回 null', () => {
+    expect(notesToText('a<br>b<br/><br><br>c')).toBe('a\nb\n\nc')
     expect(notesToText(undefined)).toBeNull()
     expect(notesToText('')).toBeNull()
     expect(notesToText('<div></div>')).toBeNull()
@@ -197,10 +195,6 @@ describe('UP-6: notesToText', () => {
   test('逐版本数组（electron-updater 的另一种形状）：每条自带的块尾换行 + 数组连接换行', () => {
     /* map 出的每条保留自己的块尾 \n，join('\n') 再接一次。 */
     expect(notesToText([{ version: '1.2.3', note: '<p>甲</p>' }, { note: '<p>乙</p>' }])).toBe('甲\n\n乙')
-  })
-
-  test('<br> 换行且连续空行收成一段', () => {
-    expect(notesToText('a<br>b<br/><br><br>c')).toBe('a\nb\n\nc')
   })
 })
 

@@ -1,5 +1,4 @@
 import { WorkBuddyClientError } from './errors'
-import { isRecord } from './guard'
 import type { Auth, AuthStore, ModelItem, Plugin, ProviderConfig } from './plugin/types'
 import { itemOf, WorkBuddyAuthPlugin } from './plugin/workbuddy'
 import type {
@@ -15,6 +14,11 @@ import type {
 } from './types'
 
 const OAUTH_METHOD = /browser/i
+
+/** 上游插件的返回值是动态 JSON：只收非数组的对象。 */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
 
 /** 插件 config() 填出来的那一份目录：provider.<id>.models 是静态表。 */
 interface PluginConfig {

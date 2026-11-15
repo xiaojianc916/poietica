@@ -68,33 +68,18 @@ describe('相对时间', () => {
 })
 
 describe('状态呈现', () => {
-  test('草稿优先于开着', () => {
-    expect(pullStatePresentation(pull({ draft: true })).label).toBe('Draft')
-  })
-
   /*
-   * 冲突改状态词：开着又有冲突时，「有冲突」才是人此刻要知道的那件事（参考实现也是这么排的）。
-   * 草稿仍然优先 —— 草稿不急着合，先照实说它是草稿。
+   * 状态词的优先次序：草稿 > 冲突 > 开着。冲突是开着 PR 里人此刻最需要知道的那件事（参考实现也这么排），
+   * 草稿不急着合、先照实说它是草稿；被拦 / 落后归 Merge status 那张卡，不改这里的状态词。
    */
-  test('开着又有冲突时说「有冲突」', () => {
-    expect(pullStatePresentation(pull({ mergeStatus: 'conflicting' })).label).toBe('Has conflicts')
-  })
-
-  test('草稿优先于冲突', () => {
+  test('状态词按草稿 > 冲突 > 开着的次序；合并与关闭各有自己的词', () => {
+    expect(pullStatePresentation(pull({ draft: true })).label).toBe('Draft')
     expect(pullStatePresentation(pull({ draft: true, mergeStatus: 'conflicting' })).label).toBe('Draft')
-  })
-
-  test('被拦 / 落后不改状态词（它们归 Merge status 那张卡）', () => {
+    expect(pullStatePresentation(pull({ mergeStatus: 'conflicting' })).label).toBe('Has conflicts')
     expect(pullStatePresentation(pull({ mergeStatus: 'blocked' })).label).toBe('Open')
     expect(pullStatePresentation(pull({ mergeStatus: 'behind' })).label).toBe('Open')
-  })
-
-  test('合并与关闭各有自己的词', () => {
     expect(pullStatePresentation(pull({ state: 'merged' })).label).toBe('Merged')
     expect(pullStatePresentation(pull({ state: 'closed' })).label).toBe('Closed')
-  })
-
-  test('冲突那一句文案就是它', () => {
     expect(mergeStatusLabel('conflicting')).toBe('Conflicts with main')
   })
 
