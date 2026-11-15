@@ -15,6 +15,7 @@ import journal from '@poietica/feature-journal/core'
 import models from '@poietica/feature-models/core'
 import platform from '@poietica/feature-platform/core'
 import policy from '@poietica/feature-policy/core'
+import preferences from '@poietica/feature-preferences/core'
 import python from '@poietica/feature-python/core'
 import review from '@poietica/feature-review/core'
 import runs from '@poietica/feature-runs/core'
@@ -141,6 +142,14 @@ export const featureDescriptors = {
     processes: ['core'],
     hasContract: true,
     module: policy,
+  },
+  preferences: {
+    id: 'preferences',
+    kind: 'domain',
+    tier: 1,
+    processes: ['core', 'host', 'ui'],
+    hasContract: true,
+    module: preferences,
   },
   python: {
     id: 'python',

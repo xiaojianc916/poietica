@@ -29,3 +29,9 @@
 - 运行时可核对视图：RPC 方法与通知来自契约，表来自迁移的 `CREATE TABLE`，事件与设置项来自模块的 `events` / `settings` 声明；`CoreKernel.descriptors` 暴露合成结果。
 - `events` / `settings` 目前只有 conversation 与 policy 声明；UI 贡献点仍由 `UiFeature` 在渲染进程运行时注册，尚未进入描述符。
 - preferences / agent-settings / models / python 的旧存储仍未迁入统一注册表；当前只有 policy 通过注册表读写 `policy.preset`。
+- 设置注册表增加外部后端（`SettingsProvider`）：`settings.describe` 合并本地 DB 与各 provider，`settings.set` 按 key 路由到持有者，不复制值。已接入：
+  - `prefs.*` → Host `preferences.json`（preferences 的 Core 半边），覆盖主题/语言/日志级别/外观/模型选择器等；
+  - `omp.*` → omp 设置目录（agent-settings），凭据走 `injectSecret`，普通项走 `set`/`reset`；
+  - `omp.python.interpreter` → 引擎的 Python 解释器设置。
+  - models 的模型角色随 omp 设置目录进入注册表；models 的隐藏模型/供应商顺序随 preferences 进入。
+- 这是「统一读视图 + 写路由」，不是把老存储的值复制进 Core DB：原主人仍是唯一事实来源，避免影子副本。

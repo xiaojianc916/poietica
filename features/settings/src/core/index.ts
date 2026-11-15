@@ -11,10 +11,10 @@ export default defineCoreModule({
   setup(ctx) {
     const service = createSettingsService({ db: ctx.db, clock: ctx.clock })
     ctx.services.provide(SettingsServiceToken, service)
-    ctx.rpc.handle('settings.describe', (context) => [...service.describe(context)])
-    ctx.rpc.handle('settings.set', (input) => {
-      service.set(input)
-      return [...service.describe()]
+    ctx.rpc.handle('settings.describe', async (context) => [...(await service.describeAll(context))])
+    ctx.rpc.handle('settings.set', async (input) => {
+      await service.write(input)
+      return [...(await service.describeAll())]
     })
   },
 })

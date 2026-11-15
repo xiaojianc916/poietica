@@ -15,6 +15,7 @@
     "@poietica/runtime-protocol": "workspace:*",
     "@poietica/feature-conversation": "workspace:*",
     "@poietica/feature-secrets": "workspace:*",
+    "@poietica/feature-settings": "workspace:*",
     "@poietica/foundation": "workspace:*",
     "@poietica/rpc": "workspace:*",
     "@poietica/ui-kernel": "workspace:*",

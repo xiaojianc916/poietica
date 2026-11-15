@@ -3,7 +3,7 @@ import { AppError } from '@poietica/foundation'
 import type { ModuleDatabase } from '@poietica/storage-sqlite'
 import type { SettingContext, SettingDefinition, SettingScope, SettingView } from '../contract/entities'
 import { settingsErrors } from '../contract/errors'
-import type { SettingsService } from '../core-api'
+import type { SettingsProvider, SettingsService, SettingWrite } from '../core-api'
 
 interface ValueRow {
   readonly value: string
@@ -17,6 +17,7 @@ export interface CreateSettingsServiceOptions {
 /** 统一设置注册表（ADR-012 / §17）：定义在内存，值落模块表；读取按 thread > project > global > default。 */
 export function createSettingsService(o: CreateSettingsServiceOptions): SettingsService {
   const definitions = new Map<string, SettingDefinition>()
+  const providers = new Map<string, SettingsProvider>()
   const select = o.db.prepare<ValueRow>(
     'SELECT value FROM settings_values WHERE scope = ? AND scope_id = ? AND key = ?',
   )
@@ -58,6 +59,15 @@ export function createSettingsService(o: CreateSettingsServiceOptions): Settings
     configured: source !== 'default',
   })
 
+  const setLocal = (input: SettingWrite): void => {
+    const definition = definitionOf(input.key)
+    if (!definition.scopes.includes(input.scope)) {
+      throw new AppError(settingsErrors.invalid_scope, `${input.key} 不支持 ${input.scope} 作用域`)
+    }
+    validate(definition, input.value)
+    upsert.run(input.scope, input.scopeId, input.key, JSON.stringify(input.value), o.clock.now())
+  }
+
   return {
     register(definition) {
       if (definitions.has(definition.key)) {
@@ -65,19 +75,39 @@ export function createSettingsService(o: CreateSettingsServiceOptions): Settings
       }
       definitions.set(definition.key, definition)
     },
+    registerProvider(provider) {
+      if (providers.has(provider.id)) {
+        throw new AppError(settingsErrors.duplicate_key, `设置后端重复注册：${provider.id}`)
+      }
+      providers.set(provider.id, provider)
+    },
     get(key, context) {
       return resolve(definitionOf(key), context)
     },
-    set(input) {
-      const definition = definitionOf(input.key)
-      if (!definition.scopes.includes(input.scope)) {
-        throw new AppError(settingsErrors.invalid_scope, `${input.key} 不支持 ${input.scope} 作用域`)
+    set: setLocal,
+    async write(input) {
+      const provider = [...providers.values()].find((candidate) => candidate.owns(input.key))
+      if (provider?.set !== undefined) {
+        await provider.set(input)
+        return
       }
-      validate(definition, input.value)
-      upsert.run(input.scope, input.scopeId, input.key, JSON.stringify(input.value), o.clock.now())
+      setLocal(input)
     },
     describe(context) {
       return [...definitions.values()].sort((a, b) => a.key.localeCompare(b.key)).map((d) => resolve(d, context))
+    },
+    async describeAll(context) {
+      const local = [...definitions.values()].sort((a, b) => a.key.localeCompare(b.key)).map((d) => resolve(d, context))
+      const external = await Promise.all([...providers.values()].map((provider) => provider.describe(context)))
+      const seen = new Set(local.map((view) => view.definition.key))
+      return [
+        ...local,
+        ...external.flat().filter((view) => {
+          if (seen.has(view.definition.key)) return false
+          seen.add(view.definition.key)
+          return true
+        }),
+      ]
     },
   }
 }

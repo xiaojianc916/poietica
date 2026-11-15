@@ -53,3 +53,36 @@ describe('settings registry', () => {
     root.close()
   })
 })
+
+describe('settings providers', () => {
+  test('外部 provider 参与 describeAll，写入路由给它而不是本地表', async () => {
+    const { root, settings } = service()
+    const writes: unknown[] = []
+    settings.registerProvider({
+      id: 'external',
+      owns: (key) => key.startsWith('ext.'),
+      describe: async () => [
+        {
+          definition: {
+            key: 'ext.value',
+            label: '外部值',
+            type: 'string',
+            scopes: ['global'],
+            defaultValue: 'd',
+          },
+          value: 'v',
+          source: 'global',
+          configured: true,
+        },
+      ],
+      set: async (input) => {
+        writes.push(input.value)
+      },
+    })
+    expect((await settings.describeAll()).map((view) => view.definition.key)).toEqual(['ext.value'])
+    await settings.write({ key: 'ext.value', scope: 'global', scopeId: 'global', value: 'next' })
+    expect(writes).toEqual(['next'])
+    expect(() => settings.get('ext.value')).toThrow()
+    root.close()
+  })
+})

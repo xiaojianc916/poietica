@@ -5,13 +5,19 @@
   "type": "module",
   "exports": {
     "./contract": "./src/contract/index.ts",
+    "./core": "./src/core/index.ts",
     "./host": "./src/host/index.ts",
     "./ui": "./src/ui/index.tsx",
     "./ui-api": "./src/ui-api/index.ts"
   },
+  "poietica": {
+    "kind": "domain"
+  },
   "dependencies": {
     "@poietica/contract-kit": "workspace:*",
+    "@poietica/core-kernel": "workspace:*",
     "@poietica/design-system": "workspace:*",
+    "@poietica/feature-settings": "workspace:*",
     "@poietica/feature-platform": "workspace:*",
     "@poietica/fs-kit": "workspace:*",
     "@poietica/foundation": "workspace:*",

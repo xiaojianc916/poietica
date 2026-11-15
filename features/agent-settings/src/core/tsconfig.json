@@ -15,6 +15,12 @@
       "path": "../../../secrets/src/contract"
     },
     {
+      "path": "../../../settings/src/contract"
+    },
+    {
+      "path": "../../../settings/src/core-api"
+    },
+    {
       "path": "../contract"
     }
   ]
