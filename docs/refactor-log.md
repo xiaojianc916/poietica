@@ -501,3 +501,4 @@
 - **P6 描述符合成**：生成描述符增加进程列表；`describeCoreModules` 把契约方法/通知、迁移表名、模块事件与设置声明合成运行时视图，`CoreKernel.descriptors` 暴露；conversation / policy 补 events / settings 声明。
 - **P6 跨模块事实全部入 outbox**：turnSettled / submissionFailed / turnFileChanged / usageSampled / userMessageSubmitted 不再走 `ctx.events`；automations / review / usage 改为 topic handler。usage 增加 event_id 唯一键，重放幂等。
 - **P6 设置注册表合并**：增加 `SettingsProvider`，preferences（Host JSON）、agent-settings（omp 目录/凭据）、python 解释器与 models 角色/隐藏模型都通过 provider 出现在 `settings.describe`；`settings.set` 按 key 路由回原主人。
+- **P5 隔离工作区侧栏入口**：项目组头菜单接上创建/交付/丢弃，目录缺失显示警告；命令面板入口保留。

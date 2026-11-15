@@ -1,6 +1,6 @@
 # ADR-010：工作区、影子 Checkpoint 与写租约
 
-状态：通过；P5 已落地影子仓库、检查点事件与写租约，隔离 worktree 的界面装配待接。
+状态：通过；P5 已落地影子仓库、检查点事件、写租约与隔离 worktree 的侧栏入口。
 
 背景：旧撤销只认 5 个写工具，shell、脚本、构建与 MCP 写入无法回滚；两个 Thread 并行写同一目录也没有仲裁。
 
@@ -29,3 +29,5 @@
 - 隔离工作区的后端已接：Workspace 记录 `mode/sourcePath/baseRef/branch`；`workspaces.createIsolated` 从本地工作区建 worktree（路径在数据目录 `worktrees/`），`workspaces.deliver` 用 worktree 相对基线的补丁 `git apply --3way` 到主仓库，`discard/remove` 回收 worktree 与分支。线程绑定隔离工作区后，运行时/检查点/审查都只看见 worktree 路径。命令面板已有「创建隔离副本 / 交付 / 丢弃」三项；侧栏还没有独立按钮。
 - 启动对账已回收 worktreesDir 里没有工作区记录的孤儿 worktree；缺失的隔离目录只统计（UI 显示 exists=false）。
 - 仍未做：隔离 worktree 的侧栏入口与冲突合并界面、每次变更型工具之后的细粒度（同一步多个工具）、大文件/二进制阈值与还原警告、三方冲突的合并界面。
+- 隔离 worktree 的侧栏入口已接：项目组头菜单按模式显示「创建隔离副本 / 交付到主仓库 / 丢弃隔离副本」，目录缺失的组头带警告标记。原有命令面板入口保留。
+- 仍未做：每次变更型工具之后的细粒度（同一步多个工具）、大文件/二进制阈值与还原前提示、三方冲突的逐文件合并界面；当前交付冲突仍整次拒绝并回报原因。

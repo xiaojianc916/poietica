@@ -16,7 +16,17 @@ import {
   DropdownMenuTrigger,
   StateDot,
 } from '@poietica/design-system'
-import { AlarmClock, FolderClosed, FolderOpen, MoreHorizontal, PinOff, Trash2 } from 'lucide-react'
+import {
+  AlarmClock,
+  CircleAlert,
+  FolderClosed,
+  FolderOpen,
+  GitBranch,
+  GitMerge,
+  MoreHorizontal,
+  PinOff,
+  Trash2,
+} from 'lucide-react'
 import type { RefObject } from 'react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import type { Thread } from '../../../contract'
@@ -70,6 +80,11 @@ export interface AssistantThreadListProps {
   readonly onCreate: (workspaceId?: string) => void
   /** 删除项目：移除记录与其中对话，不动磁盘目录。确认框由宿主负责。 */
   readonly onRemoveWorkspace?: ((workspaceId: string) => void) | undefined
+  /** 隔离 worktree 的侧栏入口；缺省时不显示这些菜单项。 */
+  readonly workspaceMeta?: Readonly<Record<string, { readonly mode: 'local' | 'isolated'; readonly exists: boolean }>>
+  readonly onIsolateWorkspace?: (workspaceId: string) => void
+  readonly onDeliverWorkspace?: (workspaceId: string) => void
+  readonly onDiscardWorkspace?: (workspaceId: string) => void
   readonly onPin: (threadId: string, pinned: boolean) => void
   readonly onArchive?: (threadId: string) => void
 }
@@ -331,14 +346,32 @@ interface WorkspaceHeaderProps {
   readonly workspaceId: string
   readonly name: string
   readonly isOpen: boolean
+  readonly mode: 'local' | 'isolated'
+  readonly exists: boolean
   readonly onCreate: (workspaceId?: string) => void
   readonly onToggle: (workspaceId: string) => void
   readonly onRemove?: ((workspaceId: string) => void) | undefined
+  readonly onIsolate?: ((workspaceId: string) => void) | undefined
+  readonly onDeliver?: ((workspaceId: string) => void) | undefined
+  readonly onDiscard?: ((workspaceId: string) => void) | undefined
 }
 
 /* 组头是这一列里的另一行。不数条数；收与展往上报，不就地写一份全局状态。 */
-function WorkspaceHeader({ workspaceId, name, isOpen, onCreate, onToggle, onRemove }: WorkspaceHeaderProps) {
-  const createLabel = `在${name}中新建对话`
+function WorkspaceHeader({
+  workspaceId,
+  name,
+  isOpen,
+  mode,
+  exists,
+  onCreate,
+  onToggle,
+  onRemove,
+  onIsolate,
+  onDeliver,
+  onDiscard,
+}: WorkspaceHeaderProps) {
+  const label = exists ? name : `${name}（目录缺失）`
+  const createLabel = `在${label}中新建对话`
   const Glyph = isOpen ? FolderOpen : FolderClosed
 
   return (
@@ -353,7 +386,8 @@ function WorkspaceHeader({ workspaceId, name, isOpen, onCreate, onToggle, onRemo
       >
         <Glyph aria-hidden="true" className="assistant-threads__folder" />
 
-        <span className="assistant-threads__name">{name}</span>
+        <span className="assistant-threads__name">{label}</span>
+        {exists ? null : <CircleAlert aria-label="目录缺失" className="assistant-threads__folder" />}
       </button>
 
       <button
@@ -380,6 +414,43 @@ function WorkspaceHeader({ workspaceId, name, isOpen, onCreate, onToggle, onRemo
             side="bottom"
             sideOffset={6}
           >
+            {mode === 'local' && onIsolate !== undefined ? (
+              <DropdownMenuItem
+                className="assistant-thread-menu__item"
+                onClick={() => {
+                  onIsolate(workspaceId)
+                }}
+              >
+                <GitBranch aria-hidden="true" />
+                <span>创建隔离副本</span>
+              </DropdownMenuItem>
+            ) : null}
+
+            {mode === 'isolated' && onDeliver !== undefined ? (
+              <DropdownMenuItem
+                className="assistant-thread-menu__item"
+                onClick={() => {
+                  onDeliver(workspaceId)
+                }}
+              >
+                <GitMerge aria-hidden="true" />
+                <span>交付到主仓库</span>
+              </DropdownMenuItem>
+            ) : null}
+
+            {mode === 'isolated' && onDiscard !== undefined ? (
+              <DropdownMenuItem
+                className="assistant-thread-menu__item"
+                danger
+                onClick={() => {
+                  onDiscard(workspaceId)
+                }}
+              >
+                <Trash2 aria-hidden="true" />
+                <span>丢弃隔离副本</span>
+              </DropdownMenuItem>
+            ) : null}
+
             <DropdownMenuItem
               className="assistant-thread-menu__item"
               danger
@@ -428,6 +499,10 @@ export function AssistantThreadList({
   onActivate,
   onCreate,
   onRemoveWorkspace,
+  workspaceMeta,
+  onIsolateWorkspace,
+  onDeliverWorkspace,
+  onDiscardWorkspace,
   onPin,
   onArchive,
 }: AssistantThreadListProps) {
@@ -633,8 +708,13 @@ export function AssistantThreadList({
                   <WorkspaceHeader
                     isOpen={isOpen}
                     name={named}
+                    mode={workspaceMeta?.[group.id]?.mode ?? 'local'}
+                    exists={workspaceMeta?.[group.id]?.exists ?? true}
                     onCreate={onCreate}
                     onRemove={onRemoveWorkspace}
+                    onIsolate={onIsolateWorkspace}
+                    onDeliver={onDeliverWorkspace}
+                    onDiscard={onDiscardWorkspace}
                     onToggle={onToggleWorkspace}
                     workspaceId={group.id}
                   />

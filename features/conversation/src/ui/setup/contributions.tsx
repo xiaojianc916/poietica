@@ -255,6 +255,15 @@ export function createConversationContributions(setup: ConversationSetup, action
             }}
 
             runningThreadIds={runningIds}
+            workspaceMeta={Object.fromEntries(
+              view.items.map((workspace) => [
+                workspace.id,
+                { mode: workspace.mode ?? 'local', exists: workspace.exists },
+              ]),
+            )}
+            onIsolateWorkspace={(workspaceId) => void workspaces.createIsolated(workspaceId)}
+            onDeliverWorkspace={(workspaceId) => void workspaces.deliver(workspaceId)}
+            onDiscardWorkspace={(workspaceId) => void workspaces.discard(workspaceId)}
           />
 
           <ConfirmationDialog
