@@ -173,7 +173,7 @@ const PATTERNS: readonly (readonly [RegExp, (...groups: string[]) => CommandOutp
     /^Fresh provider session started \((\d+) provider states? pruned\)\.$/,
     (count) => success(count === '0' ? '已重置与服务商的连接' : `已重置与服务商的连接（清掉 ${count} 份连接状态）`),
   ],
-  /* 参数不对时 omp 回一句用法：命令面板已给出可选值，这里只把用法原样带上 */
+  /* 参数不对时 omp 回一句用法：斜杠命令面板已给出可选值，这里只把用法原样带上 */
   [/^Usage: (\/[\s\S]+)$/, (usage) => warning(`参数不对，用法：${usage}`)],
 ]
 

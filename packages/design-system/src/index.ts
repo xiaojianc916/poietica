@@ -11,7 +11,6 @@ export { Accordion, AccordionHeader, AccordionItem, AccordionPanel, AccordionTri
 export { Banner } from './control/banner'
 export { GitBranchPicker, type GitBranchPickerProps } from './control/branch-picker'
 export { Button } from './control/button'
-export { CommandMenu, type CommandMenuGroup, type CommandMenuItem } from './control/command-menu'
 export { ConfirmationDialog } from './control/confirmation-dialog'
 export { Dialog } from './control/dialog'
 export {

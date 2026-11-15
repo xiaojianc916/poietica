@@ -72,8 +72,8 @@ export default defineUiFeature({
       run: openPage(SKILLS_SETTINGS_PAGE),
     })
 
-    /* 技能页要提供「从文件夹安装」/「从 zip 安装」，而 legacy 那一页上**没有**这两颗键，产品负责人又要求设置界面与 legacy 逐像素一致 ——
-     * 所以能力挂在命令面板上（extensions.installSkillFromFolder / …FromZip）：能力照方案补齐，页面外观照 legacy 保留。 */
+    /* 技能页的「安装」菜单（skills-settings 的工具行）是这两个能力的正门；命令照旧登记，改键页可以给它们绑快捷键
+     * （命令面板已删除，这里是它们唯一的可视入口）。 */
     const install = (kind: 'directory' | 'zip') => (): void => {
       void (async () => {
         const platform = api.platform()

@@ -7,7 +7,7 @@
 - `skills.*` 列出全局或指定工作区的技能，启停、安装（目录或 zip）与删除用户技能；删除移入回收站，内置与项目技能不可删除。
 - `mcp.*` 列出、写入、删除服务器，读取连接状态，并在 Smithery 目录中搜索；`mcp.upsert` 按名字幂等写入。
 - `plugins.*` 列出已安装插件、查询 omp 市场、安装、卸载与启停；卸载与启停时把引擎的 not found 翻译为本契约错误码。
-- UI 提供「技能」「MCP」两页；技能页可查看 SKILL.md（右坞面板），安装入口在命令面板。加号面板经 `composerToolkitSources` 取得技能与 MCP 名册。
+- UI 提供「技能」「MCP」两页；技能页可查看 SKILL.md（右坞面板），安装入口是技能页工具行最右的「安装」菜单。加号面板经 `composerToolkitSources` 取得技能与 MCP 名册。
 
 ## 子入口
 
@@ -25,4 +25,4 @@
 
 ## 边界
 
-插件契约与 API 已就位，当前 UI 只落了技能与 MCP 两页；技能安装入口在命令面板的 `extensions.installSkillFromFolder` / `extensions.installSkillFromZip`。
+插件契约与 API 已就位，当前 UI 只落了技能与 MCP 两页；技能安装入口是技能页工具行的「安装」菜单（命令 `extensions.installSkillFromFolder` / `extensions.installSkillFromZip` 仍登记，供改键页绑快捷键）。

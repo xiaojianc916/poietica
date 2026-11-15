@@ -7,7 +7,7 @@ export function createConversationCommands(setup: ConversationSetup, actions: Co
   const { api, ctx, dialogs, prefs, stores, banners } = setup
   const { activeThreadId, exportThread, newThread, openThread } = actions
 
-  /* 停在入口页时重命名 / 删除 / 分支 / 导出都没有落点：enabled 报假，命令面板与快捷键都不给点。 */
+  /* 停在入口页时重命名 / 删除 / 分支 / 导出都没有落点：enabled 报假，快捷键不给点。 */
   const hasThread = (): boolean => activeThreadId() !== null
   const running = (): boolean => {
     const current = activeThreadId()

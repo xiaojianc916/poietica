@@ -2,7 +2,7 @@ import { type OverlayPresence, overlaysOnScreen, subscribeOverlays } from '@poie
 
 /* 原生视图该不该给浮层让路（P-07）。原生子视图摆在整页 DOM 之上，被它压住的浮层根本看不见，只能是视图让开。
  * 谁在场由画浮层的一方登记（design-system 的 overlay-presence），这里只做判定：
- * - 模态浮层（对话框、命令面板、灯箱）铺满窗口，一律让；
+ * - 模态浮层（对话框、灯箱）铺满窗口，一律让；
  * - 贴着某处开的浮层（菜单、下拉、提示、自绘面板、通知卡）只在和视图那块地相交时才让 ——
  *   开在对话区的提示不该让网页闪一下。 */
 

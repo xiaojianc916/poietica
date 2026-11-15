@@ -1,11 +1,9 @@
 import { Button, TooltipProvider } from '@poietica/design-system'
 import { builtinPoints, FeatureScope, useContributions, useKernel, useLayout, useObservable } from '@poietica/ui-kernel'
-import { PanelLeft, Search } from 'lucide-react'
-import { type ReactNode, Suspense, useCallback, useLayoutEffect, useMemo, useSyncExternalStore } from 'react'
-import { closePalette, openPalette, paletteSnapshot, subscribePalette } from './palette-state'
+import { PanelLeft } from 'lucide-react'
+import { type ReactNode, Suspense, useCallback, useLayoutEffect, useMemo } from 'react'
 import { AuxiliaryDock } from './parts/auxiliary-dock'
 import { Banners } from './parts/banners'
-import { CommandPalette } from './parts/command-palette'
 import { ConfirmHost } from './parts/confirm-host'
 import { MainArea } from './parts/main-area'
 import { Overlays } from './parts/overlays'
@@ -23,7 +21,6 @@ const CHROME_BUTTON_CLASS =
 export function Workbench(): ReactNode {
   const kernel = useKernel()
   const layout = useLayout()
-  const paletteOpen = useSyncExternalStore(subscribePalette, paletteSnapshot)
   useObservable(kernel.kernelServices.coreStatus)
 
   const { sidebar, right, auxiliary } = layout
@@ -79,7 +76,7 @@ export function Workbench(): ReactNode {
   const chrome = useMemo(
     () => (
       <header className="workspace-shell__chrome flex h-full min-h-0 w-full min-w-0 items-stretch bg-chrome">
-        <TitleBar onOpenSearch={openPalette} sidebarOpen={sidebar.visible} toggleSidebar={toggleSidebar} />
+        <TitleBar sidebarOpen={sidebar.visible} toggleSidebar={toggleSidebar} />
       </header>
     ),
     [sidebar.visible, toggleSidebar],
@@ -173,12 +170,6 @@ export function Workbench(): ReactNode {
         splitter={splitterState.activity}
         splitterRegion={splitterState.region}
       />
-      <CommandPalette
-        onClose={() => {
-          closePalette()
-        }}
-        open={paletteOpen}
-      />
       <Banners />
       <ConfirmHost />
     </TooltipProvider>
@@ -188,11 +179,10 @@ export function Workbench(): ReactNode {
 interface TitleBarProps {
   readonly sidebarOpen: boolean
   readonly toggleSidebar: () => void
-  readonly onOpenSearch: () => void
 }
 
-/** 标题栏：左端开合与搜索、中段拖拽区、右端窗口按钮。 */
-function TitleBar({ sidebarOpen, toggleSidebar, onOpenSearch }: TitleBarProps): ReactNode {
+/** 标题栏：左端开合、中段拖拽区、右端窗口按钮。 */
+function TitleBar({ sidebarOpen, toggleSidebar }: TitleBarProps): ReactNode {
   const centerItems = useContributions(builtinPoints.titleBarItems).filter((c) => c.item.align === 'center')
   const leftItems = useContributions(builtinPoints.titleBarItems).filter((c) => c.item.align === 'left')
   const rightItems = useContributions(builtinPoints.titleBarItems).filter((c) => c.item.align === 'right')
@@ -209,16 +199,7 @@ function TitleBar({ sidebarOpen, toggleSidebar, onOpenSearch }: TitleBarProps): 
         >
           <PanelLeft aria-hidden="true" />
         </Button>
-        <Button
-          aria-label="搜索"
-          className={CHROME_BUTTON_CLASS}
-          onClick={onOpenSearch}
-          size="icon"
-          type="button"
-          variant="ghost"
-        >
-          <Search aria-hidden="true" />
-        </Button>
+
         {leftItems.map((c) => (
           <FeatureScope featureId={c.featureId} key={c.item.id}>
             <Suspense fallback={<PartSkeleton />}>

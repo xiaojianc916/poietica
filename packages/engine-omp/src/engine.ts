@@ -35,7 +35,7 @@ export interface OmpEngineOptions {
     readonly thinking: string | null
     readonly hidden: readonly string[]
   }) => Promise<Controls>
-  /** 不开会话的命令表（入口页的命令面板）；实现要读 omp 的命令注册表，所以同样由组合根注入 */
+  /** 不开会话的命令表（入口页的斜杠命令）；实现要读 omp 的命令注册表，所以同样由组合根注入 */
   readonly commandCatalog: AgentEngine['commandCatalog']
   readonly createSession: (spec: OpenSessionSpec, tools: ReadonlyMap<string, EngineToolSpec>) => Promise<EngineSession>
   readonly sessionFiles: AgentEngine['sessionFiles']

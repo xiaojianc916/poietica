@@ -59,16 +59,6 @@ async function mount(features: readonly UiFeature[] = []): Promise<UiKernel> {
   return kernel
 }
 
-/** 命令 id 由 Base UI Combobox 写进 role=option 行的 value 属性，取不到时退回文本。 */
-function optionValues(): string[] {
-  return [...document.querySelectorAll('[role="option"]')].map((el) => {
-    const attrs = el.getAttributeNames()
-    const valueAttr = attrs.find((n) => n === 'value' || n.endsWith('-value'))
-    const value = valueAttr === undefined ? null : el.getAttribute(valueAttr)
-    return value ?? el.textContent ?? ''
-  })
-}
-
 describe('workbench 外壳', () => {
   test('设置导航：按段渲染，未知 group 进兜底段并记 warn', async () => {
     const { workbenchFeature } = await import('../feature')
@@ -128,6 +118,17 @@ describe('workbench 外壳', () => {
     kernel.dispose()
   })
 
+  /* 命令面板已删除：标题栏那枚放大镜与 Ctrl+K / Ctrl+Shift+P 一起撤掉，外壳不再有搜索入口。 */
+  test('标题栏不再有搜索钮，命令面板的命令与快捷键都已撤', async () => {
+    const { workbenchFeature } = await import('../feature')
+    const kernel = await mount([workbenchFeature])
+    expect(document.querySelector('[aria-label="搜索"]')).toBeNull()
+    const commands = kernel.registry.list(builtinPoints.commands).map((c) => c.item.id)
+    expect(commands).not.toContain('workbench.commandPalette')
+    expect(kernel.kernelServices.keybindings.keyFor('workbench.commandPalette')).toBeNull()
+    kernel.dispose()
+  })
+
   test('没有任何功能时外壳正常渲染，所有区域显示空状态', async () => {
     const kernel = await mount()
     expect(document.querySelector('[data-workbench]')).not.toBeNull()
@@ -162,85 +163,11 @@ describe('workbench 外壳', () => {
     kernel.dispose()
   })
 
-  test('命令面板能搜索并执行命令', async () => {
-    const ran: string[] = []
-    const { workbenchFeature } = await import('../feature')
-    const feature = defineUiFeature({
-      id: 'test',
-      setup: (ctx) => {
-        ctx.contribute(builtinPoints.commands, {
-          id: 'test.hello',
-          title: '打个招呼',
-          category: '测试',
-          run: () => {
-            ran.push('hello')
-          },
-        })
-      },
-    })
-    const kernel = await mount([workbenchFeature, feature])
-    await kernel.kernelServices.commands.execute('workbench.commandPalette')
-    await new Promise((r) => setTimeout(r, 5))
-    // 面板用 design-system 的 CommandMenu，所以找的是 Base UI Combobox 的输入框与 option。
-    const input = document.querySelector<HTMLInputElement>('[role="combobox"]')
-    expect(input).not.toBeNull()
-    expect(optionValues().some((v) => v.includes('test.hello'))).toBe(true)
-    expect(optionValues().some((v) => v.includes('workbench.commandPalette'))).toBe(true)
-    kernel.dispose()
-  })
-
-  test('命令面板输入过滤', async () => {
-    const { workbenchFeature } = await import('../feature')
-    const feature = defineUiFeature({
-      id: 'test',
-      setup: (ctx) => {
-        ctx.contribute(builtinPoints.commands, { id: 'test.hello', title: '打个招呼', run: () => undefined })
-        ctx.contribute(builtinPoints.commands, { id: 'test.bye', title: '再见', run: () => undefined })
-      },
-    })
-    const kernel = await mount([workbenchFeature, feature])
-    await kernel.kernelServices.commands.execute('workbench.commandPalette')
-    await new Promise((r) => setTimeout(r, 5))
-    const input = document.querySelector<HTMLInputElement>('[role="combobox"]')!
-    const { fireEvent } = await import('@testing-library/react')
-    fireEvent.change(input, { target: { value: '再见' } })
-    await new Promise((r) => setTimeout(r, 5))
-    const values = optionValues()
-    expect(values.some((v) => v.includes('再见'))).toBe(true)
-    expect(values.some((v) => v.includes('打个招呼'))).toBe(false)
-    kernel.dispose()
-  })
-
-  /* 回归：入口页没有当前对话，删除 / 导出这类命令点下去没有任何反应 —— 它们自报 enabled 为假，面板就不该画。 */
-  test('命令面板不画此刻用不了的命令', async () => {
-    const { workbenchFeature } = await import('../feature')
-    const feature = defineUiFeature({
-      id: 'test',
-      setup: (ctx) => {
-        ctx.contribute(builtinPoints.commands, {
-          id: 'test.off',
-          title: '用不了的命令',
-          run: () => undefined,
-          enabled: () => false,
-        })
-        ctx.contribute(builtinPoints.commands, { id: 'test.on', title: '能用的命令', run: () => undefined })
-      },
-    })
-    const kernel = await mount([workbenchFeature, feature])
-    await kernel.kernelServices.commands.execute('workbench.commandPalette')
-    await new Promise((r) => setTimeout(r, 5))
-    const values = optionValues()
-    expect(values.some((v) => v.includes('能用的命令'))).toBe(true)
-    expect(values.some((v) => v.includes('用不了的命令'))).toBe(false)
-    kernel.dispose()
-  })
-
   test('workbenchFeature 贡献命令、快捷键与设置表面', async () => {
     const { workbenchFeature } = await import('../feature')
     const kernel = await mount([workbenchFeature])
     const commands = kernel.registry.list(builtinPoints.commands).map((c) => c.item.id)
     for (const id of [
-      'workbench.commandPalette',
       'workbench.toggleSidebar',
       'workbench.toggleRightPanel',
       'workbench.openSettings',
@@ -251,7 +178,7 @@ describe('workbench 外壳', () => {
       expect(commands).toContain(id)
     }
     expect(kernel.registry.list(builtinPoints.surfaces).map((c) => c.item.id)).toContain('workbench.settings')
-    expect(kernel.registry.list(builtinPoints.keybindings).length).toBeGreaterThanOrEqual(7)
+    expect(kernel.registry.list(builtinPoints.keybindings).length).toBeGreaterThanOrEqual(5)
     kernel.dispose()
   })
 

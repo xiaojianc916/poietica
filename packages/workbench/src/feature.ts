@@ -7,7 +7,6 @@ import {
   SETTINGS_GROUPS,
   settingsDockOwner,
 } from '@poietica/ui-kernel'
-import { openPalette } from './palette-state'
 import { SettingsContentRegion } from './parts/settings-regions'
 
 const SETTINGS_ROUTE: Route = { surface: 'workbench.settings', params: {} }
@@ -28,7 +27,6 @@ export const workbenchFeature = defineUiFeature({
         enabled === undefined ? { id, title, category: '外壳', run } : { id, title, category: '外壳', run, enabled },
       )
     }
-    command('workbench.commandPalette', '命令面板', openPalette)
     command('workbench.toggleSidebar', '切换侧栏', () => {
       layout.toggleSidebar()
     })
@@ -38,7 +36,7 @@ export const workbenchFeature = defineUiFeature({
     command('workbench.openSettings', '打开设置', () => {
       navigation.navigate(SETTINGS_ROUTE)
     })
-    /* 没有可回退 / 可前进的一页时点下去没反应：自报不可用，命令面板就不画。 */
+    /* 没有可回退 / 可前进的一页时点下去没反应：自报不可用，改键页就不列成可点的一条。 */
     command(
       'workbench.back',
       '后退',
@@ -61,8 +59,6 @@ export const workbenchFeature = defineUiFeature({
     const bind = (command_: string, key: string): void => {
       ctx.contribute(builtinPoints.keybindings, { command: command_, key })
     }
-    bind('workbench.commandPalette', 'Ctrl+Shift+P')
-    bind('workbench.commandPalette', 'Ctrl+K')
     bind('workbench.toggleSidebar', 'Ctrl+B')
     bind('workbench.toggleRightPanel', 'Ctrl+Alt+B')
     bind('workbench.openSettings', 'Ctrl+,')

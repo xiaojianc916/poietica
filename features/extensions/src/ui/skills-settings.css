@@ -21,6 +21,29 @@
   flex: none;
 }
 
+/* 安装：与来源筛选同一条工具行，右侧收口；外观跟同页的「新建」一档（soft 小键）。 */
+.skill-page__install {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  block-size: 26px;
+  padding-inline: 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--settings-field);
+  color: var(--ui-foreground);
+  font-size: 12px;
+}
+
+.skill-page__install:hover {
+  background: var(--ui-divider);
+}
+
+.skill-page__install svg {
+  inline-size: 13px;
+}
+
 .skill-list {
   display: flex;
   flex-direction: column;

@@ -69,6 +69,15 @@
 
 ## 偏差与裁决
 
+### 删除命令面板（2026-11-15）
+
+用户判定这层浮层没有用处，整块拆除，不做「默认关闭 / 可开关」的降级形态。
+
+- **删掉的文件**：`workbench/src/parts/command-palette.tsx`、`palette-state.ts`、`fuzzy.ts` 与其用例，以及 `design-system` 的 `control/command-menu.tsx` / `.css`（`CommandMenu` 只有这一个使用处）。`design-system` 的公开面因此少三个导出。
+- **撤掉的接线**：`workbench.commandPalette` 命令、`Ctrl+K` / `Ctrl+Shift+P` 两条绑定、标题栏的放大镜按钮（`aria-label="搜索"`）、`TitleBarProps.onOpenSearch`。
+- **命令仍在，入口换了**：命令贡献点本身没动，`Ctrl+B` / `Ctrl+,` / `Alt+←→` 等快捷键照旧；改键页仍列全部命令。没有快捷键的那些（`platform.openDataFolder`、`extensions.installSkillFromFolder` / `…FromZip`）原本只从面板进入，所以技能页工具行最右补了一枚「安装」菜单承接 `skills.install`（从文件夹 / 从 zip），workspaces 的三条交给侧栏项目组头菜单。
+- **验证**：`typecheck`、`format:check`、`lint`（含 depcruise 1761 模块、style-boundaries、ratchet）、`bun test` 3313 用例全通过；`workbench.test.tsx` 换掉三条面板用例，新增一条钉住「没有搜索钮、没有 `workbench.commandPalette`、`keyFor` 为 null」。
+
 ### react-doctor 满分回归（2026-11-15）
 
 - **范围**：全仓扫描 79 分 / 4 条 `async-await-in-loop`（`outbox-dispatcher` 1、`workspaces` 2、`review/rewind` 1）；修后 100 分、0 诊断。

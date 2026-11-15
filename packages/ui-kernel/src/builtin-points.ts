@@ -11,7 +11,7 @@ export interface CommandItem {
   readonly category?: string
   readonly run: (args?: unknown) => void | Promise<void>
   readonly enabled?: () => boolean
-  /** 不出现在命令面板，仍可被快捷键或代码执行。 */
+  /** 不出现在改键页的命令清单里，仍可被快捷键或代码执行。 */
   readonly hidden?: boolean
 }
 export interface KeybindingItem {

@@ -11,7 +11,7 @@ import {
   Switch,
   useCopy,
 } from '@poietica/design-system'
-import { Check, Copy, MoreHorizontal, PackageOpen, Search, Trash2 } from 'lucide-react'
+import { Check, Copy, FileArchive, FolderOpen, MoreHorizontal, PackageOpen, Plus, Search, Trash2 } from 'lucide-react'
 import { type Ref, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SkillInfo } from '../contract'
 import type { ExtensionsApi } from './api'
@@ -19,7 +19,8 @@ import { skillDocumentOf } from './skill-document'
 import './skills-settings.css'
 
 /* DOM、类名、文案、键盘走位、确认框照 legacy；数据来源换成 extensions 契约。与新契约的差距：契约 SkillInfo.source 只有三档；契约没有
- * legacy 行上那个「无效」标；启停 / 删除的判据换成 source === 'user'；legacy 技能页没有两个安装入口，能力改挂命令面板。 */
+ * legacy 行上那个「无效」标；启停 / 删除的判据换成 source === 'user'。legacy 技能页没有安装入口，本页在工具行最右补一枚「安装」：
+ * 命令面板删掉之后，skills.install 只剩这一处入口。 */
 
 type SourceFilter = 'all' | 'managed' | 'project' | 'builtin'
 
@@ -99,6 +100,34 @@ export function SkillsSettingsPage({ api }: { readonly api: ExtensionsApi }) {
     setFailure(cause instanceof Error ? cause.message : String(cause))
   }
 
+  /* 安装：命令面板删掉后这是唯一入口（`skills.install` 原本只挂在面板上）。选路径走 platform 的 dialog.*，
+   * 与 legacy 一致：先选来源，再装，装完重扫。取消（path === null）什么都不说。 */
+  const install = (kind: 'directory' | 'zip'): void => {
+    void (async () => {
+      const platform = api.platform()
+      const path =
+        kind === 'directory'
+          ? (await platform.call('dialog.pickFolder', { title: '选择技能文件夹' })).path
+          : ((
+              await platform.call('dialog.pickFiles', {
+                filters: [{ name: '技能包', extensions: ['zip'] }],
+                multiple: false,
+              })
+            ).paths[0] ?? null)
+
+      if (path === null) {
+        return
+      }
+
+      try {
+        await api.skills.install({ kind, path })
+        reload()
+      } catch (cause) {
+        report(cause)
+      }
+    })()
+  }
+
   if (!loaded && skills.length === 0) {
     return <LoadingState label="正在扫描技能…" />
   }
@@ -158,6 +187,25 @@ export function SkillsSettingsPage({ api }: { readonly api: ExtensionsApi }) {
           type="技能来源"
           value={source}
         />
+
+        <DropdownMenu>
+          <DropdownMenuTrigger aria-label="安装技能" className="skill-page__install" title="安装技能">
+            <Plus aria-hidden="true" />
+            安装
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => install('directory')}>
+              <FolderOpen aria-hidden="true" />
+              <span>从文件夹安装</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem onClick={() => install('zip')}>
+              <FileArchive aria-hidden="true" />
+              <span>从 zip 安装</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="skill-list">
