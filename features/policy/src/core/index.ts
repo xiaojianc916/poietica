@@ -13,6 +13,7 @@ export default defineCoreModule({
   contract: policyContract,
   dependsOn: ['settings'],
   migrations,
+  settings: ['policy.preset'],
   setup(ctx) {
     ctx.services.get(SettingsServiceToken).register({
       key: 'policy.preset',

@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { defineCoreEvent } from '../events'
 import type { CoreModule, CoreModuleDescriptor } from '../module'
 import { makeKernel } from './helpers'
 
@@ -11,6 +12,7 @@ const moduleOf = (id: string, dependsOn?: readonly string[]): CoreModule => ({
 const descriptorOf = (module: CoreModule, tier: number): CoreModuleDescriptor => ({
   id: module.id,
   kind: 'domain',
+  processes: ['core'],
   tier,
   module,
 })
@@ -40,5 +42,37 @@ describe('模块描述符', () => {
     })
     expect(missing.failed).toBe(true)
     await missing.dispose()
+  })
+})
+
+describe('运行时描述符', () => {
+  test('从契约、事件、迁移与设置声明合成完整视图', async () => {
+    const changed = defineCoreEvent<{ id: string }>('feature', 'changed')
+    const feature: CoreModule = {
+      id: 'feature',
+      events: [changed],
+      settings: ['feature.enabled'],
+      migrations: [
+        {
+          version: 1,
+          name: 'init',
+          sql: 'CREATE TABLE feature_items (id TEXT); CREATE INDEX feature_idx ON feature_items (id)',
+        },
+      ],
+      setup: () => undefined,
+    }
+    const h = await makeKernel([feature], {
+      moduleDescriptors: [{ id: 'feature', kind: 'domain', tier: 1, processes: ['core', 'ui'], module: feature }],
+    })
+    expect(h.failed).toBe(false)
+    expect(h.kernel.descriptors[0]).toMatchObject({
+      id: 'feature',
+      processes: ['core', 'ui'],
+      rpc: { methods: [], notifications: [] },
+      events: ['feature.changed'],
+      tables: ['feature_items'],
+      settings: ['feature.enabled'],
+    })
+    await h.dispose()
   })
 })

@@ -1,4 +1,5 @@
 export { type AgentToolRegistry, createAgentToolRegistry } from './agent-tools'
+export { describeCoreModule, describeCoreModules } from './descriptor'
 export { type CoreEvent, type CoreEventBus, createEventHub, defineCoreEvent, type EventHub } from './events'
 export { createIdempotency, type IdempotencyService } from './idempotency'
 export { createJobRunner, type JobHandler, type JobRunner, type JobRunnerOptions } from './job-runner'
@@ -9,9 +10,11 @@ export {
   type CoreModule,
   type CoreModuleContext,
   type CoreModuleDescriptor,
+  type CoreModuleDescriptorView,
   type CoreRuntimeInfo,
   defineCoreModule,
   type ModuleKind,
+  type ModuleProcess,
   type RetiredCoreModule,
 } from './module'
 export { createOutbox, type EnqueueInput, type OutboxRecord, type OutboxService } from './outbox'

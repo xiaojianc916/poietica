@@ -4,7 +4,7 @@ import type { DataLayout } from '@poietica/runtime-layout'
 import type { AgentEngine, RuntimeServices } from '@poietica/runtime-protocol'
 import type { Migration, ModuleDatabase } from '@poietica/storage-sqlite'
 import type { AgentToolRegistry } from './agent-tools'
-import type { CoreEventBus } from './events'
+import type { CoreEvent, CoreEventBus } from './events'
 import type { IdempotencyService } from './idempotency'
 import type { JobRecord, KernelJobsService } from './jobs'
 import type { OutboxService } from './outbox'
@@ -12,13 +12,26 @@ import type { CoreRpcBinding, HostCaller } from './rpc-binding'
 import type { WorkflowRecord, WorkflowService } from './workflows'
 
 export type ModuleKind = 'domain' | 'capability' | 'agent-runtime' | 'agent-tool' | 'integration' | 'surface'
+export type ModuleProcess = 'core' | 'host' | 'ui'
 
-/** 生成式装配的描述符：模块实现 + 包清单里的类型 + 功能级别（feature-tiers.json）。 */
+/** 生成式装配的描述符：模块实现 + 包清单里的类型、进程、级别（feature-tiers.json）。 */
 export interface CoreModuleDescriptor {
   readonly id: string
   readonly kind: ModuleKind
   readonly tier: number
+  readonly processes: readonly ModuleProcess[]
   readonly module: CoreModule
+}
+
+/** 运行时可核对的完整描述符：静态声明 + 契约/事件/迁移/设置登记。 */
+export interface CoreModuleDescriptorView extends CoreModuleDescriptor {
+  readonly rpc: {
+    readonly methods: readonly string[]
+    readonly notifications: readonly string[]
+  }
+  readonly events: readonly string[]
+  readonly tables: readonly string[]
+  readonly settings: readonly string[]
 }
 
 /** 模块在 setup 里登记自己的 outbox 消费者；同一 topic 可以有多个消费者，分发器按注册顺序串行调用。 */
@@ -48,6 +61,10 @@ export interface CoreModule<C extends Contract = Contract> {
   readonly tablePrefix?: string
   readonly contract?: C
   readonly dependsOn?: readonly string[]
+  /** 本模块发出的进程内事件令牌；描述符据此列出事件。 */
+  readonly events?: readonly CoreEvent<unknown>[]
+  /** 本模块注册到统一设置注册表的键；描述符据此列出设置项。 */
+  readonly settings?: readonly string[]
   /** 表结构迁移；表名、索引名必须以 `${表前缀}_` 开头（表前缀 = id 中的 '-' 换成 '_'）。 */
   readonly migrations?: readonly Migration[]
   setup(ctx: CoreModuleContext<C>): void | Promise<void>

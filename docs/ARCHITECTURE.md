@@ -191,17 +191,17 @@ omp 的版本锁在根 `package.json` 的 catalog（四个 `@oh-my-pi/*` 同一�
 
 ## 7. 数据与存储
 
-| 数据                                             | 唯一主人      | 落点                                                                                                     |
-| ------------------------------------------------ | ------------- | -------------------------------------------------------------------------------------------------------- |
-| 对话内容                                         | omp           | `omp/agent/sessions/*.jsonl`                                                                             |
-| 线程/工作区/附件/自动化/用量的元数据             | 各功能的 core | `core/poietica.db`（SQLite）                                                                             |
-| 产品记录（运行、交互、策略、检查点、用量、中断） | journal       | `core/poietica.db` 的 `journal_events`（按 `(thread_id, agent_id, seq)` 追加）                           |
-| 附件内容                                         | attachments   | `attachments/<sha 前两位>/<sha>`                                                                         |
-| 用户偏好 / 布局记忆 / 快捷键                     | preferences   | `preferences.json` / `ui-state.json` / `keymap.json`                                                     |
-| 窗口位置                                         | platform      | `window-state.json`                                                                                      |
-| 内置 Python                                      | python        | `tools/python/`                                                                                          |
-| 内置浏览器                                       | browser       | `session/Partitions/persist:poietica-browser`                                                            |
-| 日志                                             | Host / Core   | `logs/main.log` / `logs/core.log`（各只有一个写者：Host 写 main，Core 自己写 core；stderr 只留意外输出） |
+| 数据                                             | 唯一主人      | 落点                                                                                                          |
+| ------------------------------------------------ | ------------- | ------------------------------------------------------------------------------------------------------------- |
+| 对话内容                                         | omp           | `omp/agent/sessions/*.jsonl`                                                                                  |
+| 线程/工作区/附件/自动化/用量的元数据             | 各功能的 core | `core/poietica.db`（SQLite）                                                                                  |
+| 产品记录（运行、交互、策略、检查点、用量、中断） | journal       | `core/poietica.db` 的 `journal_events` / `journal_segments`（按 `(thread_id, agent_id, seq)` 追加并分段校验） |
+| 附件内容                                         | attachments   | `attachments/<sha 前两位>/<sha>`                                                                              |
+| 用户偏好 / 布局记忆 / 快捷键                     | preferences   | `preferences.json` / `ui-state.json` / `keymap.json`                                                          |
+| 窗口位置                                         | platform      | `window-state.json`                                                                                           |
+| 内置 Python                                      | python        | `tools/python/`                                                                                               |
+| 内置浏览器                                       | browser       | `session/Partitions/persist:poietica-browser`                                                                 |
+| 日志                                             | Host / Core   | `logs/main.log` / `logs/core.log`（各只有一个写者：Host 写 main，Core 自己写 core；stderr 只留意外输出）      |
 
 规则：数据路径只来自 `DataLayout`；SQL 只写在功能的 `core/repository.ts`，表名以功能 id
 （`-` 换 `_`）为前缀，内核启动时校验。JSON 文件统一走 `@poietica/fs-kit` 的

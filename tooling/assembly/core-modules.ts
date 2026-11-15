@@ -26,6 +26,7 @@ interface Feature {
   readonly kind: string
   readonly tier: number
   readonly contract: boolean
+  readonly processes: readonly string[]
 }
 
 function features(): Feature[] {
@@ -53,6 +54,11 @@ function features(): Feature[] {
       kind,
       tier,
       contract: pkg.exports['./contract'] !== undefined,
+      processes: [
+        'core',
+        ...(pkg.exports['./host'] === undefined ? [] : ['host']),
+        ...(pkg.exports['./ui'] === undefined ? [] : ['ui']),
+      ],
     })
   }
   return out.sort((a, b) => a.id.localeCompare(b.id))
@@ -64,7 +70,7 @@ function render(): string {
   const descriptors = list
     .map(
       (f) =>
-        `  ${f.id.includes('-') ? `'${f.id}'` : f.id}: {\n    id: '${f.id}',\n    kind: '${f.kind}',\n    tier: ${f.tier},\n    hasContract: ${f.contract},\n    module: ${f.variable},\n  },`,
+        `  ${f.id.includes('-') ? `'${f.id}'` : f.id}: {\n    id: '${f.id}',\n    kind: '${f.kind}',\n    tier: ${f.tier},\n    processes: [${f.processes.map((p) => `'${p}'`).join(', ')}],\n    hasContract: ${f.contract},\n    module: ${f.variable},\n  },`,
     )
     .join('\n')
   return `// 由 tooling/assembly/core-modules.ts 生成；不要手改。\n\nimport type { CoreModule, CoreModuleDescriptor } from '@poietica/core-kernel'\n${imports}\n\nexport interface FeatureDescriptor extends CoreModuleDescriptor {\n  readonly hasContract: boolean\n}\n\nexport const featureDescriptors = {\n${descriptors}\n} as const satisfies Record<string, FeatureDescriptor>\n\nexport const coreModules: readonly CoreModule[] = Object.values(featureDescriptors).map(\n  (descriptor) => descriptor.module,\n)\n`

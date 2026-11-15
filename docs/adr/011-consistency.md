@@ -27,3 +27,9 @@
 - 启动对账第 1 步已接上：conversation 在 onReady 扫描每条线程的 `run.started` / `run.completed`，只有开始没有终态的补 `run.completed { outcome: 'interrupted' }`；Journal 新增按类型读取的 `readTyped`，重复启动不会重复补。
 - 写租约是内存态：Core 重启后旧租约自然消失，因此没有「启动时释放过期租约」这一步；运行中的 Worker 崩溃由事件路由收口并释放。
 - 本次收口「工作区/线程删除」「中断 Run」「jobs/workflows 续跑」「孤儿 worktree 回收」；Journal 目前是单表、按线程检查 seq 连续性，启动时发现 gap 只记 warn，分段重建仍未做。
+
+## 实施进度（2026-11-15 续）
+
+- Journal 已从单表升级为「事件 + 分段」：迁移 v2 增加 `journal_segments` 与 `journal_events.segment_id`。段满（默认 1000 条 / 2 MiB）后封段并写 SHA-256 校验和；读取仍按 seq 走同一张事件表。
+- 启动对账第 6 步已接上 Journal 部分：`integrity` 除 seq gap 外，还核对每段的起止序号、事件数、字节数与校验和；不符的段标记为 `corrupt` 并保持只读隔离，由 conversation 启动日志告警。
+- 时间线索引与 omp 会话文件不一致时的后台重建仍未做（当前时间线索引由 omp 会话回读，没有独立持久索引）。

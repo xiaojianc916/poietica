@@ -23,6 +23,7 @@ import {
   runMigrations,
 } from '@poietica/storage-sqlite'
 import { createAgentToolRegistry } from './agent-tools'
+import { describeCoreModules } from './descriptor'
 import { createEventHub } from './events'
 import { createIdempotency } from './idempotency'
 import { createJobRunner, type JobHandler, type JobRunner } from './job-runner'
@@ -32,6 +33,7 @@ import type {
   CoreModule,
   CoreModuleContext,
   CoreModuleDescriptor,
+  CoreModuleDescriptorView,
   JobHandlerRegistry,
   OutboxHandlerRegistry,
   RetiredCoreModule,
@@ -81,6 +83,8 @@ export interface CoreKernel {
   onExit(fn: (code: number) => void): void
   /** 仅测试使用：读取某模块提供的服务 */
   readonly services: { get: CoreModuleContext['services']['get'] }
+  /** 运行时合成的完整模块描述符（没有传 moduleDescriptors 时为空）。 */
+  readonly descriptors: readonly CoreModuleDescriptorView[]
 }
 
 type KernelState = 'created' | 'starting' | 'ready' | 'stopping' | 'stopped'
@@ -149,6 +153,15 @@ function descriptorOf(byId: ReadonlyMap<string, CoreModuleDescriptor>, module: C
   }
   if (descriptor.module !== module) {
     throw new AppError(SystemErrorCode.moduleGraphInvalid, `模块 ${module.id} 的描述符指向另一份实现`)
+  }
+  if (module.kind !== undefined && module.kind !== descriptor.kind) {
+    throw new AppError(
+      SystemErrorCode.moduleGraphInvalid,
+      `模块 ${module.id} 声明为 ${module.kind}，描述符却是 ${descriptor.kind}`,
+    )
+  }
+  if (!descriptor.processes.includes('core')) {
+    throw new AppError(SystemErrorCode.moduleGraphInvalid, `模块 ${module.id} 没有声明 core 进程`)
   }
   return descriptor
 }
@@ -587,5 +600,6 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
         opts.modules.map((m) => m.id),
       ).get,
     },
+    descriptors: opts.moduleDescriptors === undefined ? [] : describeCoreModules(opts.moduleDescriptors),
   }
 }

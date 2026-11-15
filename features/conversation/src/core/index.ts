@@ -41,6 +41,7 @@ export default defineCoreModule({
   contract: conversationContract,
   dependsOn: ['threads', 'runs', 'timeline', 'workspaces', 'attachments', 'journal', 'checkpoints'],
   migrations,
+  events: [turnSettled, turnFileChanged, submissionFailed, usageSampled, userMessageSubmitted],
   setup(ctx) {
     const hub = ctx.services.get(TimelineServiceToken)
     hub.configure({
@@ -184,7 +185,11 @@ export default defineCoreModule({
       for (const thread of threads) {
         const integrity = journal.integrity(thread.id, 'main')
         if (!integrity.ok) {
-          ctx.logger.warn('journal has sequence gaps', { threadId: thread.id, gaps: integrity.gaps.slice(0, 20) })
+          ctx.logger.warn('journal integrity check failed', {
+            threadId: thread.id,
+            gaps: integrity.gaps.slice(0, 20),
+            corruptSegments: integrity.corruptSegments,
+          })
         }
       }
       await core.threads.reconcileSessionFiles()

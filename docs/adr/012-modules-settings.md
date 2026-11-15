@@ -22,3 +22,10 @@
 - `tooling/assembly/core-modules.ts` 从 `features/<id>/package.json` 的 `poietica.kind`、`feature-tiers.json` 的级别与 `exports` 生成 `featureDescriptors`；`coreModules` 改为从描述符派生，不再另维护一份列表。
 - 描述符在 Core 启动时校验：每个模块必须有且只指向自己的实现；依赖的 tier 必须严格更低；数量必须与模块清单一致。
 - 仍没有把 RPC/事件/表/设置项/UI 贡献点全部收进描述符；这些仍由契约、模块代码与生成清单各自表达。
+
+## 实施进度（2026-11-15 续）
+
+- 描述符增加 `processes`（从功能包的 `./core`/`./host`/`./ui` 导出推导）；Core 启动校验模块声明了 `core` 进程。
+- 运行时可核对视图：RPC 方法与通知来自契约，表来自迁移的 `CREATE TABLE`，事件与设置项来自模块的 `events` / `settings` 声明；`CoreKernel.descriptors` 暴露合成结果。
+- `events` / `settings` 目前只有 conversation 与 policy 声明；UI 贡献点仍由 `UiFeature` 在渲染进程运行时注册，尚未进入描述符。
+- preferences / agent-settings / models / python 的旧存储仍未迁入统一注册表；当前只有 policy 通过注册表读写 `policy.preset`。
