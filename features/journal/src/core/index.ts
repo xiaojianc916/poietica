@@ -87,6 +87,20 @@ export function createJournalRepository(db: ModuleDatabase): JournalService {
 
     latestSeq,
 
+    integrity(threadId, agentId) {
+      const seqs = db
+        .prepare<{ seq: number }>(
+          'SELECT seq FROM journal_events WHERE thread_id = ? AND agent_id = ? ORDER BY seq ASC',
+        )
+        .all(threadId, agentId)
+        .map((row) => row.seq)
+      const present = new Set(seqs)
+      const gaps: number[] = []
+      const max = seqs.at(-1) ?? 0
+      for (let seq = 1; seq <= max; seq += 1) if (!present.has(seq)) gaps.push(seq)
+      return { ok: gaps.length === 0, gaps }
+    },
+
     clear(threadId) {
       return clear.run(threadId).changes
     },

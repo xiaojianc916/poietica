@@ -173,13 +173,20 @@ export default defineCoreModule({
      */
     const maintenance = new AbortController()
     ctx.lifecycle.onReady(async () => {
+      const threads = threadsRepository.list({ includeArchived: true })
       const interrupted = await reconcileInterruptedRuns({
-        threadIds: threadsRepository.list({ includeArchived: true }).map((thread) => thread.id),
+        threadIds: threads.map((thread) => thread.id),
         journal,
         clock: ctx.clock,
         logger: ctx.logger,
       })
       if (interrupted > 0) ctx.logger.info('interrupted runs reconciled', { count: interrupted })
+      for (const thread of threads) {
+        const integrity = journal.integrity(thread.id, 'main')
+        if (!integrity.ok) {
+          ctx.logger.warn('journal has sequence gaps', { threadId: thread.id, gaps: integrity.gaps.slice(0, 20) })
+        }
+      }
       await core.threads.reconcileSessionFiles()
       void core.threads
         .reclaimPending()

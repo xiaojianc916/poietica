@@ -30,7 +30,12 @@ describe('journal', () => {
     expect(read.map((entry) => entry.type)).toEqual(['run.started', 'item.completed', 'agent.updated', 'todo.updated'])
     expect(read.map((entry) => entry.seq)).toEqual([1, 2, 3, 4])
     expect(service.read('th1', 'main', 2).map((entry) => entry.seq)).toEqual([3, 4])
-    expect(service.clear('th1')).toBe(5)
+    expect(service.integrity('th1', 'main')).toEqual({ ok: true, gaps: [] })
+    moduleDb
+      .prepare('DELETE FROM journal_events WHERE thread_id = ? AND agent_id = ? AND seq = ?')
+      .run('th1', 'main', 2)
+    expect(service.integrity('th1', 'main')).toEqual({ ok: false, gaps: [2] })
+    expect(service.clear('th1')).toBe(4)
     expect(service.latestSeq('th1', 'main')).toBe(0)
     db.close()
   })

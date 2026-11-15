@@ -26,4 +26,4 @@
 - 测试 harness 默认关闭 outbox 定时器（`outboxDispatch: false`），避免假时钟推进 25 小时时定时器空转；测 outbox 的用例显式打开。
 - 启动对账第 1 步已接上：conversation 在 onReady 扫描每条线程的 `run.started` / `run.completed`，只有开始没有终态的补 `run.completed { outcome: 'interrupted' }`；Journal 新增按类型读取的 `readTyped`，重复启动不会重复补。
 - 写租约是内存态：Core 重启后旧租约自然消失，因此没有「启动时释放过期租约」这一步；运行中的 Worker 崩溃由事件路由收口并释放。
-- 本次只收口「工作区/线程删除」「中断 Run」「jobs/workflows 续跑」；worktree 对账与 Journal 分段完整性保持原状。
+- 本次收口「工作区/线程删除」「中断 Run」「jobs/workflows 续跑」「孤儿 worktree 回收」；Journal 目前是单表、按线程检查 seq 连续性，启动时发现 gap 只记 warn，分段重建仍未做。

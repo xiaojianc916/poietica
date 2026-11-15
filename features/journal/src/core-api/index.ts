@@ -20,6 +20,8 @@ export interface JournalService {
     limit?: number,
   ): readonly AgentEvent[]
   latestSeq(threadId: string, agentId: string): number
+  /** 启动对账：seq 是否从 1 连续；gaps 是缺失的序号。 */
+  integrity(threadId: string, agentId: string): { readonly ok: boolean; readonly gaps: readonly number[] }
   /** 线程删除时一起清掉；返回删掉的行数。 */
   clear(threadId: string): number
 }

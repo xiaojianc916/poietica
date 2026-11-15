@@ -8,6 +8,7 @@ export function fakeJournal(): JournalService {
     read: () => [],
     readTyped: () => [],
     latestSeq: () => 0,
+    integrity: () => ({ ok: true, gaps: [] }),
     clear: () => 0,
   }
 }
