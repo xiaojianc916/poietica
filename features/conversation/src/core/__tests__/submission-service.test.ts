@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
-import { createSubmissionsRepository, SubmissionService } from '@poietica/feature-runs/core'
+import {
+  createSubmissionsRepository,
+  LEASE_WAIT_POLL_MS,
+  LEASE_WAIT_TIMEOUT_MS,
+  SubmissionService,
+} from '@poietica/feature-runs/core'
 import type {
   CollectedContext,
   SubmissionRow,
@@ -8,10 +13,10 @@ import type {
   SubmissionWriteLeasePort,
 } from '@poietica/feature-runs/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
-import { systemClock } from '@poietica/foundation'
+import { type Clock, systemClock } from '@poietica/foundation'
 import type { EngineSession, SubmitInput } from '@poietica/runtime-protocol'
 import { openDatabase } from '@poietica/storage-sqlite'
-import { createTestLogger, waitFor } from '@poietica/test-kit'
+import { createTestLogger, fakeClock, waitFor } from '@poietica/test-kit'
 import { migrations } from '../migrations'
 
 /*
@@ -28,6 +33,7 @@ function serviceOf(
     readonly removed?: string[]
     readonly collectContext?: (threadId: string) => CollectedContext
     readonly lease?: SubmissionWriteLeasePort
+    readonly clock?: Clock
   } = {},
 ): {
   service: SubmissionService
@@ -37,10 +43,13 @@ function serviceOf(
   const db = openDatabase(':memory:')
   for (const m of migrations) db.forModule('conversation').exec(m.sql)
   /* 提交表有指向 thread 的外键：先把那一行补上（测试不走 thread-service） */
+  /* 提交表有指向 thread 的外键：先把那几行补上（测试不走 thread-service）。t2 在同一条工作区里，
+     租约用例要靠它演「另一条对话正在写」。 */
   db.forModule('conversation')
     .prepare(
       `INSERT INTO conversation_threads (id, workspace_id, title, title_source, posture, origin, pinned, archived, created_at, updated_at)
-       VALUES ('t1', 'ws1', 't', 'auto', 'auto-edit', 'user', 0, 0, 0, 0)`,
+       VALUES ('t1', 'ws1', 't', 'auto', 'auto-edit', 'user', 0, 0, 0, 0),
+              ('t2', 'ws1', 't', 'auto', 'auto-edit', 'user', 0, 0, 0, 0)`,
     )
     .run()
   const inner = createSubmissionsRepository(db.forModule('conversation'))
@@ -59,11 +68,11 @@ function serviceOf(
     retain: () => undefined,
   } as unknown as AttachmentsService
   const submits: SubmitInput[] = []
-  const service = new SubmissionService({ repo, clock: systemClock, logger: createTestLogger() })
+  const service = new SubmissionService({ repo, clock: overrides.clock ?? systemClock, logger: createTestLogger() })
   service.configure({
     workspaces,
     attachments,
-    requireThread: () => ({ id: 't1', workspaceId: 'ws1' }),
+    requireThread: (threadId) => ({ id: threadId, workspaceId: 'ws1' }),
     autoTitle: () => undefined,
     markActivity: () => undefined,
     emitChanged: () => undefined,
@@ -751,51 +760,127 @@ describe('R1 排队上下文在失败路径收口', () => {
     expect(submits).toHaveLength(1)
   })
 
-  test('工作区写租约：别的线程持有时提交失败；收口释放后可以再拿', async () => {
-    let holder: string | null = 't2'
+  /*
+   * §14.4 只限**并发写**，不判死这一句。真实故障（2026-11-16）：完全访问的旧对话还在跑时，
+   * 三种档位（只读 / 请求批准 / 帮我批准）各新开一条对话发一句话 —— 三句全部当场收成
+   * `workspaces.write_busy`，既没交给引擎（屏幕上没有回复、没有时间线），又只剩一条
+   * 「提交未完成；请先核对会话。」的横幅。租约冲突必须是**排队**，不是终点。
+   */
+  function leaseFixture() {
+    let holder: string | null = null
     let nextId = 0
     const released: string[] = []
-    const failures: { clientTurnId: string; deliverAs: string; code: string }[] = []
-    const ctx = serviceOf({
-      lease: {
-        acquire(input) {
-          if (holder !== null && holder !== input.threadId) return { granted: false, holder: { threadId: holder } }
-          holder = input.threadId
-          return { granted: true, lease: { id: `lease-${++nextId}` } }
-        },
-        release(leaseId) {
-          released.push(leaseId)
-          holder = null
-        },
+    const lease = {
+      acquire(input: { threadId: string }) {
+        if (holder !== null && holder !== input.threadId)
+          return { granted: false as const, holder: { threadId: holder } }
+        holder = input.threadId
+        return { granted: true as const, lease: { id: `lease-${++nextId}` } }
       },
+      release(leaseId: string) {
+        released.push(leaseId)
+        holder = null
+      },
+    }
+    return { lease, released, holder: () => holder }
+  }
+
+  /**
+   * 这条工作区此刻由 t2 的写轮持有（真路径：t2 自己提交、拿到租约、轮次还没收口）。
+   * `submits` 由 session 工厂交回来的那一个数组接上 —— 服务内部的记账表才是唯一事实。
+   */
+  async function busyWorkspace(clock?: Clock) {
+    const fixture = leaseFixture()
+    const failures: { clientTurnId: string; deliverAs: string; code: string }[] = []
+    let submits: SubmitInput[] = []
+    const ctx = serviceOf({
+      lease: fixture.lease,
       failures,
-      session: (submits) => fakeSession(submits),
+      session: (all) => {
+        submits = all
+        return fakeSession(all)
+      },
+      ...(clock === undefined ? {} : { clock }),
     })
+    ctx.service.submit({
+      threadId: 't2',
+      clientTurnId: 'c0',
+      text: '另一条对话正在写',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'turn',
+    })
+    await waitFor(() => submits.length === 1)
+    return { ...ctx, fixture, failures, submits }
+  }
+
+  test('工作区写租约：别人的写轮占着时排队等，收口释放后这一句自己交出去', async () => {
+    const ctx = await busyWorkspace()
 
     ctx.service.submit({
       threadId: 't1',
       clientTurnId: 'c1',
-      text: '抢写',
+      text: '排在别人的写轮后面',
       attachmentIds: [],
       skills: [],
       deliverAs: 'turn',
     })
-    await waitFor(() => failures.length === 1)
-    expect(failures[0]).toMatchObject({ clientTurnId: 'c1', code: 'workspaces.write_busy' })
-    expect(released).toEqual([])
+    /* 还没腾出来：既没失败、也没交给引擎 —— 从前就是在这里被当场收成 write_busy */
+    await Bun.sleep(20)
+    expect(ctx.failures).toEqual([])
+    expect(ctx.submits.map((entry) => entry.text)).toEqual(['另一条对话正在写'])
+    expect(ctx.repo.get('c1')?.status).toBe('pending')
 
-    holder = null
+    /* t2 那一轮收口：租约释放，等着的这一句自己往下走 */
+    ctx.service.releaseWriteLease('t2')
+    await waitFor(() => ctx.submits.length === 2)
+
+    expect(ctx.submits[1]?.text).toBe('排在别人的写轮后面')
+    expect(ctx.failures).toEqual([])
+    expect(ctx.fixture.holder()).toBe('t1')
+    ctx.service.releaseWriteLease('t1')
+    expect(ctx.fixture.released).toEqual(['lease-1', 'lease-2'])
+  })
+
+  test('等租约的期间被停止：这一句不再交出去（也不去抢租约）', async () => {
+    const ctx = await busyWorkspace()
+
     ctx.service.submit({
       threadId: 't1',
-      clientTurnId: 'c2',
-      text: '拿到租约',
+      clientTurnId: 'c1',
+      text: '排队时被停止',
       attachmentIds: [],
       skills: [],
       deliverAs: 'turn',
     })
-    await waitFor(() => holder === 't1')
-    ctx.service.releaseWriteLease('t1')
-    expect(released).toEqual(['lease-1'])
-    expect(holder).toBeNull()
+    await Bun.sleep(20)
+    ctx.service.cancelUnhanded('t1')
+    ctx.service.releaseWriteLease('t2')
+    await Bun.sleep(30)
+
+    expect(ctx.submits.map((entry) => entry.text)).toEqual(['另一条对话正在写'])
+    expect(ctx.fixture.holder()).toBeNull()
+    expect(ctx.repo.get('c1')?.error?.code).toBe('conversation.submit_cancelled')
+  })
+
+  test('等租约超时：收成可操作的 workspaces.write_busy，不再是无声的失败', async () => {
+    const clock = fakeClock()
+    const ctx = await busyWorkspace(clock)
+
+    ctx.service.submit({
+      threadId: 't1',
+      clientTurnId: 'c1',
+      text: '等太久',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'turn',
+    })
+    /* 先让交接车道跑到「在等租约」（那时才登记兜底节拍），再把假时钟推过超时 */
+    await Bun.sleep(20)
+    await clock.advanceAsync(LEASE_WAIT_TIMEOUT_MS + LEASE_WAIT_POLL_MS * 2)
+    await waitFor(() => ctx.failures.length === 1)
+
+    expect(ctx.failures[0]).toMatchObject({ clientTurnId: 'c1', code: 'workspaces.write_busy' })
+    expect(ctx.submits.map((entry) => entry.text)).toEqual(['另一条对话正在写'])
   })
 })

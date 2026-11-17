@@ -233,6 +233,14 @@ export class SessionFactory {
       throw error
     }
     if (spec.sessionFile === null) await this.materialize(manager, session)
+    /*
+     * 会话文件在这一刻才落盘（新会话），而子代理的 `parentSession` 记的正是这个路径：
+     * 补绑一次，子代理的工具调用才能精确回到这条线程的门上，而不是落到同 cwd 最严格的那道。
+     */
+    policyGate?.bindSession({
+      sessionId: session.sessionId,
+      ...(session.sessionFile === '' ? {} : { sessionFile: session.sessionFile }),
+    })
     return session
   }
 

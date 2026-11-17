@@ -160,7 +160,7 @@ describe('策略门注册表与文件扩展', () => {
     checkpoint: false,
   })
 
-  test('同 cwd 取最严格的门；子代理的未知 cwd 落到最近的门', () => {
+  test('同 cwd 多条线程各走各的门；认不出的会话才退回最严格的那道', () => {
     const lenient = createPolicyGate({
       sessionKey: 'a',
       preset: 'full-access',
@@ -175,9 +175,21 @@ describe('策略门注册表与文件扩展', () => {
       check: allow,
       approvalOf: () => undefined,
     })
-    expect(policyGateFor('D:/ws')).toBe(strict)
-    expect(policyGateFor('D:/elsewhere')).toBe(strict)
+    lenient.bindSession({ sessionId: 'session-a', sessionFile: 'D:/s/a.jsonl' })
+    strict.bindSession({ sessionId: 'session-b', sessionFile: 'D:/s/b.jsonl' })
+
+    /* 真实故障的反面：完全访问的线程不能被同一工作区里只读 / 询问线程的门拦住 */
+    expect(policyGateFor({ cwd: 'D:/ws', sessionId: 'session-a' })).toBe(lenient)
+    expect(policyGateFor({ cwd: 'D:/ws', sessionId: 'session-b' })).toBe(strict)
+    /* 子代理没有自己的门：会话头的 parentSession 指回父会话，按父线程的档位裁决 */
+    expect(policyGateFor({ cwd: 'D:/sub', parentSession: 'D:/s/a.jsonl' })).toBe(lenient)
+    /* 认不出是谁在调用：退回最严格的那道与最近建的门 */
+    expect(policyGateFor({ cwd: 'D:/ws' })).toBe(strict)
+    expect(policyGateFor({ cwd: 'D:/elsewhere' })).toBe(strict)
+
     lenient.dispose()
+    /* 门没了：号表跟着摘干净，不把调用路由到已经释放的会话上 */
+    expect(policyGateFor({ cwd: 'D:/ws', sessionId: 'session-a' })).toBe(strict)
     strict.dispose()
   })
 

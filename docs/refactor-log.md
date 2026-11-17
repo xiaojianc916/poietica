@@ -9,7 +9,7 @@
 ## 待决问题
 
 - 2026-10-26 架构审查：工作区删除先落本功能的删除、再通过易失事件触发 conversation / automations 清理，进程在两步之间退出时没有持久化重试依据；需裁决以持久主数据的缺席为删除依据、由各事实主人启动对账，还是保留墓碑并引入持久化删除工作流。删除数据的语义未定，本次不猜测、不改迁移。
-- 2026-11-14 engine-omp：P4 策略门已改为文件扩展，随 `additionalExtensionPaths` 装入主会话并由 task 执行器继承到子代理。已知边界：同一 cwd 多个线程不同档位时，子代理或没有登记门的 cwd 会落到「最严格的门」，审批卡片可能显示在另一个线程；需要按 `(cwd, parent session)` 精确路由，或给子会话下发只读策略快照。
+- 2026-11-14 engine-omp：P4 策略门已改为文件扩展，随 `additionalExtensionPaths` 装入主会话并由 task 执行器继承到子代理。~~已知边界：同一 cwd 多个线程不同档位时，子代理或没有登记门的 cwd 会落到「最严格的门」，审批卡片可能显示在另一个线程~~ —— **已结清（2026-11-16）**：策略门按 omp 会话号绑自己的门、子代理按会话头的 `parentSession` 回落到父线程，认不出的会话才用「最严格 + 最近建」兜底（见「写租约排队 + 策略门按会话路由」）。
 - 2026-11-14 engine-omp：`interactions/ui-context.ts` 的审批文案识别现在在生产路径上不可达（策略门把 omp 审批设为 yolo，审批走产品结构化卡片）。待裁决：按死代码删除并同步删掉 `approval.ts` 与相关用例，还是保留为「策略门没装」时的降级路径。
 - 2026-11-14 engine-omp：`ports/draft-controls.ts` 的思考梯子抄了 omp 的 `resolveThinkingLevelForModel`。官方实现会原样接受 `off` / `inherit`、认 `thinking.effortMap` 别名、未知值交回 `undefined`；换成它必须同时裁决入口页胶囊如何显示 `off` / `auto`，所以暂不替换。
 - 2026-11-14 engine-omp：`ports/model-helpers.ts` 的 `enabledModels` 匹配器只做精确 + glob，omp 的 `filterAvailableModelsByEnabledPatterns` 还认角色别名与裸子串。换成官方解析会改变「某个模型算不算启用」的边角结论，需产品裁决。
@@ -109,6 +109,26 @@
 
 - **WorkBuddy 明文的搬迁次序**：需要「Worker 已就绪后补注入环境」的注入口（或让反代口令改走 `secrets.lease` 的短期租约），否则 `models.yml` 里的 `baseUrl` 口令与功能表里的令牌只能继续明文。前提已确认：现有 `safeStorage` 通道（`secrets.put` / `secrets.lease`）可直接复用，不需要新通道。
 - **网络出口规则的强制面**：当前只裁决不拦截。真强制要按 §13.3 给 Worker 注入代理环境变量（`HTTPS_PROXY` 等）并由本地代理放行白名单域名；这需要在 `RuntimeLaunch.env` 与 `engine-omp` 的 bootstrap 之间开一条注入路径，且要和隔离自检的环境清洗顺序对齐。
+
+### 写租约排队 + 策略门按会话路由（2026-11-16）
+
+真机故障：完全访问的一条对话还在跑时，另外新开三条对话（只读 / 请求批准 / 帮我批准各一条）各发一句话，
+三句全部**当场**收成 `workspaces.write_busy` —— 既没交给 omp（屏幕上没有回复、没有时间线），又只剩
+「提交未完成；请先核对会话。」。dev 库里的证据是三条失败提交 `error_code=workspaces.write_busy`、
+omp 会话文件只写了一个空会话头，同一窗口里三条线程的 Journal 却各有一条 `policy.decided action=ask`。
+
+- **租约冲突改为排队**（`SubmissionService.acquireWriteLease`）：§14.4 限的是**并发写**，不是这一句话的
+  生死。别人的写轮占着工作区时等它收口（`releaseWriteLease` 按工作区叫醒 + 5 秒兜底节拍重判），
+  等到了自己往下交。等待有两个上限：15 分钟超时才收成 `workspaces.write_busy`（持有者永远不收口的兜底），
+  等待期间被停止 / 丢弃则整句不再交出。为此把 `handed` 标记挪到真正交接之后 —— 从前它记在拿租约之前，
+  于是「还在等」的那一句对 `turns.cancel` 已经不可见了。
+- **策略门按会话精确路由**（`policyGateFor`）：从前只按 cwd 取「最严格的门」，同一工作区里完全访问的线程
+  会被只读 / 询问线程的门拦住，审批卡片还会在另一条对话里冒出来（同一份 Journal 证据：正在跑的
+  full-access 线程没有任何 ask，三条**还没交给引擎**的线程却各有一条 ask）。现在主会话按 omp 会话号命中
+  自己的门，子代理按会话头的 `parentSession` 落回父线程，认不出的会话才退回「最严格 + 最近建的门」。
+  这条同时结掉 2026-11-14 那条「同一 cwd 多个线程不同档位时子代理会落到最严格的门」的待决问题。
+- **验证**：`typecheck`、`format:check`、`lint`、全量 `bun test` 3315 通过 / 1 跳过 / 0 失败；
+  新增租约三条（排队后交出 / 等待期间被停止 / 超时收成 write_busy）与策略门路由一条（含 dispose 后摘号）。
 
 ### P4 / P5 / P6 第二轮（2026-11-15）
 

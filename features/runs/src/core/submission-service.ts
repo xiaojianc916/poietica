@@ -1,5 +1,5 @@
 import type { TranscriptPage } from '@poietica/agent-model'
-import { AppError, type Clock, type Logger, toAppError } from '@poietica/foundation'
+import { AppError, type Clock, type Disposable, type Logger, toAppError } from '@poietica/foundation'
 import { attachmentOwnerKeyOf, type QueueView, type SubmissionView } from '@poietica/product-model'
 import type { QueueOutcome, QueueSnapshot } from '@poietica/runtime-protocol'
 import {
@@ -29,6 +29,19 @@ interface SubmissionServiceBaseDeps {
 interface Lane {
   readonly tail: Promise<void>
 }
+
+/**
+ * 等写租约的两个上限（§14.4）。
+ *
+ * 租约只限制**并发写**，不该把一句话判死：同一工作区里另有一条线程在跑时，新提交排着等它收口，
+ * 而不是当场收成 `workspaces.write_busy` —— 从前那样做的话，这句话既没交给引擎（屏幕上没有回复、
+ * 没有时间线），又只剩一条「提交未完成」的横幅（真实故障：三条新对话在完全访问的旧对话跑着时全废）。
+ *
+ * 但等待必须有底：持有者可能永远不收口（轮次卡死、进程内租约 TTL 24 小时）。超时就收成可操作的
+ * 那句「工作区正被另一条对话写入」；兜底节拍让等待方即使没收到唤醒也能自己重判一次。
+ */
+export const LEASE_WAIT_TIMEOUT_MS = 15 * 60 * 1000
+export const LEASE_WAIT_POLL_MS = 5_000
 
 /**
  * 排队项（steer / followUp）随附的轮次上下文：引擎收下就记已交（下一句不会再带一遍），结局是丢弃 / 撤回
@@ -62,6 +75,10 @@ export class SubmissionService implements SubmissionServiceContract {
   private readonly leaseHolders = new Map<string, string>()
   /** threadId → 租约 id（release 用） */
   private readonly leaseIds = new Map<string, string>()
+  /** threadId → 租约所属工作区：释放时据此叫醒同一工作区里等租约的提交 */
+  private readonly leaseWorkspaces = new Map<string, string>()
+  /** workspaceId → 等写租约的唤醒函数（别人的轮次收口时叫醒它们） */
+  private readonly leaseWaiters = new Map<string, Set<() => void>>()
 
   constructor(private readonly d: SubmissionServiceBaseDeps) {}
 
@@ -275,9 +292,13 @@ export class SubmissionService implements SubmissionServiceContract {
 
   releaseWriteLease(threadId: string): void {
     const leaseId = this.leaseIds.get(threadId)
+    const workspaceId = this.leaseWorkspaces.get(threadId)
     this.leaseHolders.delete(threadId)
     this.leaseIds.delete(threadId)
+    this.leaseWorkspaces.delete(threadId)
     if (leaseId !== undefined) this.p.writeLease?.release(leaseId)
+    /* 租约腾出来了：同一工作区里排着的那几句现在可以往下走（§14.4 只限并发，不丢话） */
+    if (workspaceId !== undefined) this.wakeLeaseWaiters(workspaceId)
   }
 
   /** 取消：还没交给 omp 的 pending 直接收成 failed（交给 omp 的照旧走 session.cancel）。 */
@@ -426,14 +447,16 @@ export class SubmissionService implements SubmissionServiceContract {
      *   把一条已经开跑的真实轮标成还在排队，界面既画不出它、也不会拿号把提交行换掉。
      */
     const deliveredAs = session.state() === 'idle' ? 'turn' : row.requestedAs === 'turn' ? 'followUp' : row.requestedAs
-    this.handed.add(row.clientTurnId)
     if (deliveredAs === 'turn') this.pendingTurn.set(row.threadId, row.clientTurnId)
 
     const context = this.contextFor(row, deliveredAs)
     if (deliveredAs === 'turn') {
-      this.acquireWriteLease(row)
+      /* 别人的写轮占着这个工作区：等它收口。等待期间这句话仍可被停止 / 丢弃，所以先等再记「已交」。 */
+      if (!(await this.acquireWriteLease(row))) return
       await this.checkpointAtTurnStart(row)
     }
+    /* 真的交出去了才算 handed：等租约的这段时间里 `turns.cancel` 还追得上这一句 */
+    this.handed.add(row.clientTurnId)
     try {
       await session.submit({
         text: row.text,
@@ -464,24 +487,68 @@ export class SubmissionService implements SubmissionServiceContract {
   /**
    * §14.4：一次真正的写轮先拿工作区写租约。租约在 Core 内存里，Core 退出就消失，
    * 所以 TTL 只用来挡住「进程还活着但轮次永远不收口」的极端情况；正常路径靠轮次收口释放。
+   *
+   * 别人的写轮占着这个工作区时**排队等它收口**（`releaseWriteLease` 叫醒），不把这一句判死。
+   * 返回 false 表示等的过程里这一句被取消 / 丢弃了，调用方不要再往下交。
    */
-  private acquireWriteLease(row: SubmissionRow): void {
+  private async acquireWriteLease(row: SubmissionRow): Promise<boolean> {
     const port = this.p.writeLease
-    if (port === undefined) return
+    if (port === undefined) return true
     const thread = this.p.requireThread(row.threadId)
-    const result = port.acquire({
-      workspaceId: thread.workspaceId,
-      threadId: row.threadId,
-      runId: row.clientTurnId,
-      ttlMs: 24 * 60 * 60 * 1000,
-    })
-    if (!result.granted) {
-      throw new AppError('workspaces.write_busy', '这个工作区正被另一条对话写入，请等它结束或换到隔离工作区', {
-        holderThreadId: result.holder.threadId,
+    const deadline = this.d.clock.now() + LEASE_WAIT_TIMEOUT_MS
+    for (;;) {
+      if (!this.stillWanted(row)) return false
+      const result = port.acquire({
+        workspaceId: thread.workspaceId,
+        threadId: row.threadId,
+        runId: row.clientTurnId,
+        ttlMs: 24 * 60 * 60 * 1000,
       })
+      if (result.granted) {
+        this.leaseHolders.set(row.threadId, row.clientTurnId)
+        this.leaseIds.set(row.threadId, result.lease.id)
+        this.leaseWorkspaces.set(row.threadId, thread.workspaceId)
+        return true
+      }
+      if (this.d.clock.now() >= deadline) {
+        throw new AppError('workspaces.write_busy', '这个工作区正被另一条对话写入，请等它结束或换到隔离工作区', {
+          holderThreadId: result.holder.threadId,
+        })
+      }
+      await this.waitForLease(thread.workspaceId)
     }
-    this.leaseHolders.set(row.threadId, row.clientTurnId)
-    this.leaseIds.set(row.threadId, result.lease.id)
+  }
+
+  /** 这一句还该发吗：提交行还在、还停在 pending，且它仍是这条线程待交的那一条。 */
+  private stillWanted(row: SubmissionRow): boolean {
+    const current = this.d.repo.get(row.clientTurnId)
+    if (current === null || current.status !== 'pending') return false
+    const pending = this.pendingTurn.get(row.threadId)
+    return pending === undefined || pending === row.clientTurnId
+  }
+
+  /** 等工作区腾出来（或一次兜底节拍到期）；唤醒后调用方自己重新判前提。 */
+  private waitForLease(workspaceId: string): Promise<void> {
+    return new Promise((resolve) => {
+      const waiters = this.leaseWaiters.get(workspaceId) ?? new Set<() => void>()
+      let timer: Disposable | undefined
+      const wake = (): void => {
+        timer?.dispose()
+        waiters.delete(wake)
+        if (waiters.size === 0 && this.leaseWaiters.get(workspaceId) === waiters) this.leaseWaiters.delete(workspaceId)
+        resolve()
+      }
+      waiters.add(wake)
+      this.leaseWaiters.set(workspaceId, waiters)
+      timer = this.d.clock.setTimeout(wake, LEASE_WAIT_POLL_MS)
+    })
+  }
+
+  /** 工作区腾出来了：叫醒所有等着写的提交（它们自己重判取消与租约）。 */
+  private wakeLeaseWaiters(workspaceId: string): void {
+    const waiters = this.leaseWaiters.get(workspaceId)
+    if (waiters === undefined) return
+    for (const wake of [...waiters]) wake()
   }
 
   private async checkpointAtTurnStart(row: SubmissionRow): Promise<void> {

@@ -213,6 +213,14 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
         ...(error instanceof Error && error.stack !== undefined ? { stack: error.stack } : {}),
       }),
   )
+  /*
+   * 会话身份绑到策略门：omp 的 `tool_call` 扩展只看得到 cwd，而同一 cwd 里可以有好几条线程、
+   * 各是各的档位。绑了号之后每次裁决落到这条会话自己的门上（子代理经 `parentSession` 落回父会话）。
+   */
+  input.policyGate?.bindSession({
+    sessionId: session.sessionId,
+    ...(session.sessionFile === undefined ? {} : { sessionFile: session.sessionFile }),
+  })
   /* 策略门的「询问」直接开产品审批卡片：不经过 omp 的对话框，也不解析任何界面文案。 */
   input.policyGate?.bindApproval(async ({ tool, detail, rule, reason, risk, category }) => {
     const answer = await broker.ask({

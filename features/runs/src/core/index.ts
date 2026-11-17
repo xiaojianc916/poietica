@@ -35,6 +35,6 @@ export default defineCoreModule({
 
 export { eventsFromPage, pagesToPage } from './journal-rebuild'
 export { IDLE_TTL_MS, MAX_IDLE_SESSIONS, SessionPool, SWEEP_INTERVAL_MS } from './session-pool'
-export { SubmissionService } from './submission-service'
+export { LEASE_WAIT_POLL_MS, LEASE_WAIT_TIMEOUT_MS, SubmissionService } from './submission-service'
 export { TURN_CONTEXT_MAX, TurnContextHub } from './turn-context'
 export { pageFromJournal, TurnService } from './turn-service'
