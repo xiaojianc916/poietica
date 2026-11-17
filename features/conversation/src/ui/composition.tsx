@@ -17,7 +17,7 @@ import { DelegateChannelContext, type OpenDelegateChannel } from './timeline/vie
 
 /*
  * 组合根：把组件树要的每个 Context 接上。加号面板那张名册（技能 / MCP）**不在这里造**
- * —— 它属于 extensions，经 `conversation.composerToolkitSources` 贡献点提供，本层只管画。
+ * —— 它属于 extensions，经 `composer.toolkitSources` 贡献点提供，本层只管画。
  */
 
 export interface ConversationProvidersProps {

@@ -16,8 +16,6 @@ export function familyOf(platform: string): OsFamily {
 export const osFamily: OsFamily = familyOf(process.platform)
 export const windowsPlatform = 'win32' as const
 export const isWindows = osFamily === 'windows'
-export const isMac = osFamily === 'macos'
-export const isLinux = osFamily === 'linux'
 
 /** 给人看的平台名（工作台遥测、诊断）。 */
 export function platformLabel(platform: string = process.platform): string {

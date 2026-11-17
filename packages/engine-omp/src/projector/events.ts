@@ -45,10 +45,6 @@ export function stepStarted(turn: string, step: StepHeader, at: string): AgentEv
   return { type: 'step.started', durability: 'committed', schema: SCHEMA, at, runId: turn, turnId: turn, step }
 }
 
-export function stepRetrying(turn: string, step: StepHeader, at: string): AgentEvent {
-  return { type: 'step.retrying', durability: 'committed', schema: SCHEMA, at, runId: turn, turnId: turn, step }
-}
-
 export function stepCompleted(turn: string, step: StepHeader, at: string): AgentEvent {
   return { type: 'step.completed', durability: 'committed', schema: SCHEMA, at, runId: turn, turnId: turn, step }
 }

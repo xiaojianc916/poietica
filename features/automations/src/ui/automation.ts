@@ -138,10 +138,6 @@ export function scheduleMinuteOf(schedule: string | null): number | null {
   return commonScheduleOf(schedule)?.minute ?? null
 }
 
-export function scheduleWeekdayOf(schedule: string | null): Weekday | null {
-  return commonScheduleOf(schedule)?.weekday ?? null
-}
-
 export function scheduleWeekdaysOf(schedule: string | null): readonly Weekday[] {
   return commonScheduleOf(schedule)?.weekdays ?? []
 }

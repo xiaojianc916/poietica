@@ -23,6 +23,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { closeSync, openSync, readFileSync, readSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { gzipSync } from 'node:zlib'
 import { osFamily, sdkOsLabel } from '@poietica/platform-kit'
 import type {
@@ -187,7 +188,6 @@ function textOnly(site: Site, model: string) {
 
 const NPM = '@ai-sdk/openai-compatible'
 const hex = (): string => randomBytes(16).toString('hex')
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 const api = (site: Site): string => `${site.endpoint}/v2`
 
 /** catch 里接住的东西收窄成 Thrown：插件一路上抛的都带这几格。 */
@@ -2613,32 +2613,29 @@ async function checkinOf(site: Site, a: Auth, { waits = [0, 0] } = {}) {
     const credit = Number(status.today_credit ?? status.daily_credit)
     return { outcome: 'done', ...(Number.isFinite(credit) && credit > 0 ? { credit } : {}) }
   }
-  const paths = ['/v2/billing/meter/daily-checkin']
   for (let attempt = 0; ; attempt++) {
-    for (const path of paths) {
-      try {
-        const got = await meter(site, a, path)
-        // the claim's own answer, as the built-in hands it on: the credit
-        // and streak it granted and what it said, for the card
-        const credit = Number(got?.credit)
-        const streak = Number(got?.streak_days)
-        return {
-          outcome: 'claimed',
-          ...(Number.isFinite(credit) && credit > 0 ? { credit } : {}),
-          ...(Number.isFinite(streak) && streak > 0 ? { streak } : {}),
-          ...(got?.message ? { message: String(got.message) } : {}),
-        }
-      } catch (e) {
-        const decided = await decideClaimError(site, a, e)
-        if (decided.outcome !== null) return decided.outcome
-        const t = thrown(e)
-        const transient = (t?.status ?? 0) >= 500 || t?.code === 10000
-        if (transient && attempt < waits.length) {
-          await new Promise((r) => setTimeout(r, waits[attempt]))
-          break
-        }
-        throw e
+    try {
+      const got = await meter(site, a, '/v2/billing/meter/daily-checkin')
+      // the claim's own answer, as the built-in hands it on: the credit
+      // and streak it granted and what it said, for the card
+      const credit = Number(got?.credit)
+      const streak = Number(got?.streak_days)
+      return {
+        outcome: 'claimed',
+        ...(Number.isFinite(credit) && credit > 0 ? { credit } : {}),
+        ...(Number.isFinite(streak) && streak > 0 ? { streak } : {}),
+        ...(got?.message ? { message: String(got.message) } : {}),
       }
+    } catch (e) {
+      const decided = await decideClaimError(site, a, e)
+      if (decided.outcome !== null) return decided.outcome
+      const t = thrown(e)
+      const transient = (t?.status ?? 0) >= 500 || t?.code === 10000
+      if (transient && attempt < waits.length) {
+        await sleep(waits[attempt])
+        continue
+      }
+      throw e
     }
   }
 }
@@ -4830,7 +4827,6 @@ async function explained(res: Response) {
 }
 
 export const WorkBuddyAuthPlugin = makePlugin(SITES.workbuddy as Site)
-export const WorkBuddyAIAuthPlugin = makePlugin(SITES['workbuddy-ai'] as Site)
 
 // for tests
 export const _internal = {

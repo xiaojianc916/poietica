@@ -38,17 +38,8 @@ import {
   SquareTerminal,
 } from 'lucide-react'
 import { type ReactNode, useMemo, useState } from 'react'
-import { useWorkspaceGitFacts, type WorkspaceGitStatus } from '../../../ui-api'
-import {
-  delegateCallsOf,
-  type OpenDelegateChannel,
-  useAgentControls,
-  useAssistantBackgroundTasks,
-  useAssistantSubagents,
-  useAssistantTimeline,
-  useAssistantTodos,
-  useOptionalDelegateChannel,
-} from '../../timeline'
+import type { WorkspaceGitStatus } from '../../../ui-api'
+import type { OpenDelegateChannel } from '../../timeline'
 import './todo-panel.css'
 
 type SectionKind = 'environment' | 'goal' | 'todo' | 'agents' | 'terminals'
@@ -812,58 +803,5 @@ export function TaskPanelContent({
         />
       ) : null}
     </Accordion>
-  )
-}
-
-export function TodoPanel({
-  goal,
-  onOpenReview,
-  onPauseGoal: onPauseGoalProp,
-  onResumeGoal: onResumeGoalProp,
-  threadId,
-}: {
-  /** 这条对话此刻的目标（从 Core 的控件通道来）；缺席就不画目标那一格。 */
-  readonly goal?: SessionGoal | undefined
-  readonly onOpenReview?: (() => void) | undefined
-  /** 目标暂停 / 恢复的出口（与输入框那一排选择器同一条路）。 */
-  readonly onPauseGoal?: (() => void) | undefined
-  readonly onResumeGoal?: (() => void) | undefined
-  readonly threadId: string
-}) {
-  const todos = useAssistantTodos(threadId)
-  const backgroundTasks = useAssistantBackgroundTasks(threadId)
-  const subagents = useAssistantSubagents(threadId)
-  const timeline = useAssistantTimeline(threadId)
-  const agents = useMemo(() => agentRows(subagents, delegateCallsOf(timeline)), [subagents, timeline])
-  /* Git 那一格的事实从 Context 读，不从 props 读：它由 review 贡献的 Provider 投下来，这样这一格与右侧「审查」面板读的是同一份快照，而这个组件不必认识 review。 */
-  const git = useWorkspaceGitFacts()
-  const openAgent = useOptionalDelegateChannel() ?? undefined
-  const agentControls = useAgentControls()
-  const stopTask = useMemo(
-    () =>
-      agentControls === null
-        ? undefined
-        : (taskId: string) => {
-            /* 结果不另报：作业停下后引擎的下一次快照把它改成「已停止」；已经结束的交回 false，同样以快照为准。 */
-            void agentControls.cancelBackgroundTask(threadId, taskId).catch(() => undefined)
-          },
-    [agentControls, threadId],
-  )
-
-  return (
-    <TaskPanelContent
-      backgroundTasks={backgroundTasks}
-      endedAgents={agents.ended}
-      git={git?.status}
-      gitPicker={git?.picker}
-      goal={goal}
-      onOpenAgent={openAgent}
-      onOpenReview={onOpenReview}
-      onPauseGoal={onPauseGoalProp}
-      onResumeGoal={onResumeGoalProp}
-      onStopTask={stopTask}
-      runningAgents={agents.running}
-      todos={todos}
-    />
   )
 }

@@ -70,11 +70,11 @@ export const INTELLIGENT_UI_LIBRARIES: readonly IntelligentUiLibrary[] = [
   },
   {
     name: 'lucide',
-    version: '1.68.0',
+    version: '1.74.0',
     file: 'dist/umd/lucide.min.js',
     global: 'lucide',
     license: 'ISC',
-    asset: 'lucide-1.68.0.min.js',
+    asset: 'lucide-1.74.0.min.js',
   },
 ]
 
@@ -112,7 +112,6 @@ export const INTELLIGENT_UI_TWEAKS_STATE_MAX = 4096
 export const INTELLIGENT_UI_TWEAK_GROUPS_MAX = 8
 export const INTELLIGENT_UI_TWEAK_CONTROLS_MAX = 12
 export const INTELLIGENT_UI_TWEAK_OPTIONS_MAX = 12
-export const INTELLIGENT_UI_TWEAK_TYPES: readonly string[] = ['range', 'color', 'toggle', 'select']
 
 /** 界面里能用的 CSS 变量：UI 从设计令牌求值后交给外壳，模型写样式时只用这些名字 */
 export const INTELLIGENT_UI_TOKEN_NAMES: readonly string[] = [

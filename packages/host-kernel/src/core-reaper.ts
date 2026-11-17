@@ -1,6 +1,6 @@
 import path from 'node:path'
 import type { Logger } from '@poietica/foundation'
-import { windowsExecutable } from '@poietica/platform-kit'
+import { pathKey, windowsExecutable } from '@poietica/platform-kit'
 import { killTree, listProcesses, type ProcessInfo } from '@poietica/process-kit'
 
 /**
@@ -13,11 +13,6 @@ const OMP_WORKER_ARG_PREFIX = '__omp_worker_'
 
 /** 本应用的 Core 可执行文件名。安装版在 <安装目录>\\resources\\core 下，开发版在 apps/core/dist 下。 */
 const CORE_EXE_NAME = windowsExecutable('poietica-core')
-
-/** Windows 路径：大小写不敏感，去掉 \\\\?\\ 加长前缀 */
-function pathKey(p: string): string {
-  return p.toLowerCase().replace(/^\\\\\?\\/, '')
-}
 
 /**
  * 本应用 Core 映像名的进程（`poietica-core.exe`）：只问这一个名字。

@@ -51,5 +51,6 @@ test('apps/desktop 的 electron-updater 是字面版本，且与根 catalog 同�
   const literal = desktop.dependencies['electron-updater']
   expect(literal).not.toBe('catalog:')
   expect(literal?.startsWith('^')).toBe(true)
-  expect(literal?.slice(1)).toBe(root.workspaces.catalog['electron-updater']?.slice(1))
+  /* catalog 钉的是精确版本；这里那份为 electron-builder 带了 ^，比的是同一个版本号 */
+  expect(literal?.replace(/^\^/, '')).toBe(root.workspaces.catalog['electron-updater'])
 })

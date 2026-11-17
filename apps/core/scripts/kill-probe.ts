@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { killTree, listProcesses } from '@poietica/process-kit'
 import { jsonValue, RpcPeer } from '@poietica/rpc'
 import { createChildProcessTransport } from '@poietica/rpc/stdio'
@@ -66,7 +67,7 @@ try {
   await killTree(worker.pid)
   let recovered = false
   for (let i = 0; i < 80 && !recovered; i += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 250))
+    await sleep(250)
     try {
       const page = jsonValue(
         await peer.request('timeline.page', { threadId: thread.id, agentId: 'main', beforeTurnId: null }),

@@ -38,5 +38,3 @@ export function createIntelligentUiApi(ctx: UiFeatureContext) {
     showInFolder: (path: string): Promise<void> => platform.call('shell.showInFolder', { path }).then(() => undefined),
   }
 }
-
-export type IntelligentUiApi = ReturnType<typeof createIntelligentUiApi>

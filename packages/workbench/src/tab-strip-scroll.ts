@@ -1,4 +1,4 @@
-import { scrollEndsOf, useScrollEnds } from '@poietica/design-system'
+import { useScrollEnds } from '@poietica/design-system'
 
 /*
  * 标签条横向溢出时两端那道渐隐：被裁断的标签会读成「被右边那排按钮挡住」的坏排版，有雾才是「后面还有」。
@@ -10,22 +10,6 @@ import { scrollEndsOf, useScrollEnds } from '@poietica/design-system'
 
 /** 四态：两端都还藏着、只藏住左端、只藏住右端、全露出来了。值直接写进 data 属性。 */
 export type TabStripScroll = 'end' | 'none' | 'start' | 'start end'
-
-export interface TabStripMetrics {
-  readonly clientWidth: number
-  readonly scrollLeft: number
-  readonly scrollWidth: number
-}
-
-export function resolveTabStripScroll({ clientWidth, scrollLeft, scrollWidth }: TabStripMetrics): TabStripScroll {
-  const { start, end } = scrollEndsOf({ clientSize: clientWidth, position: scrollLeft, scrollSize: scrollWidth })
-
-  if (start) {
-    return end ? 'start end' : 'start'
-  }
-
-  return end ? 'end' : 'none'
-}
 
 export function useTabStripScroll(): {
   readonly scroll: TabStripScroll
