@@ -18,19 +18,32 @@
 .policy-grants {
   display: flex;
   flex-direction: column;
-  gap: 1px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/*
+ * 行首尾缘与设置页的行同一档（14px），文字与按钮才离卡面内缘一格距离 —— 从前的 0 两侧内距
+ * 让它们贴着卡框画。分隔线照 settings-row 的做法挪到伪元素上并两侧内缩：写在行上的
+ * border-top 每行都有，第一行顶上会紧贴卡片上框多出一条（真实故障）。
+ */
 .policy-grants__row {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 10px 0;
-  border-top: 1px solid var(--ui-divider);
+  padding: 11px 14px;
+}
+
+.policy-grants__row + .policy-grants__row::before {
+  content: '';
+  position: absolute;
+  inset-inline: var(--settings-divider-inset);
+  inset-block-start: 0;
+  block-size: 0;
+  border-block-start: 1px solid var(--settings-divider);
 }
 
 .policy-grants__copy {
