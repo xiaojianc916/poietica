@@ -78,7 +78,13 @@ L0  基础         foundation
 
 ### 4.1 Core（`poietica-core.exe`，Bun）
 
-`apps/core/src/main.ts` 按参数分派三种模式：`serve`（默认）、`omp-worker`、`browser-relay`。
+`apps/core/src/main.ts`（`poietica-core.exe`）只认 `serve`；omp 本体与它的所有 worker 都留在
+`apps/core/src/runtime-entry.ts`（`poietica-runtime.exe`）。两个入口都先过 `dispatchChildMode`
+（engine-omp 的 `bootstrap/process-mode.ts`）：argv[2] 是 omp 的 worker 选择子（`__omp_worker_*`）、
+`browser-relay` 或 `gc` 时，进程交给 omp 接管，不再往下走自己的主模式——worker 线程与 IPC 子进程
+靠 `workerHostEntry()`（编译版 = `Bun.main`）重新进入同一个 exe，漏掉这一步 eval 的隔离子进程会落进
+runtime 模式并以 `badArguments` 退出，表现为「JS eval worker exited」（`computer` 只经 eval 前奏暴露，
+跟着整块不可用）。
 `serve` 的顺序是：隔离自检 → 环境清洗 → 打开数据库 → 创建引擎 → `createCoreKernel(modules)` → `start()`。
 
 `core-kernel` 提供：模块定义（`defineCoreModule`）、按 `dependsOn` 拓扑装配、服务令牌注册表、

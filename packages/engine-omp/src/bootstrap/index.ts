@@ -1,6 +1,12 @@
 export { type IsolationResult, isolationEnv, prepareIsolation } from './isolation-env'
 export { captureLaunchEnv, type LaunchEnv } from './launch-env'
 export { runMaintenance } from './maintenance'
-export { dispatchProcessMode, type ProcessMode } from './process-mode'
+export {
+  type ChildProcessMode,
+  classifyChildMode,
+  dispatchChildMode,
+  dispatchProcessMode,
+  type ProcessMode,
+} from './process-mode'
 export { type IsolationSelfCheck, runIsolationSelfCheck } from './self-check'
 export { installStdoutGuard } from './stdout-guard'

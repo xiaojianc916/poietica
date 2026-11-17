@@ -17,6 +17,9 @@ declareWorkerHostEntry()
 
 export type ProcessMode = 'serve' | 'worker' | 'browser-relay' | typeof MAINTENANCE_MODE
 
+/** omp 接管生命周期的子进程模式（`serve` 与 runtime 自己的主模式都不在其中） */
+export type ChildProcessMode = Exclude<ProcessMode, 'serve'>
+
 /** 永不兑现：worker 与 relay 都由 omp 自己接管生命周期 */
 function never(): Promise<never> {
   return new Promise<never>(() => undefined)
@@ -32,23 +35,37 @@ function relayArgsOrExit(args: readonly string[]): readonly string[] {
 }
 
 /**
- * Core 的参数分派。argv[2] 是模式：bun 编译版的 argv[1] 是内嵌入口。
- * 本文件只允许静态 import @oh-my-pi/pi-utils/worker-host（它不触发目录解析与 .env 加载），
- * 其它 omp 模块一律在分支里动态 import。
+ * 纯判据：argv 里的选择子是不是 omp 的子进程模式。编译版与开发版的 argv 布局一致
+ * （`[bun, <内嵌入口 | 入口模块>, <选择子>]`），所以调用方一律取 argv[2]。
  */
-export async function dispatchProcessMode(argv: readonly string[] = process.argv): Promise<'serve' | never> {
+export function classifyChildMode(selector: string | undefined): ChildProcessMode | null {
+  if (isWorkerHostSelector(selector)) return 'worker'
+  if (selector === 'browser-relay') return 'browser-relay'
+  if (selector === MAINTENANCE_MODE) return MAINTENANCE_MODE
+  return null
+}
+
+/**
+ * 把子进程模式交回 omp（worker 线程 / IPC 子进程 / browser-relay / 维护子进程）；不是子进程模式时
+ * 返回 null，由调用方接着走自己的主模式。
+ *
+ * **runtime-entry 也必须调用它**（拆分出 poietica-runtime.exe 后漏了这一步）：omp 的所有 worker 都靠
+ * workerHostEntry() 重新进入同一个 exe，也就是本模块顶层记下的 Bun.main。少了这一步，eval 的隔离子进程
+ * 会落进 runtime 模式、在「缺少 --data-root」处 exit(2)，surface 成「JS eval worker exited」；
+ * computer 只经 eval 前奏暴露，跟着整块不可用。
+ */
+export async function dispatchChildMode(argv: readonly string[] = process.argv): Promise<null> {
   const selector = argv[2]
-  if (selector === undefined) {
-    process.stderr.write('未知模式：缺少参数\n')
-    process.exit(2)
-  }
-  if (isWorkerHostSelector(selector)) {
+  if (selector === undefined) return null
+  const mode = classifyChildMode(selector)
+  if (mode === null) return null
+  if (mode === 'worker') {
     if (parentPort !== null) holdEarlyMessages(parentPort as unknown as EarlyMessagePort)
     const cli = await import('@oh-my-pi/pi-coding-agent/cli')
     if (!ompCliSelfDispatches()) void cli.runCli([selector])
     return never()
   }
-  if (selector === 'browser-relay') {
+  if (mode === 'browser-relay') {
     // omp 知识 #2：browser-relay 子命令走 runCli(argv)；编译版里 cli 已经自己派发过（omp 知识 #1）。
     // 编译版的 cli 在 import 那一下就按 process.argv 自派发，所以 `/ext` 口令必须在 import 之前写回 process.argv；
     // 开发版由我们把同一份参数交给 runCli。
@@ -58,10 +75,22 @@ export async function dispatchProcessMode(argv: readonly string[] = process.argv
     if (!ompCliSelfDispatches()) void cli.runCli([...relayArgs])
     return never()
   }
-  if (selector === MAINTENANCE_MODE) {
-    // 维护子进程（maintenance.ts）：跑完即退，退出码交给拉起它的 Core
-    process.exit(await runMaintenance(argv.slice(3)))
+  // 维护子进程（maintenance.ts）：跑完即退，退出码交给拉起它的进程
+  process.exit(await runMaintenance(argv.slice(3)))
+}
+
+/**
+ * serve 入口（Core 的 main.ts）的参数分派：先交回子进程模式，再认 `serve`，其余都是启动参数写错了。
+ * 本文件只允许静态 import @oh-my-pi/pi-utils/worker-host（它不触发目录解析与 .env 加载），
+ * 其它 omp 模块一律在分支里动态 import。
+ */
+export async function dispatchProcessMode(argv: readonly string[] = process.argv): Promise<'serve' | never> {
+  const selector = argv[2]
+  if (selector === undefined) {
+    process.stderr.write('未知模式：缺少参数\n')
+    process.exit(2)
   }
+  await dispatchChildMode(argv)
   if (selector === 'serve') return 'serve'
   process.stderr.write(`未知模式：${selector}\n`)
   process.exit(2)

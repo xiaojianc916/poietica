@@ -69,6 +69,25 @@
 
 ## 偏差与裁决
 
+### runtime 入口漏了 omp 的 worker 分派（2026-11-17）
+
+拆分出 `poietica-runtime.exe`（41a919ca）时，`dispatchProcessMode` 留在 `apps/core/src/main.ts` 里跟 `serve` 一起，
+而新入口 `runtime-entry.ts` 只认 `gc` 与 runtime 主模式。omp 里所有 worker 线程与 IPC 子进程都靠
+`workerHostEntry()`（编译版 = `Bun.main`）重新进入这个 exe，argv[2] 是选择子——于是 eval 的隔离子进程一开就被
+`runtime-main` 的「缺少 --data-root」判成退出码 2，surface 成 `Failed to initialize isolated JS eval worker:
+JS eval worker exited`；回落的 Bun Worker 走同一条入口，一样死，所以 JS / Python 两条语言通道全灭。
+`computer` 不是顶层工具、只经 eval prelude 注入（`packages/omp-types/src/tools.ts`），因此跟着整块不可用。
+
+- **偏差**：把分派拆成两半——纯判据 `classifyChildMode` + `dispatchChildMode`（交回 omp，主入口接着走自己的模式），
+  `dispatchProcessMode` 保留给 serve 入口，先调 `dispatchChildMode` 再认 `serve`。这样两个入口共用一条判据，
+  不会一处改了另一处忘。
+- **顺序**：`runtime-entry` 里 `captureLaunchEnv()` → `dispatchChildMode()` → 动态 `import('./runtime-main')`。
+  快照必须在 worker 之前（worker 要拿到同一份清洗后的环境），分派必须在 runtime 主模式之前且早于第一个 await 之外的副作用。
+- **钉住**：`bootstrap/__tests__/child-mode-routing.test.ts`（判据真值表）、`apps/core/src/__tests__/runtime-entry.test.ts`
+  （源码顺序：先 dispatch 再 import runtime-main、快照先于 dispatch）。
+- **证据**：探针版 exe 上以 advanced IPC 发 `init`，95ms 收到 `ready`；ARP 走完 hello → freezeTools → 开会话 → 读空页 →
+  关会话；`gc` 维护子进程退出码 0。
+
 ### 流式热路径只碰被覆盖的格子（2026-11-15）
 
 「聊得越久每一批越贵」的根因不在 React，在 fold 之后那一步：`materialize` 把覆盖层压到已提交层时逐一走遍**全部**条目 / 段 / 帧，只为把没被覆盖的交回原引用。结果等价，代价是 O(全部帧)，且每条流式增量都付一遍（600 轮、约 4800 帧的对话上每批 0.19–0.24ms，其中一半花在这趟全表；300 批合计 90–110ms，全部落在渲染进程主线程上）。
