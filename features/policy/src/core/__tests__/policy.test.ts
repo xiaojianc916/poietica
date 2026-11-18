@@ -32,6 +32,23 @@ describe('policy', () => {
       action: 'deny',
       rule: 'command.system_destructive',
     })
+    expect(evaluatePolicy('full-access', 'bash', { command: 'echo y | format C: /fs:NTFS' })).toMatchObject({
+      action: 'deny',
+      rule: 'command.system_destructive',
+    })
+    expect(evaluatePolicy('full-access', 'bash', { command: 'cmd /c diskpart' })).toMatchObject({
+      action: 'deny',
+      rule: 'command.system_destructive',
+    })
+    /* `format` 作为参数或 cmdlet 名不是格式化磁盘：不得升级成 deny（否则只读诊断命令直接被拒）。 */
+    for (const command of [
+      'powershell -NoProfile -Command "Get-Process | Where-Object {$_.MainWindowTitle -match \'DeepSeek\'} | Format-Table Id, Path"',
+      "docker inspect --format '{{.Id}}' app",
+      'git log --format=%h -5',
+    ]) {
+      const decision = evaluatePolicy('auto-edit', 'bash', { command })
+      expect(decision).not.toMatchObject({ action: 'deny', rule: 'command.system_destructive' })
+    }
   })
 
   test('产品工具按 spec.approval 分类裁决，不再按名字查表', () => {

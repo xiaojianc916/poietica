@@ -58,16 +58,20 @@ async function ompBuildPlugins(): Promise<{ plugins: unknown[]; docs: string }> 
 }
 
 /**
- * omp 的文档索引生成器读 `<包>/../../docs` —— 那是它 monorepo 的布局，npm 安装形态下不存在，
- * 必然 ENOENT。这不是故障：空 `PI_DOCS_EMBED` 会让 omp 回退到随包的 `dist/docs-index.generated.txt`，
- * `omp://` 文档照样读得到。所以这里静默退化为空串，不留日志（每次构建都刷一条注定失败的警告，
- * 只会训练人忽略构建输出）。
+ * omp 的文档索引生成器读 `<包>/../../docs` —— 那是它 monorepo 的布局，npm 安装形态下不存在，必然 ENOENT。
+ * 此时不能退化成空 `PI_DOCS_EMBED`：编译后的 exe 里 `import.meta.dir` 指向虚拟快照根，omp 回退读
+ * `dist/docs-index.generated.txt` 必然找不到，`omp://` 就成了「No documentation files found」。
+ * npm 包恰好带着这份生成好的索引，直接把它作为 embed 注入即可。
  */
 async function docsPayload(mod: { buildDocsIndexPayload: () => Promise<{ payload: string }> }): Promise<string> {
   try {
     return (await mod.buildDocsIndexPayload()).payload
   } catch {
-    return ''
+    try {
+      return readFileSync(path.join(ompRoot, 'dist/docs-index.generated.txt'), 'utf8')
+    } catch {
+      return ''
+    }
   }
 }
 

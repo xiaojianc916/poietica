@@ -54,7 +54,14 @@ const CATEGORIES = new Map<string, ToolClassification>([
 ])
 
 const DANGEROUS: readonly { readonly pattern: RegExp; readonly action: PolicyAction; readonly rule: string }[] = [
-  { pattern: /\b(format|diskpart|bcdedit)\b/i, action: 'deny', rule: 'command.system_destructive' },
+  {
+    /* 只有处在命令段首的 `format` 才是格式化磁盘：PowerShell 的 `Format-Table`、`docker --format`、
+       `git log --format=%h` 都是普通参数，按词边界匹配会把它们当成系统级破坏直接拒绝。 */
+    pattern:
+      /(?:^|[;&|\n]\s*)\s*(?:cmd(?:\.exe)?\s+\/c\s+|powershell(?:\.exe)?\s+-command\s+|pwsh\s+-command\s+)?["']?(?:format(?:\.com)?|diskpart|bcdedit)(?=\s|$)/im,
+    action: 'deny',
+    rule: 'command.system_destructive',
+  },
   { pattern: /\brm\s+-[a-z]*r[a-z]*f|\brmdir\s+\/s|\bdel\s+\/[fsq]/i, action: 'ask', rule: 'command.recursive_delete' },
   { pattern: /\bgit\s+push\s+.*--force|\bgit\s+reset\s+--hard\b/i, action: 'ask', rule: 'command.git_destructive' },
   { pattern: /\breg\s+delete\b|\bshutdown\b|\breboot\b/i, action: 'deny', rule: 'command.system_mutation' },
