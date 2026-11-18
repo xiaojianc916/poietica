@@ -172,6 +172,12 @@ function runFlavorOf(item: FeedRow['item'], inline: InlineTools): RunFlavor | un
     return undefined
   }
 
+  /* 派发不并组：一次调用已经摊成「一个子代理一行」，再套一层组头（「调度子代理 2 次」）
+   * 就是把子代理藏进第二层折叠 —— 与 ZCode 的 Agent 摘要行也不是同一种东西。 */
+  if (item.kind === 'delegate') {
+    return undefined
+  }
+
   return toolFamilyOf(item).key
 }
 

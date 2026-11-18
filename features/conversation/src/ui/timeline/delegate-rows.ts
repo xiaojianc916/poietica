@@ -61,6 +61,19 @@ export interface DelegateRow {
  */
 export function delegateRowsOf(item: ToolCallTimelineItem, subagents: readonly SubagentItem[]): readonly DelegateRow[] {
   const input = item.rawInput as OmpTaskToolInput | undefined
+  /* 引擎还没报出通道的那一瞬（或者老会话根本没这个字段）：整次调用算一行，画法与有通道时同一种，
+   * 只是没有可以点开的地址 —— 屏幕上是「脸 + 类型名 + 那句话」，不再是另一套字形。 */
+  if (item.channels.length === 0) {
+    const said = describedIn(input, 0) ?? textOf(item.headline) ?? item.title
+    return [
+      {
+        agentId: '',
+        type: sayAgentType(typeNameIn(input, 0) ?? 'task'),
+        description: said,
+        status: undefined,
+      },
+    ]
+  }
   return item.channels.map((channel, index) => {
     const listed = subagents.find((one) => one.agentId === channel.agentId)
     return {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test'
-import type { SubagentItem, ToolCallTimelineItem } from '@poietica/conversation-kit/timeline'
+import type { SubagentItem, TimelineState, ToolCallTimelineItem } from '@poietica/conversation-kit/timeline'
 import { agentTypeOf, delegateRowsOf, faceStatusOf, sayAgentType } from '../delegate-rows'
+import { selectPresentation } from '../presentation'
 
 /*
  * 派发行的三个读数（照 ZCode 的 Agent 摘要行）：类型名的印法、描述取谁、状态怎么折成表情档。
@@ -126,5 +127,41 @@ describe('同一个子代理只有一个颜色', () => {
       'Anna',
     )
     expect(after).toBe(before)
+  })
+})
+describe('派发不并组、无通道也同形', () => {
+  it('还没报出通道的派发照样是一行「脸 + 类型名 + 那句话」，不再是另一套字形', () => {
+    const rows = delegateRowsOf(delegate({ agent: 'scout', description: 'Resuming main shell agent' }, []), [])
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.type).toBe('Scout')
+    expect(rows[0]?.description).toBe('Resuming main shell agent')
+    // 没有地址：这一行不是入口。
+    expect(rows[0]?.agentId).toBe('')
+  })
+
+  it('派发调用不并进组头：两条相邻的派发各自成一行，没有「调度子代理 N 次」', () => {
+    /* 还没收口的一轮：过程不折，两条派发原样摆在屏幕上（折起来的判据另行有测试）。 */
+    const state: TimelineState = {
+      status: 'running',
+      todos: [],
+      backgroundTasks: [],
+      subagents: [],
+      sealed: [],
+      active: {
+        turn: 1,
+        items: [delegate({}, ['Anna']), { ...delegate({}, ['Bob']), id: 'frame-2', toolCallId: 'call-2' }],
+      },
+      spans: [],
+    }
+
+    const feed = selectPresentation(state, new Map())
+    const ids: string[] = []
+    for (let index = 0; index < feed.count; index += 1) {
+      const row = feed.rowAt(index)
+      if (row !== undefined) ids.push(row.item.id)
+      // 没有组头：组头会印出「调度子代理 2 次」并把这些行藏进第二层折叠。
+      expect(feed.groupAt(index)).toBeUndefined()
+    }
+    expect(ids).toHaveLength(2)
   })
 })

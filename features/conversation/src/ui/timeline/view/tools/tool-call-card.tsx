@@ -40,7 +40,7 @@ import { cn, GithubMark } from '@poietica/design-system'
 import { type DiffStat, diffStatOf } from '@poietica/design-system/diff'
 import type { ComponentType } from 'react'
 import { isDelegation } from '../../delegate-channel'
-import { delegateRowsOf } from '../../delegate-rows'
+import { type DelegateRow, delegateRowsOf } from '../../delegate-rows'
 import { useAssistantSubagents } from '../../model/use-assistant-session'
 import { useDelegateChannel } from '../delegate-channel-context'
 import { ToolCallPanels } from './tool-call-panels'
@@ -147,38 +147,56 @@ function ToolCallHeader({
  *
  * 取色与名字两条都从 delegate-rows 的纯函数来；脸本身是 conversation-kit 的原语（与坞标签同一张）。
  */
+function DelegateLine({ row, onOpen }: { readonly row: DelegateRow; readonly onOpen?: (() => void) | undefined }) {
+  const body = (
+    <>
+      <AgentFace
+        className="timeline-delegate__face"
+        name={row.type}
+        showCompletionMark={row.status === 'done'}
+        status={row.status}
+      />
+
+      <span className="timeline-delegate__type" style={{ color: agentColor(undefined, row.type) }}>
+        {row.type}
+      </span>
+
+      <span className="timeline-delegate__said">{row.description}</span>
+    </>
+  )
+
+  /* 引擎还没报出地址的那一行（刚派出去、或老会话没这个字段）：画法一样，只是它不是入口，
+   * 所以既不是按钮、也没有悬停反馈 —— 不给一个点了没反应的东西。 */
+  if (onOpen === undefined) {
+    return <div className="timeline-row timeline-delegate">{body}</div>
+  }
+
+  return (
+    <button className="timeline-row timeline-delegate" onClick={onOpen} title={row.description} type="button">
+      {body}
+    </button>
+  )
+}
+
 function DelegateRows({ item, threadId }: { readonly item: ToolCallTimelineItem; readonly threadId: string }) {
   const openChannel = useDelegateChannel()
   const subagents = useAssistantSubagents(threadId)
   const rows = delegateRowsOf(item, subagents)
-  // 刚派出去、引擎还没报通道时不再退化成一条「派发子代理」的空行：那一瞬间本来就没有可以点开的东西。
-  if (rows.length === 0) return null
 
   return (
     <section className="timeline-delegates">
       {rows.map((row) => (
-        <button
-          className="timeline-row timeline-delegate"
-          key={row.agentId}
-          onClick={() => {
-            openChannel(row.agentId, row.description)
-          }}
-          title={row.description}
-          type="button"
-        >
-          <AgentFace
-            className="timeline-delegate__face"
-            name={row.type}
-            showCompletionMark={row.status === 'done'}
-            status={row.status}
-          />
-
-          <span className="timeline-delegate__type" style={{ color: agentColor(undefined, row.type) }}>
-            {row.type}
-          </span>
-
-          <span className="timeline-delegate__said">{row.description}</span>
-        </button>
+        <DelegateLine
+          key={row.agentId === '' ? item.toolCallId : row.agentId}
+          row={row}
+          onOpen={
+            row.agentId === ''
+              ? undefined
+              : () => {
+                  openChannel(row.agentId, row.description)
+                }
+          }
+        />
       ))}
     </section>
   )
