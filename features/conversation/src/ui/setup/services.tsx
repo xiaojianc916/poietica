@@ -8,7 +8,7 @@ import { useEffect, useMemo } from 'react'
 import { ConversationUiToken } from '../../ui-api'
 import { ConversationProviders } from '../composition'
 import { confirmQuit, hiddenModelsOf, sessionConfigControlsOf, withoutHiddenModels } from '../session'
-import { createSubagentDockTabs, SUBAGENT_PANEL_ID, SubagentDockPanel, subagentTitleOf } from '../timeline'
+import { agentTypeOf, createSubagentDockTabs, SUBAGENT_PANEL_ID, SubagentDockPanel, subagentTitleOf } from '../timeline'
 import type { ConversationActions } from './actions'
 import type { ConversationSetup } from './context'
 
@@ -93,6 +93,8 @@ export function createConversationServices(setup: ConversationSetup, actions: Co
       layout,
       store: subagentTabs,
       resolveTitle: (threadId, agentId) => subagentTitleOf(transcripts.read(threadId).timeline, agentId),
+      /* 机身色与时间线那一行同一个 key：类型名，不随标题变。 */
+      resolveType: (threadId, agentId) => agentTypeOf(transcripts.read(threadId).timeline, agentId),
     }),
     component: () => (
       <ConversationProviders agentControls={api} composer={stores.composer} transcripts={transcripts}>

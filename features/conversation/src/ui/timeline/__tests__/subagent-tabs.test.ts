@@ -105,7 +105,12 @@ describe('右坞的子代理组', () => {
   test('打开即打开这条对话的坞并选中子代理组；标签只报坞归属那条对话的', () => {
     const layout = fakeLayout()
     const store = new SubagentTabsStore()
-    const tabs = createSubagentDockTabs({ layout, store, resolveTitle: (_thread, agentId) => `名字 ${agentId}` })
+    const tabs = createSubagentDockTabs({
+      layout,
+      store,
+      resolveTitle: (_thread, agentId) => `名字 ${agentId}`,
+      resolveType: () => 'Scout',
+    })
     layout.setActiveOwner('t1')
     openSubagentTab(layout, store, 't1', 'a', '查资料')
     store.open('t2', 'z')
@@ -121,10 +126,36 @@ describe('右坞的子代理组', () => {
     ])
   })
 
+  test('标签的机身色只认类型名：换一句标题，颜色不跟着换', () => {
+    const layout = fakeLayout()
+    const store = new SubagentTabsStore()
+    const tabs = createSubagentDockTabs({
+      layout,
+      resolveTitle: () => '查 om2 是什么',
+      resolveType: () => 'Scout',
+      store,
+    })
+    layout.openPane('t1', 'conversation.auxiliary')
+    layout.setActiveOwner('t1')
+    store.open('t1', 'a', '查 om2 是什么')
+    store.open('t1', 'b', '查另一个东西')
+
+    // 两个标题散列出来的颜色不同，但它们是同一个类型：标签的颜色因此必须一致。
+    const icons = tabs.tabs().map((tab) => tab.icon)
+    expect(icons).toHaveLength(2)
+    const shades = icons.map((icon) => (icon as { props: { color: string } }).props.color)
+    expect(new Set(shades).size).toBe(1)
+  })
+
   test('最后一个标签关掉时把坞的选中挪回别的格', () => {
     const layout = fakeLayout()
     const store = new SubagentTabsStore()
-    const tabs = createSubagentDockTabs({ layout, store, resolveTitle: (_thread, agentId) => agentId })
+    const tabs = createSubagentDockTabs({
+      layout,
+      store,
+      resolveType: () => 'Scout',
+      resolveTitle: (_thread, agentId) => agentId,
+    })
     layout.setActiveOwner('t1')
     layout.openPane('t1', 'conversation.auxiliary')
     openSubagentTab(layout, store, 't1', 'a')
@@ -137,7 +168,12 @@ describe('右坞的子代理组', () => {
   test('订阅：标签变化与坞换归属才通知，拖宽不通知', () => {
     const layout = fakeLayout()
     const store = new SubagentTabsStore()
-    const tabs = createSubagentDockTabs({ layout, store, resolveTitle: (_thread, agentId) => agentId })
+    const tabs = createSubagentDockTabs({
+      layout,
+      store,
+      resolveType: () => 'Scout',
+      resolveTitle: (_thread, agentId) => agentId,
+    })
     let calls = 0
     const off = tabs.subscribe(() => {
       calls += 1

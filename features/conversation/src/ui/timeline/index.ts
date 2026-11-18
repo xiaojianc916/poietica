@@ -2,6 +2,7 @@
  * timeline 区：转录副本、视图模型与虚拟列表。区与区之间只能经本文件互相引用。
  */
 
+export { agentTypeOf, delegateRowsOf, faceStatusOf } from './delegate-rows'
 export type { TranscriptSink } from './model/transcript-sink'
 export { type PreparedThread, TranscriptStore } from './model/transcript-store'
 export {

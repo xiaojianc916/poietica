@@ -32,11 +32,14 @@ export function openSubagentTab(
 export function createSubagentDockTabs({
   layout,
   resolveTitle,
+  resolveType,
   store,
 }: {
   readonly layout: LayoutService
   /** 打开时没给名字的子代理（工具卡上的通道）在这里回查：子代理表的描述 → 派发调用上的通道名 → agentId。 */
   readonly resolveTitle: (threadId: string, agentId: string) => string
+  /** 同一个子代理的类型名：标签的机身色只认它，标题换一句颜色不跟着换。 */
+  readonly resolveType: (threadId: string, agentId: string) => string
   readonly store: SubagentTabsStore
 }): DockTabs {
   const owner = (): string | null => layout.current().auxiliary.owner
@@ -66,7 +69,8 @@ export function createSubagentDockTabs({
       return set.ids.map((agentId) => ({
         id: agentId,
         title: store.titleOf(threadId, agentId) ?? resolveTitle(threadId, agentId),
-        icon: <DelegateChannelIcon />,
+        /* 标签上的记号就是时间线那一行的那张脸，机身色也同一个 key（类型名）。 */
+        icon: <DelegateChannelIcon type={resolveType(threadId, agentId)} />,
         active: agentId === set.activeId,
       }))
     },

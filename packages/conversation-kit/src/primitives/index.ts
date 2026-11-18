@@ -1,3 +1,5 @@
+export * from './agent-face'
+export * from './agent-face-motion'
 export * from './clock'
 export * from './disclosure'
 export * from './external-store'

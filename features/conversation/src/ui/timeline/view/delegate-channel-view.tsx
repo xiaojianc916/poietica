@@ -1,7 +1,7 @@
 import '@poietica/conversation-kit/styles/surface.css'
 import './delegate-channel-view.css'
 
-import { SwarmIcon } from '@poietica/conversation-kit/primitives'
+import { AgentFace, agentColor } from '@poietica/conversation-kit/primitives'
 import type { BackgroundTaskStatus, TimelineState } from '@poietica/conversation-kit/timeline'
 import { AuxiliaryComposerBar } from '@poietica/feature-composer/surface'
 import { isAppError } from '@poietica/foundation'
@@ -9,6 +9,7 @@ import { Square } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { describeFailure } from '../../failure'
 import { channelNameOf, delegateKey, delegationOf } from '../delegate-channel'
+import { agentTypeOf, faceStatusOf } from '../delegate-rows'
 import { useTranscripts } from '../model/transcripts-context'
 import { useAssistantSubagents, useAssistantTimeline } from '../model/use-assistant-session'
 import { useAgentControls } from './agent-controls-context'
@@ -28,9 +29,21 @@ interface DelegateChannelProps {
   readonly agentId: string
 }
 
-/** 行本身归标签条画：通道与宿主标签是同一种行。 */
-export function DelegateChannelIcon() {
-  return <SwarmIcon aria-hidden="true" className="size-3.5 shrink-0 opacity-60" />
+/**
+ * 行本身归标签条画：通道与宿主标签是同一种行。记号是那张瓦片脸 —— 与时间线的派发行同一张。
+ * 机身色只认**类型名**（agentTypeOf），不认标题：标题是那一句话，同一个子代理的标题与类型名
+ * 不是一个串，拿它去散列会散出第二种颜色（旧版就这样，同一个 Scout 在行里是橙、在标签上是紫）。
+ */
+export function DelegateChannelIcon({ type }: { readonly type?: string }) {
+  return (
+    <AgentFace
+      className="delegate-channel__face"
+      color={type === undefined ? 'var(--cp-ink-subtle)' : agentColor(undefined, type)}
+      idle
+      name={type ?? ''}
+      status={undefined}
+    />
+  )
 }
 
 const STATUS_LABEL: Record<BackgroundTaskStatus, string> = {
@@ -185,7 +198,12 @@ export function DelegateChannelPane({ agentId, conversationId }: DelegateChannel
       data-phase="live"
     >
       <header className="delegate-channel__header">
-        <SwarmIcon aria-hidden="true" className="delegate-channel__icon" />
+        <AgentFace
+          className="delegate-channel__face"
+          showCompletionMark={status === 'completed'}
+          status={faceStatusOf(status ?? undefined)}
+          name={agentTypeOf(timeline, agentId)}
+        />
         <span className="delegate-channel__title" title={title}>
           {title}
         </span>

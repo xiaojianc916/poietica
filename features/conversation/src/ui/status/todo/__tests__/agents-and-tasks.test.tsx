@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { agentColor } from '@poietica/conversation-kit/primitives'
 import type { ToolCallTimelineItem } from '@poietica/conversation-kit/timeline'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { agentRows, TaskPanelContent } from '../todo-panel'
@@ -68,6 +69,21 @@ describe('面板渲染', () => {
     expect(markup).toContain('data-agent-id="0-A"')
     expect(markup).toContain('data-agent-action="toggle-ended"')
     expect(markup).toContain('aria-expanded="false"')
+  })
+
+  test('子代理行的记号是瓦片脸，颜色按类型名取（与时间线那一行同一个 key）', () => {
+    const markup = renderToStaticMarkup(
+      <TaskPanelContent
+        backgroundTasks={[]}
+        onOpenAgent={() => undefined}
+        runningAgents={[{ key: 'a', title: '查资料', startedAt: 1, agentId: '0-A', type: 'Scout' }]}
+        todos={[]}
+      />,
+    )
+
+    expect(markup).toContain('data-subagent-avatar')
+    // 同一个类型名散列出来的颜色，与时间线那一行是同一个（agentColor 是唯一产地）。
+    expect(markup).toContain(agentColor(undefined, 'Scout'))
   })
 
   test('没有出口时子代理行只是一行字', () => {

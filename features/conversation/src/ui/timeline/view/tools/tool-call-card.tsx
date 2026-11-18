@@ -5,6 +5,8 @@ import './tool-group.css'
 
 import type { ToolGlyph } from '@poietica/conversation-kit/model'
 import {
+  AgentFace,
+  agentColor,
   BrainIcon,
   BugIcon,
   ChevronDownIcon,
@@ -33,11 +35,13 @@ import {
 } from '@poietica/conversation-kit/primitives'
 import { toDiffFilesOf } from '@poietica/conversation-kit/semantics'
 import type { ToolCallTimelineItem } from '@poietica/conversation-kit/timeline'
-import { clampToLine, readToolLine, sayToolCount, toolGlyphOf } from '@poietica/conversation-kit/tools'
+import { readToolLine, toolGlyphOf } from '@poietica/conversation-kit/tools'
 import { cn, GithubMark } from '@poietica/design-system'
 import { type DiffStat, diffStatOf } from '@poietica/design-system/diff'
 import type { ComponentType } from 'react'
 import { isDelegation } from '../../delegate-channel'
+import { delegateRowsOf } from '../../delegate-rows'
+import { useAssistantSubagents } from '../../model/use-assistant-session'
 import { useDelegateChannel } from '../delegate-channel-context'
 import { ToolCallPanels } from './tool-call-panels'
 
@@ -109,13 +113,11 @@ export function ToolCallDiffStat({ diffStat }: { readonly diffStat: DiffStat | n
 }
 
 function ToolCallHeader({
-  isChannel,
   isOpen,
   item,
   onToggle,
   view,
 }: {
-  readonly isChannel: boolean
   readonly isOpen: boolean
   readonly item: ToolCallTimelineItem
   readonly onToggle: () => void
@@ -124,7 +126,7 @@ function ToolCallHeader({
   const { diffStat, isRunning, line } = view
 
   return (
-    <button aria-expanded={isChannel ? undefined : isOpen} className="timeline-row" onClick={onToggle} type="button">
+    <button aria-expanded={isOpen} className="timeline-row" onClick={onToggle} type="button">
       <ToolGlyphIcon name={item.invokedTool} scheme={item.scheme} />
 
       <span className={cn('timeline-row__label', isRunning && 'timeline-shimmer')}>{line}</span>
@@ -133,8 +135,52 @@ function ToolCallHeader({
 
       <ToolCallDiffStat diffStat={diffStat} />
 
-      {isChannel ? null : <ChevronDownIcon aria-hidden="true" className="timeline-row__chevron disclosure__chevron" />}
+      <ChevronDownIcon aria-hidden="true" className="timeline-row__chevron disclosure__chevron" />
     </button>
+  )
+}
+
+/**
+ * 派发行的画法：一个子代理一行，照 ZCode 的 Agent 摘要行（renderers/agent.tsx + ToolSummaryRow）——
+ * 脸是身份，类型名取身份色，后面跟着那次派发的描述（次级墨），整行可点、点开右坞那条通道。
+ * 没有工具名、没有状态词、也不再有「N 个子代理」那一层：运行与完成由脸的动效与勾角标说。
+ *
+ * 取色与名字两条都从 delegate-rows 的纯函数来；脸本身是 conversation-kit 的原语（与坞标签同一张）。
+ */
+function DelegateRows({ item, threadId }: { readonly item: ToolCallTimelineItem; readonly threadId: string }) {
+  const openChannel = useDelegateChannel()
+  const subagents = useAssistantSubagents(threadId)
+  const rows = delegateRowsOf(item, subagents)
+  // 刚派出去、引擎还没报通道时不再退化成一条「派发子代理」的空行：那一瞬间本来就没有可以点开的东西。
+  if (rows.length === 0) return null
+
+  return (
+    <section className="timeline-delegates">
+      {rows.map((row) => (
+        <button
+          className="timeline-row timeline-delegate"
+          key={row.agentId}
+          onClick={() => {
+            openChannel(row.agentId, row.description)
+          }}
+          title={row.description}
+          type="button"
+        >
+          <AgentFace
+            className="timeline-delegate__face"
+            name={row.type}
+            showCompletionMark={row.status === 'done'}
+            status={row.status}
+          />
+
+          <span className="timeline-delegate__type" style={{ color: agentColor(undefined, row.type) }}>
+            {row.type}
+          </span>
+
+          <span className="timeline-delegate__said">{row.description}</span>
+        </button>
+      ))}
+    </section>
   )
 }
 
@@ -145,74 +191,26 @@ export function ToolCallCard({
   isOpen,
   item,
   onToggle,
+  threadId,
 }: {
   readonly isInFlight: boolean
   readonly isOpen: boolean
   readonly item: ToolCallTimelineItem
   readonly onToggle: () => void
+  /** 这一行属于哪条线程：子代理的生命周期（描述与状态）按它那条时间线读。 */
+  readonly threadId: string
 }) {
   const view = describeToolCall(item, isInFlight)
-  const openChannel = useDelegateChannel()
 
-  // 派发的账目在它自己的通道里，这一行只是入口。
+  // 派发的账目在它自己的通道里，这一行只是入口。一个子代理一行，照 ZCode 的 Agent 摘要行
+  // （脸 + 身份色的类型名 + 那句描述）；运行与完成由脸和角标说，行里不再有工具名与状态词。
   if (isDelegation(item)) {
-    const [only] = item.channels
-
-    if (only !== undefined && item.channels.length === 1) {
-      return (
-        <section className="timeline-tool">
-          <ToolCallHeader
-            isChannel
-            isOpen={false}
-            item={item}
-            onToggle={() => {
-              openChannel(only.agentId)
-            }}
-            view={view}
-          />
-        </section>
-      )
-    }
-
-    return (
-      <section className="timeline-group">
-        <button aria-expanded={isOpen} className="timeline-row" onClick={onToggle} type="button">
-          <ToolGlyphIcon name={item.invokedTool} scheme={item.scheme} />
-
-          <span className={cn('timeline-row__label', view.isRunning && 'timeline-shimmer')}>
-            {sayToolCount(item.kind, item.channels.length)}
-          </span>
-
-          <ChevronDownIcon aria-hidden="true" className="timeline-row__chevron disclosure__chevron" />
-        </button>
-
-        <DisclosureBody isOpen={isOpen}>
-          <div className="timeline-group__members">
-            {item.channels.map((channel) => (
-              <div className="timeline-group__member" key={channel.agentId}>
-                <button
-                  className="timeline-row"
-                  onClick={() => {
-                    openChannel(channel.agentId)
-                  }}
-                  title={channel.name}
-                  type="button"
-                >
-                  <ToolGlyphIcon name={item.invokedTool} scheme={item.scheme} />
-
-                  <span className="timeline-row__label">{clampToLine(channel.name) ?? channel.name}</span>
-                </button>
-              </div>
-            ))}
-          </div>
-        </DisclosureBody>
-      </section>
-    )
+    return <DelegateRows item={item} threadId={threadId} />
   }
 
   return (
     <section className="timeline-tool">
-      <ToolCallHeader isChannel={false} isOpen={isOpen} item={item} onToggle={onToggle} view={view} />
+      <ToolCallHeader isOpen={isOpen} item={item} onToggle={onToggle} view={view} />
 
       <DisclosureBody isOpen={isOpen}>
         <ToolCallPanels isRunning={view.isRunning} item={item} />

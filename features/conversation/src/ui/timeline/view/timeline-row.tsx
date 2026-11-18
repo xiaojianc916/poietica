@@ -82,6 +82,7 @@ function ToolCallRow({
       onToggle={() => {
         onToggle(item.id)
       }}
+      threadId={threadId}
     />
   )
 }

@@ -189,3 +189,43 @@
   line-height: var(--ui-line-height-normal);
   white-space: pre;
 }
+/*
+ * 派发行（照 ZCode 的 Agent 摘要行，zai-org/ZCode @ fec9759 的 renderers/agent.tsx + ToolSummaryRow）：
+ * 16px 的瓦片脸 + 身份色的类型名 + 那次派发的描述。行几何本身归 .timeline-row，这里只补三格与身份色的量。
+ */
+
+.timeline-delegates {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
+  gap: var(--cp-feed-glyph-row-gap);
+}
+
+/* 这一格是 flex 子项，自己钉死 16 见方：脸的原语只保证最小 20×20，行里要的是一格字形的大小。 */
+.timeline-delegate__face {
+  inline-size: var(--cp-icon);
+  block-size: var(--cp-icon);
+  min-inline-size: var(--cp-icon);
+  min-block-size: var(--cp-icon);
+}
+
+/* 类型名与描述都是单行截断：这一行说的是「谁在做什么」，折行会把它读成两条事实。 */
+.timeline-delegate__type,
+.timeline-delegate__said {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 身份色由组件写在 style 上（与 --agent-face-body 同一份），这里只管它不被压扁：ZCode 的 max-w-36。 */
+.timeline-delegate__type {
+  flex: 0 0 auto;
+  max-inline-size: 9rem;
+}
+
+/* 描述是这一行的正文：比墨色淡一档（ZCode 的 text-foreground-subtlest），与类别行同一个刻度。 */
+.timeline-delegate__said {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  color: var(--cp-placeholder);
+}

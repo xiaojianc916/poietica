@@ -13,11 +13,13 @@
   font-size: 13px;
 }
 
-.delegate-channel__icon {
+/* 记号是瓦片脸（与时间线的派发行同一张）：尺寸随行，不受原语 20px 的下限影响。 */
+.delegate-channel__face {
   inline-size: 14px;
   block-size: 14px;
+  min-inline-size: 14px;
+  min-block-size: 14px;
   flex: none;
-  opacity: 0.6;
 }
 
 .delegate-channel__title {

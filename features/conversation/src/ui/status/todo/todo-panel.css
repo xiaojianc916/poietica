@@ -631,3 +631,8 @@
 .status-panel__ended-chevron[data-open] {
   transform: rotate(90deg);
 }
+/* 智能体行的记号是瓦片脸（与时间线那一行、右坞标签同一张）：原语的 20px 下限压回图标那一格。 */
+.status-panel__agent-face {
+  min-inline-size: 16px;
+  min-block-size: 16px;
+}

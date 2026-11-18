@@ -129,12 +129,20 @@ export interface OmpTodoToolInput {
   readonly list?: readonly { readonly phase?: string; readonly items?: readonly string[] }[]
 }
 
+/* 卡片只读这几个字段：批量那一档每条还能自己点名 agent（omp 的 TaskItem.agent），
+ * 那句 description 是模型给这一行写的一句话（不是 omp 的必填项，写没写都可能）。 */
 export interface OmpTaskToolInput {
   readonly task?: string
   readonly name?: string
   readonly agent?: string
+  readonly description?: string
   readonly context?: string
-  readonly tasks?: readonly { readonly name?: string; readonly task?: string; readonly description?: string }[]
+  readonly tasks?: readonly {
+    readonly name?: string
+    readonly task?: string
+    readonly description?: string
+    readonly agent?: string
+  }[]
 }
 
 export interface OmpYieldingToolInput {

@@ -52,6 +52,7 @@ export type {
   OmpMcpToolDetails,
   OmpNoToolInput,
   OmpOpaqueToolDetails,
+  OmpTaskToolInput,
   OmpTodoItem,
   OmpTodoPhase,
   OmpToolAsyncJob,

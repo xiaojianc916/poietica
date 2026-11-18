@@ -1,5 +1,5 @@
 import type { SessionGoal } from '@poietica/conversation-kit/model'
-import { useSecond } from '@poietica/conversation-kit/primitives'
+import { AgentFace, agentColor, useSecond } from '@poietica/conversation-kit/primitives'
 import type {
   BackgroundTaskItem,
   BackgroundTaskStatus,
@@ -22,7 +22,6 @@ import {
 } from '@poietica/design-system'
 import {
   ArrowRight,
-  Bot,
   CheckCircle2,
   ChevronRight,
   Circle,
@@ -40,6 +39,7 @@ import {
 import { type ReactNode, useMemo, useState } from 'react'
 import type { WorkspaceGitStatus } from '../../../ui-api'
 import type { OpenDelegateChannel } from '../../timeline'
+import { delegateRowsOf, faceStatusOf } from '../../timeline'
 import './todo-panel.css'
 
 type SectionKind = 'environment' | 'goal' | 'todo' | 'agents' | 'terminals'
@@ -130,6 +130,8 @@ export interface AgentRow {
   readonly startedAt: number
   /** 通道地址：有它这一行才点得开（右坞「子代理」标签）。只有一次没报出子代理的派发调用才缺席。 */
   readonly agentId?: string
+  /** 类型名（Scout / General Purpose）：脸的机身色只认它，与时间线那一行同一个 key。 */
+  readonly type?: string
   /** 终态行才有：已完成 / 失败 / 已停止 … 画在行尾。 */
   readonly status?: BackgroundTaskStatus
 }
@@ -137,18 +139,36 @@ export interface AgentRow {
 const AGENT_STATUS_LABEL = BACKGROUND_STATUS_LABEL
 
 /* 一次 task 调用可以派出好几个子代理（channels 一条一个）：按通道拆行，每行各自点得开；还没报出通道的调用整条算一行。 */
-function delegateRows(call: ToolCallTimelineItem, status?: BackgroundTaskStatus): AgentRow[] {
+function delegateRows(
+  call: ToolCallTimelineItem,
+  subagents: readonly SubagentItem[],
+  status?: BackgroundTaskStatus,
+): AgentRow[] {
   const extra = status === undefined ? {} : { status }
   if (call.channels.length === 0) {
     return [{ key: call.toolCallId, title: call.title, startedAt: call.startedAt, ...extra }]
   }
-  return call.channels.map((channel) => ({
-    key: `${call.toolCallId}:${channel.agentId}`,
-    title: channel.name === '' ? call.title : channel.name,
+  /* 类型名与时间线那一行同一份读法：两处画出来的脸才是同一个颜色。 */
+  return delegateRowsOf(call, subagents).map((row) => ({
+    key: `${call.toolCallId}:${row.agentId}`,
+    title: row.description,
     startedAt: call.startedAt,
-    agentId: channel.agentId,
+    agentId: row.agentId,
+    type: row.type,
     ...extra,
   }))
+}
+
+/** 生命周期那一支没有派发调用在手：从 delegates 里按 agentId 回查类型名。 */
+function typeIn(
+  calls: { readonly finished: readonly ToolCallTimelineItem[]; readonly running: readonly ToolCallTimelineItem[] },
+  agentId: string,
+): string | undefined {
+  for (const call of [...calls.running, ...calls.finished]) {
+    const hit = delegateRowsOf(call, []).find((row) => row.agentId === agentId)
+    if (hit !== undefined) return hit.type
+  }
+  return undefined
 }
 
 /* 有总线帧就用总线帧，否则退回 delegate 工具调用：两条都画会在屏幕上把同一个子代理列两遍。 */
@@ -162,9 +182,9 @@ export function agentRows(
   if (subagents.length === 0) {
     return {
       ended: delegates.finished.flatMap((call) =>
-        delegateRows(call, call.status === 'failed' ? 'failed' : 'completed'),
+        delegateRows(call, [], call.status === 'failed' ? 'failed' : 'completed'),
       ),
-      running: delegates.running.flatMap((call) => delegateRows(call)),
+      running: delegates.running.flatMap((call) => delegateRows(call, [])),
     }
   }
 
@@ -172,10 +192,12 @@ export function agentRows(
   const ended: AgentRow[] = []
 
   for (const agent of subagents) {
+    const type = typeIn(delegates, agent.agentId)
     const row = {
       key: agent.agentId,
       title: agent.description,
       agentId: agent.agentId,
+      ...(type === undefined ? {} : { type }),
       /* 启动时刻缺席时用 0：排序稳定；秒针会显示成很大的数，比丢行好。 */
       startedAt: agent.startedAt ?? 0,
     }
@@ -506,7 +528,14 @@ function AgentRowView({
 }) {
   const body = (
     <>
-      <Bot aria-hidden className="status-panel__item-icon" />
+      <AgentFace
+        className="status-panel__item-icon status-panel__agent-face"
+        color={agent.type === undefined ? 'var(--cp-ink-subtle)' : agentColor(undefined, agent.type)}
+        idle
+        name={agent.type ?? ''}
+        showCompletionMark={agent.status === 'completed'}
+        status={faceStatusOf(agent.status)}
+      />
       <div className="status-panel__item-body">
         <span className="status-panel__item-text" title={agent.title}>
           {agent.title}
