@@ -24,9 +24,31 @@
 }
 
 /*
+ * 非整数倍屏：1 CSS px 会被吸到两个设备像素上（Windows 150% 缩放下一整条 #383838 占两列，读起来就是 2px），
+ * 比正文字形还粗。引导线不是边框，是实色块 —— 宽度取 1/dpr 后只落在一列设备像素里，不再跨两列。
+ * 这里只改粗细；颜色与「悬停才亮」的时机都不动。1 倍屏不碰，2 倍屏见下面那条。
+ */
+@media (1.2dppx <= resolution < 1.5dppx) {
+  .file-tree__guide {
+    width: 0.8px;
+  }
+}
+
+@media (1.5dppx <= resolution < 1.75dppx) {
+  .file-tree__guide {
+    width: 0.6667px;
+  }
+}
+
+@media (1.75dppx <= resolution < 2dppx) {
+  .file-tree__guide {
+    width: 0.5714px;
+  }
+}
+
+/*
  * 2 倍屏上 1px 占两个设备像素，比正文字形还粗；这一档缩到 0.5px 恰好一个设备像素（引导线位置与
- * 行位移都是整数 CSS 像素，2× 下落在设备栅格上，画出来是实线）。1 与 1.25 / 1.5 档不碰 ——
- * 半像素在那几档只会跨两列发虚，见 tokens/controls.css 发丝线注。
+ * 行位移都是整数 CSS 像素，2× 下落在设备栅格上，画出来是实线）。
  */
 @media (min-resolution: 2dppx) {
   .file-tree__guide {
