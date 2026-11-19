@@ -68,10 +68,10 @@
   block-size: 0.875rem;
   color: var(--cp-ink-subtle);
   /*
-   * 字形原生朝下（lucide 的 ChevronDown）。收起时转 90° 朝右，展开后转回朝下 ——
-   * 与 zcode 的 ChevronRight + rotate-90 是同一个手势，只是两边的基准朝向相反。
+   * 字形原生朝下（lucide 的 ChevronDown）。收起时**逆时针**转 90° 朝右（顺时针是朝左），
+   * 展开后转回朝下 —— 与 zcode 的 ChevronRight + rotate-90 是同一个手势，只是两边的基准朝向相反。
    */
-  rotate: 90deg;
+  rotate: -90deg;
   transition: rotate var(--cp-motion-swift) cubic-bezier(0.2, 0, 0, 1);
 }
 
