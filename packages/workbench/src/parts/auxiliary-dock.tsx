@@ -257,7 +257,7 @@ function PanelBody({ contribution }: { readonly contribution: PanelContribution 
     /* data-dock-panel 是换格过渡的捕捉目标（auxiliary.css 的 :active-view-transition-type(ui-dock)）。 */
     <div className="min-h-0 flex-1 overflow-hidden" data-dock-panel="">
       <FeatureScope featureId={contribution.featureId} key={contribution.item.id}>
-        <Suspense fallback={<PartSkeleton />}>
+        <Suspense fallback={<PartSkeleton quiet />}>
           <contribution.item.component />
         </Suspense>
       </FeatureScope>

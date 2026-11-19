@@ -82,6 +82,15 @@
   opacity: 0.4;
 }
 
+/*
+ * 右坞的内容格：兜底只当地色。灰块（--ui-muted 40%）叠在 --ui-background 的 #181818 上就是 #212121，
+ * 首次打开懒加载的审查 / 文件格时会先闪一帧这个颜色，与功能自己铺的地色对不上。
+ */
+.workbench__skeleton[data-quiet='true'] {
+  background: transparent;
+  opacity: 1;
+}
+
 .workbench__unknown {
   display: grid;
   height: 100%;
