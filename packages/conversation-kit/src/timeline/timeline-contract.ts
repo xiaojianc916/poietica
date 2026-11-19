@@ -61,6 +61,11 @@ export interface UserMessageItem extends TimelineEntry {
    * 排过队 / 插过话的那些没有真实轮次可换（omp 的队列住进程内存里，Core 崩溃就没了），所以按「未送达」画成一个用户气泡（R-08-5）。
    */
   readonly undelivered?: boolean
+  /**
+   * 这一句是定时任务替人投进去的：画成居中的系统条，不画成人的气泡 —— 它不是人打的字，
+   * 但**必须画出来**，否则那条对话看起来是一片空白。
+   */
+  readonly automation?: string
   readonly images?: readonly MessageImage[]
   readonly files?: readonly MessageFile[]
   readonly skills?: readonly string[]

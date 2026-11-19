@@ -1,14 +1,21 @@
 import type { TranscriptPage } from '@poietica/agent-model'
 import { AppError, type Clock, type Disposable, type Logger, toAppError } from '@poietica/foundation'
-import { attachmentOwnerKeyOf, type QueueView, type SubmissionView } from '@poietica/product-model'
-import type { QueueOutcome, QueueSnapshot } from '@poietica/runtime-protocol'
+import {
+  attachmentOwnerKeyOf,
+  type QueueView,
+  type SubmissionOrigin,
+  type SubmissionView,
+} from '@poietica/product-model'
+import type { EngineSession, QueueOutcome, QueueSnapshot } from '@poietica/runtime-protocol'
 import {
   type CollectedContext,
+  type ResolvedAttachment,
   SubmissionErrorCode,
   type SubmissionRow,
   type SubmissionService as SubmissionServiceContract,
   type SubmissionServicePorts,
   type SubmissionsRepository,
+  submissionFailure,
   submissionOf,
 } from '../core-api'
 
@@ -94,6 +101,7 @@ export class SubmissionService implements SubmissionServiceContract {
     attachmentIds: readonly string[]
     skills: readonly string[]
     deliverAs: 'turn' | 'steer' | 'followUp'
+    origin?: SubmissionOrigin | undefined
   }): SubmissionView {
     /* 幂等：同一个 clientTurnId 再来，直接交回已有记录。 */
     const existing = this.d.repo.get(input.clientTurnId)
@@ -108,6 +116,7 @@ export class SubmissionService implements SubmissionServiceContract {
     const row: SubmissionRow = {
       clientTurnId: input.clientTurnId,
       threadId: input.threadId,
+      origin: input.origin ?? 'user',
       text: input.text,
       attachments: [...attachments],
       skills: [...input.skills],
@@ -137,7 +146,8 @@ export class SubmissionService implements SubmissionServiceContract {
      * 就已经开始看这一行的时间了。
      */
     this.p.markActivity(input.threadId)
-    if (input.deliverAs === 'turn') this.p.autoTitle(input.threadId, input.text)
+    /* 只有人打的字能用首句起名：定时任务投的那段话抬头是内部格式，拿来当名字就是「【定时任务】…」 */
+    if (input.deliverAs === 'turn' && row.origin === 'user') this.p.autoTitle(input.threadId, input.text)
 
     this.enqueue(input.threadId, () => this.handOver(input.clientTurnId))
     return view
@@ -183,7 +193,7 @@ export class SubmissionService implements SubmissionServiceContract {
     const waiting = row.status === 'queued' || (row.status === 'pending' && this.handed.has(clientTurnId))
     if (!waiting) return
     if (outcome === 'dropped') {
-      this.markFailed(row, { code: SubmissionErrorCode.submitDropped, message: SubmissionErrorCode.submitDropped })
+      this.markFailed(row, submissionFailure(SubmissionErrorCode.submitDropped))
       return
     }
     this.d.repo.delete(clientTurnId)
@@ -308,10 +318,7 @@ export class SubmissionService implements SubmissionServiceContract {
     this.pendingTurn.delete(threadId)
     const row = this.d.repo.get(id)
     if (row === null || row.status !== 'pending') return
-    this.markFailed(row, {
-      code: SubmissionErrorCode.submitCancelled,
-      message: SubmissionErrorCode.submitCancelled,
-    })
+    this.markFailed(row, submissionFailure(SubmissionErrorCode.submitCancelled))
   }
 
   /**
@@ -324,10 +331,7 @@ export class SubmissionService implements SubmissionServiceContract {
    */
   recoverOnStart(): void {
     const at = this.d.clock.now()
-    const error = {
-      code: SubmissionErrorCode.coreRestarted,
-      message: SubmissionErrorCode.coreRestarted,
-    }
+    const error = submissionFailure(SubmissionErrorCode.coreRestarted)
     for (const row of this.d.repo.failUndelivered(error)) {
       /* 重启后这条排队项不可能再送达：残留的上下文先摘掉，已交出的回退一次 */
       this.dropQueuedContext(row.clientTurnId, true)
@@ -428,13 +432,25 @@ export class SubmissionService implements SubmissionServiceContract {
     }
   }
 
+  /**
+   * 开会话，前提不成立就交回 null。
+   *
+   * 开会话是**有代价**的一步（装工具、拉起 MCP、落一份会话文件）：这一句在等车道时已经被停止 /
+   * 取代了的话，先开会话就凭空留下一条没有轮的空会话（真机故障：自动化线程被判取消，会话文件却照样建了出来）。
+   */
+  private async openSession(row: SubmissionRow): Promise<EngineSession | null> {
+    if (!this.stillWanted(row)) return null
+    return await this.p.acquireSession(row.threadId)
+  }
+
   /** 交给 omp 的那一段（拆出来只为让复杂度落在闸门内）。 */
   private async deliver(row: SubmissionRow): Promise<void> {
     const ids = row.attachments.map((a) => a.id)
     const resolved = this.p.attachments.resolve(ids)
 
-    const session = await this.p.acquireSession(row.threadId)
-    /* 等待期间被停止 / 丢弃：不要交出去。 */
+    const session = await this.openSession(row)
+    if (session === null) return
+    /* 打开期间被停止 / 丢弃：不要交出去。 */
     const current = this.d.repo.get(row.clientTurnId)
     if (current === null || current.status !== 'pending') return
 
@@ -457,6 +473,19 @@ export class SubmissionService implements SubmissionServiceContract {
     }
     /* 真的交出去了才算 handed：等租约的这段时间里 `turns.cancel` 还追得上这一句 */
     this.handed.add(row.clientTurnId)
+    await this.handOverToEngine(row, session, resolved, deliveredAs, context)
+    this.settleHandOver(row, deliveredAs, context)
+    this.p.emitUserMessage({ threadId: row.threadId, at: this.d.clock.now() })
+  }
+
+  /** 真把这一句交给 omp。抛错表示没送达：提供方的内容要留到下一句。 */
+  private async handOverToEngine(
+    row: SubmissionRow,
+    session: EngineSession,
+    resolved: readonly ResolvedAttachment[],
+    deliveredAs: 'turn' | 'steer' | 'followUp',
+    context: CollectedContext | null,
+  ): Promise<void> {
     try {
       await session.submit({
         text: row.text,
@@ -466,22 +495,28 @@ export class SubmissionService implements SubmissionServiceContract {
         deliverAs: deliveredAs,
         /* 排队项的结局靠这个号对回本行（审查 R-20-1） */
         ref: row.clientTurnId,
+        ...(row.origin === 'automation' ? { origin: 'automation' as const } : {}),
         ...(context === null ? {} : { context: context.blocks }),
       })
     } catch (cause) {
-      /* submit 抛错：这一句没送达，提供方的内容留到下一句 */
       this.dropQueuedContext(row.clientTurnId, false)
       throw cause
     }
-    if (deliveredAs !== 'turn') {
-      this.handOverQueuedContext(row.clientTurnId)
-      /* 结局可能已经先到（送达 → 行已删 / 丢弃 → failed）：只有还停在 pending 才记成 queued */
-      if (this.d.repo.get(row.clientTurnId)?.status === 'pending') this.update(row.clientTurnId, { status: 'queued' })
-    } else {
-      /* 开轮成功才算送达 */
+  }
+
+  /** 交出去之后的账：排队的记 queued，开轮的算送达。 */
+  private settleHandOver(
+    row: SubmissionRow,
+    deliveredAs: 'turn' | 'steer' | 'followUp',
+    context: CollectedContext | null,
+  ): void {
+    if (deliveredAs === 'turn') {
       context?.delivered()
+      return
     }
-    this.p.emitUserMessage({ threadId: row.threadId, at: this.d.clock.now() })
+    this.handOverQueuedContext(row.clientTurnId)
+    /* 结局可能已经先到（送达 → 行已删 / 丢弃 → failed）：只有还停在 pending 才记成 queued */
+    if (this.d.repo.get(row.clientTurnId)?.status === 'pending') this.update(row.clientTurnId, { status: 'queued' })
   }
 
   /**
@@ -495,6 +530,11 @@ export class SubmissionService implements SubmissionServiceContract {
     const port = this.p.writeLease
     if (port === undefined) return true
     const thread = this.p.requireThread(row.threadId)
+    /*
+     * 只读档不写工作区，因而不该占写租约。自动化默认就跑在只读档上：占着它等于让同工作区里
+     * 所有真正要写的对话排在自己后面（真机故障：一条只读自动化占住租约，人的对话全在等）。
+     */
+    if (thread.posture === 'read-only') return true
     const deadline = this.d.clock.now() + LEASE_WAIT_TIMEOUT_MS
     for (;;) {
       if (!this.stillWanted(row)) return false

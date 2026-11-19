@@ -49,12 +49,15 @@ function chipsOf(files: readonly MessageFile[], skills: readonly string[]): read
  * 发出去之后也画成气泡里的同一枚记号（排在技能之后、原文之前），人看到的就是自己写下的那一句。
  */
 export function UserMessage({
+  automation,
   files,
   images,
   skills,
   text,
   undelivered,
 }: {
+  /** 定时任务替人投的那一轮：画成居中的系统条，不画成人的气泡。 */
+  readonly automation?: string | undefined
   readonly files?: readonly MessageFile[] | undefined
   readonly images?: readonly MessageImage[] | undefined
   readonly skills?: readonly string[] | undefined
@@ -62,6 +65,15 @@ export function UserMessage({
   /** 这一句没有被 agent 收到（R-08-5）：Core 重启带走了 omp 的内存队列。 */
   readonly undelivered?: boolean | undefined
 }) {
+  /* 定时任务的轮：它不是人打的字，但**必须看得见** —— 否则那条对话一片空白，人以为是坏了。 */
+  if (automation !== undefined) {
+    return (
+      <div className="timeline-automation" role="note">
+        <p className="timeline-automation__label">定时任务触发</p>
+        <p className="timeline-automation__text">{automation}</p>
+      </div>
+    )
+  }
   return (
     <>
       {(images?.length ?? 0) > 0 ? <MessageAttachments images={images} /> : null}

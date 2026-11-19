@@ -347,6 +347,8 @@ export class OmpSession implements EngineSession {
         this.o.projector.userTurn({
           text: input.text,
           skills: input.skills,
+          /* 定时任务投的一句：轮头来源写 cron，屏幕画系统条 */
+          ...(input.origin === undefined ? {} : { origin: input.origin }),
           ...(images.length === 0 ? {} : { images: imageInputsOf(images, this.o.mediaRef) }),
           ...(input.files.length === 0 ? {} : { files: fileInputsOf(input.files) }),
         }),

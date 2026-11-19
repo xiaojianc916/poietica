@@ -36,6 +36,7 @@ function row(clientTurnId: string, patch: Partial<SubmissionRow> = {}): Submissi
   return {
     clientTurnId,
     threadId: 'th-1',
+    origin: 'user',
     text: `text of ${clientTurnId}`,
     attachments: [{ id: 'a1', name: 'x.png', kind: 'image', mime: 'image/png', size: 1 } as never],
     skills: ['s1'],

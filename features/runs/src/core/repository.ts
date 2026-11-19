@@ -1,10 +1,11 @@
-import type { SubmissionAttachment } from '@poietica/product-model'
+import type { SubmissionAttachment, SubmissionOrigin } from '@poietica/product-model'
 import type { ModuleDatabase } from '@poietica/storage-sqlite'
 import type { SubmissionRow, SubmissionsRepository } from '../core-api'
 
 interface Raw {
   client_turn_id: string
   thread_id: string
+  origin: string
   text: string
   attachments: string
   skills: string
@@ -18,13 +19,14 @@ interface Raw {
   updated_at: number
 }
 
-const COLUMNS = `client_turn_id, thread_id, text, attachments, skills, requested_as, status,
+const COLUMNS = `client_turn_id, thread_id, origin, text, attachments, skills, requested_as, status,
   turn_id, error_code, error_message, rev, created_at, updated_at`
 
 function toRow(r: Raw): SubmissionRow {
   return {
     clientTurnId: r.client_turn_id,
     threadId: r.thread_id,
+    origin: r.origin as SubmissionOrigin,
     text: r.text,
     attachments: JSON.parse(r.attachments) as SubmissionAttachment[],
     skills: JSON.parse(r.skills) as string[],
@@ -46,9 +48,10 @@ export function createSubmissionsRepository(db: ModuleDatabase): SubmissionsRepo
   return {
     insert(row) {
       run(
-        `INSERT INTO conversation_submissions (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO conversation_submissions (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         row.clientTurnId,
         row.threadId,
+        row.origin ?? 'user',
         row.text,
         JSON.stringify(row.attachments),
         JSON.stringify(row.skills),

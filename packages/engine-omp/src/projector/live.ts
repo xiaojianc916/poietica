@@ -283,13 +283,15 @@ export class LiveProjector {
     readonly files?: readonly FileAttachmentInput[]
     readonly promptId?: string
     readonly skills?: readonly string[]
+    readonly origin?: 'automation'
   }): AgentEvent[] {
     const pictures = (input.images ?? []).map(attachmentOf)
     const attachments = [...pictures, ...(input.files ?? []).map(fileAttachmentOf)]
     const attachmentIds =
       attachments.length > 0 ? attachments.map((attachment) => attachment.attachmentId) : (input.attachmentIds ?? [])
     const skills = input.skills ?? []
-    const origin = userOrigin(skills)
+    /* 定时任务投的那一句：轮头来源写成 cron，屏幕据此画系统条而不是人的气泡。 */
+    const origin = input.origin === 'automation' ? ({ kind: 'cron' } as const) : userOrigin(skills)
     const { ordinal, turn, at } = this.openTurn({
       origin,
       prompt: input.text,

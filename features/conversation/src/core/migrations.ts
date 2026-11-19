@@ -67,4 +67,11 @@ CREATE TABLE conversation_reclaim (
   updated_at   INTEGER NOT NULL
 );`,
   },
+  {
+    /* 已发版的 init 不许改写（ADR-004），所以 origin 只能追加：默认 user —— 老行都是人打的字。 */
+    version: 2,
+    name: 'submission-origin',
+    sql: `ALTER TABLE conversation_submissions ADD COLUMN origin TEXT NOT NULL DEFAULT 'user'
+  CHECK (origin IN ('user', 'automation'));`,
+  },
 ]

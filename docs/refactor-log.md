@@ -129,6 +129,43 @@ JS eval worker exited`；回落的 Bun Worker 走同一条入口，一样死，�
 - **WorkBuddy 明文的搬迁次序**：需要「Worker 已就绪后补注入环境」的注入口（或让反代口令改走 `secrets.lease` 的短期租约），否则 `models.yml` 里的 `baseUrl` 口令与功能表里的令牌只能继续明文。前提已确认：现有 `safeStorage` 通道（`secrets.put` / `secrets.lease`）可直接复用，不需要新通道。
 - **网络出口规则的强制面**：当前只裁决不拦截。真强制要按 §13.3 给 Worker 注入代理环境变量（`HTTPS_PROXY` 等）并由本地代理放行白名单域名；这需要在 `RuntimeLaunch.env` 与 `engine-omp` 的 bootstrap 之间开一条注入路径，且要和隔离自检的环境清洗顺序对齐。
 
+### 定时任务的提交不再冒充人话（2026-11-19）
+
+真机现象：一条自动化线程里出现「【定时任务】自检-临时-可删-已改名 · 手动运行…」这样一条**用户气泡**，
+下面挂「提交未完成；请先核对会话。」与「取回文字」。dev 库证据：该线程唯一一条提交 `status=failed`、
+`error_code=submit_cancelled`、`error_message` 与码一字不差；提交与失败同一毫秒，omp 会话 147 ms 后才打开，
+落地文件只有 6 行会话头、没有一轮。
+
+- **提交记得住来历**（`SubmissionView.origin` / `conversation_submissions.origin`，迁移 v2 追加、老行默认 `user`）：
+  定时任务经 `ConversationService.submit({ origin: 'automation' })` 投进去的那段话不再是「人打的一句」。
+  界面对它的处理三处一致 —— 不画用户气泡（`withSubmissionRows`）、不进「取回文字」（`readFailedSubmissionText`）、
+  不参与首句自动起名（`SubmissionService.submit` 只在 `origin === 'user'` 时调 `autoTitle`）。
+  原来的样子是把内部抬头直接塞进人的输入框。
+- **码不再当文案**：`SubmissionErrorCode` 是契约，给人看的那句话收进 `product-model` 的 `submissionErrorText`
+  （`conversation.submit_cancelled` → 「这句话已停止」），两处收口（`cancelUnhanded`、`recoverOnStart`）与
+  `event-router` 的 `settleUnstarted` 一并改。此前任务运行记录里会出现「没能开始运行：conversation.submit_cancelled」。
+- **先复查再开会话**：`deliver()` 原先在 `acquireSession` 之后才看这一句还在不在，被取消的提交照样开出一条
+  没有轮的空会话并落盘（真机证据里那份 6 行会话文件就是它）。现在开会话前先 `stillWanted`，抽成 `openSession`。
+- **真正的堵点：只读档占着写租约**（2026-11-19 第二次真机）。第二次复现：自动化线程的提交 21:48:46 建好后
+  `status=pending` 再没动过，会话文件只有会话头，`run` 永远 `running`，21:50 那次被跳过。
+  根因在 `acquireWriteLease`：它不判姿态，只读档的定时任务照样去抢工作区写租约并**静默排队等**
+  （最长 15 分钟）。只读档不写工作区，这个租约对它毫无意义，却把同工作区里所有真正要写的对话堵在后面。
+  现在只读档直接放行（`posture === 'read-only' → return true`），不占也不等；`requireThread` 端口补 `posture`。
+- **自动化那一轮必须看得见**：上一版把 `origin === 'automation'` 的提交行整条藏掉，结果那条对话是一片空白 ——
+  人分不清「任务没跑」和「跑完了没说话」。现在改成**居中的系统条**（`UserMessageItem.automation`）：
+  `turns.submit` / `SubmitInput` / `LiveProjector.userTurn` 把 `origin` 一路带到引擎，轮头来源写成
+  `origin.kind === 'cron'`，投影据此成行、行组件画成系统条。条上的文字取**人写在任务里的指令**
+  （去掉「【定时任务】…」抬头与 `automation_report` 那段交代），不取内部信封。
+- **线程名字就是任务名**：`threadTitleOf` 从前拼「定时任务：<标题> MM-DD HH:mm」，两截都是噪音 ——
+  侧栏那一行已有闹钟图标，时间戳只在同一天多次运行时有用却让每个名字都长成内部格式。现在直接用任务名。
+- **协议**：`turns.submit` 参数增可选 `origin`，`PROTOCOL_VERSION` 75→76，快照已重生成。
+- **未做**：线程标题里的 `MM-DD HH:mm`（`threadTitleOf`）保留 —— 它是同任务多次运行的唯一区分手段，
+  去掉要另有替代（运行序号之类），属产品决定，记在这里待裁。
+- **验证**：`typecheck`、`format:check`、`lint`（含 depcruise、style-boundaries、ratchet 之外的各闸门）通过；
+  新增用例三条（automation 提交不画气泡也不进取回文字 / 不调 autoTitle、取消与重启落库的是中文文案）；
+  `features/conversation` 与 `features/runs` 共 230 条用例全绿。**`check:ratchet` 仍红**，是本轮之外的存量：
+  `features/policy/src/core/policy.ts` 的 platform-branch 从基线 0 变成 4，该文件本轮未改。
+
 ### 写租约排队 + 策略门按会话路由（2026-11-16）
 
 真机故障：完全访问的一条对话还在跑时，另外新开三条对话（只读 / 请求批准 / 帮我批准各一条）各发一句话，

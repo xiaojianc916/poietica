@@ -13,8 +13,8 @@ export interface ConversationService {
     model: ModelRef | null
     thinking: string | null
   }): Thread
-  /** 等价于 turns.submit（deliverAs:'turn'，无附件、无技能） */
-  submit(input: { threadId: string; text: string }): Promise<void>
+  /** 等价于 turns.submit（deliverAs:'turn'，无附件、无技能）。origin 缺省按人发的算。 */
+  submit(input: { threadId: string; text: string; origin?: 'user' | 'automation' }): Promise<void>
   cancel(threadId: string): Promise<void>
   get(threadId: string): Thread | null
 }

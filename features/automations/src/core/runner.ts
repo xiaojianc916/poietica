@@ -34,12 +34,16 @@ export interface Runner {
   dispose(): void
 }
 
+/**
+ * 定时任务建出来的对话叫什么：**就是任务名**。
+ *
+ * 从前是「定时任务：<标题> MM-DD HH:mm」，两截都是噪音：侧栏那一行已经有闹钟图标说明它从哪来，
+ * 时间戳只是同一天跑多次时的区分手段，却让每个名字都长成一串内部格式。同任务跑第几次，
+ * 由创建时刻与运行记录回答。
+ */
 export function threadTitleOf(automation: Automation, at: number): string {
-  const d = new Date(at)
-  const stamp = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(
-    d.getHours(),
-  ).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-  return `定时任务：${automation.title} ${stamp}`
+  void at
+  return automation.title
 }
 
 export const REPORT_INSTRUCTION =
@@ -229,7 +233,7 @@ export function createRunner(d: {
     }
     const thread = conversation.createThread({
       workspaceId: a.workspaceId,
-      title: a.threadMode === 'continue' ? `定时任务：${a.title}` : threadTitleOf(a, startedAt),
+      title: threadTitleOf(a, startedAt),
       origin: 'automation',
       posture: a.posture,
       model: a.model,
@@ -266,7 +270,12 @@ export function createRunner(d: {
 
       const run = insertRun(a, trigger, scheduledFor, picked.threadId, startedAt)
       try {
-        await conversation.submit({ threadId: picked.threadId, text: framePrompt(a, trigger, scheduledFor) })
+        await conversation.submit({
+          threadId: picked.threadId,
+          text: framePrompt(a, trigger, scheduledFor),
+          /* 这段话是任务替人投的：屏幕上不画成用户气泡，失败也不给「取回文字」。 */
+          origin: 'automation',
+        })
       } catch (e) {
         return settle(run, 'failed', e instanceof Error ? e.message : String(e))
       }

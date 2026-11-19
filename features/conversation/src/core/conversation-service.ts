@@ -29,6 +29,7 @@ export function conversationService(core: ConversationCore): ConversationService
         attachmentIds: [],
         skills: [],
         deliverAs: 'turn',
+        ...(input.origin === undefined ? {} : { origin: input.origin }),
       })
     },
     async cancel(threadId) {

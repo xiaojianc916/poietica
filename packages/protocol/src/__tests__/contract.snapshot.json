@@ -1,5 +1,5 @@
 {
-  "version": 75,
+  "version": 76,
   "methods": [
     {
       "name": "agentSettings.capabilities",
@@ -16109,6 +16109,13 @@
               "text": {
                 "type": "string"
               },
+              "origin": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "automation"
+                ]
+              },
               "attachments": {
                 "type": "array",
                 "items": {
@@ -16221,6 +16228,7 @@
               "clientTurnId",
               "threadId",
               "text",
+              "origin",
               "attachments",
               "skills",
               "deliverAs",
@@ -28319,6 +28327,13 @@
                 "text": {
                   "type": "string"
                 },
+                "origin": {
+                  "type": "string",
+                  "enum": [
+                    "user",
+                    "automation"
+                  ]
+                },
                 "attachments": {
                   "type": "array",
                   "items": {
@@ -28431,6 +28446,7 @@
                 "clientTurnId",
                 "threadId",
                 "text",
+                "origin",
                 "attachments",
                 "skills",
                 "deliverAs",
@@ -28547,6 +28563,13 @@
               "steer",
               "followUp"
             ]
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "user",
+              "automation"
+            ]
           }
         },
         "required": [
@@ -28575,6 +28598,13 @@
               },
               "text": {
                 "type": "string"
+              },
+              "origin": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "automation"
+                ]
               },
               "attachments": {
                 "type": "array",
@@ -28688,6 +28718,7 @@
               "clientTurnId",
               "threadId",
               "text",
+              "origin",
               "attachments",
               "skills",
               "deliverAs",
@@ -34368,6 +34399,13 @@
               "text": {
                 "type": "string"
               },
+              "origin": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "automation"
+                ]
+              },
               "attachments": {
                 "type": "array",
                 "items": {
@@ -34480,6 +34518,7 @@
               "clientTurnId",
               "threadId",
               "text",
+              "origin",
               "attachments",
               "skills",
               "deliverAs",

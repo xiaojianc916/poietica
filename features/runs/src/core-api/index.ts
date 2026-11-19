@@ -1,10 +1,11 @@
 import { defineServiceToken } from '@poietica/foundation'
-import type { SubmissionAttachment, SubmissionView } from '@poietica/product-model'
+import type { SubmissionAttachment, SubmissionOrigin, SubmissionView } from '@poietica/product-model'
 
 /** 提交表：每条提交都有确定结局并存库；表名仍用历史 `conversation_submissions`。 */
 export interface SubmissionRow {
   clientTurnId: string
   threadId: string
+  origin: SubmissionOrigin
   text: string
   attachments: readonly SubmissionAttachment[]
   skills: readonly string[]
@@ -21,6 +22,7 @@ export function submissionOf(row: SubmissionRow): SubmissionView {
   return {
     clientTurnId: row.clientTurnId,
     threadId: row.threadId,
+    origin: row.origin,
     text: row.text,
     attachments: [...row.attachments],
     skills: [...row.skills],

@@ -489,6 +489,7 @@ describe('R-08-5 未送达的插话 / 排队也画成气泡', () => {
   const submission = (over: Partial<import('../../../../contract').SubmissionView>) => ({
     clientTurnId: 'c1',
     threadId: 't1',
+    origin: 'user' as const,
     text: '排了一句',
     attachments: [],
     skills: [],
@@ -532,6 +533,34 @@ describe('R-08-5 未送达的插话 / 排队也画成气泡', () => {
 
     /* 排队中的那些由队列区显示，时间线里不该多一份。 */
     expect(rowsOf(store, 't1').map((row) => row.text)).toEqual(['插了一句'])
+  })
+
+  /*
+   * 定时任务投进来的那段话不是人打的字，但**必须看得见**：画成居中的系统条。
+   * 从前它画成人的气泡（还挂「取回文字」）；一度整条藏掉，结果那条对话是一片空白，人以为坏了。
+   */
+  test('automation 的提交行画成系统条，失败也不进取回文字', () => {
+    const store = new TranscriptStore({ sessions: () => fakePort('t1').port })
+    store.open('t1')
+
+    store.upsertSubmission(
+      't1',
+      submission({
+        clientTurnId: 'a1',
+        origin: 'automation',
+        /* 任务投的是开轮（turn），不是排队项 */
+        deliverAs: 'turn',
+        status: 'pending',
+        text: '【定时任务】晨会动态 · 手动运行\n\n汇总进展\n\n（运行结束前调用 automation_report…）',
+      }),
+    )
+    store.upsertSubmission('t1', submission({ clientTurnId: 'a2', origin: 'automation', createdAt: 20 }))
+
+    const rows = rowsOf(store, 't1')
+    /* 两条都在（不是空白），但都带 automation 标记 → 组件画系统条；正文取人写的那一截 */
+    expect(rows.map((row) => (row as { automation?: string }).automation)).toEqual(['汇总进展', '排了一句'])
+    /* 系统条不是「未送达」的气泡：失败也不挂取回文字 */
+    expect(readFailedSubmissionText(store.read('t1'))).toBeNull()
   })
 
   test('正常走过的 turn 行不带未送达标记', () => {

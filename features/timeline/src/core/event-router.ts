@@ -1,5 +1,5 @@
 import type { AgentEvent } from '@poietica/agent-model'
-import { MAIN_AGENT_ID, snapshotOf, type TurnState } from '@poietica/product-model'
+import { MAIN_AGENT_ID, snapshotOf, submissionErrorText, type TurnState } from '@poietica/product-model'
 import type { EngineSessionEvent } from '@poietica/runtime-protocol'
 import type { EventRouter as EventRouterContract, EventRouterDeps } from '../core-api'
 
@@ -262,8 +262,8 @@ export class EventRouter implements EventRouterContract {
       threadId,
       error ??
         (rt.cancelRequested
-          ? { code: 'conversation.submit_cancelled', message: 'conversation.submit_cancelled' }
-          : { code: 'conversation.submit_dropped', message: 'conversation.submit_dropped' }),
+          ? { code: 'conversation.submit_cancelled', message: submissionErrorText('conversation.submit_cancelled') }
+          : { code: 'conversation.submit_dropped', message: submissionErrorText('conversation.submit_dropped') }),
     )
     rt.cancelRequested = false
   }

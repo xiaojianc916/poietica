@@ -57,6 +57,11 @@ export interface SubmitInput {
   readonly ref?: string | undefined
   /** 见 `TurnContextBlock`。缺省 = 这一句没有附带上下文 */
   readonly context?: readonly TurnContextBlock[] | undefined
+  /**
+   * 这一句不是人打的（定时任务替人投进来的）。引擎据此把这一轮的来源写成 `cron`，
+   * 屏幕才画得出「这是任务触发的」而不是一个人的气泡。
+   */
+  readonly origin?: 'automation' | undefined
 }
 
 /**

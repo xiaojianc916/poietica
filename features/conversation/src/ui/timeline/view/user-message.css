@@ -18,6 +18,38 @@
   color: var(--cp-timeline-body-ink);
 }
 
+/*
+ * 定时任务触发的那一轮：占满一行、居中的系统条。
+ *
+ * 它不是人打的字（所以没有气泡、没有「未送达」），但**必须看得见** —— 一条自动化对话里
+ * 只有它在最上方，藏掉它，屏幕就是一片空白，人分不清「任务没跑」还是「跑完了没说话」。
+ * 用发丝线左右分开，跟正文区隔开，但字号与墨色仍与正文同档（它不是警告，是事实）。
+ */
+.timeline-automation {
+  display: grid;
+  gap: 0.125rem;
+  margin: 0;
+  padding-block: 0.25rem;
+  border-block-start: 1px solid var(--cp-hairline);
+  border-block-end: 1px solid var(--cp-hairline);
+  color: var(--cp-timeline-body-ink);
+}
+
+.timeline-automation__label {
+  margin: 0;
+  color: var(--ui-ink-muted);
+  font-size: var(--ui-prose-size);
+  line-height: var(--ui-prose-line-height);
+}
+
+.timeline-automation__text {
+  margin: 0;
+  font-size: var(--ui-prose-size);
+  line-height: var(--ui-prose-line-height);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .timeline-user__text {
   margin: 0;
   font-size: var(--ui-prose-size);

@@ -149,6 +149,8 @@ const readSubmissions = (transcript: Transcript): Transcript['submissions'] => t
 export const readFailedSubmissionText = (transcript: Transcript): string | null => {
   let latest: Transcript['submissionRows'][number] | undefined
   for (const row of transcript.submissionRows) {
+    /* 定时任务投的那段话不是人打的字：它失败了也不该往人的输入框里放「取回文字」。 */
+    if (row.origin === 'automation') continue
     if (latest === undefined || row.createdAt >= latest.createdAt) latest = row
   }
   return latest !== undefined && latest.status === 'failed' ? latest.text : null

@@ -94,6 +94,7 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row, th
     case 'user_message':
       return (
         <UserMessage
+          automation={item.automation}
           files={item.files}
           images={item.images}
           skills={item.skills}

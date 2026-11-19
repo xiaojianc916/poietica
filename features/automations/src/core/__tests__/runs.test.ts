@@ -59,7 +59,8 @@ describe('R-14 运行与调度', () => {
     const second = await service.runNow(a.id)
     expect(second.threadId).toBe(first.threadId)
     expect(conversation.created).toHaveLength(1)
-    expect(conversation.created[0]!.title).toBe('定时任务：晨会动态')
+    /* 名字就是任务名：侧栏那一行已有闹钟图标说明来历，不再前缀「定时任务：」与时间戳 */
+    expect(conversation.created[0]!.title).toBe('晨会动态')
     db.close()
   })
 

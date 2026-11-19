@@ -85,9 +85,13 @@ function jsonOf(value: unknown): string | undefined {
 
 interface InputSource {
   readonly isUser: boolean
+  /** 定时任务替人投的那一轮：成行，但画成系统条。 */
+  readonly automation?: boolean
 }
 
 const USER_INPUT: InputSource = { isUser: true }
+/* 定时任务那一轮：要成行（否则对话是空的），但不是人话（不画成人的气泡）。 */
+const AUTOMATION_INPUT: InputSource = { isUser: true, automation: true }
 
 /** chip 的唯一产地：人话那一轮点名的技能（引擎在轮头上写，历史与实时同一个形状）。 */
 function skillNamesOf(origin: TurnOrigin | undefined): readonly string[] {
@@ -99,6 +103,7 @@ function skillNamesOf(origin: TurnOrigin | undefined): readonly string[] {
 
 /** 与用户帧同一条判据：只有人话那一轮是人说的；目标续跑这类系统触发的 `other` 不是。 */
 function sourceOfTurn(turn: TranscriptTurn): InputSource {
+  if (turn.origin.kind === 'cron') return AUTOMATION_INPUT
   return turn.origin.kind === 'user' ? USER_INPUT : { isUser: false }
 }
 
@@ -173,8 +178,25 @@ function inputItem(
         ...(attached.images.length === 0 ? {} : { images: attached.images }),
         ...(attached.files.length === 0 ? {} : { files: attached.files }),
         ...(skills.length === 0 ? {} : { skills }),
+        /* 定时任务那一轮：带着这个标记交给行组件，它画成居中的系统条而不是人的气泡。 */
+        ...(source.automation === true ? { automation: promptLineOf(text) } : {}),
       }
     : null
+}
+
+/**
+ * 系统条上那句话取**人写在任务里的指令**，去掉调度外壳：
+ * 投给 agent 的正文是「【定时任务】标题 · 何时运行
+
+<指令>
+
+（运行结束前调用 automation_report…）」，
+ * 人对这段文字的全部所有权只有中间那一截。
+ */
+function promptLineOf(text: string): string {
+  const body = text.split('\n\n')
+  const instruction = (body.length >= 2 ? body[1] : text) ?? text
+  return instruction.trim() === '' ? text.trim() : instruction.trim()
 }
 
 const isSettled = (state: TranscriptTurn['state']): boolean =>

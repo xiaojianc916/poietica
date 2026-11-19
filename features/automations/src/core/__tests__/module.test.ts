@@ -138,7 +138,7 @@ describe('automations core 模块', () => {
       workspaceId: ws.id,
       includeArchived: false,
     })
-    expect(threads.threads[0]!.title).toMatch(/^定时任务：每分钟一次 \d{2}-\d{2} \d{2}:\d{2}$/)
+    expect(threads.threads[0]!.title).toBe('每分钟一次')
     expect(threads.threads[0]!.origin).toBe('automation')
     await h.dispose()
     await dir.dispose()

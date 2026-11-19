@@ -1,6 +1,12 @@
 import type { AgentEvent, TranscriptPage } from '@poietica/agent-model'
 import { defineServiceToken } from '@poietica/foundation'
-import type { QueueView, SubmissionAttachment, SubmissionView } from '@poietica/product-model'
+import {
+  type QueueView,
+  type SubmissionAttachment,
+  type SubmissionOrigin,
+  type SubmissionView,
+  submissionErrorText,
+} from '@poietica/product-model'
 import type { EngineSession, QueueOutcome, QueueSnapshot } from '@poietica/runtime-protocol'
 import type { CollectedContext } from './turn-context'
 
@@ -49,7 +55,12 @@ export interface SubmissionServicePorts {
   readonly checkpoints?: SubmissionCheckpointsPort
   readonly journal?: SubmissionJournalPort
   readonly writeLease?: SubmissionWriteLeasePort
-  readonly requireThread: (threadId: string) => { readonly id: string; readonly workspaceId: string }
+  readonly requireThread: (threadId: string) => {
+    readonly id: string
+    readonly workspaceId: string
+    /** 只读档不写工作区，因而也不占写租约（定时任务默认就跑在只读档上）。 */
+    readonly posture: import('@poietica/runtime-protocol').Posture
+  }
   readonly autoTitle: (threadId: string, text: string) => void
   readonly markActivity: (threadId: string) => void
   readonly emitChanged: (submission: SubmissionView) => void
@@ -74,6 +85,8 @@ export interface SubmissionService {
     attachmentIds: readonly string[]
     skills: readonly string[]
     deliverAs: 'turn' | 'steer' | 'followUp'
+    /** 缺省按人发的算；定时任务替人投的那段话传 'automation'。 */
+    origin?: SubmissionOrigin | undefined
   }): SubmissionView
   retry(clientTurnId: string): SubmissionView
   discard(clientTurnId: string): { threadId: string; clientTurnId: string }
@@ -95,7 +108,7 @@ export interface SubmissionService {
 
 export const SubmissionServiceToken = defineServiceToken<SubmissionService>('runs', 'SubmissionService')
 
-/** 错误码沿用已发布契约。 */
+/** 已发布契约里的码；文案由 product-model 的 submissionErrorText 解出（码不是给人看的话）。 */
 export const SubmissionErrorCode = {
   threadNotFound: 'conversation.thread_not_found',
   threadBusy: 'conversation.thread_busy',
@@ -103,3 +116,8 @@ export const SubmissionErrorCode = {
   submitCancelled: 'conversation.submit_cancelled',
   coreRestarted: 'conversation.core_restarted',
 } as const
+
+/** 一个提交结局：码是契约，文案是给人看的那句话。 */
+export function submissionFailure(code: string): { code: string; message: string } {
+  return { code, message: submissionErrorText(code) }
+}

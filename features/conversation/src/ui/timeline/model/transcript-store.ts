@@ -183,7 +183,12 @@ function rowAttachments(row: SubmissionView): { images?: MessageImage[]; files?:
   return { ...(images.length === 0 ? {} : { images }), ...(files.length === 0 ? {} : { files }) }
 }
 
-/** 只画 `deliverAs === 'turn'` 且还没被真实 turn 换掉的。例外是**失败的插话 / 排队**（R-08-5）：不画就等于那句话无声无息地消失。 */
+/**
+ * 只画 `deliverAs === 'turn'` 且还没被真实 turn 换掉的。例外是**失败的插话 / 排队**（R-08-5）：不画就等于那句话无声无息地消失。
+ *
+ * 定时任务投进来的那段话（`origin === 'automation'`）一律不画：它不是人打的字，抬头是内部格式，
+ * 画成用户气泡会让人以为是自己发的，还会白白挂上「取回文字」。它的结局归任务自己的运行记录。
+ */
 function withSubmissionRows(next: Transcript, seen: ReadonlySet<string>): Transcript {
   /* 先剔上一轮贴进来的再贴当前应有的：`#put` 会被调很多次，不先剔就越贴越多（实测：一次发送出现 3~7 条一样的用户气泡）。 */
   const stripped = next.timeline.active.items.some((item) => item.id.startsWith(SUBMISSION_ITEM_PREFIX))
@@ -212,7 +217,12 @@ function withSubmissionRows(next: Transcript, seen: ReadonlySet<string>): Transc
     turn: stripped.active.turn,
     at: row.createdAt,
     text: row.text,
-    ...(row.status === 'failed' ? { undelivered: true } : {}),
+    /* 定时任务那一条画成系统条（不是人的气泡，也不挂「未送达」：结局归任务自己的运行记录）。 */
+    ...(row.origin === 'automation'
+      ? { automation: automationLineOf(row.text) }
+      : row.status === 'failed'
+        ? { undelivered: true }
+        : {}),
     ...(row.skills.length === 0 ? {} : { skills: row.skills }),
     ...rowAttachments(row),
   }))
@@ -224,6 +234,16 @@ function withSubmissionRows(next: Transcript, seen: ReadonlySet<string>): Transc
       active: { ...stripped.active, items: [...items, ...stripped.active.items] },
     },
   }
+}
+
+/**
+ * 系统条上那句话：投给 agent 的正文是「【定时任务】标题 · 何时运行\n\n<指令>\n\n（运行结束前…）」，
+ * 人对这段文字的全部所有权只有中间那一截。
+ */
+function automationLineOf(text: string): string {
+  const body = text.split('\n\n')
+  const instruction = body.length >= 2 ? body[1] : text
+  return instruction === undefined || instruction.trim() === '' ? text.trim() : instruction.trim()
 }
 
 /** 由组装点（ui/index.tsx）注入 —— store 不 import 自己的 api。身份由 ui/session-registry.ts 单点持有：同一条对话永远交回同一个对象。 */

@@ -78,10 +78,18 @@ export const SubmissionAttachment = z.object({
 })
 export type SubmissionAttachment = z.infer<typeof SubmissionAttachment>
 
+/**
+ * 这一句是谁投的。automation = 定时任务替人投进去的那段话（抬头 + 任务指令），不是人打的字：
+ * 屏幕上不给它画用户气泡、不给「取回文字」，结局走任务自己的运行记录。
+ */
+export const SubmissionOrigin = z.enum(['user', 'automation'])
+export type SubmissionOrigin = z.infer<typeof SubmissionOrigin>
+
 export const SubmissionView = z.object({
   clientTurnId: z.string().min(1),
   threadId: ThreadId,
   text: z.string(),
+  origin: SubmissionOrigin,
   attachments: z.array(SubmissionAttachment),
   skills: z.array(z.string()),
   /** 用户选的方式（turn / steer / followUp）；忙时 Core 可能按它改成排队。 */
@@ -95,6 +103,21 @@ export const SubmissionView = z.object({
   createdAt: z.number().int(),
 })
 export type SubmissionView = z.infer<typeof SubmissionView>
+
+/**
+ * 提交结局的**给人看的那句话**。码是契约、跨进程传的是它；文案是产品事实，落库时一并写进
+ * `error.message` —— 从前两处收口把码原样当文案存，任务运行记录里就出现了
+ * 「没能开始运行：conversation.submit_cancelled」。
+ */
+export const SUBMISSION_ERROR_TEXT: Readonly<Record<string, string>> = {
+  'conversation.submit_dropped': '这句话没能发出',
+  'conversation.submit_cancelled': '这句话已停止',
+  'conversation.core_restarted': 'Core 已重启，这条消息没有发出',
+}
+
+export function submissionErrorText(code: string): string {
+  return SUBMISSION_ERROR_TEXT[code] ?? code
+}
 
 /**
  * 队列快照的界面版。引擎那一份只有号与正文（像素不随每次队列通知重发一遍）；Core 按项上的 `ref`（提交号）

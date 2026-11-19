@@ -34,6 +34,8 @@ function serviceOf(
     readonly collectContext?: (threadId: string) => CollectedContext
     readonly lease?: SubmissionWriteLeasePort
     readonly clock?: Clock
+    /** t1 的姿态（默认 auto-edit）；只读档不占写租约。 */
+    readonly posture?: 'read-only' | 'auto-edit'
   } = {},
 ): {
   service: SubmissionService
@@ -72,7 +74,11 @@ function serviceOf(
   service.configure({
     workspaces,
     attachments,
-    requireThread: (threadId) => ({ id: threadId, workspaceId: 'ws1' }),
+    requireThread: (threadId) => ({
+      id: threadId,
+      workspaceId: 'ws1',
+      posture: threadId === 't1' ? (overrides.posture ?? 'auto-edit') : 'auto-edit',
+    }),
     autoTitle: () => undefined,
     markActivity: () => undefined,
     emitChanged: () => undefined,
@@ -97,6 +103,7 @@ function rowOf(clientTurnId: string, turnId: string | null): SubmissionRow {
   return {
     clientTurnId,
     threadId: 't1',
+    origin: 'user',
     text: 'hi',
     attachments: [],
     skills: [],
@@ -175,6 +182,61 @@ describe('R-08-2 turn 号缓存', () => {
  * 从前 recoverOnStart 只收 `pending`：排过队的那条停在库里的 `queued`，界面既不画队列
  * （队列已经不存在了）也不画那条提交（`queued` 不进时间线）——用户完全不知道自己排的话没了。
  */
+describe('提交的来历：定时任务投的那段话不参与起名', () => {
+  test('automation 的提交不调 autoTitle；人打的那句照旧', () => {
+    const titles: string[] = []
+    const db = openDatabase(':memory:')
+    for (const m of migrations) db.forModule('conversation').exec(m.sql)
+    db.forModule('conversation')
+      .prepare(
+        `INSERT INTO conversation_threads (id, workspace_id, title, title_source, posture, origin, pinned, archived, created_at, updated_at)
+         VALUES ('t1', 'ws1', 't', 'auto', 'auto-edit', 'user', 0, 0, 0, 0)`,
+      )
+      .run()
+    const service = new SubmissionService({
+      repo: createSubmissionsRepository(db.forModule('conversation')),
+      clock: systemClock,
+      logger: createTestLogger(),
+    })
+    service.configure({
+      workspaces: { requireUsable: () => undefined } as unknown as WorkspacesService,
+      attachments: { describe: () => [], resolve: () => [], retain: () => undefined } as unknown as AttachmentsService,
+      requireThread: (threadId) => ({ id: threadId, workspaceId: 'ws1', posture: 'auto-edit' }),
+      autoTitle: (_threadId, text) => titles.push(text),
+      markActivity: () => undefined,
+      emitChanged: () => undefined,
+      emitRemoved: () => undefined,
+      emitFailed: () => undefined,
+      acquireSession: async () => {
+        throw new Error('这条用例不交接')
+      },
+      emitUserMessage: () => undefined,
+    })
+
+    service.submit({
+      threadId: 't1',
+      clientTurnId: 'a1',
+      text: '【定时任务】自检 · 手动运行',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'turn',
+      origin: 'automation',
+    })
+    expect(titles).toEqual([])
+
+    service.submit({
+      threadId: 't1',
+      clientTurnId: 'u1',
+      text: '你好',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'turn',
+    })
+    expect(titles).toEqual(['你好'])
+    db.close()
+  })
+})
+
 describe('R-08-5 重启后排队的话不再静默丢失', () => {
   test('recoverOnStart 把 queued 也收成 failed(core_restarted) 并广播失败事件', () => {
     const failures: { clientTurnId: string; deliverAs: string; code: string }[] = []
@@ -193,6 +255,8 @@ describe('R-08-5 重启后排队的话不再静默丢失', () => {
 
     expect(repo.get('c1')?.status).toBe('failed')
     expect(repo.get('c1')?.error?.code).toBe('conversation.core_restarted')
+    /* 落库的是那句中文，不是码 —— 任务运行记录直接拿它拼「没能开始运行：…」 */
+    expect(repo.get('c1')?.error?.message).toBe('Core 已重启，这条消息没有发出')
     expect(repo.get('c2')?.status).toBe('failed')
     /* 真实轮次照旧：它已经开出来了，收掉它等于把界面上那一轮也划掉 */
     expect(repo.get('c3')?.status).toBe('started')
@@ -672,6 +736,8 @@ describe('R1 排队上下文在失败路径收口', () => {
 
     expect(repo.get('c1')?.status).toBe('failed')
     expect(repo.get('c1')?.error?.code).toBe('conversation.submit_cancelled')
+    /* 码不是给人看的话：落库的 remarks 必须是那句中文（任务运行记录直接拿它拼）。 */
+    expect(repo.get('c1')?.error?.message).toBe('这句话已停止')
     expect(service.has('t1')).toBe(false)
     expect(log).toEqual(['undelivered'])
   })
@@ -840,6 +906,46 @@ describe('R1 排队上下文在失败路径收口', () => {
     expect(ctx.fixture.holder()).toBe('t1')
     ctx.service.releaseWriteLease('t1')
     expect(ctx.fixture.released).toEqual(['lease-1', 'lease-2'])
+  })
+
+  /*
+   * 真机故障（2026-11-19）：只读档的定时任务占住写租约，同工作区里所有真正要写的对话排在它后面；
+   * 而它自己不写工作区 —— 抢一个用不上的租约，把别人全堵死。只读档直接放行，不碰租约。
+   */
+  test('只读档不占写租约：别人的写轮占着也照常交出去', async () => {
+    const fixture = leaseFixture()
+    const submits: SubmitInput[] = []
+    const ctx = serviceOf({
+      lease: fixture.lease,
+      session: () => fakeSession(submits),
+      posture: 'read-only',
+    })
+    /* t2 先拿走租约 */
+    ctx.service.submit({
+      threadId: 't2',
+      clientTurnId: 'c0',
+      text: '另一条对话正在写',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'turn',
+    })
+    await waitFor(() => submits.length === 1)
+    expect(fixture.holder()).toBe('t2')
+
+    ctx.service.submit({
+      threadId: 't1',
+      clientTurnId: 'c1',
+      text: '只读的一句',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'turn',
+    })
+    await waitFor(() => submits.length === 2)
+
+    expect(submits[1]?.text).toBe('只读的一句')
+    /* 租约还是 t2 的：只读那一句既没抢、也没放别人的 */
+    expect(fixture.holder()).toBe('t2')
+    expect(fixture.released).toEqual([])
   })
 
   test('等租约的期间被停止：这一句不再交出去（也不去抢租约）', async () => {

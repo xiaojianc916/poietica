@@ -1,6 +1,13 @@
 import type { AgentEvent } from '@poietica/agent-model'
 import { defineServiceToken } from '@poietica/foundation'
-import type { ControlsSnapshot, QueueView, SubmissionView, Thread, TurnState } from '@poietica/product-model'
+import type {
+  ControlsSnapshot,
+  QueueView,
+  SubmissionOrigin,
+  SubmissionView,
+  Thread,
+  TurnState,
+} from '@poietica/product-model'
 import type {
   Controls,
   EngineSession,
@@ -73,6 +80,7 @@ export interface TurnService {
     attachmentIds: readonly string[]
     skills: readonly string[]
     deliverAs: 'turn' | 'steer' | 'followUp'
+    origin?: SubmissionOrigin | undefined
   }): Promise<{ submission: SubmissionView }>
   cancel(threadId: string): Promise<void>
   submissionsOf(threadId: string, stamped: ReadonlySet<string>): SubmissionView[]

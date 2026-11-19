@@ -13,7 +13,15 @@ import {
   SlashCommand,
 } from '@poietica/runtime-protocol'
 import { z } from 'zod'
-import { QueueView, SubmissionView, Thread, ThreadInit, TimelineSnapshot, TurnState } from './entities'
+import {
+  QueueView,
+  SubmissionOrigin,
+  SubmissionView,
+  Thread,
+  ThreadInit,
+  TimelineSnapshot,
+  TurnState,
+} from './entities'
 import { conversationErrors } from './errors'
 
 export * from './entities'
@@ -153,6 +161,8 @@ export const conversationContract = defineContract({
         attachmentIds: z.array(z.string()),
         skills: z.array(z.string()),
         deliverAs: DeliverAs,
+        /* 谁投的这一句：定时任务替人投的那段话标 automation（不画成用户气泡、不参与自动起名）。 */
+        origin: SubmissionOrigin.optional(),
       }),
       /*
        * 「Core 即时回显」：这里只做查表级检查就返回（**不打开会话、不读附件文件**），

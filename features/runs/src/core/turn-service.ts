@@ -7,7 +7,7 @@ import {
   turnOrdinal,
 } from '@poietica/agent-model'
 import { AppError, type Clock, type Logger, SystemErrorCode } from '@poietica/foundation'
-import type { QueueView, SubmissionView } from '@poietica/product-model'
+import type { QueueView, SubmissionOrigin, SubmissionView } from '@poietica/product-model'
 import { controlsFromSnapshot, DEFAULT_POSTURE, type TurnState } from '@poietica/product-model'
 import {
   type Controls,
@@ -81,6 +81,7 @@ export class TurnService {
     attachmentIds: readonly string[]
     skills: readonly string[]
     deliverAs: 'turn' | 'steer' | 'followUp'
+    origin?: SubmissionOrigin | undefined
   }): Promise<{ submission: SubmissionView }> {
     /*
      * 「Core 即时回显」：这里只存库、推送、回复（几毫秒），打开会话与交给 omp 由
