@@ -166,6 +166,21 @@ export interface PreparedThread {
 /** 提交行在时间线里的条目 id 前缀：换真实 turn 时靠它把上一份剔掉。 */
 const SUBMISSION_ITEM_PREFIX = 'submission:'
 
+/**
+ * 这一条用户消息属于哪一次「本机提交」：真实行自带 `clientTurnId`；提交行的 id 就是
+ * `submission:<clientTurnId>`。两行说的是同一句话 —— 气泡的进场补间靠它从提交行接到真实行上，
+ * 不必在换行那一帧把动画从头再放一遍。
+ */
+export function clientTurnIdOfMessage(item: TimelineItem): string | null {
+  if (item.type !== 'user_message') {
+    return null
+  }
+  if (item.clientTurnId !== undefined) {
+    return item.clientTurnId
+  }
+  return item.id.startsWith(SUBMISSION_ITEM_PREFIX) ? item.id.slice(SUBMISSION_ITEM_PREFIX.length) : null
+}
+
 /** 提交行带的附件与真实 turn 投影出来的同形：换的那一帧气泡上的图与文件记号不闪。 */
 function rowAttachments(row: SubmissionView): { images?: MessageImage[]; files?: MessageFile[] } {
   if (row.attachments.length === 0) {

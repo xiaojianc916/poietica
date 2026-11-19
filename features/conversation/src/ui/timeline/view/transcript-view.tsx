@@ -1,11 +1,12 @@
 import type { TurnMark } from '@poietica/conversation-kit/model'
 import { useProseSettled } from '@poietica/design-system/prose'
 import { useContributions } from '@poietica/ui-kernel'
-import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toolCallRenderers, useTurnChanges, useTurnChangesOf, useTurnDiffOpener } from '../../../ui-api'
 import { delegateAddress } from '../delegate-channel'
 import { AgentActivityFeed, type FeedPort, type RowRhythm } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
+import { clientTurnIdOfMessage } from '../model/transcript-store'
 import { useTranscripts } from '../model/transcripts-context'
 import {
   useAssistantHasEarlier,
@@ -28,6 +29,101 @@ const REPLY_ACTIONS_PX = 32
  * 这里只是首屏估高用的近似值 —— 真高由虚拟器量。
  */
 const TURN_CHANGES_PX = 58
+
+/** 用户气泡进场补间的时长：与 user-message.css 的 `timeline-user-arrive` 同值。 */
+const USER_ARRIVAL_MS = 320
+
+/** 刚说的那一句，以及它在换行时已经播到哪（delayMs 是给新元素接上进度用的负延迟）。 */
+interface UserArrival {
+  readonly clientTurnId: string
+  readonly delayMs: number
+}
+
+/** 投影里「最后一句自己说的话」是哪一条、属于哪一次本机提交。 */
+interface SaidMark {
+  readonly clientTurnId: string | null
+  readonly message: string | null
+  readonly session: string
+}
+
+function saidMarkOf(feed: Presentation, sessionKey: string): SaidMark {
+  const message = feed.latestOwnMessage
+  const at = message === null ? undefined : feed.rowOf(message)
+  const item = at === undefined ? undefined : feed.rowAt(at)?.item
+  /* 定时任务那条画成系统条，不是人的气泡：不给它挂进场。 */
+  const clientTurnId =
+    item?.type === 'user_message' && item.automation === undefined ? clientTurnIdOfMessage(item) : null
+  return { clientTurnId, message, session: sessionKey }
+}
+
+/**
+ * 用户气泡的进场补间只在「这一句真的刚被说出来」时播一次。
+ *
+ * 判据是投影里最后一条自己说的话换了身份：虚拟器滚动进出视口导致的行重挂载、打开一条旧对话、
+ * 回退 / 分叉把尾巴拿掉，都不算。提交行换成真实行时 React 会换一颗元素，这里交出负延迟，
+ * 让动画从上一颗播到的进度接着走，而不是重头再来一遍。
+ */
+function useUserArrival(feed: Presentation, sessionKey: string): UserArrival | null {
+  const [arrival, setArrival] = useState<UserArrival | null>(null)
+  const spoken = useRef<SaidMark | null>(null)
+  const started = useRef(0)
+
+  useLayoutEffect(() => {
+    const next = saidMarkOf(feed, sessionKey)
+    const previous = spoken.current
+
+    if (
+      previous !== null &&
+      previous.session === next.session &&
+      previous.message === next.message &&
+      previous.clientTurnId === next.clientTurnId
+    ) {
+      return
+    }
+
+    spoken.current = next
+
+    /* 第一次打开一条对话 / 换了一条对话：屏幕上那一批不是「刚说的」。 */
+    if (previous === null || previous.session !== next.session || next.clientTurnId === null) {
+      return
+    }
+
+    /* 同一句话换了一行（提交行 → 真实行）：接着上一颗的进度走，不重头再来。 */
+    if (previous.clientTurnId === next.clientTurnId) {
+      setArrival({
+        clientTurnId: next.clientTurnId,
+        delayMs: Math.min(performance.now() - started.current, USER_ARRIVAL_MS),
+      })
+      return
+    }
+
+    /* 上一条已经不在投影里：回退 / 分叉把尾巴拿掉了，旧的那条重新露出来，不是新说的。 */
+    if (previous.message !== null && feed.rowOf(previous.message) === undefined) {
+      setArrival(null)
+      return
+    }
+
+    started.current = performance.now()
+    setArrival({ clientTurnId: next.clientTurnId, delayMs: 0 })
+  }, [feed, sessionKey])
+
+  /* 补间走完就摘标记：挂着它的话，这一行之后被虚拟器重挂载会再播一次。 */
+  useEffect(() => {
+    if (arrival === null) {
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      setArrival(null)
+    }, Math.max(0, USER_ARRIVAL_MS - arrival.delayMs) + 160)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [arrival])
+
+  return arrival
+}
 
 /** 人亲手改过的开合必须合成一份：分开存的话封条改的是另一份，滚动区看不见，会把整屏当成模型在吐字。 */
 interface Disclosure {
@@ -241,6 +337,7 @@ function SettledTranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite
   const renderers = useContributions(toolCallRenderers)
   const inline = useMemo(() => inlineToolsOf(renderers.map((contributed) => contributed.item)), [renderers])
   const feed = selectPresentation(timeline, seals, inline)
+  const arrival = useUserArrival(feed, sessionKey)
   const estimateRow = useMemo(() => {
     void sessionKey
     return createRowEstimator()
@@ -257,6 +354,12 @@ function SettledTranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite
       const replyAction = feed.replyAt(index)
       /* 账只挂在有回复操作行的那一行：没有正文的轮没有「回复下方」这个位置。 */
       const changesView = replyAction === undefined ? undefined : changesByTurn.get(row.item.turn)
+      const enterDelayMs =
+        arrival !== null &&
+        row.item.type === 'user_message' &&
+        clientTurnIdOfMessage(row.item) === arrival.clientTurnId
+          ? arrival.delayMs
+          : undefined
 
       return (
         <TimelineSeat
@@ -270,6 +373,7 @@ function SettledTranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite
                 onRewindTurn: rewind,
                 onToggleChanges: () => toggleChanges(changesView.turn),
               })}
+          enterDelayMs={enterDelayMs}
           group={feed.groupAt(index)}
           onFork={onFork}
           onRewrite={onRewrite}
@@ -288,6 +392,7 @@ function SettledTranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite
       )
     },
     [
+      arrival,
       changes,
       changesByTurn,
       chooseTurn,

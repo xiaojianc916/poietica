@@ -1,6 +1,6 @@
 import { PromptChip, promptSegments } from '@poietica/conversation-kit/primitives'
 import type { MessageFile, MessageImage } from '@poietica/conversation-kit/timeline'
-import { Fragment, type ReactNode, useState } from 'react'
+import { type CSSProperties, Fragment, type ReactNode, useState } from 'react'
 import { MessageAttachments } from './message-attachments'
 import { VirtualLines } from './virtual-lines'
 
@@ -50,6 +50,7 @@ function chipsOf(files: readonly MessageFile[], skills: readonly string[]): read
  */
 export function UserMessage({
   automation,
+  enterDelayMs,
   files,
   images,
   skills,
@@ -58,6 +59,8 @@ export function UserMessage({
 }: {
   /** 定时任务替人投的那一轮：画成居中的系统条，不画成人的气泡。 */
   readonly automation?: string | undefined
+  /** 这一句刚被说出来：给气泡挂进场补间，值是它已经播过的毫秒数（负延迟从那一格接着走）。 */
+  readonly enterDelayMs?: number | undefined
   readonly files?: readonly MessageFile[] | undefined
   readonly images?: readonly MessageImage[] | undefined
   readonly skills?: readonly string[] | undefined
@@ -77,18 +80,26 @@ export function UserMessage({
   return (
     <>
       {(images?.length ?? 0) > 0 ? <MessageAttachments images={images} /> : null}
-      <Said files={files ?? []} skills={skills ?? []} text={text} undelivered={undelivered === true} />
+      <Said
+        enterDelayMs={enterDelayMs}
+        files={files ?? []}
+        skills={skills ?? []}
+        text={text}
+        undelivered={undelivered === true}
+      />
     </>
   )
 }
 
 /** 与 `UserMessage` 分开只为：附件与气泡是两个兄弟，合在一个函数里条件会叠在一起，复杂度闸门过不去。 */
 function Said({
+  enterDelayMs,
   files,
   skills,
   text,
   undelivered,
 }: {
+  readonly enterDelayMs?: number | undefined
   readonly files: readonly MessageFile[]
   readonly skills: readonly string[]
   readonly text: string
@@ -106,8 +117,14 @@ function Said({
   return (
     <div
       className="timeline-user"
+      data-entering={enterDelayMs === undefined ? undefined : 'true'}
       data-long={long ? 'true' : undefined}
       data-undelivered={undelivered ? 'true' : undefined}
+      style={
+        enterDelayMs === undefined
+          ? undefined
+          : ({ '--timeline-user-arrive-delay': `-${String(enterDelayMs)}ms` } as CSSProperties)
+      }
     >
       {lines.length >= USER_VIRTUAL_ABOVE_LINES ? (
         <>

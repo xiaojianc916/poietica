@@ -33,6 +33,8 @@ export interface TimelineSeatProps {
   readonly onRewindTurn?: ((turn: number) => void) | undefined
   /** 点这一轮改过的某个文件：把它的改动开到右坞（没装 files 功能时缺席）。 */
   readonly onOpenDiff?: ((path: string) => void) | undefined
+  /** 这一行刚被说出来：给用户气泡挂进场补间（值是它已经播过的毫秒数，负延迟接上进度）。 */
+  readonly enterDelayMs?: number | undefined
   readonly open: ReadonlySet<string>
   readonly onToggle: (id: string) => void
   readonly onSealToggle: (turn: number, isOpen: boolean) => void
@@ -44,6 +46,7 @@ export const TimelineSeat = memo(function TimelineSeat({
   changes,
   changesBusy,
   changesOpen,
+  enterDelayMs,
   group,
   onFork,
   onRewrite,
@@ -63,7 +66,13 @@ export const TimelineSeat = memo(function TimelineSeat({
   threadId,
 }: TimelineSeatProps) {
   const rowOf = (one: FeedRow) => (
-    <TimelineRow isOpen={open.has(one.item.id)} onToggle={onToggle} row={one} threadId={threadId} />
+    <TimelineRow
+      enterDelayMs={one === row ? enterDelayMs : undefined}
+      isOpen={open.has(one.item.id)}
+      onToggle={onToggle}
+      row={one}
+      threadId={threadId}
+    />
   )
   const content = (
     <>

@@ -20,6 +20,8 @@ export interface TimelineRowProps {
   /** 这条时间线属于哪条线程：贡献工具卡片的渲染器要它。 */
   readonly threadId: string
   readonly isOpen: boolean
+  /** 这一行刚被说出来：交给用户气泡做进场补间（已经播过的毫秒数）。 */
+  readonly enterDelayMs?: number | undefined
   // 收下 id 而不是闭包：这一支是 memo 过的，每帧换身份等于每帧重渲。
   readonly onToggle: (id: string) => void
 }
@@ -87,7 +89,7 @@ function ToolCallRow({
   )
 }
 
-export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row, threadId }: TimelineRowProps) {
+export const TimelineRow = memo(function TimelineRow({ enterDelayMs, isOpen, onToggle, row, threadId }: TimelineRowProps) {
   const { item } = row
 
   switch (item.type) {
@@ -95,6 +97,7 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row, th
       return (
         <UserMessage
           automation={item.automation}
+          enterDelayMs={enterDelayMs}
           files={item.files}
           images={item.images}
           skills={item.skills}

@@ -19,6 +19,31 @@
 }
 
 /*
+ * 刚说出的一句：从下方轻轻托上来并淡入，落定后不再动。
+ *
+ * 只在「这一句真的刚被说出来」时挂 data-entering —— 滚动导致的行重挂载、打开旧对话都不带这个标记。
+ * 提交行换成真实行时 React 会换一颗元素：行内给的负延迟（--timeline-user-arrive-delay）让动画
+ * 从上一颗播到的进度接着走，而不是重头再来一遍。
+ */
+.timeline-user[data-entering='true'] {
+  animation: timeline-user-arrive var(--cp-motion-settle) var(--cp-motion-settle-ease)
+    var(--timeline-user-arrive-delay, 0ms) both;
+}
+
+@keyframes timeline-user-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--cp-motion-rise) * 2));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timeline-user[data-entering='true'] {
+    animation: none;
+  }
+}
+
+/*
  * 定时任务触发的那一轮：占满一行、居中的系统条。
  *
  * 它不是人打的字（所以没有气泡、没有「未送达」），但**必须看得见** —— 一条自动化对话里
