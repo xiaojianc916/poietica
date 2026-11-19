@@ -638,118 +638,125 @@ export function AssistantThreadList({
   ]
 
   return (
-    <nav aria-label="AI 会话记录" className="assistant-threads" data-assistant-skin ref={scrollRef}>
-      <AnimatedRows ready={animatedReady} resetKey={animationResetKey} rowKeys={rowKeys} scroller={scrollRef} />
-      {pinned.length === 0 ? null : (
-        <section className="assistant-threads__section">
-          <ThreadSectionHeader
-            isOpen={isPinOpen}
-            label="置顶"
-            onToggle={() => {
-              setPinOpen((open) => !open)
-            }}
-          />
+    <div className="assistant-threads" data-assistant-skin>
+      {/*
+        「项目」这条栏住在滚动盒外面：滚动条只作用于下面的会话列表，不经过它。
+        原先它和列表同在一个滚动盒里，吸顶要靠 position: sticky，吸附范围又受父元素高度约束 ——
+        结构上直接分开，滚动再怎么滚也动不到它。
+        标题与那三枚按钮是同一条栏：搜索展开时标题让位，动作让位（正本 sectionHeader 的编排）。
+      */}
+      <div className="assistant-threads__section-bar" data-searching={searchOpen ? 'true' : undefined}>
+        <ThreadSectionHeader
+          isOpen={isRepositoriesOpen}
+          label="项目"
+          onToggle={() => {
+            setRepositoriesOpen((open) => !open)
+          }}
+        />
 
-          <ThreadDisclosure isOpen={isPinOpen}>
-            <ul className="assistant-threads__list">{pinned.map(renderThread)}</ul>
+        <ThreadsHeader
+          archivedFilter={archivedFilter}
+          expanded={searchOpen}
+          groupBy={groupBy}
+          onAdd={onAddWorkspace}
+          onArchivedFilterChange={onArchivedFilterChange}
+          onExpandedChange={setSearchOpen}
+          onGroupByChange={setGroupBy}
+          onQueryChange={setQuery}
+          query={query}
+        />
+      </div>
+
+      <nav aria-label="AI 会话记录" className="assistant-threads__scroll" ref={scrollRef}>
+        <AnimatedRows ready={animatedReady} resetKey={animationResetKey} rowKeys={rowKeys} scroller={scrollRef} />
+        {pinned.length === 0 ? null : (
+          <section className="assistant-threads__section">
+            <ThreadSectionHeader
+              isOpen={isPinOpen}
+              label="置顶"
+              onToggle={() => {
+                setPinOpen((open) => !open)
+              }}
+            />
+
+            <ThreadDisclosure isOpen={isPinOpen}>
+              <ul className="assistant-threads__list">{pinned.map(renderThread)}</ul>
+            </ThreadDisclosure>
+          </section>
+        )}
+
+        <section className="assistant-threads__section">
+          <ThreadDisclosure isOpen={isRepositoriesOpen}>
+            {showPlaceholders ? (
+              <ul aria-hidden="true" className="assistant-threads__list">
+                {PLACEHOLDER_WIDTHS.map((width) => (
+                  <li className="assistant-thread" data-placeholder="true" key={width}>
+                    <span className="assistant-thread__ghost" style={{ width }} />
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {notice === null ? null : <p className="assistant-threads__empty">{notice}</p>}
+
+            {repositories.map((group) => {
+              /* 名字缺席的组不长组头：编一个「默认工作区」是造一个用户问得出「在哪」而界面答不上的标题。无标题故也无折叠，收不起一个说不出名字的东西。 */
+              const named = group.name
+              const isOpen = named === null || !collapsedWorkspaces.has(group.id)
+              const limit = shown.get(group.id) ?? DEFAULT_VISIBLE
+              const members = group.members.slice(0, limit)
+              const rest = group.members.length - members.length
+              const canCollapse = rest === 0 && group.members.length > DEFAULT_VISIBLE
+
+              return (
+                <section className="assistant-threads__group" key={group.id}>
+                  {named === null ? null : (
+                    <WorkspaceHeader
+                      isOpen={isOpen}
+                      name={named}
+                      mode={workspaceMeta?.[group.id]?.mode ?? 'local'}
+                      exists={workspaceMeta?.[group.id]?.exists ?? true}
+                      onCreate={onCreate}
+                      onRemove={onRemoveWorkspace}
+                      onIsolate={onIsolateWorkspace}
+                      onDeliver={onDeliverWorkspace}
+                      onDiscard={onDiscardWorkspace}
+                      onToggle={onToggleWorkspace}
+                      workspaceId={group.id}
+                    />
+                  )}
+
+                  <ThreadDisclosure isOpen={isOpen}>
+                    <ul className="assistant-threads__list">{members.map(renderThread)}</ul>
+
+                    {rest > 0 ? (
+                      <button
+                        className="assistant-threads__more"
+                        onClick={() => {
+                          showMore(group.id)
+                        }}
+                        type="button"
+                      >
+                        展开其余 {rest} 个会话
+                      </button>
+                    ) : canCollapse ? (
+                      <button
+                        className="assistant-threads__more"
+                        onClick={() => {
+                          collapseAll(group.id)
+                        }}
+                        type="button"
+                      >
+                        收起全部
+                      </button>
+                    ) : null}
+                  </ThreadDisclosure>
+                </section>
+              )
+            })}
           </ThreadDisclosure>
         </section>
-      )}
-
-      <section className="assistant-threads__section">
-        {/* 标题与那三枚按钮是同一条栏：搜索展开时标题让位，动作让位（正本 sectionHeader 的编排）。 */}
-        <div className="assistant-threads__section-bar" data-searching={searchOpen ? 'true' : undefined}>
-          <ThreadSectionHeader
-            isOpen={isRepositoriesOpen}
-            label="项目"
-            onToggle={() => {
-              setRepositoriesOpen((open) => !open)
-            }}
-          />
-
-          <ThreadsHeader
-            archivedFilter={archivedFilter}
-            expanded={searchOpen}
-            groupBy={groupBy}
-            onAdd={onAddWorkspace}
-            onArchivedFilterChange={onArchivedFilterChange}
-            onExpandedChange={setSearchOpen}
-            onGroupByChange={setGroupBy}
-            onQueryChange={setQuery}
-            query={query}
-          />
-        </div>
-
-        <ThreadDisclosure isOpen={isRepositoriesOpen}>
-          {showPlaceholders ? (
-            <ul aria-hidden="true" className="assistant-threads__list">
-              {PLACEHOLDER_WIDTHS.map((width) => (
-                <li className="assistant-thread" data-placeholder="true" key={width}>
-                  <span className="assistant-thread__ghost" style={{ width }} />
-                </li>
-              ))}
-            </ul>
-          ) : null}
-
-          {notice === null ? null : <p className="assistant-threads__empty">{notice}</p>}
-
-          {repositories.map((group) => {
-            /* 名字缺席的组不长组头：编一个「默认工作区」是造一个用户问得出「在哪」而界面答不上的标题。无标题故也无折叠，收不起一个说不出名字的东西。 */
-            const named = group.name
-            const isOpen = named === null || !collapsedWorkspaces.has(group.id)
-            const limit = shown.get(group.id) ?? DEFAULT_VISIBLE
-            const members = group.members.slice(0, limit)
-            const rest = group.members.length - members.length
-            const canCollapse = rest === 0 && group.members.length > DEFAULT_VISIBLE
-
-            return (
-              <section className="assistant-threads__group" key={group.id}>
-                {named === null ? null : (
-                  <WorkspaceHeader
-                    isOpen={isOpen}
-                    name={named}
-                    mode={workspaceMeta?.[group.id]?.mode ?? 'local'}
-                    exists={workspaceMeta?.[group.id]?.exists ?? true}
-                    onCreate={onCreate}
-                    onRemove={onRemoveWorkspace}
-                    onIsolate={onIsolateWorkspace}
-                    onDeliver={onDeliverWorkspace}
-                    onDiscard={onDiscardWorkspace}
-                    onToggle={onToggleWorkspace}
-                    workspaceId={group.id}
-                  />
-                )}
-
-                <ThreadDisclosure isOpen={isOpen}>
-                  <ul className="assistant-threads__list">{members.map(renderThread)}</ul>
-
-                  {rest > 0 ? (
-                    <button
-                      className="assistant-threads__more"
-                      onClick={() => {
-                        showMore(group.id)
-                      }}
-                      type="button"
-                    >
-                      展开其余 {rest} 个会话
-                    </button>
-                  ) : canCollapse ? (
-                    <button
-                      className="assistant-threads__more"
-                      onClick={() => {
-                        collapseAll(group.id)
-                      }}
-                      type="button"
-                    >
-                      收起全部
-                    </button>
-                  ) : null}
-                </ThreadDisclosure>
-              </section>
-            )
-          })}
-        </ThreadDisclosure>
-      </section>
-    </nav>
+      </nav>
+    </div>
   )
 }
