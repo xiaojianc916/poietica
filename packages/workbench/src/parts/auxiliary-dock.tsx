@@ -252,15 +252,36 @@ function SettingsDock({
   return body === null ? null : <PanelBody contribution={body} />
 }
 
-function PanelBody({ contribution }: { readonly contribution: PanelContribution }): ReactNode {
-  return (
-    /* data-dock-panel 是换格过渡的捕捉目标（auxiliary.css 的 :active-view-transition-type(ui-dock)）。 */
+function PanelBody({
+  contribution,
+  labelledBy,
+  tabPanel = false,
+}: {
+  readonly contribution: PanelContribution
+  readonly labelledBy?: string | undefined
+  readonly tabPanel?: boolean
+}): ReactNode {
+  const content = (
+    <FeatureScope featureId={contribution.featureId} key={contribution.item.id}>
+      <Suspense fallback={<PartSkeleton quiet />}>
+        <contribution.item.component />
+      </Suspense>
+    </FeatureScope>
+  )
+
+  return tabPanel ? (
+    <div
+      aria-labelledby={labelledBy}
+      className="min-h-0 flex-1 overflow-hidden"
+      data-dock-panel=""
+      id={AUXILIARY_TABPANEL_ID}
+      role="tabpanel"
+    >
+      {content}
+    </div>
+  ) : (
     <div className="min-h-0 flex-1 overflow-hidden" data-dock-panel="">
-      <FeatureScope featureId={contribution.featureId} key={contribution.item.id}>
-        <Suspense fallback={<PartSkeleton quiet />}>
-          <contribution.item.component />
-        </Suspense>
-      </FeatureScope>
+      {content}
     </div>
   )
 }
@@ -429,7 +450,7 @@ function SurfaceDock({
         /* 理论上到不了，留一条兜底只为不画白板。 */
         <AuxiliaryLauncher offers={offers} onOpen={openOffer} />
       ) : (
-        <PanelBody contribution={body} />
+        <PanelBody contribution={body} labelledBy={tabs.find((tab) => tab.active)?.domId} tabPanel />
       )}
     </>
   )

@@ -319,6 +319,7 @@ function KeepAwakeRow() {
         checked={keepAwake}
         className="ml-auto"
         onCheckedChange={setKeepAwake}
+        title="电源管理尚未接入"
       />
     </div>
   )

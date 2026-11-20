@@ -59,8 +59,8 @@ describe('DialogPanel', () => {
     const { view, answers } = mount({ kind: 'select', title: '用哪个？', options: ['甲', '乙', '乙'] })
     const submit = view.getByRole('button', { name: '提交' }) as HTMLButtonElement
     expect(submit.disabled).toBe(true)
-    fireEvent.click(view.getAllByRole('button', { name: /乙/ })[1]!)
-    expect(view.getAllByRole('button', { pressed: true })).toHaveLength(1)
+    fireEvent.click(view.getAllByRole('radio')[1]!)
+    expect(view.getAllByRole('radio', { checked: true })).toHaveLength(1)
     fireEvent.click(submit)
     await settle()
     expect(answers).toEqual([{ id: 'i1', answer: { kind: 'select', value: '乙' } }])

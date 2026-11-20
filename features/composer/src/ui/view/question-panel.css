@@ -132,12 +132,15 @@
   max-height: min(320px, 40vh);
   margin: 0;
   padding: 0;
+  border: 0;
+  min-inline-size: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   list-style: none;
 }
 
 .assistant-question-panel__option {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -162,6 +165,23 @@
 
 .assistant-question-panel__option[data-selected='true'] {
   background: color-mix(in srgb, var(--ui-foreground) 10%, transparent);
+}
+
+/* 原生单选/复选盖住整行，视觉仍由上面的 span 画：键盘、读屏与指针语义都归浏览器。 */
+.assistant-question-panel__choice-input {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  appearance: none;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.assistant-question-panel__option:has(.assistant-question-panel__choice-input:focus-visible) {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: -2px;
 }
 
 .assistant-question-panel__option:disabled,

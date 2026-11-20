@@ -24,7 +24,7 @@ import {
   GitPullRequestDraft,
   Link as LinkIcon,
 } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
 import type { GithubComment, GithubMergeMethod, GithubPullRequest, GithubReviewState } from '../contract'
 import { Avatar } from './avatar'
 import { pullBranchLine, pullStatePresentation, relativeTime, relativeTimeAgo, STATE_GLYPHS } from './pr-format'
@@ -61,6 +61,22 @@ const TAB_LABEL: Readonly<Record<PrTab, string>> = {
   summary: 'Summary',
   changes: 'Changes',
   timeline: 'Timeline',
+}
+
+const PR_TABS: readonly PrTab[] = ['summary', 'changes', 'timeline']
+
+const PR_TAB_PANEL_ID = 'pr-detail-tabpanel'
+
+const prTabId = (tab: PrTab): string => `pr-detail-tab-${tab}`
+
+/* 键盘目标：Home / End 到两端，左右各走一格并回绕；不归我管的键返回 -1。 */
+function nextTabIndex(key: string, from: number): number {
+  if (key === 'Home') return 0
+  if (key === 'End') return PR_TABS.length - 1
+
+  const step = key === 'ArrowLeft' ? -1 : key === 'ArrowRight' ? 1 : 0
+
+  return step === 0 ? -1 : (from + step + PR_TABS.length) % PR_TABS.length
 }
 
 const ROW_CLASS = 'min-w-0 flex-1 truncate'
@@ -139,21 +155,48 @@ export function PrDetailTabs({
   readonly tab: PrTab
   readonly onTab: (tab: PrTab) => void
 }): ReactNode {
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    const next = nextTabIndex(event.key, PR_TABS.indexOf(tab))
+    const chosen = next < 0 ? undefined : PR_TABS[next]
+
+    if (chosen === undefined) {
+      return
+    }
+
+    event.preventDefault()
+
+    const button = event.currentTarget.children.item(next)
+
+    if (button instanceof HTMLElement) {
+      button.focus()
+    }
+
+    onTab(chosen)
+  }
+
   return (
     <div className="pr-detail__tabs">
-      <div aria-label="Pull request tabs" className="flex min-w-0 shrink-0 items-center gap-0.5" role="tablist">
-        {(['summary', 'changes', 'timeline'] as const).map((entry) => (
+      <div
+        aria-label="Pull request tabs"
+        className="flex min-w-0 shrink-0 items-center gap-0.5"
+        onKeyDown={onKeyDown}
+        role="tablist"
+      >
+        {PR_TABS.map((entry) => (
           <button
+            aria-controls={PR_TAB_PANEL_ID}
             aria-selected={tab === entry}
             className={cn(
               'flex h-6 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs transition-colors',
               tab === entry ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/60',
             )}
+            id={prTabId(entry)}
             key={entry}
             onClick={() => {
               onTab(entry)
             }}
             role="tab"
+            tabIndex={tab === entry ? 0 : -1}
             type="button"
           >
             <span>{TAB_LABEL[entry]}</span>
@@ -406,9 +449,11 @@ function Body({
           <span className="truncate">{pullBranchLine(pull)}</span>
         </p>
       </header>
-      {state.tab === 'summary' ? <Summary comments={comments} markdown={markdown} pull={pull} /> : null}
-      {state.tab === 'changes' ? <Changes pull={pull} /> : null}
-      {state.tab === 'timeline' ? <Timeline comments={comments} markdown={markdown} /> : null}
+      <div aria-labelledby={prTabId(state.tab)} id={PR_TAB_PANEL_ID} role="tabpanel">
+        {state.tab === 'summary' ? <Summary comments={comments} markdown={markdown} pull={pull} /> : null}
+        {state.tab === 'changes' ? <Changes pull={pull} /> : null}
+        {state.tab === 'timeline' ? <Timeline comments={comments} markdown={markdown} /> : null}
+      </div>
     </div>
   )
 }

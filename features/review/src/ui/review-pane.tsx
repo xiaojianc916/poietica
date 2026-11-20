@@ -368,6 +368,7 @@ function Bases({
                   store.setBase(source.ref)
                 }
               }}
+              title={source.ref === null ? '这个比较基准尚未实现' : undefined}
             >
               <span className={ROW_CLASS}>{source.label}</span>
               {source.ref !== null && source.ref === base ? <DropdownMenuCheck /> : null}

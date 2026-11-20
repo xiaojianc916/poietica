@@ -142,31 +142,45 @@ function QuestionOptionList({
   const OtherMark = otherSelected ? CircleCheck : Circle
   /* 选项表一次渲染里逐行查同一份 picked：先摊成 Set，避免每个选项都线性扫一遍。 */
   const picked = new Set(draft.picked)
+  const multi = current.multiSelect === true
+  const choiceName = `question-${current.id}`
+
   return (
     <>
-      <div className="assistant-question-panel__options" data-skipped={draft.skipped ? 'true' : undefined}>
+      <fieldset className="assistant-question-panel__options" data-skipped={draft.skipped ? 'true' : undefined}>
+        <legend className="sr-only">{current.question}</legend>
+
         {current.options.map((option, at) => {
           const selected = picked.has(option.id)
           const Mark = selected ? CircleCheck : Circle
+
           return (
-            <button
-              aria-pressed={selected}
+            <label
               className="assistant-question-panel__option"
+              data-disabled={sent ? 'true' : undefined}
               data-selected={selected ? 'true' : undefined}
-              disabled={sent}
               key={option.id}
-              onClick={() => onPick(option.id, at)}
               title={option.description}
-              type="button"
             >
+              <input
+                checked={selected}
+                className="assistant-question-panel__choice-input"
+                disabled={sent}
+                name={choiceName}
+                onChange={() => onPick(option.id, at)}
+                title={option.description}
+                type={multi ? 'checkbox' : 'radio'}
+                value={option.id}
+              />
               <span className="assistant-question-panel__key">{at + 1}</span>
               <span className="assistant-question-panel__mark">
                 <Mark aria-hidden="true" />
               </span>
               <span className="assistant-question-panel__label">{option.label}</span>
-            </button>
+            </label>
           )
         })}
+
         {current.allowOther === true ? (
           <label
             className="assistant-question-panel__option assistant-question-panel__option--other"
@@ -182,7 +196,7 @@ function QuestionOptionList({
               aria-label={current.otherLabel ?? '其他'}
               className="assistant-question-panel__other-input"
               disabled={sent || draft.skipped}
-              onChange={(event) => onWrite(event.target.value)}
+              onChange={(event) => onWrite(event.currentTarget.value)}
               onFocus={onFocusOther}
               placeholder={current.otherDescription ?? '请输入…'}
               ref={otherInput}
@@ -190,8 +204,8 @@ function QuestionOptionList({
             />
           </label>
         ) : null}
-      </div>
-      {current.multiSelect === true ? <p className="assistant-question-panel__hint-inline">可多选</p> : null}
+      </fieldset>
+      {multi ? <p className="assistant-question-panel__hint-inline">可多选</p> : null}
     </>
   )
 }

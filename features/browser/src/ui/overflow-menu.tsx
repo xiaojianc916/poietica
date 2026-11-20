@@ -120,6 +120,7 @@ function CommandRow({
       onClick={() => {
         command?.()
       }}
+      title={command === undefined ? '此命令尚未接入' : undefined}
     >
       <ToolbarMenuLabel>{label}</ToolbarMenuLabel>
       {submenu === true ? <ChevronRight aria-hidden className=" opacity-50" /> : null}

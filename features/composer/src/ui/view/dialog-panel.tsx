@@ -99,30 +99,36 @@ export function DialogPanel({ item, onAnswer, onDismiss }: DialogPanelProps) {
           ) : null}
 
           {dialog.kind === 'select' ? (
-            <div className="assistant-question-panel__options">
+            <fieldset className="assistant-question-panel__options">
+              <legend className="sr-only">{dialog.title}</legend>
               {dialog.options.map((label, at) => {
                 const selected = picked === at
                 const Mark = selected ? CircleCheck : Circle
                 return (
-                  <button
-                    aria-pressed={selected}
+                  <label
                     className="assistant-question-panel__option"
                     data-selected={selected ? 'true' : undefined}
-                    disabled={sent}
                     /* 选项原文可能重复：位置才是它的身份 */
                     key={at}
-                    onClick={() => setPicked(selected ? undefined : at)}
-                    type="button"
                   >
+                    <input
+                      checked={selected}
+                      className="assistant-question-panel__choice-input"
+                      disabled={sent}
+                      name={`dialog-${item.questionId}`}
+                      onChange={() => setPicked(at)}
+                      type="radio"
+                      value={String(at)}
+                    />
                     <span className="assistant-question-panel__key">{at + 1}</span>
                     <span className="assistant-question-panel__mark">
                       <Mark aria-hidden="true" />
                     </span>
                     <span className="assistant-question-panel__label">{label}</span>
-                  </button>
+                  </label>
                 )
               })}
-            </div>
+            </fieldset>
           ) : null}
 
           {dialog.kind === 'input' ? (
