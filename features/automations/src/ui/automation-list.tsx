@@ -1,4 +1,5 @@
 import {
+  CjkText,
   ConfirmationDialog,
   cn,
   DropdownMenu,
@@ -7,6 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Switch,
+  TruncatedText,
 } from '@poietica/design-system'
 import { CirclePlay, Clock, Ellipsis, Info, Pause, Pencil, Play, RefreshCw, Square, Trash } from 'lucide-react'
 import { useState } from 'react'
@@ -93,7 +95,9 @@ export function AutomationList({ automations, pending, runsOf, onCreateBlank, on
 
           <KeepAwakeRow />
 
-          <h2 className="mt-6 text-xs text-muted-foreground">已创建任务</h2>
+          <h2 className="mt-6 text-xs text-muted-foreground">
+            <CjkText>已创建任务</CjkText>
+          </h2>
           {visible.length === 0 ? (
             <p className="py-10 text-center text-xs text-muted-foreground">这个筛选下没有任务</p>
           ) : (
@@ -169,7 +173,11 @@ function TaskCard({
     <li className="flex">
       <article className="flex w-full flex-col rounded-xl border border-divider bg-[var(--ui-card)] px-4 py-3.5">
         <div className="flex items-start gap-2">
-          <h3 className="min-w-0 flex-1 text-xs font-medium">{automation.title}</h3>
+          <h3 className="min-w-0 flex-1 text-xs font-medium">
+            <TruncatedText className="block" fullText={automation.title}>
+              <CjkText>{automation.title}</CjkText>
+            </TruncatedText>
+          </h3>
           <TaskMenu
             active={active}
             automation={automation}
@@ -190,7 +198,8 @@ function TaskCard({
             <span className="truncate">{line}</span>
           </span>
           <span className="ml-auto shrink-0 rounded-md bg-sidebar-accent px-2 py-0.5 text-muted-foreground">
-            已运行 {runs.length} 次
+            已运行 {runs.length}
+            {'\u00A0'}次
           </span>
         </div>
       </article>

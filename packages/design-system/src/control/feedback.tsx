@@ -1,4 +1,5 @@
 import { CircleAlert as DangerCircle, LoaderCircle as Spinner } from 'lucide-react'
+import { CjkText } from '../cjk-text'
 import { Button } from './button'
 
 /*
@@ -38,7 +39,9 @@ export function ErrorState({
       <div>
         <DangerCircle aria-hidden="true" className="mx-auto text-destructive" />
 
-        <h3 className="mt-3 text-sm font-semibold">{title}</h3>
+        <h3 className="mt-3 text-sm font-semibold">
+          <CjkText>{title}</CjkText>
+        </h3>
 
         <p className="mt-1 max-w-sm text-xs leading-5 text-muted-foreground">{message}</p>
 

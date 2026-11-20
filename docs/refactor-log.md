@@ -53,6 +53,17 @@
 
 ## 偏差与裁决
 
+### 字体排印开关（2026-11-20）
+
+产品要求用一组 CSS 开关打磨换行、空格、对齐与截断。这是一次**有意的视觉变更**，与「界面视觉不得擅自改动」的常规约束不同，按任务要求执行；字体、字色、字号与布局宽度令牌未改。
+
+- **全局开关**：`packages/design-system/src/typography.css`（`@layer base`）。标题 `text-wrap: balance` + `word-break: keep-all`，段落 `text-wrap: pretty`，按钮 `white-space: nowrap`，表格/时间 `tabular-nums`，中文正文 `text-align: justify` 与 `--ui-measure-cjk: 26em`，中文根 `text-autospace: normal` / `text-spacing-trim: trim-start`，代码与输入框单独关掉后两条。
+- **中文标题断点**：`cjk-text.tsx` 用 BudouX（catalog `0.10.4`）在词间插 `<wbr>`，按文案缓存；静态与动态标题共用这一条渲染路径，没有另做构建期转换。
+- **段落语言**：`prose/language.ts` 按汉字占比给 Markdown 段落补 `lang`，两端对齐只命中中文段落。
+- **截断提示**：`TruncatedText` 在 `scrollWidth > clientWidth` 时才挂 `title`。
+- **断行改写**：`python-kernel.css` 的 `word-break: break-all` 与 `conversation-minimap.css` 的 `word-break: break-word` 改为 `overflow-wrap: anywhere`；全仓没有 `line-break: anywhere`。
+- **数字与单位**：`formatBytes` 与主要计数文案改用 U+00A0，避免数字和单位被拆到两行；没有找到「破折号 + 名称」的界面文案。
+
 ### runtime 入口漏了 omp 的 worker 分派（2026-11-17）
 
 拆分出 `poietica-runtime.exe`（41a919ca）时，`dispatchProcessMode` 留在 `apps/core/src/main.ts` 里跟 `serve` 一起，

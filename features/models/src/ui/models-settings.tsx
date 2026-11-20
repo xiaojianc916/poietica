@@ -414,7 +414,7 @@ function ProviderItem({
             {custom ? <span className="models-provider-pill">自定义</span> : null}
           </span>
           <span className="models-provider-meta">
-            <span>{method === null ? `${models.length} 个模型` : `${method} · ${models.length} 个模型`}</span>
+            <span>{method === null ? `${models.length}\u00A0个模型` : `${method} · ${models.length}\u00A0个模型`}</span>
             <ChevronDown aria-hidden="true" className="models-provider-chevron" />
           </span>
         </AccordionTrigger>
@@ -569,7 +569,10 @@ function CatalogAddTab({
         </button>
         <div className="models-add-heading">
           <strong>{selected.name}</strong>
-          <span>{selected.models.length} 个模型</span>
+          <span>
+            {selected.models.length}
+            {'\u00A0'}个模型
+          </span>
         </div>
         {auth.render({
           providerId: selected.id,
@@ -608,7 +611,10 @@ function CatalogAddTab({
                 <strong>{provider.name}</strong>
                 {auth.canSignIn(provider.id) ? <span className="models-provider-pill">可账号登录</span> : null}
               </span>
-              <span className="models-catalog-row__count">{provider.models.length} 个模型</span>
+              <span className="models-catalog-row__count">
+                {provider.models.length}
+                {'\u00A0'}个模型
+              </span>
             </button>
           ))
         )}

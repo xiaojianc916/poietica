@@ -98,7 +98,7 @@ describe('automation list card', () => {
     expect(screen.getByText('测试任务：报告当前时间与工作区状态')).toBeDefined()
     expect(screen.getByText('这是一个测试用的自动化任务，请报告当前时间与工作区状态。')).toBeDefined()
     expect(screen.getByText('每天 09:00')).toBeDefined()
-    expect(screen.getByText('已运行 1 次')).toBeDefined()
+    expect(screen.getByText(/已运行\s*1\s*次/)).toBeDefined()
   })
 
   test('上一次运行的结论不上卡片', () => {

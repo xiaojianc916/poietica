@@ -385,16 +385,16 @@ function bodyOf(toolName: string, args: unknown, json: unknown): CardBody {
 }
 
 function hintOf(toolName: string, json: unknown): string | null {
-  if (toolName === 'automation_list' && Array.isArray(json)) return `${json.length} 个`
+  if (toolName === 'automation_list' && Array.isArray(json)) return `${json.length}\u00A0个`
   if (toolName === 'automation_runs') {
     const runs = bag(json).runs
-    return Array.isArray(runs) ? `最近 ${runs.length} 次` : null
+    return Array.isArray(runs) ? `最近 ${runs.length}\u00A0次` : null
   }
   if (toolName === 'automation_options') {
     const ws = bag(json).workspaces
     const models = bag(json).models
     if (!Array.isArray(ws) || !Array.isArray(models)) return null
-    return `${ws.length} 个工作区 · ${models.length} 个模型`
+    return `${ws.length}\u00A0个工作区 · ${models.length}\u00A0个模型`
   }
   return null
 }

@@ -9,12 +9,12 @@ const BYTES_FORMAT = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 }
 
 export function formatBytes(value: number): string {
   if (value < 1024) {
-    return `${BYTES_FORMAT.format(value)} B`
+    return `${BYTES_FORMAT.format(value)}\u00A0B`
   }
 
   if (value < 1024 * 1024) {
-    return `${BYTES_FORMAT.format(value / 1024)} KB`
+    return `${BYTES_FORMAT.format(value / 1024)}\u00A0KB`
   }
 
-  return `${BYTES_FORMAT.format(value / (1024 * 1024))} MB`
+  return `${BYTES_FORMAT.format(value / (1024 * 1024))}\u00A0MB`
 }

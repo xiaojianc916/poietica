@@ -84,7 +84,10 @@ export function queueCaption(text: string, attachments: readonly QueuedAttachmen
   }
   const images = attachments.filter((attachment) => attachment.kind === 'image').length
   const files = attachments.length - images
-  const parts = [...(images > 0 ? [`${String(images)} 张图片`] : []), ...(files > 0 ? [`${String(files)} 个文件`] : [])]
+  const parts = [
+    ...(images > 0 ? [`${String(images)}\u00A0张图片`] : []),
+    ...(files > 0 ? [`${String(files)}\u00A0个文件`] : []),
+  ]
   return parts.length > 0 ? parts.join('、') : '（空消息）'
 }
 
@@ -355,7 +358,10 @@ export const PromptQueue = memo(function PromptQueue({ onEdit, queue }: PromptQu
               <span aria-hidden className="prompt-queue__lead">
                 <QueueGlyph />
               </span>
-              <span className="prompt-queue__count">{visible.length} 条排队消息</span>
+              <span className="prompt-queue__count">
+                {visible.length}
+                {'\u00A0'}条排队消息
+              </span>
             </button>
 
             {/* 两枚控件都改最后那一条（底层已支持任意一行，这里按位置的产品选择放在一处）：把撤回单独留在最后一行，会读成「只有这一行能删」。 */}

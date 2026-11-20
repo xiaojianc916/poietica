@@ -168,9 +168,9 @@ describe('队列条的文件与纯附件行', () => {
     const pending: QueuedAttachment = { ...SHOT, id: 'a3', previewUrl: null }
     expect(queueFiles([SHOT, NOTES])).toEqual(['notes.md'])
     expect(queueCaption('快点啊', [SHOT])).toBeNull()
-    expect(queueCaption('', [SHOT, pending])).toBe('2 张图片')
-    expect(queueCaption('  ', [NOTES])).toBe('1 个文件')
-    expect(queueCaption('', [SHOT, NOTES])).toBe('1 张图片、1 个文件')
+    expect(queueCaption('', [SHOT, pending])).toBe('2\u00A0张图片')
+    expect(queueCaption('  ', [NOTES])).toBe('1\u00A0个文件')
+    expect(queueCaption('', [SHOT, NOTES])).toBe('1\u00A0张图片、1\u00A0个文件')
   })
 
   test('带文件的行画文件记号，多个记 +N；纯图那一行的正文位是弱化摘要', () => {
@@ -185,7 +185,7 @@ describe('队列条的文件与纯附件行', () => {
     const rows = container.querySelectorAll('.prompt-queue__row')
 
     expect(rows[0]!.querySelector('.prompt-queue__thumb img')?.getAttribute('src')).toBe(SHOT_URL)
-    expect(rows[0]!.querySelector('.prompt-queue__said--caption')?.textContent).toBe('1 张图片')
+    expect(rows[0]!.querySelector('.prompt-queue__said--caption')?.textContent).toBe('1\u00A0张图片')
     expect(rows[0]!.querySelector('.prompt-queue__file')).toBeNull()
 
     const file = rows[1]!.querySelector('.prompt-queue__file')!

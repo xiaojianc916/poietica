@@ -127,7 +127,9 @@ function restLabel(account: WorkBuddyAccount): string | null {
   if (left <= 0) return null
   const minutes = Math.max(1, Math.ceil(left / 60_000))
   const tail =
-    minutes >= 60 ? `${String(Math.floor(minutes / 60))} 小时 ${String(minutes % 60)} 分` : `${String(minutes)} 分钟`
+    minutes >= 60
+      ? `${String(Math.floor(minutes / 60))}\u00A0小时 ${String(minutes % 60)}\u00A0分`
+      : `${String(minutes)}\u00A0分钟`
   return `冷却中 · ${tail}后重试`
 }
 

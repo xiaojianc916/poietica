@@ -1,3 +1,4 @@
+import { CjkText } from '@poietica/design-system'
 import { builtinPoints, FeatureScope, type IconComponent, useContributions, useKernel } from '@poietica/ui-kernel'
 import { ArrowLeft } from 'lucide-react'
 import { type ReactNode, Suspense, useRef } from 'react'
@@ -192,7 +193,9 @@ export function SettingsContentRegion({
   return (
     <div aria-live="polite" className="settings-content">
       <div className="settings-content__inner" data-section={active.item.id}>
-        <h2 className="settings-content__title">{active.item.title}</h2>
+        <h2 className="settings-content__title">
+          <CjkText>{active.item.title}</CjkText>
+        </h2>
         <FeatureScope featureId={active.featureId} key={active.item.id}>
           <Suspense fallback={<PartSkeleton />}>
             <Component />

@@ -6,6 +6,7 @@
  * popupSurfaceClassName 不对外导出但模块保留 —— 包内其它控件在用。tokens/*.css 一个都没改动。
  */
 
+export { CjkText } from './cjk-text'
 export { cn } from './class-names'
 export { Accordion, AccordionHeader, AccordionItem, AccordionPanel, AccordionTrigger } from './control/accordion'
 export { Banner } from './control/banner'
@@ -62,6 +63,7 @@ export {
 } from './settings-primitives'
 export { FileTree, type FileTreeProps, type FileTreeRow } from './tree/file-tree'
 export { type PathTreeFile, type PathTreeFolder, type PathTreeNode, pathTreeRows } from './tree/path-tree'
+export { TruncatedText } from './truncated-text'
 export { useCopy } from './use-copy'
 export { type ScrollEnds, scrollEndsOf, useScrollEnds } from './use-scroll-ends'
 export { type ViewTransitionOptions, withViewTransition } from './view-transition'

@@ -106,7 +106,7 @@ describe('R-16 定时任务工具卡', () => {
     )
     const card = toolCardOf('automation_list', {}, ok(rows), 'succeeded')
     expect(card.line).toBe('列出了定时任务')
-    expect(card.hint).toBe('8 个')
+    expect(card.hint).toBe('8\u00A0个')
     if (card.body.kind !== 'list') throw new Error('应当是列表')
     expect(card.body.rows).toHaveLength(6)
     expect(card.body.more).toBe(2)
@@ -161,7 +161,7 @@ describe('R-16 定时任务工具卡', () => {
       'succeeded',
     )
     expect(card.line).toBe('查看了运行记录 · 每日 CI 巡检')
-    expect(card.hint).toBe('最近 3 次')
+    expect(card.hint).toBe('最近 3\u00A0次')
     if (card.body.kind !== 'runs') throw new Error('应当是运行记录')
     const [r1, r2, r3] = card.body.rows
     expect(r1).toMatchObject({ glyph: 'succeeded', tag: '补跑', text: '全绿', threadId: 't1' })
@@ -241,7 +241,7 @@ describe('R-16 定时任务工具卡', () => {
       'succeeded',
     )
     expect(card.line).toBe('查看了定时任务可选项')
-    expect(card.hint).toBe('2 个工作区 · 1 个模型')
+    expect(card.hint).toBe('2\u00A0个工作区 · 1\u00A0个模型')
     expect(card.body).toEqual({ kind: 'none' })
   })
 

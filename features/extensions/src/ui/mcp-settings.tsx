@@ -1,5 +1,6 @@
 import {
   Button,
+  CjkText,
   ConfirmationDialog,
   DropdownMenu,
   DropdownMenuContent,
@@ -413,7 +414,9 @@ function McpCreatePage({
             <span className="mcp-breadcrumb__current">新建 MCP 服务器</span>
           </nav>
           <div>
-            <h1 className="mcp__title">新建 MCP 服务器</h1>
+            <h1 className="mcp__title">
+              <CjkText>新建 MCP 服务器</CjkText>
+            </h1>
             <p className="mcp__muted">填写新的 MCP 配置，保存后返回列表。</p>
           </div>
         </div>

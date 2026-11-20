@@ -8,9 +8,10 @@
   font-size: 12px;
 }
 
-/* 绝对路径可能很长，行内断行比省略号好：省略号会把安装位置截成两个都装不下的部分。 */
+/* 绝对路径可能很长，行内断行比省略号好：省略号会把安装位置截成两个都装不下的部分。
+   用 overflow-wrap 而不是 break-all：只在放不下时断，且不关闭行首行尾的标点规则。 */
 .python-kernel__detail {
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 .python-kernel__progress {

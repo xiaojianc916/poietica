@@ -37,4 +37,5 @@
   --ui-prose-line-height: 1.65;
   --ui-prose-flow: 0.7em;
   --ui-prose-flow-quiet: 0.55em;
+  --ui-measure-cjk: 26em;
 }

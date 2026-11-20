@@ -284,7 +284,7 @@ function SkillListRow({
         </span>
 
         <span className="skill-list__copy">
-          <span className="skill-list__title">
+          <span className="skill-list__title" data-card-title>
             <strong>{skill.name}</strong>
           </span>
           <small>{skill.description === '' ? skill.path : skill.description}</small>

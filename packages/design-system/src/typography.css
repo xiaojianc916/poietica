@@ -1,0 +1,70 @@
+/*
+ * 全局文本排印的开关。
+ *
+ * 这里只声明「文字怎么换行、怎么对齐、空白怎么留、数字怎么站队」，不碰字体、字号、字色与布局。
+ * 全部落在 @layer base：组件 CSS 与 Tailwind 工具类仍可按处覆盖，默认只在没人说话时生效。
+ *
+ * 中文规则一律用 :lang(zh) 限定。根元素是 lang="zh-CN"，所以这条只认语言不认样式名；
+ * 代码、输入框与等宽文本在下面单独关掉字距调整。
+ */
+@layer base {
+  /* 短标题断成均匀的行，避免最后一行只剩一个词。Chrome 最多平衡 6 行，长文标题不受影响。 */
+  :where(h1, h2, h3),
+  :where([data-card-title]) {
+    text-wrap: balance;
+  }
+
+  /*
+   * 中文没有空格。先由 BudouX 在词与词之间插 <wbr>（见 cjk-text.tsx），再用 keep-all 把
+   * 每个汉字都有的断行机会收掉；overflow-wrap: anywhere 只兜「一个词比整行还长」的底。
+   */
+  :where(h1, h2, h3) {
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+
+  /* 段落与列表项的末行不留孤词。 */
+  :where(p, li, dd, dt, figcaption, blockquote) {
+    text-wrap: pretty;
+  }
+
+  /* 按钮与标签只站一行；拥挤的 flex 行不能把词挤成两行。 */
+  :where(button, [role='button'], [role='tab'], [role='menuitem'], [role='menuitemradio']) {
+    white-space: nowrap;
+  }
+
+  /* 表格、计时器与登记为 data-tabular 的数字槽用等宽数字；正文保持比例宽度。 */
+  :where(table),
+  :where(time, [data-tabular]) {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 中文正文：两端对齐，行宽按整字符数收束，拉伸只发生在拉丁词与压缩后的标点之间。 */
+  :where(.timeline-prose, .skill-doc__prose) :where(p):lang(zh) {
+    max-inline-size: var(--ui-measure-cjk);
+    text-align: justify;
+  }
+
+  /*
+   * 汉字与拉丁字母 / 数字之间留一道细缝，中文标点开括号在行首收掉空白半角。
+   * 两件都是渐进增强：浏览器不认识就整条忽略，不需要 polyfill。
+   */
+  html:lang(zh) {
+    text-autospace: normal;
+    text-spacing-trim: trim-start;
+  }
+
+  /* 代码、输入框与等宽文本不参与上述两件事。 */
+  :where(pre, code, kbd, samp, textarea, input, [contenteditable='true']) {
+    text-autospace: no-autospace;
+    text-spacing-trim: space-all;
+  }
+
+  /* 截断三件套；flex 项要一起拿到 min-inline-size: 0 才缩得动。 */
+  .ds-truncate {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

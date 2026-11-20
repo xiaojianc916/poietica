@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { CjkText } from './cjk-text'
 import { Switch } from './control/switch'
 
 /*
@@ -32,7 +33,9 @@ export function SettingsGroup({ title, className, headerAction, children }: Sett
     <section className={`settings-group${className ? ` ${className}` : ''}`}>
       {title === undefined ? null : (
         <header className="settings-group__header">
-          <h3>{title}</h3>
+          <h3>
+            <CjkText>{title}</CjkText>
+          </h3>
           {headerAction}
         </header>
       )}

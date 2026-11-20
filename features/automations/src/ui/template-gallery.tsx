@@ -1,3 +1,4 @@
+import { CjkText } from '@poietica/design-system'
 import { Activity, FileText, ListChecks, type LucideIcon, Target } from 'lucide-react'
 import { describeSchedule } from './automation'
 import { AUTOMATION_TEMPLATES, type AutomationTemplate } from './templates'
@@ -17,7 +18,9 @@ export interface TemplateGalleryProps {
 export function TemplateGallery({ onPick }: TemplateGalleryProps) {
   return (
     <div className="mt-10 border-t pt-8">
-      <h2 className="text-xs text-muted-foreground">定时任务模板</h2>
+      <h2 className="text-xs text-muted-foreground">
+        <CjkText>定时任务模板</CjkText>
+      </h2>
 
       <ul className="mt-3 grid grid-cols-2 gap-3">
         {AUTOMATION_TEMPLATES.map((template) => {

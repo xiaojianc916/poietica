@@ -148,7 +148,8 @@
   color: var(--cp-ink-subtle);
   line-height: var(--cp-rail-card-line);
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 @media (prefers-reduced-motion: reduce) {
   .conversation-minimap__bar,

@@ -3,6 +3,7 @@ import './automation-schedule-field.css'
 
 import {
   Button,
+  CjkText,
   ConfirmationDialog,
   cn,
   DropdownMenu,
@@ -129,7 +130,9 @@ function Field({
     <section>
       <div className="flex items-baseline justify-between gap-3">
         {htmlFor === undefined ? (
-          <h2 className="text-sm font-medium text-foreground">{label}</h2>
+          <h2 className="text-sm font-medium text-foreground">
+            <CjkText>{label}</CjkText>
+          </h2>
         ) : (
           <label className="text-sm font-medium text-foreground" htmlFor={htmlFor}>
             {label}
@@ -689,7 +692,7 @@ export function AutomationEditor({
       <EditorBreadcrumb automation={automation} onBack={requestBack} saving={saving} />
       <div className="mx-auto w-full max-w-3xl px-8 pb-16">
         <h1 className="mt-6 text-2xl font-semibold tracking-tight">
-          {automation === null ? '新建定时任务' : '编辑定时任务'}
+          <CjkText>{automation === null ? '新建定时任务' : '编辑定时任务'}</CjkText>
         </h1>
         <p className="mt-2 text-xs leading-5 text-muted-foreground">配置任务的执行时间、指令和运行方式。</p>
         <EditorToolbar

@@ -56,7 +56,7 @@ export function formatElapsed(elapsedMs: number): string {
   const totalSeconds = Math.max(1, Math.floor(elapsedMs / 1000))
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds % 60
-  return minutes > 0 ? `已运行 ${minutes} 分 ${seconds} 秒` : `已运行 ${seconds} 秒`
+  return minutes > 0 ? `已运行 ${minutes}\u00A0分 ${seconds}\u00A0秒` : `已运行 ${seconds}\u00A0秒`
 }
 
 export function formatDuration(totalSeconds: number): string {

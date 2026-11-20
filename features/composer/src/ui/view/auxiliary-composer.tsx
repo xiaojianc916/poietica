@@ -15,7 +15,7 @@ import {
   StopIcon,
   SubmitIcon,
 } from '@poietica/conversation-kit/primitives'
-import { useCopy } from '@poietica/design-system'
+import { CjkText, useCopy } from '@poietica/design-system'
 import { Prose } from '@poietica/design-system/prose'
 import { latestSideTurn, type SideTopic, type SideTurn } from '@poietica/runtime-protocol'
 import { useFeatureStore } from '@poietica/ui-kernel'
@@ -324,7 +324,9 @@ function SideIntro({
     <div className="auxiliary-chat__intro">
       {topics.length === 0 ? null : (
         <section aria-label="最近的话题" className="auxiliary-chat__recent">
-          <h3 className="auxiliary-chat__recent-heading">最近的话题</h3>
+          <h3 className="auxiliary-chat__recent-heading">
+            <CjkText>最近的话题</CjkText>
+          </h3>
           <ul className="auxiliary-chat__recent-list">
             {topics.slice(0, RECENT_LIMIT).map((topic) => {
               const meta = sideTopicMeta(topic)

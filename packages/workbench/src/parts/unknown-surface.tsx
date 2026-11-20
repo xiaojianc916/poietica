@@ -1,3 +1,4 @@
+import { CjkText } from '@poietica/design-system'
 import { useKernel } from '@poietica/ui-kernel'
 import type { ReactNode } from 'react'
 
@@ -7,7 +8,9 @@ export function UnknownSurface({ surface }: { readonly surface: string }): React
   return (
     <section className="workbench__unknown" data-surface={surface} data-workbench-part="unknown-surface">
       <div>
-        <h1 className="workbench__unknown-title">该页面不可用</h1>
+        <h1 className="workbench__unknown-title">
+          <CjkText>该页面不可用</CjkText>
+        </h1>
         <p className="workbench__unknown-detail">没有找到「{surface}」这个页面，它所属的功能可能加载失败了。</p>
         <button
           className="workbench__button"

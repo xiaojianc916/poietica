@@ -9,6 +9,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuRadioItemIndicator,
   DropdownMenuTrigger,
+  TruncatedText,
 } from '@poietica/design-system'
 import { Check, ChevronRight } from 'lucide-react'
 import { memo, type RefObject, useMemo, useRef, useState } from 'react'
@@ -283,7 +284,7 @@ function ControlsTrigger({
       aria-label="模型与思考档位"
       className="assistant-model-select__button"
     >
-      {name === undefined ? null : <span className="assistant-model-select__name">{name}</span>}
+      {name === undefined ? null : <TruncatedText className="assistant-model-select__name">{name}</TruncatedText>}
 
       {band === undefined ? null : <span className="assistant-model-select__band">{band}</span>}
     </DropdownMenuTrigger>
@@ -320,7 +321,7 @@ function ModelPane({
             key={choice.value}
             value={choice.value}
           >
-            <span className="assistant-model-select__item-name">{choice.label}</span>
+            <TruncatedText className="assistant-model-select__item-name">{choice.label}</TruncatedText>
 
             <DropdownMenuRadioItemIndicator className="assistant-model-select__item-tick">
               <Check aria-hidden="true" />

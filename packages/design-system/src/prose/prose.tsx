@@ -17,6 +17,7 @@ import {
 import { DIAGRAM_RENDERER } from './diagram'
 import { FILE_HREF_PREFIX } from './file-ref'
 import { asIcon, CheckIcon, CopyIcon } from './icons'
+import { rehypeTextLanguage } from './language'
 import { currentMath, loadMath, mayContainMath, subscribeMath } from './math-plugin'
 import { ProseLink } from './prose-link'
 import { remarkFileRefs } from './remark-file-refs'
@@ -106,6 +107,7 @@ const REHYPE_PLUGINS: RehypeChain = [
   withAssetImages(defaultRehypePlugins.raw),
   withAssetImages(defaultRehypePlugins.sanitize),
   withAssetImages(defaultRehypePlugins.harden),
+  rehypeTextLanguage,
 ]
 
 export interface ProseProps {

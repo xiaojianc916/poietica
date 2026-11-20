@@ -126,7 +126,9 @@ function AccountSection({
     return (
       <div className="models-auth__row">
         <div className="models-auth__copy">
-          <span className="models-auth__title">{entry.name}</span>
+          <span className="models-auth__title" data-card-title>
+            {entry.name}
+          </span>
           <span className="models-auth__sub">使用订阅账号登录，无需 API Key。</span>
         </div>
         <Button disabled={disabled} onClick={onSignIn} size="xs" type="button">

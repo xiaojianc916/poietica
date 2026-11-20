@@ -99,7 +99,9 @@ function AutomationBody({
   return (
     <div className="timeline-tool__body automation-tool__card">
       <div className="automation-tool__head">
-        <span className="automation-tool__title">{automation.title}</span>
+        <span className="automation-tool__title" data-card-title>
+          {automation.title}
+        </span>
         <span className="automation-tool__state" data-tone={exists ? automation.state.tone : 'quiet'}>
           <span aria-hidden className="automation-tool__dot" />
           {exists ? automation.state.label : '已删除'}
@@ -177,7 +179,12 @@ function ListBody({
           </button>
         </li>
       ))}
-      {more === 0 ? null : <li className="automation-tool__more">还有 {more} 个</li>}
+      {more === 0 ? null : (
+        <li className="automation-tool__more">
+          还有 {more}
+          {'\u00A0'}个
+        </li>
+      )}
     </ul>
   )
 }

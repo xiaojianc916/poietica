@@ -22,6 +22,7 @@
     "@streamdown/code": "catalog:",
     "@streamdown/math": "catalog:",
     "@tanstack/react-virtual": "catalog:",
+    "budoux": "catalog:",
     "clsx": "catalog:",
     "katex": "catalog:",
     "lucide-react": "catalog:",
