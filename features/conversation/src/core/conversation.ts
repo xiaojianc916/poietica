@@ -13,6 +13,7 @@ import type { ThreadRow, ThreadsRepository, ThreadsService } from '@poietica/fea
 import type { CreateEventRouter, EventRouter, TimelineService } from '@poietica/feature-timeline/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import type { Clock, Logger } from '@poietica/foundation'
+import type { QueueView, Thread, TurnState } from '@poietica/product-model'
 import type {
   CommandOutputTone,
   ContextUsage,
@@ -24,7 +25,6 @@ import type {
   UsageSample,
 } from '@poietica/runtime-protocol'
 import type { ModuleDatabase } from '@poietica/storage-sqlite'
-import type { QueueView, Thread, TurnState } from '../contract/entities'
 import type { ConversationRuntime } from './runtime'
 import type { SideDelta } from './side-topic-hub'
 

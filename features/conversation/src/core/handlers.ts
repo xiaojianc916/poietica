@@ -1,7 +1,7 @@
 import type { CoreModuleContext } from '@poietica/core-kernel'
 import type { TimelineService } from '@poietica/feature-timeline/core-api'
+import { MAIN_AGENT_ID } from '@poietica/product-model'
 import type { conversationContract } from '../contract'
-import { MAIN_AGENT_ID } from '../contract/entities'
 import type { ConversationCore } from './conversation'
 import type { SideTopicHub } from './side-topic-hub'
 

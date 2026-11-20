@@ -23,9 +23,9 @@ omp（Oh My Pi）经 ARP 接入独立的 Runtime Worker，随包发布，与用�
 
 ## 2. 五条结构性承诺
 
-1. **一个功能只在一个地方**：新增或删除一个功能 = 增删 `features/<x>/` 一个目录，再在应用清单里增删各一行。
+1. **一个功能只在一个地方**：新增或删除一个功能 = 增删 `features/<x>/` 一个目录，再跑 `assembly:*` 生成装配清单。
 2. **外壳不认识功能**：workbench 与三个内核里不出现任何具体功能的名字，只渲染与调度「贡献」。
-3. **业务不认识 omp**：除 `packages/runtime-protocol-omp/**` 外，全仓任何地方都不 import `@oh-my-pi/*`。
+3. **业务不认识 omp**：除 `packages/engine-omp/**` 外，全仓任何地方都不 import `@oh-my-pi/*`。
 4. **运行时由类型系统把关**：每个包、每个子入口按运行时继承 tsconfig 预设；在 UI 代码里写 `import fs from 'node:fs'`，类型检查直接失败。
 5. **每份事实只存一处**：对话内容只在 omp 会话文件里；其余数据各有唯一主人（§6）。
 
@@ -33,10 +33,10 @@ omp（Oh My Pi）经 ARP 接入独立的 Runtime Worker，随包发布，与用�
 
 ```
 L5  汇总与外壳   protocol · workbench · apps/core · apps/desktop
-L4  功能         features/*（18 个垂直功能包）
-L3  内核与适配   core-kernel · host-kernel · ui-kernel · design-system · engine-omp · engine-testkit
-L2  运行时工具   runtime-layout · process-kit · fs-kit · logging · storage-sqlite · git · test-kit
-L1  契约与模型   contract-kit · rpc · agent-model · omp-types · runtime-protocol · stream-kit
+L4  功能         features/*（垂直功能包）· conversation-kit
+L3  内核与适配   core-kernel · host-kernel · ui-kernel · design-system · engine-omp · engine-testkit · runtime-manager
+L2  运行时工具   runtime-layout · runtime-kernel · process-kit · fs-kit · logging · storage-sqlite · git · test-kit · sandbox-win · worktree · workbuddy-client
+L1  契约与模型   contract-kit · rpc · agent-model · omp-types · runtime-protocol · stream-kit · diff · product-model · platform-kit
 L0  基础         foundation
 ```
 
@@ -53,7 +53,7 @@ L0  基础         foundation
 | 2   | tsconfig 运行时预设 + 项目引用：类型层面就看不见不该看的                       | `tooling/tsconfig/*`、`bun run refs`             |
 | 3   | dependency-cruiser：跨包/跨子入口的边逐个检查                                  | `tooling/depcruise/config.cjs`                   |
 
-功能子入口的允许依赖（03 页 §5.2）：
+功能子入口的允许依赖：
 
 | 子入口     | 运行时        | 可以 import                                                                                                      |
 | ---------- | ------------- | ---------------------------------------------------------------------------------------------------------------- |
@@ -140,11 +140,10 @@ UI 功能的注册项按功能持有：`setup` 中途失败时立即逆序释放
 `feature-core-api-cross-process`）。UI 之间协作走 `ui-api` 的令牌与贡献点，Host 走 `contract` 里的方法与通知。
 
 **功能内部按区分目录。** 一个功能大到有多个区域时，每个区一个目录，区里自带状态与视图，区与区之间只能经
-`<区>/index` 互相引用；`shared/` 收跨区的模型、词表与基础件，且**不得反向依赖任何区**。conversation 是
-conversation 仍按区组织（`ui/{threads,timeline,session,status,home}`），跨区的模型、词表与基础件已下沉到
+`<区>/index` 互相引用；`shared/` 收跨区的模型、词表与基础件，且**不得反向依赖任何区**。conversation 仍按区组织（`ui/{threads,timeline,session,status,home}`），跨区的模型、词表与基础件已下沉到
 `packages/conversation-kit`；composer 的界面与草稿状态独立为 `features/composer`（tier 2），conversation 只经它的
 `surface` 入口组合。conversation 的两条区规则由 depcruise
-的 `conversation-area-via-index` 与 `conversation-shared-is-leaf` 把关。timeline 是全仓最大的区（约 19k 行），
+的 `conversation-area-via-index` 与 `conversation-shared-is-leaf` 把关。timeline 是全仓最大的区（约 20k 行），
 内部再分 `model` / `view` / `feed` / `tools` / `minimap` 五个子目录：`model` 只放状态与投影、不得依赖渲染层，
 `tools` 是工具卡片的视图模型、只依赖 `shared` 词表（`model` 与 `view` 都可以用它）。这两条方向由
 `timeline-model-no-render` 与 `timeline-tools-is-leaf` 把关 —— 区一级规则管不到第二层，没有它们时
@@ -209,7 +208,7 @@ omp 的实现只在独立的 `poietica-runtime.exe` 里加载；Core 的 `serve`
 3. 全局 `~/.omp`、`.env` 与其它工具的凭据变量一律屏蔽（`launchEnv` 的清洗）。
 
 omp 的版本锁在根 `package.json` 的 catalog（四个 `@oh-my-pi/*` 同一版本，那**唯一**产地）。
-升级前必须逐项核对 16 页 §5 的陷阱表，并在 `docs/refactor-log.md` 记录核对结果。
+升级前必须逐项核对会话文件格式、设置键、工具名与事件形状（见 `docs/omp-sdk-reference.md`），并在 `docs/refactor-log.md` 记录核对结果。
 
 ## 7. 数据与存储
 
@@ -231,13 +230,13 @@ omp 的版本锁在根 `package.json` 的 catalog（四个 `@oh-my-pi/*` 同一�
 
 ## 8. 测试策略
 
-| 层     | 位置                                                                                   | 说明                                                      |
-| ------ | -------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| 单元   | `packages/*/src/**/__tests__`、`features/*/src/**/__tests__`                           | 纯函数与不依赖内核的类                                    |
-| 内核级 | 同上，`@poietica/core-kernel/testing` 的 `createCoreHarness`                           | 只装被测模块及其依赖的真实内核 + FakeEngine               |
-| 一致性 | `@poietica/runtime-protocol-testkit`                                                   | 同一套用例分别跑 FakeEngine 与 OmpEngine，保证替身可信    |
-| 隔离   | `packages/runtime-protocol-omp/src/__tests__/isolation.test.ts` + `bun run core:probe` | 进程级自检与假用户目录零写入                              |
-| 端到端 | `bun run dev`（真机）                                                                  | 界面流程；发布前另有安装包冒烟（`bun run desktop:smoke`） |
+| 层     | 位置                                                                         | 说明                                                      |
+| ------ | ---------------------------------------------------------------------------- | --------------------------------------------------------- |
+| 单元   | `packages/*/src/**/__tests__`、`features/*/src/**/__tests__`                 | 纯函数与不依赖内核的类                                    |
+| 内核级 | 同上，`@poietica/core-kernel/testing` 的 `createCoreHarness`                 | 只装被测模块及其依赖的真实内核 + FakeEngine               |
+| 一致性 | `@poietica/runtime-protocol-testkit`                                         | 同一套用例分别跑 FakeEngine 与 OmpEngine，保证替身可信    |
+| 隔离   | `packages/engine-omp/src/__tests__/isolation.test.ts` + `bun run core:probe` | 进程级自检与假用户目录零写入                              |
+| 端到端 | `bun run dev`（真机）                                                        | 界面流程；发布前另有安装包冒烟（`bun run desktop:smoke`） |
 
 **不测外观**：颜色、圆角、边框、间距、字号这类「长什么样」的事实归样式表，单测不钉 —— 它们改一次就要连带改一次断言，而断言红了也不代表界面坏了；样式表被整体改坏由真机（`bun run dev`）与 `check:ticker` 这类布局检查发现。测试只钉**行为与语义**：什么触发了什么、数据往返、错误分类、无障碍属性、几何不变量。
 
@@ -247,25 +246,24 @@ omp 的版本锁在根 `package.json` 的 catalog（四个 `@oh-my-pi/*` 同一�
 
 ## 9. 扩展配方
 
-**加一个平台包**：`bun run new:package <name> --runtime <preset>` → 在 `tooling/depcruise/layers.json`
-登记层级 → `bun run refs` → `bun run  all`。
+**加一个平台包**：`bun run new:package <name> --layer <0-5> --runtime <preset>` → `bun run refs` → `bun run  all`。
 
-**加一个功能**（九个步骤）：
+**加一个功能**：
 
 1. `bun run new:feature <id> --parts contract,core,host,ui,...`（生成标准骨架与 tsconfig）。
-2. 在 `contract/entities.ts` 与 `contract/index.ts` 写 zod 实体、方法与通知，错误码走 `defineErrors`。
-3. 在 `packages/protocol/src/index.ts` 把新契约加进 `composeContracts`，提升 `PROTOCOL_VERSION`。
+2. 在 `contract/` 写 zod 实体、方法与通知，错误码走 `defineErrors`。
+3. 提升 `packages/protocol/src/version.ts` 的 `PROTOCOL_VERSION`；契约汇总由 `bun run assembly:contracts` 生成。
 4. 实现 `core`（或 `host`）：服务 + `repository.ts`（唯一写 SQL 的地方）+ `migrations.ts` + `handlers.ts`。
 5. 实现 `ui`：`api.ts` 薄封装 RPC、store、组件、贡献点。
-6. 在三个清单里各加一行：`apps/core/src/modules.ts`、`apps/desktop/src/main/modules.ts`、
-   `apps/desktop/src/renderer/features.ts`。
-7. 写测试（必测项见 07 页对应小节的 §xG）。
+6. 在 `apps/core/package.json` 与 `apps/desktop/package.json` 加入新功能包依赖，跑
+   `bun run assembly:core` 与 `bun run assembly:modules` 生成三份清单。
+7. 写测试。
 8. `bun run refs` → `bun run protocol:snapshot` → `bun run  all`。
 9. 在 `docs/refactor-log.md` 记录偏差或待决问题（如果有）。
 
 **升级 omp**：改根 `package.json` catalog 的四个 `@oh-my-pi/*` 版本 → `bun install` →
 `bun run check:omp-doc:write`（刷 `docs/omp-sdk-reference.md` 的版本头与行号锚点）→
-按 16 页 §5 的陷阱表逐项核对（会话文件、设置键、工具名、事件形状……；浏览器 relay 协议由 typecheck 机检）→
+逐项核对会话文件、设置键、工具名与事件形状（浏览器 relay 协议由 typecheck 机检）→
 记录到 `docs/refactor-log.md` → `bun run core:build` + `core:probe` + `bun run  all`。
 
 **发布**：`bun run release`（本机链：门禁 → 写版本号 → 构建 + 冒烟 → 推 tag → `gh` 建 release →

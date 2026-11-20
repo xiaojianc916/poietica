@@ -29,7 +29,6 @@
   },
   "devDependencies": {
     "@poietica/test-kit": "workspace:*",
-    "@testing-library/react": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "electron": "catalog:"

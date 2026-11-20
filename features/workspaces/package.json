@@ -19,15 +19,11 @@
     "@poietica/storage-sqlite": "workspace:*",
     "@poietica/ui-kernel": "workspace:*",
     "@poietica/worktree": "workspace:*",
-    "lucide-react": "catalog:",
-    "react": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@poietica/test-kit": "workspace:*",
-    "@testing-library/react": "catalog:",
-    "@types/bun": "catalog:",
-    "@types/react": "catalog:"
+    "@types/bun": "catalog:"
   },
   "poietica": {
     "kind": "domain"

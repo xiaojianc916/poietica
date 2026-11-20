@@ -1,4 +1,5 @@
 import type { AgentEvent, TranscriptPage } from '@poietica/agent-model'
+import type { QueueView, SubmissionView, Thread, TimelineSnapshot, TurnState } from '@poietica/product-model'
 import type { TypedRpcClient } from '@poietica/rpc'
 import type {
   CommandOutputTone,
@@ -13,7 +14,6 @@ import type {
 } from '@poietica/runtime-protocol'
 import type { UiFeatureContext } from '@poietica/ui-kernel'
 import { conversationContract } from '../contract'
-import type { QueueView, SubmissionView, Thread, TimelineSnapshot, TurnState } from '../contract/entities'
 
 /** 把方法名收在一处，组件不认字符串。 */
 export function createConversationApi(ctx: UiFeatureContext) {

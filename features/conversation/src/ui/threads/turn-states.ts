@@ -1,5 +1,5 @@
+import type { TurnState } from '@poietica/product-model'
 import { createFeatureStore, type FeatureStore } from '@poietica/ui-kernel'
-import type { TurnState } from '../../contract/entities'
 
 export interface TurnStatesState {
   readonly byThread: Readonly<Record<string, TurnState>>

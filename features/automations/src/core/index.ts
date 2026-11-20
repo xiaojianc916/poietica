@@ -13,6 +13,7 @@ import {
   WorkspacesServiceToken,
   workspaceRemovedPayload,
 } from '@poietica/feature-workspaces/core-api'
+import { localTimeZone } from '@poietica/foundation'
 import { automationsContract } from '../contract'
 import { registerAgentTools } from './agent-tools'
 import { registerHandlers } from './handlers'
@@ -21,7 +22,6 @@ import { createAutomationsRepository } from './repository'
 import { createRunner } from './runner'
 import { createScheduler } from './scheduler'
 import { createAutomationsService } from './service'
-import { localTimeZone } from './time'
 
 export default defineCoreModule({
   id: 'automations',

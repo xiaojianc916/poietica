@@ -41,8 +41,7 @@
     "@types/react": "catalog:",
     "electron": "catalog:",
     "@poietica/feature-timeline": "workspace:*",
-    "@poietica/feature-threads": "workspace:*",
-    "@poietica/feature-runs": "workspace:*"
+    "@poietica/feature-threads": "workspace:*"
   },
   "poietica": {
     "kind": "agent-tool"

@@ -39,7 +39,7 @@ import {
   paletteKeyDown,
   useDismissOutside,
 } from './composer-palette'
-import { SessionControls } from './controls'
+import { SessionControls } from './session-controls'
 
 /*
  * 右坞第一格「辅助对话」：omp 的 `/btw` 侧边提问。拿这条对话此刻的上下文（含主轮正在流式输出的那一截）与模型问一句，

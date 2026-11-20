@@ -12,7 +12,6 @@
     "./ui-api": "./src/ui-api/index.ts"
   },
   "dependencies": {
-    "@lexical/react": "catalog:",
     "@poietica/agent-model": "workspace:*",
     "@poietica/contract-kit": "workspace:*",
     "@poietica/conversation-kit": "workspace:*",
@@ -39,12 +38,9 @@
     "@poietica/stream-kit": "workspace:*",
     "@poietica/ui-kernel": "workspace:*",
     "@tanstack/react-virtual": "catalog:",
-    "lexical": "catalog:",
     "lucide-react": "catalog:",
     "motion": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:",
-    "yet-another-react-lightbox": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -55,7 +51,8 @@
     "@types/bun": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "electron": "catalog:"
+    "electron": "catalog:",
+    "react-dom": "catalog:"
   },
   "poietica": {
     "kind": "domain"

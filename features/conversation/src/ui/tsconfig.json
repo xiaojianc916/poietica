@@ -18,6 +18,9 @@
       "path": "../../../../packages/omp-types"
     },
     {
+      "path": "../../../../packages/product-model"
+    },
+    {
       "path": "../../../../packages/rpc"
     },
     {

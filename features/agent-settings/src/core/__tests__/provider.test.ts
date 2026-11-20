@@ -47,8 +47,8 @@ describe('omp settings provider', () => {
 
     await provider.set?.({ key: 'omp.model', scope: 'global', scopeId: 'global', value: 'b' })
     await provider.set?.({ key: 'omp.model', scope: 'global', scopeId: 'global', value: 'a' })
-    await provider.set?.({ key: 'omp.python.interpreter', scope: 'global', scopeId: 'global', value: 'C:\python.exe' })
+    await provider.set?.({ key: 'omp.python.interpreter', scope: 'global', scopeId: 'global', value: 'C:python.exe' })
     await provider.set?.({ key: 'omp.token', scope: 'global', scopeId: 'global', value: 'secret' })
-    expect(calls).toEqual(['set:model:b', 'reset:model', 'python:C:\python.exe', 'secret:token:secret'])
+    expect(calls).toEqual(['set:model:b', 'reset:model', 'python:C:python.exe', 'secret:token:secret'])
   })
 })

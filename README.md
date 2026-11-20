@@ -40,9 +40,9 @@
 
 五条结构性承诺：
 
-1. **一个功能只在一个地方**：增删功能 = 增删 `features/<x>/` 一个目录，再改应用清单各一行。
+1. **一个功能只在一个地方**：增删功能 = 增删 `features/<x>/` 一个目录，再跑 `assembly:*` 生成装配清单。
 2. **外壳不认识功能**：`workbench` 与三个内核只渲染与调度「贡献」，不出现具体功能的名字。
-3. **业务不认识 omp**：只有 `packages/runtime-protocol-omp` 能 import `@oh-my-pi/*`，业务只认 `@poietica/runtime-protocol` 端口。
+3. **业务不认识 omp**：只有 `@poietica/runtime-protocol-omp` 能 import `@oh-my-pi/*`，业务只认 `@poietica/runtime-protocol` 端口。
 4. **运行时由类型系统把关**：每个包、每个子入口按运行时继承 tsconfig 预设，写错进程的 import 直接类型检查失败。
 5. **每份事实只存一处**：对话正文只在 omp 会话文件里，其余数据各有唯一主人。
 
@@ -50,10 +50,10 @@
 
 ```
 L5  汇总与外壳   protocol · workbench · apps/core · apps/desktop
-L4  功能         features/*（18 个垂直功能包）
-L3  内核与适配   core-kernel · host-kernel · ui-kernel · design-system · engine-omp · engine-testkit
-L2  运行时工具   runtime-layout · process-kit · fs-kit · logging · storage-sqlite · git · test-kit
-L1  契约与模型   contract-kit · rpc · transcript · engine
+L4  功能         features/*（垂直功能包）· conversation-kit
+L3  内核与适配   core-kernel · host-kernel · ui-kernel · design-system · engine-omp · engine-testkit · runtime-manager
+L2  运行时工具   runtime-layout · runtime-kernel · process-kit · fs-kit · logging · storage-sqlite · git · test-kit · sandbox-win · worktree · workbuddy-client
+L1  契约与模型   contract-kit · rpc · agent-model · runtime-protocol · omp-types · stream-kit · diff · product-model · platform-kit
 L0  基础         foundation
 ```
 
@@ -63,14 +63,13 @@ L0  基础         foundation
 apps/core              Core 的装配与构建脚本（三个内核清单之一）
 apps/desktop           Electron 的装配：主进程与渲染进程
 features/<id>          垂直功能切片：contract / core-api / core / host / ui-api / ui
-packages/*             20 个平台包（内核、引擎端口、契约工具、设计系统……）
+packages/*             平台包（内核、引擎端口、契约工具、设计系统……）
 tooling/               tsconfig 预设、depcruise 规则、脚手架、发布脚本、自定义闸门
-docs/                  架构、omp SDK 参考、重构日志、发布说明
+docs/                  架构、ADR、omp SDK 参考、重构日志
 ```
 
 每个功能包在 `src/` 下按子入口拆分，子入口用 `package.json` 的 `exports` 暴露；
-三个应用清单（`apps/core/src/modules.ts`、`apps/desktop/src/main/modules.ts`、
-`apps/desktop/src/renderer/features.ts`）是唯一的装配点。
+三份装配清单（`apps/**/*.generated.ts`）由 `bun run assembly:core` / `assembly:modules` 生成，是唯一的装配点。
 
 ## 开发
 

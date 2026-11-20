@@ -42,7 +42,3 @@ export function parseIsoWithOffset(text: string): number | null {
   const at = Date.parse(text.trim())
   return Number.isNaN(at) ? null : at
 }
-
-export function localTimeZone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone
-}

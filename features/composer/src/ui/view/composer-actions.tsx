@@ -11,8 +11,8 @@ import type { PromptChipValue } from '@poietica/conversation-kit/primitives'
 import { CloseIcon, GoalIcon, PlusIcon, SirenIcon, SkillIcon, ToolIcon } from '@poietica/conversation-kit/primitives'
 import type { ReactNode } from 'react'
 import type { PaletteGroup, PaletteRow } from './composer-palette'
-import { isToggleControl } from './controls'
 import { usePromptInputActions, usePromptInputDraft, usePromptInputPalette } from './prompt-input'
+import { isToggleControl } from './session-controls'
 
 /* 扳机自报开合（WAI-ARIA disclosure），皮肤读的就是这一格：真相只有输入框那一份。 */
 export function ComposerActions() {

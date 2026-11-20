@@ -89,7 +89,13 @@ function ToolCallRow({
   )
 }
 
-export const TimelineRow = memo(function TimelineRow({ enterDelayMs, isOpen, onToggle, row, threadId }: TimelineRowProps) {
+export const TimelineRow = memo(function TimelineRow({
+  enterDelayMs,
+  isOpen,
+  onToggle,
+  row,
+  threadId,
+}: TimelineRowProps) {
   const { item } = row
 
   switch (item.type) {

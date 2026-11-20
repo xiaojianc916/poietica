@@ -17,13 +17,11 @@
     "@poietica/platform-kit": "workspace:*",
     "@poietica/rpc": "workspace:*",
     "@poietica/ui-kernel": "workspace:*",
-    "lucide-react": "catalog:",
     "react": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@poietica/runtime-protocol-testkit": "workspace:*",
-    "@testing-library/react": "catalog:",
     "@types/bun": "catalog:",
     "@types/react": "catalog:"
   },

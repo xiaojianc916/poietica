@@ -23,7 +23,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@testing-library/react": "catalog:",
     "@types/bun": "catalog:",
     "@types/react": "catalog:"
   },

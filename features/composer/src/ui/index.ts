@@ -25,7 +25,6 @@ export { AuxiliaryComposer, AuxiliaryComposerBar, type AuxiliaryComposerBarProps
 export { ComposerActions, composerPaletteGroups } from './view/composer-actions'
 export { ComposerNotice } from './view/composer-notice'
 export { ContextGauge, cacheHitRate, gaugeLayout } from './view/context-gauge'
-export type { ControlsOpenRequest } from './view/controls'
 export { useDockClearance } from './view/dock-clearance'
 export type { PermissionDockProps } from './view/permission-dock'
 export {
@@ -37,6 +36,7 @@ export {
   PromptInputToolbar,
 } from './view/prompt-input'
 export { PromptQueue } from './view/prompt-queue'
+export type { ControlsOpenRequest } from './view/session-controls'
 export { SwarmToggle } from './view/swarm-toggle'
 
 /* 输入框的独立 surface：没有自己的注册步骤，组件由 conversation 组合根挂载。 */

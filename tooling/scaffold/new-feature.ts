@@ -33,7 +33,7 @@ if (!(id in tiers)) {
 syncReferences()
 console.log(`已创建 features/${id}。下一步：
   1. bun install
-  2. 在 packages/protocol/src/index.ts 的 contracts 数组加入 ${id} 的 contract
-  3. 有 core：在 apps/core/src/modules.ts 加一行；有 host：在 apps/desktop/src/main/modules.ts 加一行；有 ui：在 apps/desktop/src/renderer/features.ts 加一行
-  4. 在 apps/core / apps/desktop 的 package.json 中加入 "@poietica/feature-${id}": "workspace:*"
+  2. 提升 packages/protocol/src/version.ts 的 PROTOCOL_VERSION
+  3. 在 apps/core / apps/desktop 的 package.json 中加入 "@poietica/feature-${id}": "workspace:*"
+  4. bun run assembly:contracts && bun run assembly:core && bun run assembly:modules
   5. bun run refs`)

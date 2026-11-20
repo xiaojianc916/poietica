@@ -1,5 +1,5 @@
+import type { TurnState } from '@poietica/product-model'
 import { createFeatureStore, type FeatureStore } from '@poietica/ui-kernel'
-import type { TurnState } from '../../contract/entities'
 
 /**
  * 「跑完了，但你还没回来看」的那一档（DSH 的 completionUnread 与绿点）。

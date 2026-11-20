@@ -55,6 +55,8 @@ const PLATFORM_MODULES: readonly string[] = ['packages/sandbox-win', 'packages/p
 
 /** 不是平台判断：文件类型图标名、线协议里的固定字面量。 */
 const PLATFORM_DATA = new Set([
+  /* 危险命令规则里的 cmd / powershell / pwsh 是待匹配的命令名，不是平台分支 */
+  'features/policy/src/core/policy.ts',
   'features/conversation/src/ui/timeline/tools/view-kit.ts',
   'features/platform/src/contract/entities.ts',
   'packages/design-system/src/mark/file-mark-assets.ts',

@@ -1,5 +1,6 @@
 import type { WorkspaceChoice } from '@poietica/design-system'
 import { type WorkspacesUi, WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
+import { localTimeZone } from '@poietica/foundation'
 import {
   type NavigationService,
   NavigationToken,
@@ -21,7 +22,6 @@ import { type AutomationTemplate, draftOfTemplate } from './templates'
 
 export interface AutomationsSurfaceProps {
   readonly store: AutomationsStore
-  readonly defaultTimeZone: string
   readonly onOpenThread: (threadId: string) => void
 }
 
@@ -61,7 +61,7 @@ export function AutomationsListSurface({ store }: AutomationsSurfaceProps) {
   const pending = useFeatureStoreShallow(store.store, (held) => held.pending)
   const workspaces = useService(WorkspacesUiToken) as WorkspacesUi
   const activeWorkspace = useFeatureStore(workspaces.store, (held) => held.activeId)
-  const defaultTimeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, [])
+  const defaultTimeZone = localTimeZone()
 
   const start = (draft: AutomationDraft): void => {
     store.pendingDraft = draft
@@ -132,7 +132,6 @@ export function AutomationsListSurface({ store }: AutomationsSurfaceProps) {
 export function AutomationsEditSurface({
   automationId,
   store,
-  defaultTimeZone,
   onOpenThread,
 }: AutomationsSurfaceProps & { readonly automationId: string }) {
   const navigation = useService(NavigationToken) as NavigationService
@@ -161,7 +160,7 @@ export function AutomationsEditSurface({
   return (
     <AutomationEditorHost
       automation={existing}
-      defaultTimeZone={defaultTimeZone}
+      defaultTimeZone={localTimeZone()}
       key={automationId}
       onBack={() => {
         store.pendingDraft = null

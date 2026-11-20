@@ -9,14 +9,14 @@ import type { InteractionDraft } from './broker'
  */
 
 /** 回退 select 里「只批这一次」的两种可能标签：omp 的 approvalOnceLabel 有 grants 时用前者，否则用后者 */
-export const APPROVE_LABEL = 'Approve'
-export const APPROVE_ONCE_LABEL = 'Approve Once'
+const APPROVE_LABEL = 'Approve'
+const APPROVE_ONCE_LABEL = 'Approve Once'
 
 /** 「拒绝」那颗按钮；dismiss 也归它（fail closed：没人答就是不批） */
-export const DENY_LABEL = 'Deny'
+const DENY_LABEL = 'Deny'
 
 /** 标题里那一行的前缀；正本 tools/approval.ts 的 formatApprovalPrompt：`Allow tool: ${tool.name}` */
-export const APPROVAL_LINE = 'Allow tool:'
+const APPROVAL_LINE = 'Allow tool:'
 
 /** 一次授权问话：批准什么（工具名）、它将要做什么（原样细节），以及这次对话框给了哪些答复 */
 export interface ApprovalPrompt {

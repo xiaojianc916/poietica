@@ -1,5 +1,6 @@
 import type { Thread } from '@poietica/feature-conversation/contract'
 import { ConversationUiToken, threadActions, toolCallRenderers } from '@poietica/feature-conversation/ui-api'
+import { localTimeZone } from '@poietica/foundation'
 import {
   builtinPoints,
   defineUiFeature,
@@ -19,10 +20,6 @@ import { AutomationsEditSurface, AutomationsListSurface } from './automations-su
 
 /* automations 的 UI 装配。落点：surfaces —— automations.list 与 automations.edit；sidebarSections(order 30)「定时任务」，
  * 右侧显示启用数；conversation 的 threadActions「以此对话创建定时任务」；conversation 的 toolCallRenderers（/^automation_/）。 */
-
-function defaultTimeZone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone
-}
 
 export default defineUiFeature({
   id: 'automations',
@@ -59,13 +56,7 @@ export default defineUiFeature({
     ctx.contribute(builtinPoints.surfaces, {
       id: 'automations.list',
       title: '自动化',
-      component: () => (
-        <AutomationsListSurface
-          defaultTimeZone={defaultTimeZone()}
-          onOpenThread={conversation.openThread}
-          store={store}
-        />
-      ),
+      component: () => <AutomationsListSurface onOpenThread={conversation.openThread} store={store} />,
     })
     ctx.contribute(builtinPoints.surfaces, {
       id: 'automations.edit',
@@ -73,7 +64,6 @@ export default defineUiFeature({
       component: ({ params }: { readonly params: Readonly<Record<string, string>> }) => (
         <AutomationsEditSurface
           automationId={String(params.automationId ?? 'new')}
-          defaultTimeZone={defaultTimeZone()}
           onOpenThread={conversation.openThread}
           store={store}
         />
@@ -122,7 +112,7 @@ export default defineUiFeature({
       return {
         title,
         prompt: prompt ?? '',
-        schedule: { cron: DEFAULT_SCHEDULE, at: null, timeZone: defaultTimeZone() },
+        schedule: { cron: DEFAULT_SCHEDULE, at: null, timeZone: localTimeZone() },
         workspaceId: thread.workspaceId,
         posture: thread.posture,
         model: null,

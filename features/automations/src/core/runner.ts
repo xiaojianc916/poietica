@@ -34,18 +34,6 @@ export interface Runner {
   dispose(): void
 }
 
-/**
- * 定时任务建出来的对话叫什么：**就是任务名**。
- *
- * 从前是「定时任务：<标题> MM-DD HH:mm」，两截都是噪音：侧栏那一行已经有闹钟图标说明它从哪来，
- * 时间戳只是同一天跑多次时的区分手段，却让每个名字都长成一串内部格式。同任务跑第几次，
- * 由创建时刻与运行记录回答。
- */
-export function threadTitleOf(automation: Automation, at: number): string {
-  void at
-  return automation.title
-}
-
 export const REPORT_INSTRUCTION =
   '（运行结束前调用 automation_report，用一两句话写下结论；需要用户处理或有异常发现时把 attention 设为 true。）'
 
@@ -231,9 +219,10 @@ export function createRunner(d: {
           : { kind: 'busy', threadId: existing.id }
       }
     }
+    /* 对话名就是任务名：侧栏已有闹钟图标说明来源，再拼时间戳只会长成一串内部格式。 */
     const thread = conversation.createThread({
       workspaceId: a.workspaceId,
-      title: threadTitleOf(a, startedAt),
+      title: a.title,
       origin: 'automation',
       posture: a.posture,
       model: a.model,

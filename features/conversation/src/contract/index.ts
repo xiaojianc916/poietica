@@ -1,6 +1,15 @@
 import { agentEventSchema, transcriptPageSchema } from '@poietica/agent-model'
 import { defineContract, defineMethod, defineNotification } from '@poietica/contract-kit'
 import {
+  QueueView,
+  SubmissionOrigin,
+  SubmissionView,
+  Thread,
+  ThreadInit,
+  TimelineSnapshot,
+  TurnState,
+} from '@poietica/product-model'
+import {
   CommandOutputTone,
   ContextUsage,
   Controls,
@@ -13,18 +22,9 @@ import {
   SlashCommand,
 } from '@poietica/runtime-protocol'
 import { z } from 'zod'
-import {
-  QueueView,
-  SubmissionOrigin,
-  SubmissionView,
-  Thread,
-  ThreadInit,
-  TimelineSnapshot,
-  TurnState,
-} from './entities'
 import { conversationErrors } from './errors'
 
-export * from './entities'
+export * from '@poietica/product-model'
 export { conversationErrors } from './errors'
 export * from './media'
 

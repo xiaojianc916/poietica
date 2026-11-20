@@ -2,7 +2,7 @@
 
 ## 状态
 
-实施中（P3 第一批：ARP 握手与 Worker 通用外壳）
+已实施；收尾见「待落地」
 
 ## 决定
 
@@ -26,7 +26,4 @@
 
 ## 待落地
 
-- `apps/runtime` omp Worker：把 `engine-omp` 整体移入 Worker，Core 侧只留 omp-types 与 ARP 客户端。
-- Runtime Manager：`RuntimePool` 已做工作树键复用与失败重建；`RuntimeProcess` 已做崩溃退避重启（默认关闭，由上层开启）。心跳、非终态 Run 记 `run.interrupted`、待送文件补收仍待做。
-- 产品工具经 ARP 下发并注册为 omp 自定义工具。
-- 混沌测试：杀 Worker 后其余工作区不受影响，对应 Thread 可继续。
+- Runtime Manager：`RuntimePool` 已做工作树键复用与失败重建；`RuntimeProcess` 已做崩溃退避重启（默认关闭，由上层开启）与心跳。非终态 Run 记 `run.interrupted`、待送文件补收仍待做。

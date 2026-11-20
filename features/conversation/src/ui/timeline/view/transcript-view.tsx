@@ -113,9 +113,12 @@ function useUserArrival(feed: Presentation, sessionKey: string): UserArrival | n
       return
     }
 
-    const timer = window.setTimeout(() => {
-      setArrival(null)
-    }, Math.max(0, USER_ARRIVAL_MS - arrival.delayMs) + 160)
+    const timer = window.setTimeout(
+      () => {
+        setArrival(null)
+      },
+      Math.max(0, USER_ARRIVAL_MS - arrival.delayMs) + 160,
+    )
 
     return () => {
       window.clearTimeout(timer)
@@ -355,9 +358,7 @@ function SettledTranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite
       /* 账只挂在有回复操作行的那一行：没有正文的轮没有「回复下方」这个位置。 */
       const changesView = replyAction === undefined ? undefined : changesByTurn.get(row.item.turn)
       const enterDelayMs =
-        arrival !== null &&
-        row.item.type === 'user_message' &&
-        clientTurnIdOfMessage(row.item) === arrival.clientTurnId
+        arrival !== null && row.item.type === 'user_message' && clientTurnIdOfMessage(row.item) === arrival.clientTurnId
           ? arrival.delayMs
           : undefined
 

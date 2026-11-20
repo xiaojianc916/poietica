@@ -15,9 +15,9 @@ import type { PromptInputMessage } from '../prompt'
 import { AttachmentTray } from './attachment-tray'
 import { activePromptConfiguration, ComposerActions, ComposerChips, composerPaletteGroups } from './composer-actions'
 import { ContextGauge } from './context-gauge'
-import { type ControlsOpenRequest, PermissionPicker, SessionControls } from './controls'
 import { DialogPanel } from './dialog-panel'
 import { PermissionDock, type PermissionDockProps } from './permission-dock'
+import { PermissionPicker } from './permission-picker'
 import { PlanDock, type PlanDockProps } from './plan-dock'
 import type { PromptInputHandle } from './prompt-input'
 import {
@@ -30,6 +30,7 @@ import {
   PromptInputTools,
 } from './prompt-input'
 import { QuestionPanel } from './question-panel'
+import { type ControlsOpenRequest, SessionControls } from './session-controls'
 
 /* 空表要是同一个引用：每次渲染现造一个 `[]`，下游两个 useMemo 每帧都失效，面板跟着整棵重建。 */
 const NO_CONTROLS: readonly SessionConfigControl[] = []
