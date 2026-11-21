@@ -64,6 +64,41 @@
     box-shadow 300ms ease-in-out;
 }
 
+/*
+ * 胶囊 ↔ 面板：只命名这一块浮层，整页不动。旧形态先走，新形态晚一拍再起；
+ * 盒子由浏览器从 34px 补到面板尺寸，`overflow: clip` + 固定圆角让中间帧的角不跟着缩放跑。
+ * 伪元素树不在 [data-assistant-skin] 里，--cp-* 读不到，时长用与 --cp-motion-drawer 同档的 260ms。
+ *
+ * 这一条写在展开态那条（特异性更高）之前：这是同一块面的两种状态，顺序按特异性升序摆，lint 才不报倒挂。
+ */
+
+/* 先把 root 的名字摘掉：不给的话整棵树会被拍成一张图、与浮层叠成两层淡入。 */
+html:active-view-transition-type(ui-status) {
+  view-transition-name: none;
+}
+
+html:active-view-transition-type(ui-status) .conversation-status-panel__surface {
+  view-transition-name: ui-status-panel;
+}
+
+::view-transition-group(ui-status-panel) {
+  overflow: clip;
+  border-radius: 16px;
+  animation-duration: 260ms;
+  animation-timing-function: var(--ui-ease-standard);
+}
+
+::view-transition-old(ui-status-panel) {
+  animation-duration: 90ms;
+  animation-timing-function: var(--ui-ease-exit);
+}
+
+::view-transition-new(ui-status-panel) {
+  animation-delay: 110ms;
+  animation-duration: 150ms;
+  animation-timing-function: var(--ui-ease-standard);
+}
+
 .conversation-status-panel[data-display-mode='panel'] .conversation-status-panel__surface {
   inline-size: min(20rem, calc(100cqw - 2rem));
   max-block-size: min(64dvh, 32rem);

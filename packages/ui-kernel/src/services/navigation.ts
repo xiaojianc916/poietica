@@ -10,8 +10,14 @@ export interface NavigationState {
   readonly canGoForward: boolean
 }
 
+export interface NavigationOptions {
+  readonly replace?: boolean
+  /** 这一次换路由用哪一层过渡观感；缺省是 {@link ROUTE_TRANSITION_TYPE}。只影响外壳的补间，不影响历史。 */
+  readonly transitionType?: string
+}
+
 export interface NavigationService extends Observable<NavigationState> {
-  navigate(route: Route, opts?: { replace?: boolean }): void
+  navigate(route: Route, opts?: NavigationOptions): void
   back(): void
   forward(): void
   home(): void
@@ -36,7 +42,7 @@ export function createNavigationService(defaultRoute: Route, transition?: RouteT
   let back: Route[] = []
   let fwd: Route[] = []
   const state = createValue<NavigationState>({ route: defaultRoute, canGoBack: false, canGoForward: false })
-  const publish = (route: Route): void => {
+  const publish = (route: Route, type: string = ROUTE_TRANSITION_TYPE): void => {
     const next = { route, canGoBack: back.length > 0, canGoForward: fwd.length > 0 }
     if (transition === undefined) {
       state.set(next)
@@ -44,7 +50,7 @@ export function createNavigationService(defaultRoute: Route, transition?: RouteT
     }
     transition(() => {
       state.set(next)
-    }, ROUTE_TRANSITION_TYPE)
+    }, type)
   }
   return {
     current: state.current,
@@ -54,7 +60,7 @@ export function createNavigationService(defaultRoute: Route, transition?: RouteT
       if (sameRoute(cur, route)) return
       if (opts?.replace !== true) back = [...back, cur].slice(-MAX_HISTORY)
       fwd = []
-      publish(route)
+      publish(route, opts?.transitionType ?? ROUTE_TRANSITION_TYPE)
     },
     back() {
       const prev = back.at(-1)

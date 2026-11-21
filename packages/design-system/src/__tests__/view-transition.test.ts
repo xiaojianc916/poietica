@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'bun:test'
-import { withViewTransition } from '../view-transition'
+import { currentViewTransition, withViewTransition } from '../view-transition'
 
 /* 视图过渡的出口：没有 API、要减少动效时都必须同步落地；有条路时更新必须交进 update 回调（不然补的是同一张图）。 */
 
@@ -86,4 +86,44 @@ test('VT5 浏览器抛错（文档不可见）：更新照做，且只做一次'
     ran += 1
   })
   expect(ran).toBe(1)
+})
+
+test('VT6 过渡进行中能读到当前那一次；finished 之后清空', async () => {
+  const { promise: finished, resolve: finish } = Promise.withResolvers<void>()
+  let started: ViewTransition | null = null
+  host.startViewTransition = () => {
+    const transition = {
+      types: new Set<string>(),
+      updateCallbackDone: Promise.resolve(),
+      ready: Promise.resolve(),
+      finished,
+      skipTransition: () => undefined,
+    }
+    started = transition
+    return transition
+  }
+
+  /*
+   * happy-dom 不实现 :active-view-transition；currentViewTransition 用它在过渡落定后兜底。
+   * 这一段只验「当前那一次」的生命周期，让 pseudoclass 在断言期间为真，finally 还原。
+   */
+  const root = document.documentElement
+  const matches = root.matches
+  Object.defineProperty(root, 'matches', {
+    configurable: true,
+    value: (selector: string): boolean =>
+      selector === ':active-view-transition' ? true : matches.call(root, selector),
+  })
+  try {
+    withViewTransition(() => undefined)
+    expect(started).not.toBeNull()
+    expect(currentViewTransition()).toBe(started!)
+    finish()
+    await finished
+    /* settle 是挂在 finished 上的 then，和测试的续体同一批微任务：多让一拍。 */
+    await Promise.resolve()
+    expect(currentViewTransition()).toBeNull()
+  } finally {
+    Reflect.deleteProperty(root, 'matches')
+  }
 })

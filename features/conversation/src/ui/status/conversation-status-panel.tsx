@@ -9,6 +9,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
+  withViewTransition,
 } from '@poietica/design-system'
 import { CommandsToken, type Observable, useService } from '@poietica/ui-kernel'
 import {
@@ -24,7 +25,7 @@ import {
   Minimize2,
   SquareTerminal,
 } from 'lucide-react'
-import { type CSSProperties, type ReactNode, useCallback, useMemo, useState } from 'react'
+import { type CSSProperties, type ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useWorkspaceGitFacts } from '../../ui-api'
 import {
   delegateCallsOf,
@@ -41,6 +42,9 @@ import { agentRows, TaskPanelContent } from './todo/todo-panel'
 
 /* 用户手动选择的形态。null 交给 CSS 的容器查询裁决（auto），React 不读宽度。 */
 export type SummaryPanelVariant = 'panel' | 'mini'
+
+/** 胶囊 ↔ 面板那一次过渡的类型名，CSS 在 conversation-status-panel.css 认领。 */
+const STATUS_PANEL_TRANSITION_TYPE = 'ui-status'
 type DisplayMode = SummaryPanelVariant | 'auto'
 
 /*
@@ -133,22 +137,55 @@ export function ConversationStatusPanel({
     todos,
   })
 
+  const mode: DisplayMode = variant ?? 'auto'
+  const asideRef = useRef<HTMLElement>(null)
+  const pendingFocus = useRef<SummaryPanelVariant | null>(null)
+
+  /*
+   * 形态切换会卸掉点下去的那个按钮（胶囊里的展开钮 / 面板里的收起钮）：焦点交给新形态的第一个控件，
+   * 键盘用户不会掉到 body 上。`auto` 的宽度裁决不走这里，也就不会抢焦点。
+   */
+  useLayoutEffect(() => {
+    const target = pendingFocus.current
+    pendingFocus.current = null
+    /* 形态没真的落到请求的那一档（`auto` 或外部拒绝）就不动焦点。 */
+    if (target === null || mode === 'auto' || target !== mode || asideRef.current === null) return
+    const selector =
+      target === 'panel' ? '.conversation-status-panel__panel button' : '.conversation-status-panel__summary'
+    asideRef.current.querySelector<HTMLElement>(selector)?.focus()
+  }, [mode])
+
   if (summary === null) {
     return null
   }
 
-  const mode: DisplayMode = variant ?? 'auto'
+  /*
+   * 胶囊和面板是同一块浮层的两种形态：一起交给 View Transition 补间，别让宽度和高度硬跳。
+   * 形态没变（同一个值再点一次）不播；`auto` 由容器宽度裁决，不经过这里。
+   */
+  const applyVariant = (next: SummaryPanelVariant | null): void => {
+    if (onVariantChange === undefined || next === variant) return
+    pendingFocus.current = next
+    withViewTransition(
+      () => {
+        onVariantChange(next)
+      },
+      { type: STATUS_PANEL_TRANSITION_TYPE },
+    )
+  }
+
   return (
     <aside
       aria-label="状态"
       className="conversation-status-panel"
       data-display-mode={mode}
       data-state={mode === 'mini' ? 'collapsed' : 'expanded'}
+      ref={asideRef}
     >
       <div className="conversation-status-panel__surface">
         {mode === 'mini' ? null : (
           <div className="conversation-status-panel__panel">
-            <PanelControls mode={mode} onVariantChange={onVariantChange} />
+            <PanelControls mode={mode} onVariantChange={applyVariant} />
             <div className="conversation-status-panel__scroll">
               <TaskPanelContent
                 backgroundTasks={backgroundTasks}
@@ -172,7 +209,7 @@ export function ConversationStatusPanel({
           <div className="conversation-status-panel__mini">
             <StatusSummaryRow
               onExpand={() => {
-                onVariantChange?.('panel')
+                applyVariant('panel')
               }}
               summary={summary}
             />

@@ -30,6 +30,22 @@ function motionAllowed(): boolean {
   return !window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
+/**
+ * 此刻跑着的那一次过渡。指名一块元素的过渡要在 update 里建影子，收尾必须跟着**这一次**的 finished，
+ * 不能按时间猜；新一轮过渡开始后这里换成新的那一次。
+ */
+let current: ViewTransition | null = null
+
+export function currentViewTransition(): ViewTransition | null {
+  /*
+   * `current` 的清理挂在 finished 上；不同实现对 finished 的落定时机不完全一致（测试替身、
+   * 跳过过渡、被下一次打断）。用 :active-view-transition 兜底：过渡不在场就不把上一次的对象交出去，
+   * 不然晚到的挂载会把已经结束的过渡当成还在跑。
+   */
+  if (!document.documentElement.matches(':active-view-transition')) return null
+  return current
+}
+
 export function withViewTransition(update: () => void, options: ViewTransitionOptions = {}): void {
   if (typeof document.startViewTransition !== 'function' || !motionAllowed()) {
     flushSync(update)
@@ -49,9 +65,13 @@ export function withViewTransition(update: () => void, options: ViewTransitionOp
       update: run,
       types: options.type === undefined ? [] : [options.type],
     })
+    current = transition
     /* 被下一个过渡打断、或 update 抛错都会让这两个 promise reject；没人等它们，接住以免成为未处理拒绝。 */
     transition.ready.catch(() => undefined)
-    transition.finished.catch(() => undefined)
+    const settle = (): void => {
+      if (current === transition) current = null
+    }
+    transition.finished.then(settle, settle)
   } catch {
     run()
   }

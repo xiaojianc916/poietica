@@ -70,6 +70,17 @@ describe('navigation', () => {
     expect(n.current().canGoBack).toBe(false)
   })
 
+  test('navigate 可以只给这一次换过渡类型，缺省仍是 ui-route', () => {
+    const types: string[] = []
+    const n = createNavigationService(home, (update, type) => {
+      types.push(type)
+      update()
+    })
+    n.navigate({ surface: 'a', params: {} }, { transitionType: 'ui-submit' })
+    n.navigate({ surface: 'b', params: {} })
+    expect(types).toEqual(['ui-submit', 'ui-route'])
+  })
+
   test('历史最多 50 条', () => {
     const n = createNavigationService(home)
     for (let i = 0; i < 60; i++) n.navigate({ surface: `s${i}`, params: {} })

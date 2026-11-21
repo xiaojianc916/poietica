@@ -2,6 +2,7 @@ import { createDraftPin, type Draft, type DraftPinView, isDraft } from '@poietic
 import type { SetupUiStateKey } from '@poietica/feature-preferences/contract'
 import type { UiStateSlot } from '@poietica/feature-preferences/ui-api'
 import { createValue } from '@poietica/ui-kernel'
+import { rememberComposerFocus, rememberSubmitHandoff, SUBMIT_TRANSITION_TYPE } from '../composer-handoff'
 import { shouldNotify } from '../session'
 import type { SummaryPanelPreference, SummaryPanelVariant } from '../status'
 import { leaveForArchive } from '../threads'
@@ -148,8 +149,20 @@ export function createConversationActions(setup: ConversationSetup): Conversatio
   const openThread = (threadId: string): void => {
     /* 打开即「看过了」：那条会话的完成提醒（绿点）随之消失。 */
     stores.completionUnread.consume(threadId)
+    /*
+     * 入口页提交过来的这一跳：用专用过渡类型（主卡片不参与快照，输入框从中宫落到底部），
+     * 新表面再把焦点交回输入框。点侧栏开对话不走这条路。
+     */
+    const fromHome = navigation.current().route.surface === 'conversation.home'
+    if (fromHome) {
+      rememberComposerFocus()
+      rememberSubmitHandoff()
+    }
     /* 高亮由路由派生，这里只负责导航。 */
-    navigation.navigate({ surface: 'conversation.thread', params: { threadId } })
+    navigation.navigate(
+      { surface: 'conversation.thread', params: { threadId } },
+      fromHome ? { transitionType: SUBMIT_TRANSITION_TYPE } : undefined,
+    )
     /*
      * 点开一条对话**不开会话**（性能方案 P4）：只是看，时间线、控件表、命令表都由 Core 冷读作答；会话在人开始写时才由
      * 线程表面预热（thread-lifecycle.ts 的 engage）。控件表这里主动问一次 —— 只等表面挂载那一次的话，
