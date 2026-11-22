@@ -517,6 +517,10 @@ omp 会话文件只写了一个空会话头，同一窗口里三条线程的 Jou
 
 | R-54 | **发布链只有本机一条，删掉复活的 `.github/workflows/release.yml`**。`4e8a9776`（回归本机发布）删过这条 tag 触发的 CI 发版链，`baa8668f`（架构重写）把旧版 74 行副本又加了回来，于是每个 tag 都在跑一条按设计必挂的流水线：electron ≥42 的 npm 包已无 `postinstall`（41.0.0 还有，42.0.0 起消失），`bun install` 不再下载二进制，而 `electron-builder.yml` 的 `electronDist` 钉在 `node_modules/electron/dist` → `The specified electronDist does not exist`；`--notes-file docs/release-notes/$version.md` 指向 `3d224544` 整个删掉的目录；`gh release create` 还与本机链抢同一个 tag。仓库历史上 Release 工作流 92 次运行 0 次成功，真正的 release 都带 `SHA256SUMS.txt`（只有 `tooling/release/latest-json.ts` 产它，工作流从不产）。同批把 `release.ts` 的 `git push --follow-tags` 改成显式 `refs/tags/<本次 tag>`：`--follow-tags` 会把本地所有注解 tag 一起推，历史回滚掉、远端本不存在的 `v0.2.10` / `v0.2.11` 因此每次发布都被复活到远端（10:47:37Z 三个 run 同一秒就是这么来的） | 用户 2026-10-24：「github上面的ci/cd是红的，你修复一下」。实测 `gh run list --workflow=Release` 92 failure / 0 success；本地以 `git push --follow-tags` 复现「把 v0.2.10 一并推出」 |
 
+| R-55 | 右坞点开一轮里的图片（`*.png`）显示成一屏乱码：`review.turnFilePatch` 把 `git show` 宽松解出的二进制字节当正文，`DiffView` 当代码铺开。`checkpoints.diffNumstat` 保留 git 的 `-` 为 `binary`，`TurnFilePatch` / `TurnDiffRequest` / `FileDiff` 增 `binary`；二进制只交「在不在」，右坞画「二进制文件，没有可对比的文本」。协议 81 → 82。 |
+
+| R-56 | 右坞文件面板的「自动换行」默认改为开：改动视图（第 N 轮 diff）与全文视图都默认 `wrap = true`，长行竖排、由面板纵向滚动；需要看列对齐时再点工具条关掉。 |
+
 ### 删除旧用户迁移代码（2026-10-25）
 
 用户裁决：「这个项目软件是为正式发布的，所以没有真实用户的，把那些双轨，迁移之类的代码通通删除干净，不用考虑什么旧用户的问题」。

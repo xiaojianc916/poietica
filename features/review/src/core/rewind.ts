@@ -8,7 +8,7 @@ import {
   type CheckpointService,
 } from '@poietica/feature-checkpoints/core-api'
 import { AppError, invariant, type Logger, mapLimited } from '@poietica/foundation'
-import type { TurnChanges, TurnChangesEntry, TurnRewindPreview } from '../contract'
+import type { TurnChanges, TurnChangesEntry, TurnFilePatch, TurnRewindPreview } from '../contract'
 import { reviewErrors } from '../contract/errors'
 import type { TurnFileRow, TurnFilesRepository } from './turn-files-repository'
 
@@ -48,12 +48,7 @@ export interface TurnRewind {
    * 账本有这一笔就交账本；只有检查点（shell / 脚本写入）时，从起止快照里各读一份。
    * 按**显示路径**找：界面手里的是相对路径（正斜杠），账本里存的是绝对路径。
    */
-  patch(
-    threadId: string,
-    turn: number,
-    workspaceRoot: string,
-    shownPath: string,
-  ): Promise<{ before: string | null; after: string | null }>
+  patch(threadId: string, turn: number, workspaceRoot: string, shownPath: string): Promise<TurnFilePatch>
   preview(threadId: string, turn: number, workspaceRoot: string): Promise<TurnRewindPreview>
   /** 撤销一轮：有任何不安全就整轮拒绝，不做部分写回。 */
   apply(threadId: string, turn: number, workspaceRoot: string): Promise<{ turn: number; reverted: true }>
@@ -141,6 +136,48 @@ async function checkpointPlan(
     })
     return null
   }
+}
+
+/**
+ * 这一笔是不是二进制。git numstat 说了算（图片、压缩包给 `-`），与审查清单同一判据。
+ * numstat 问不到就按文本处理（老行为）：正文可能带替换符，但总比空白强；记一条 warn。
+ */
+async function isBinaryPath(
+  checkpoints: CheckpointService,
+  workspaceRoot: string,
+  plan: CheckpointPlan,
+  path: string,
+  logger: Logger,
+): Promise<boolean> {
+  try {
+    const stats = await checkpoints.diffNumstat({ workspaceRoot, from: plan.start.id, to: plan.end.id })
+    return stats.some((entry) => entry.path === path && entry.binary)
+  } catch (error) {
+    logger.warn('checkpoint numstat failed; treating patch as text', { path, error: String(error) })
+    return false
+  }
+}
+
+/**
+ * 检查点里这一份的两半。二进制只留「在不在」（null = 不在，'' = 在）：
+ * `git show` 把 PNG 的字节宽松解成 UTF-8，当正文交出去就是一屏替换符。
+ */
+async function checkpointPatch(
+  checkpoints: CheckpointService,
+  workspaceRoot: string,
+  plan: CheckpointPlan,
+  wanted: string,
+  logger: Logger,
+): Promise<TurnFilePatch> {
+  const [before, after, binary] = await Promise.all([
+    checkpoints.readFile({ workspaceRoot, checkpoint: plan.start.id, path: wanted }),
+    checkpoints.readFile({ workspaceRoot, checkpoint: plan.end.id, path: wanted }),
+    isBinaryPath(checkpoints, workspaceRoot, plan, wanted, logger),
+  ])
+  if (binary) {
+    return { before: before === null ? null : '', after: after === null ? null : '', binary: true }
+  }
+  return { before, after, binary: false }
 }
 
 /** 从起点恢复；「结束」快照用来做三方核对。冲突统一翻成 review 侧的 rewind_unsafe。 */
@@ -434,17 +471,13 @@ export function createTurnRewind(d: TurnRewindDeps): TurnRewind {
       const wanted = shownPath.replaceAll('\\', '/')
       const row = d.repo.listByTurn(threadId, turn).find((held) => displayPath(workspaceRoot, held.path) === wanted)
 
-      if (row !== undefined) return { before: row.before, after: row.after }
+      if (row !== undefined) return { before: row.before, after: row.after, binary: false }
 
       const checkpoints = d.checkpoints
       if (checkpoints !== undefined) {
         const plan = await checkpointPlan(checkpoints, threadId, workspaceRoot, turn, d.logger)
         if (plan?.paths.includes(wanted) === true) {
-          const [before, after] = await Promise.all([
-            checkpoints.readFile({ workspaceRoot, checkpoint: plan.start.id, path: wanted }),
-            checkpoints.readFile({ workspaceRoot, checkpoint: plan.end.id, path: wanted }),
-          ])
-          return { before, after }
+          return await checkpointPatch(checkpoints, workspaceRoot, plan, wanted, d.logger)
         }
       }
 

@@ -312,8 +312,12 @@ describe('review 右坞那一格 diff 的正文', () => {
     b.record({ turn: 1, path: path.join('src', 'a.ts'), before: null, after: 'one\ntwo\n' })
     b.record({ turn: 1, path: 'gone.ts', before: 'bye\n', after: null })
 
-    expect(await b.rewind.patch('t1', 1, b.root, 'src/a.ts')).toEqual({ before: null, after: 'one\ntwo\n' })
-    expect(await b.rewind.patch('t1', 1, b.root, 'gone.ts')).toEqual({ before: 'bye\n', after: null })
+    expect(await b.rewind.patch('t1', 1, b.root, 'src/a.ts')).toEqual({
+      before: null,
+      after: 'one\ntwo\n',
+      binary: false,
+    })
+    expect(await b.rewind.patch('t1', 1, b.root, 'gone.ts')).toEqual({ before: 'bye\n', after: null, binary: false })
     await b.dispose()
   })
 
@@ -322,7 +326,11 @@ describe('review 右坞那一格 diff 的正文', () => {
     b.record({ turn: 1, path: 'a.txt', before: 'one\n', after: 'one\ntwo\n' })
     b.record({ turn: 1, path: 'a.txt', before: 'one\ntwo\n', after: 'one\nTWO\n' })
 
-    expect(await b.rewind.patch('t1', 1, b.root, 'a.txt')).toEqual({ before: 'one\n', after: 'one\nTWO\n' })
+    expect(await b.rewind.patch('t1', 1, b.root, 'a.txt')).toEqual({
+      before: 'one\n',
+      after: 'one\nTWO\n',
+      binary: false,
+    })
     await b.dispose()
   })
 
@@ -334,7 +342,7 @@ describe('review 右坞那一格 diff 的正文', () => {
     await b.rewind.apply('t1', 1, b.root)
 
     expect(await fs.readFile(file, 'utf8')).toBe('old\n')
-    expect(await b.rewind.patch('t1', 1, b.root, 'a.txt')).toEqual({ before: 'old\n', after: 'new\n' })
+    expect(await b.rewind.patch('t1', 1, b.root, 'a.txt')).toEqual({ before: 'old\n', after: 'new\n', binary: false })
     await b.dispose()
   })
 
@@ -351,7 +359,7 @@ describe('review 右坞那一格 diff 的正文', () => {
     const b = await bench()
     b.record({ turn: 1, path: path.join('src', 'deep.ts'), before: null, after: 'x\n' })
 
-    expect(await b.rewind.patch('t1', 1, b.root, 'src\\deep.ts')).toEqual({ before: null, after: 'x\n' })
+    expect(await b.rewind.patch('t1', 1, b.root, 'src\\deep.ts')).toEqual({ before: null, after: 'x\n', binary: false })
     await b.dispose()
   })
 })
@@ -363,6 +371,7 @@ describe('checkpoint 撤销（覆盖 shell / 脚本写入）', () => {
     paths: readonly string[],
     drift: readonly string[] = [],
     files: Readonly<Record<string, string | null>> = {},
+    binary: readonly string[] = [],
   ) {
     const restores: CheckpointRestoreParams[] = []
     const start: Checkpoint = {
@@ -386,7 +395,12 @@ describe('checkpoint 撤销（覆盖 shell / 脚本写入）', () => {
       list: async () => [end, start],
       diff: async () => '',
       diffPaths: async () => [...paths],
-      diffNumstat: async () => paths.map((path) => ({ path, added: 1, removed: 0 })),
+      diffNumstat: async () =>
+        paths.map((path) =>
+          binary.includes(path)
+            ? { path, added: 0, removed: 0, binary: true }
+            : { path, added: 1, removed: 0, binary: false },
+        ),
       changedPaths: async () => [...drift],
       readFile: async (input) => files[`${input.checkpoint}:${input.path}`] ?? null,
       restore: async (input) => {
@@ -440,7 +454,7 @@ describe('checkpoint 撤销（覆盖 shell / 脚本写入）', () => {
         },
       ],
     })
-    expect(await b.rewind.patch('t1', 1, b.root, 'run.sh')).toEqual({ before: 'old\n', after: 'new\n' })
+    expect(await b.rewind.patch('t1', 1, b.root, 'run.sh')).toEqual({ before: 'old\n', after: 'new\n', binary: false })
     expect(await b.rewind.preview('t1', 1, b.root)).toEqual({
       safe: [{ path: 'run.sh' }],
       unsafe: [],
@@ -450,6 +464,24 @@ describe('checkpoint 撤销（覆盖 shell / 脚本写入）', () => {
     await b.rewind.apply('t1', 1, b.root)
     expect((await b.rewind.list('t1', b.root)).turns[0]?.reverted).toBe(true)
     expect((await errorOf(b.rewind.apply('t1', 1, b.root))).code).toBe('review.rewind_not_available')
+    await b.dispose()
+  })
+
+  test('二进制文件（图片）不把字节当正文：标 binary，只留存在性', async () => {
+    const fake = fakeCheckpoints(
+      ['image.png'],
+      [],
+      { 'start:image.png': null, 'end:image.png': '\uFFFD\uFFFDIHDR\uFFFD' },
+      ['image.png'],
+    )
+    const b = await bench({ checkpoints: fake.service, now: () => NOW })
+
+    /* 图片字节读不成文本：after 不能是那串替换符，否则右坞把 PNG 当代码画成一屏乱码。 */
+    expect(await b.rewind.patch('t1', 1, b.root, 'image.png')).toEqual({
+      before: null,
+      after: '',
+      binary: true,
+    })
     await b.dispose()
   })
 

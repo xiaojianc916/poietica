@@ -31,7 +31,11 @@ export interface TurnRewindPreview {
 export interface TurnChangesGateway {
   list(threadId: string): Promise<readonly TurnChangesView[]>
   /** 这一轮某文件改前改后的正文（右坞那一格 diff 的两半）。 */
-  patch(threadId: string, turn: number, path: string): Promise<{ before: string | null; after: string | null }>
+  patch(
+    threadId: string,
+    turn: number,
+    path: string,
+  ): Promise<{ before: string | null; after: string | null; binary: boolean }>
   preview(threadId: string, turn: number): Promise<TurnRewindPreview>
   /** 有文件在此期间被改过时整体拒绝（不做部分写回），按契约抛 review.rewind_unsafe。 */
   apply(threadId: string, turn: number): Promise<void>

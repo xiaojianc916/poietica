@@ -60,7 +60,11 @@ export interface TurnChangesApi {
    * 只有账本主人（review）手里有这两半：写完之后磁盘上只剩 after，事后去读拿不回 before。
    * 点文件行开右坞 diff 时先取它，再交给 turnDiffOpeners 里那个落点。
    */
-  patch(threadId: string, turn: number, path: string): Promise<{ before: string | null; after: string | null }>
+  patch(
+    threadId: string,
+    turn: number,
+    path: string,
+  ): Promise<{ before: string | null; after: string | null; binary: boolean }>
 }
 
 /**
@@ -76,9 +80,11 @@ export interface TurnDiffRequest {
   readonly turn: number
   /** 相对工作区根、正斜杠 —— 与 TurnChangesFile.path 同一份写法。 */
   readonly path: string
-  /** 改前改后的正文：账本里那两半，由 review 取。 */
+  /** 改前改后的正文：账本里那两半，由 review 取。binary 时只表达存在性（null = 不在，'' = 在）。 */
   readonly before: string | null
   readonly after: string | null
+  /** 二进制：图片、压缩包不能按行比，右坞画占位而不是把字节当代码。 */
+  readonly binary: boolean
 }
 export interface TurnDiffOpener {
   readonly id: string

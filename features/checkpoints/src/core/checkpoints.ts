@@ -217,10 +217,13 @@ export function createCheckpointService(o: CreateCheckpointServiceOptions): Chec
       if (first < 0 || second < 0) continue
       const added = record.slice(0, first)
       const removed = record.slice(first + 1, second)
+      /* 二进制没有行数：git 给的是 `-`。保留这个事实，别让 +0 −0 看起来像空改动。 */
+      const binary = added === '-' || removed === '-'
       entries.push({
         path: record.slice(second + 1),
-        added: added === '-' ? 0 : Number(added),
-        removed: removed === '-' ? 0 : Number(removed),
+        added: binary ? 0 : Number(added),
+        removed: binary ? 0 : Number(removed),
+        binary,
       })
     }
     const visible = new Set(

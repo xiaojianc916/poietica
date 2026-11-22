@@ -13,11 +13,13 @@ export const CHECKPOINT_TURN_START_LABEL = '轮次开始'
 export const CHECKPOINT_TURN_END_LABEL = '轮次结束'
 export const CHECKPOINT_STEP_LABEL = '步骤结束'
 
-/** 检查点里一个文件的增删行数；binary 的增删是 0。 */
+/** 检查点里一个文件的增删行数；binary 的增删是 0（git numstat 的 `-`）。 */
 export interface CheckpointNumstat {
   readonly path: string
   readonly added: number
   readonly removed: number
+  /** 二进制：字节读不成文本（图片、压缩包…），正文不能当代码画。 */
+  readonly binary: boolean
 }
 
 export interface CheckpointReadFileParams {

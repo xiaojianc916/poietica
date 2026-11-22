@@ -143,7 +143,8 @@ function ContentView({
   readonly tab: FileTab
 }) {
   const { loaded, reload } = useFileContent(api, tab)
-  const [wrap, setWrap] = useState(false)
+  /* 默认自动换行：竖着读代码比左右拖行更常用；要看列对齐时再关掉。 */
+  const [wrap, setWrap] = useState(true)
   const markdown = MARKDOWN.test(tab.path)
   const [mode, setMode] = useState<ViewMode>(markdown ? 'preview' : 'source')
   const text = loaded.phase === 'ready' && loaded.content.kind === 'text'
@@ -181,7 +182,8 @@ function ContentView({
  */
 function DiffView({ diff, path }: { readonly diff: FileDiff; readonly path: string }) {
   const scroller = useRef<HTMLDivElement | null>(null)
-  const [wrap, setWrap] = useState(false)
+  /* 默认自动换行（与全文视图同一个默认）：长行不再把 diff 撑出横向滚动。 */
+  const [wrap, setWrap] = useState(true)
   /* before 为 null = 那时这个文件还不存在（整份都是新增）；after 为 null = 这一笔把它删了。 */
   const plain = useMemo(() => computeFile(path, diff.before ?? '', diff.after ?? ''), [diff, path])
   const [file, setFile] = useState(plain)
@@ -189,6 +191,8 @@ function DiffView({ diff, path }: { readonly diff: FileDiff; readonly path: stri
   useEffect(() => {
     let live = true
     setFile(plain)
+    /* 二进制没有正文可上色：占位由 diff.binary 直接画。 */
+    if (diff.binary) return
     const total = (diff.before?.length ?? 0) + (diff.after?.length ?? 0)
     if (total > PAINT_BYTES || plain.rows.length > PAINT_LINES) return
     /* 着色失败就当没上色：行带仍在。 */
@@ -218,7 +222,9 @@ function DiffView({ diff, path }: { readonly diff: FileDiff; readonly path: stri
           <TextWrap aria-hidden />
         </IconButton>
       </div>
-      {file.rows.length === 0 ? (
+      {diff.binary ? (
+        <Placeholder title="二进制文件">没有可对比的文本。图片、音视频、压缩包不能按行比较。</Placeholder>
+      ) : file.rows.length === 0 ? (
         <Placeholder title="这一轮没有可对比的正文">它可能是二进制文件，或内容没有变化。</Placeholder>
       ) : (
         <section aria-label="文件改动" className="files-code-scroll min-h-0 flex-1 overflow-auto" ref={scroller}>

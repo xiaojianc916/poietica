@@ -309,7 +309,14 @@ function SettledTranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite
        */
       void changesApi.patch(conversation, turn, path).then(
         (patch) => {
-          diffOpener.open({ threadId: conversation, turn, path, before: patch.before, after: patch.after })
+          diffOpener.open({
+            threadId: conversation,
+            turn,
+            path,
+            before: patch.before,
+            after: patch.after,
+            binary: patch.binary,
+          })
         },
         () => undefined,
       )

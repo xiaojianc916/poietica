@@ -183,10 +183,15 @@ export type TurnRewindObstacle = z.infer<typeof TurnRewindObstacle>
  * 该看的是「当初改成了什么」，不是一片空白。
  */
 export const TurnFilePatch = z.object({
-  /** 改之前那一份；null = 那时这个文件还不存在。 */
+  /** 改之前那一份；null = 那时这个文件还不存在。binary 时非 null 一律是空串。 */
   before: z.string().nullable(),
-  /** 改之后那一份；null = 这一笔把它删了。 */
+  /** 改之后那一份；null = 这一笔把它删了。binary 时非 null 一律是空串。 */
   after: z.string().nullable(),
+  /**
+   * 二进制（图片、压缩包…）：两份字节都读不成文本，before/after 只表达「在不在」。
+   * 右坞据此画占位，不把 PNG 的字节当代码铺成一屏替换符。
+   */
+  binary: z.boolean(),
 })
 export type TurnFilePatch = z.infer<typeof TurnFilePatch>
 

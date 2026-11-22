@@ -55,8 +55,8 @@ describe('影子检查点', () => {
 
     expect(await service.diffPaths({ workspaceRoot: root, from: start.id, to: end.id })).toEqual(['a.txt', 'b.txt'])
     expect(await service.diffNumstat({ workspaceRoot: root, from: start.id, to: end.id })).toEqual([
-      { path: 'a.txt', added: 1, removed: 1 },
-      { path: 'b.txt', added: 1, removed: 0 },
+      { path: 'a.txt', added: 1, removed: 1, binary: false },
+      { path: 'b.txt', added: 1, removed: 0, binary: false },
     ])
     expect(await service.readFile({ workspaceRoot: root, checkpoint: start.id, path: 'a.txt' })).toBe('one')
     expect(await service.readFile({ workspaceRoot: root, checkpoint: end.id, path: 'a.txt' })).toBe('two')
@@ -75,6 +75,19 @@ describe('影子检查点', () => {
     })
     expect(await readFile(a, 'utf8')).toBe('one')
     await expect(readFile(b, 'utf8')).rejects.toThrow()
+  })
+
+  test('二进制文件在 numstat 里标 binary，行数记 0（图片不能按行比）', async () => {
+    const root = await workspace()
+    const service = createCheckpointService({ dir: path.join(root, '.shadow') })
+    const start = await service.create({ workspaceRoot: root, threadId: 't1', label: '轮次开始' })
+    /* PNG 头就带 NUL：git 自己就把它认成二进制。 */
+    await writeFile(path.join(root, 'shot.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]))
+    const end = await service.create({ workspaceRoot: root, threadId: 't1', label: '轮次结束' })
+
+    expect(await service.diffNumstat({ workspaceRoot: root, from: start.id, to: end.id })).toEqual([
+      { path: 'shot.png', added: 0, removed: 0, binary: true },
+    ])
   })
 
   test('检查点之后手动改过文件时拒绝恢复', async () => {

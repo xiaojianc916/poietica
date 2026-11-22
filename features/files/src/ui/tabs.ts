@@ -15,12 +15,14 @@
  * 文件面板自己去磁盘上读只能读到写完之后的样子。
  */
 export interface FileDiff {
-  /** 改之前那一份；null = 那时这个文件还不存在。 */
+  /** 改之前那一份；null = 那时这个文件还不存在。binary 时非 null 是空串。 */
   readonly before: string | null
-  /** 改之后那一份；null = 这一笔把它删了。 */
+  /** 改之后那一份；null = 这一笔把它删了。binary 时非 null 是空串。 */
   readonly after: string | null
   /** 打开它的那一轮（只用来在标题上说明这是哪一轮的改动）。 */
   readonly turn: number
+  /** 二进制（图片、压缩包…）：正文读不成文本，只画占位，不把字节当代码铺开。 */
+  readonly binary: boolean
 }
 
 export interface FileTab {

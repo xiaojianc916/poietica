@@ -110,6 +110,7 @@ export default defineUiFeature({
           before: request.before,
           after: request.after,
           turn: request.turn,
+          binary: request.binary,
         })
       },
     })

@@ -226,7 +226,7 @@ export const reviewContract = defineContract({
       }),
       result: TurnFilePatch,
       description:
-        '这一轮某文件改前改后的正文（右坞那一格 diff 的两半）；有工具账用账本，否则读起止检查点；撤销之后仍交原来的两半，没有这一笔 → turn_file_missing',
+        '这一轮某文件改前改后的正文（右坞那一格 diff 的两半）；有工具账用账本，否则读起止检查点；撤销之后仍交原来的两半；二进制只交 binary 标记与存在性，没有这一笔 → turn_file_missing',
     }),
     defineMethod({
       name: 'review.previewTurnRewind',
