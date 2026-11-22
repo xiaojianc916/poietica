@@ -13,6 +13,7 @@ import {
   Input,
   pathTreeRows,
   RegionSplitter,
+  RowButton,
   Textarea,
   Tooltip,
   TooltipContent,
@@ -551,13 +552,12 @@ const Card = memo(function Card({
        * padding 补回行内起点 —— 比工具条那条内线再右挪 4px，文件名不贴着图标站。 */}
       <header className="review-card__head">
         <div className="review-card__head-row mx-1.5 flex h-7 items-center gap-2 rounded-md px-2">
-          <button
+          <RowButton
             aria-expanded={open}
             className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left"
             onClick={() => {
               onToggle(file.path)
             }}
-            type="button"
           >
             <FileTypeMark name={file.path} />
             <span className="shrink-0 text-sm">
@@ -569,7 +569,7 @@ const Card = memo(function Card({
               </span>
             ) : null}
             <Tally stat={file.stat} />
-          </button>
+          </RowButton>
         </div>
       </header>
       {open ? <Body file={file} onToggleGap={onToggleGap} openGaps={openGaps} scroller={scroller} wrap={wrap} /> : null}

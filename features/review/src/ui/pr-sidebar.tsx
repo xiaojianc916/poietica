@@ -8,6 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Input,
+  RowButton,
 } from '@poietica/design-system'
 import { Ellipsis, Funnel, RefreshCw, Search, X } from 'lucide-react'
 import { type ReactNode, useEffect, useRef } from 'react'
@@ -312,7 +313,7 @@ function PullRow({
   const Glyph = STATE_GLYPHS[presentation.glyph]
   return (
     <li>
-      <button
+      <RowButton
         aria-current={selected ? 'true' : undefined}
         className={cn(
           'flex w-full flex-col gap-1 rounded-lg py-2 pr-1 pl-3 text-left transition-colors',
@@ -338,7 +339,6 @@ function PullRow({
           register(entry.number, node)
         }}
         tabIndex={tabbable ? 0 : -1}
-        type="button"
       >
         <span className="line-clamp-2 text-sm font-medium">{entry.title}</span>
         {/* meta 行：状态字形 + 头像 + 作者 + 相对时间，编号推到最右 —— 都照参考实现。 */}
@@ -352,7 +352,7 @@ function PullRow({
           <span className="shrink-0 tabular-nums">{relativeTime(entry.createdAt)}</span>
           <span className="ml-auto shrink-0 pl-1 tabular-nums opacity-80">#{entry.number}</span>
         </span>
-      </button>
+      </RowButton>
     </li>
   )
 }

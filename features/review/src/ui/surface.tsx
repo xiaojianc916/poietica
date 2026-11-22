@@ -1,3 +1,4 @@
+import { RowButton } from '@poietica/design-system'
 import type { WorkspacesUi } from '@poietica/feature-workspaces/ui-api'
 import {
   type NavigationService,
@@ -75,16 +76,15 @@ export function CodeReviewNavRow(): ReactNode {
     .join(' ')
 
   return (
-    <button
+    <RowButton
       aria-current={active ? 'page' : undefined}
       className={className}
       onClick={() => {
         navigation.navigate({ surface: 'review.code', params: {} })
       }}
-      type="button"
     >
       <GitCompareArrows aria-hidden="true" className="sidebar-nav-row__icon" />
       <span className="sidebar-nav-row__label">代码审查</span>
-    </button>
+    </RowButton>
   )
 }
