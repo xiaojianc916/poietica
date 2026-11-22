@@ -10,8 +10,10 @@ import {
   type FileTreeRow,
   FileTypeMark,
   GithubMark,
+  Input,
   pathTreeRows,
   RegionSplitter,
+  Textarea,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -440,7 +442,7 @@ function Commit({
       </DropdownMenuTrigger>
       <DropdownMenuContent className="review-commit-menu w-80 rounded-2xl p-2">
         {/* 无缝输入：无边框，靠弹层自己垫底。 */}
-        <textarea
+        <Textarea
           aria-label="提交信息"
           className="w-full resize-none bg-transparent px-3 py-2 text-xs outline-none placeholder:opacity-50"
           name="commit-message"
@@ -462,6 +464,7 @@ function Commit({
           placeholder="提交信息（留空将自动生成）…"
           rows={4}
           value={state.draft}
+          variant="bare"
         />
         <label className="flex cursor-default items-center gap-2 px-3 py-2 text-xs">
           <input
@@ -630,7 +633,7 @@ function Tree({
           <div className="flex shrink-0 px-2 py-2">
             <div className="review-filter flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-full pr-2 pl-2.5">
               <Search aria-hidden className=" text-placeholder" />
-              <input
+              <Input
                 aria-label="筛选文件"
                 className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-placeholder"
                 onChange={(event) => {
@@ -638,6 +641,7 @@ function Tree({
                 }}
                 placeholder="筛选文件…"
                 value={state.query}
+                variant="bare"
               />
               {/* 清除键常占位：有字没字行高等一边高，不跳。 */}
               <span className={state.query === '' ? 'invisible' : undefined}>

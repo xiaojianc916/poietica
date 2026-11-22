@@ -7,6 +7,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Input,
 } from '@poietica/design-system'
 import { Ellipsis, Funnel, RefreshCw, Search, X } from 'lucide-react'
 import { type ReactNode, useEffect, useRef } from 'react'
@@ -219,7 +220,7 @@ function SearchField({
   return (
     <div className="pr-sidebar__search flex h-8 min-w-0 items-center gap-1.5 rounded-full pr-1 pl-2.5">
       <Search aria-hidden className=" text-placeholder" />
-      <input
+      <Input
         aria-label="Search or paste a PR link"
         className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-placeholder"
         onChange={(event) => {
@@ -233,6 +234,7 @@ function SearchField({
         }}
         placeholder="Search or paste a PR link"
         value={query}
+        variant="bare"
       />
       <span className={query === '' ? 'invisible' : undefined}>
         <button

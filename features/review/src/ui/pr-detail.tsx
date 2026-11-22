@@ -9,6 +9,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Textarea,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -593,7 +594,7 @@ function Composer({
     <div className="pr-detail__composer shrink-0 px-3 pb-3">
       <div className="mx-auto w-full max-w-[52rem]">
         <div className="pr-detail__input flex items-end gap-2 rounded-xl p-2">
-          <textarea
+          <Textarea
             aria-label="Write a comment"
             className="max-h-40 min-h-[38px] min-w-0 flex-1 resize-none bg-transparent px-1.5 py-1.5 text-sm outline-none placeholder:text-placeholder"
             onChange={(event) => {
@@ -611,6 +612,7 @@ function Composer({
             placeholder={tab === 'timeline' ? 'Leave a comment' : 'Write a comment…'}
             rows={2}
             value={draft}
+            variant="bare"
           />
           <button
             aria-label="Send comment"
