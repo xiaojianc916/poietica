@@ -13,6 +13,12 @@
   --color-surface: var(--ui-surface);
   --color-chrome: var(--ui-chrome);
   --color-ground: var(--ui-ground);
+  /*
+   * 卡片面与浮层高亮：功能里已经在用 bg-[var(--ui-card)] / bg-[var(--ui-popup-highlight)]，
+   * 收成语义工具类，解析值不变。
+   */
+  --color-card: var(--ui-card);
+  --color-popup-highlight: var(--ui-popup-highlight);
 
   --color-sidebar: var(--ui-sidebar);
   --color-sidebar-accent: var(--ui-sidebar-accent);

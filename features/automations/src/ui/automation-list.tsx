@@ -178,7 +178,7 @@ function TaskCard({
   const dispatchNote = dispatchNoteOf(automation)
   return (
     <li className="flex">
-      <article className="flex w-full flex-col rounded-xl border border-divider bg-[var(--ui-card)] px-4 py-3.5">
+      <article className="flex w-full flex-col rounded-xl border border-divider bg-card px-4 py-3.5">
         <div className="flex items-start gap-2">
           <h3 className="min-w-0 flex-1 text-xs font-medium">
             <TruncatedText className="block" fullText={automation.title}>

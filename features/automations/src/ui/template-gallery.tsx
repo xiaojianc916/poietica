@@ -29,7 +29,7 @@ export function TemplateGallery({ onPick }: TemplateGalleryProps) {
             <li className="flex" key={template.id}>
               <button
                 aria-label={`使用模板：${template.title}`}
-                className="flex w-full flex-col rounded-xl border bg-[var(--ui-card)] px-4 py-3.5 text-left transition-colors hover:bg-[var(--ui-popup-highlight)]"
+                className="flex w-full flex-col rounded-xl border bg-card px-4 py-3.5 text-left transition-colors hover:bg-popup-highlight"
                 onClick={() => {
                   onPick(template)
                 }}

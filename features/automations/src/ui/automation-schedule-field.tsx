@@ -100,7 +100,7 @@ function ScheduleMenu({
       <DropdownMenuTrigger
         className={
           empty
-            ? 'flex h-11 w-full items-center gap-2 rounded-xl border  bg-popover px-4 text-sm text-muted-foreground hover:bg-[var(--ui-popup-highlight)]'
+            ? 'flex h-11 w-full items-center gap-2 rounded-xl border  bg-popover px-4 text-sm text-muted-foreground hover:bg-popup-highlight'
             : 'inline-flex h-7 items-center gap-1 rounded-full bg-sidebar-accent/60 pl-3 pr-2 text-xs text-foreground hover:bg-sidebar-accent data-[popup-open]:bg-sidebar-accent'
         }
         type="button"
@@ -158,7 +158,7 @@ function TimeColumn({
         <DropdownMenuItem
           className={cn(
             'min-h-7 justify-center rounded-lg px-0 text-xs tabular-nums',
-            option === selected && 'bg-[var(--ui-popup-highlight)] font-medium',
+            option === selected && 'bg-popup-highlight font-medium',
           )}
           closeOnClick={false}
           key={option}
