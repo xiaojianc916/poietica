@@ -1,38 +1,40 @@
-/* 组头与 .timeline-tool 同音量同字号同缩进：它汇总了几条也不因此变大一档。 */
+@layer components.features {
+  /* 组头与 .timeline-tool 同音量同字号同缩进：它汇总了几条也不因此变大一档。 */
 
-/* 轨道必须钉成 minmax(0, 1fr)：默认 auto 轨道按 max-content 定宽，行自己的 max-inline-size 没有确定的 100% 可解，思考行会铺满整屏、被滚动盒截在右缘。 */
-.timeline-group {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-}
+  /* 轨道必须钉成 minmax(0, 1fr)：默认 auto 轨道按 max-content 定宽，行自己的 max-inline-size 没有确定的 100% 可解，思考行会铺满整屏、被滚动盒截在右缘。 */
+  .timeline-group {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
 
-/* 裁切归 rolling-line.css 的最外层；换句时那一格里有两句话，截断只落在单句自己的窗口上。 */
+  /* 裁切归 rolling-line.css 的最外层；换句时那一格里有两句话，截断只落在单句自己的窗口上。 */
 
-/* 成员与组头同一起点、不缩进：从属关系已由展开这个动作说清。行距比转录级窄，松了会读不出「它们属于上面那一行」。
+  /* 成员与组头同一起点、不缩进：从属关系已由展开这个动作说清。行距比转录级窄，松了会读不出「它们属于上面那一行」。
    高度封顶并自己滚：一次探索动辄几十条调用，全铺开会把下面推走；戴 data-scrollable 走嵌套滚动仲裁。
    两端用 mask 而不是盖一层地色：底下可能是任何东西，叠实色会在换主题时露接缝。渐隐取 --cp-line 的一行半，短了断口读成硬边，长了整行都在雾里。 */
-.timeline-group__members {
-  display: grid;
-  gap: var(--cp-timeline-group-gap);
-  padding-block-start: var(--cp-timeline-group-gap);
-  max-block-size: var(--cp-timeline-group-max);
-  overflow: hidden auto;
-}
+  .timeline-group__members {
+    display: grid;
+    gap: var(--cp-timeline-group-gap);
+    padding-block-start: var(--cp-timeline-group-gap);
+    max-block-size: var(--cp-timeline-group-max);
+    overflow: hidden auto;
+  }
 
-.timeline-group__members[data-scroll-mask='both'] {
-  mask-image: linear-gradient(
-    to bottom,
-    transparent,
-    #000 var(--cp-timeline-group-fade),
-    #000 calc(100% - var(--cp-timeline-group-fade)),
-    transparent
-  );
-}
+  .timeline-group__members[data-scroll-mask='both'] {
+    mask-image: linear-gradient(
+      to bottom,
+      transparent,
+      #000 var(--cp-timeline-group-fade),
+      #000 calc(100% - var(--cp-timeline-group-fade)),
+      transparent
+    );
+  }
 
-.timeline-group__members[data-scroll-mask='top'] {
-  mask-image: linear-gradient(to bottom, transparent, #000 var(--cp-timeline-group-fade));
-}
+  .timeline-group__members[data-scroll-mask='top'] {
+    mask-image: linear-gradient(to bottom, transparent, #000 var(--cp-timeline-group-fade));
+  }
 
-.timeline-group__members[data-scroll-mask='bottom'] {
-  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--cp-timeline-group-fade)), transparent);
+  .timeline-group__members[data-scroll-mask='bottom'] {
+    mask-image: linear-gradient(to bottom, #000 calc(100% - var(--cp-timeline-group-fade)), transparent);
+  }
 }

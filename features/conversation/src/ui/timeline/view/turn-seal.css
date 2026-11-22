@@ -1,84 +1,86 @@
-/*
+@layer components.features {
+  /*
  * 封条那一行：下沿一道发丝线（DSH 的 border-bottom: .5px），上下留白照它的 0 8 10 挪到本仓
  * 的行距刻度上。它是这一轮与下一轮之间的分界，所以线画在自己的下沿。
  */
-.turn-seal-line {
-  inline-size: 100%;
-  margin: 1rem 0 0;
-  padding: 0 0 0.5rem;
-  border-block-end: 1px solid var(--cp-turn-seal-rule);
-}
+  .turn-seal-line {
+    inline-size: 100%;
+    margin: 1rem 0 0;
+    padding: 0 0 0.5rem;
+    border-block-end: 1px solid var(--cp-turn-seal-rule);
+  }
 
-/*
+  /*
  * 只给读屏用的那个结论：数字每秒在换，这一格不能跟着换 —— 否则读屏用户的落脚点永远停不下来。
  * 用 clip 而不是 display: none：后者会把它从无障碍树里摘掉，等于没有。
  */
-.turn-seal__announce {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
-  padding: 0;
-  border: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
+  .turn-seal__announce {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    padding: 0;
+    border: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 
-.turn-seal {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  inline-size: fit-content;
-  min-block-size: 1rem;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--cp-timeline-quiet-text);
-  font: inherit;
-  font-size: var(--ui-prose-size);
-  line-height: var(--ui-line-height-tight);
-  text-align: start;
-  vertical-align: top;
-}
-.turn-seal__label {
-  display: inline-flex;
-  align-items: center;
-  min-block-size: 1rem;
-}
+  .turn-seal {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    inline-size: fit-content;
+    min-block-size: 1rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--cp-timeline-quiet-text);
+    font: inherit;
+    font-size: var(--ui-prose-size);
+    line-height: var(--ui-line-height-tight);
+    text-align: start;
+    vertical-align: top;
+  }
+  .turn-seal__label {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 1rem;
+  }
 
-/* 只有数字换等宽字（DSH 的 durationNumber）：单位是汉字，跟着正文的字体走。 */
-.turn-seal__number {
-  font-family: var(--cp-font-mono);
-  font-variant-numeric: tabular-nums;
-}
+  /* 只有数字换等宽字（DSH 的 durationNumber）：单位是汉字，跟着正文的字体走。 */
+  .turn-seal__number {
+    font-family: var(--cp-font-mono);
+    font-variant-numeric: tabular-nums;
+  }
 
-.turn-seal--toggle {
-  cursor: pointer;
-}
+  .turn-seal--toggle {
+    cursor: pointer;
+  }
 
-.turn-seal--toggle:hover,
-.turn-seal--toggle:focus-visible {
-  color: var(--cp-ink);
-}
+  .turn-seal--toggle:hover,
+  .turn-seal--toggle:focus-visible {
+    color: var(--cp-ink);
+  }
 
-/* 图标盒与文字盒等高，不需要那 1px 的手工偏移。 */
-.turn-seal__chevron {
-  display: block;
-  flex: none;
-  inline-size: 1rem;
-  block-size: 1lh;
-  rotate: -90deg;
-  transition: rotate var(--cp-motion-swift) cubic-bezier(0.2, 0, 0, 1);
-}
-
-.turn-seal--toggle[aria-expanded='true'] .turn-seal__chevron {
-  rotate: 0deg;
-}
-
-@media (prefers-reduced-motion: reduce) {
+  /* 图标盒与文字盒等高，不需要那 1px 的手工偏移。 */
   .turn-seal__chevron {
-    transition: none;
+    display: block;
+    flex: none;
+    inline-size: 1rem;
+    block-size: 1lh;
+    rotate: -90deg;
+    transition: rotate var(--cp-motion-swift) cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .turn-seal--toggle[aria-expanded='true'] .turn-seal__chevron {
+    rotate: 0deg;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .turn-seal__chevron {
+      transition: none;
+    }
   }
 }

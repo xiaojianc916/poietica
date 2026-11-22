@@ -1,76 +1,78 @@
-/* display: flex 不能省：少了它 ::before / ::after 不是弹性子项，flex: 1 1 0 与 block-size 都不生效，两条线宽度归零。 */
-.timeline-error {
-  display: flex;
-  align-items: center;
-  gap: var(--cp-timeline-error-gap);
-}
+@layer components.features {
+  /* display: flex 不能省：少了它 ::before / ::after 不是弹性子项，flex: 1 1 0 与 block-size 都不生效，两条线宽度归零。 */
+  .timeline-error {
+    display: flex;
+    align-items: center;
+    gap: var(--cp-timeline-error-gap);
+  }
 
-/* 两侧的线自己伸缩；min-inline-size 保证窄容器里也还认得出这是一条线。 */
-.timeline-error::before,
-.timeline-error::after {
-  content: '';
-  flex: 1 1 0;
-  min-inline-size: 0.75rem;
-  block-size: 1px;
-}
+  /* 两侧的线自己伸缩；min-inline-size 保证窄容器里也还认得出这是一条线。 */
+  .timeline-error::before,
+  .timeline-error::after {
+    content: '';
+    flex: 1 1 0;
+    min-inline-size: 0.75rem;
+    block-size: 1px;
+  }
 
-/* 色标必须写位置：不写时第二个色标落在 100%，一条 300px 的线要爬完全程才满强度。 */
-.timeline-error::before {
-  background: linear-gradient(to right, transparent, var(--cp-error-rule) var(--cp-error-rule-fade));
-}
+  /* 色标必须写位置：不写时第二个色标落在 100%，一条 300px 的线要爬完全程才满强度。 */
+  .timeline-error::before {
+    background: linear-gradient(to right, transparent, var(--cp-error-rule) var(--cp-error-rule-fade));
+  }
 
-.timeline-error::after {
-  background: linear-gradient(to left, transparent, var(--cp-error-rule) var(--cp-error-rule-fade));
-}
+  .timeline-error::after {
+    background: linear-gradient(to left, transparent, var(--cp-error-rule) var(--cp-error-rule-fade));
+  }
 
-/* min-inline-size: 0 是 flex 子项允许自己被截断的前提。 */
-.timeline-error__action {
-  display: inline-flex;
-  flex: 0 1 auto;
-  align-items: center;
-  gap: 0.375rem;
-  min-inline-size: 0;
-  max-inline-size: min(100%, 30rem);
-  border: 0;
-  padding: 0;
-  background: none;
-  color: var(--cp-timeline-quiet-text);
-  font: inherit;
-  font-size: var(--ui-prose-size-meta);
-  line-height: 1.4;
-  cursor: pointer;
-  transition: color 120ms var(--cp-motion-ease);
-}
+  /* min-inline-size: 0 是 flex 子项允许自己被截断的前提。 */
+  .timeline-error__action {
+    display: inline-flex;
+    flex: 0 1 auto;
+    align-items: center;
+    gap: 0.375rem;
+    min-inline-size: 0;
+    max-inline-size: min(100%, 30rem);
+    border: 0;
+    padding: 0;
+    background: none;
+    color: var(--cp-timeline-quiet-text);
+    font: inherit;
+    font-size: var(--ui-prose-size-meta);
+    line-height: 1.4;
+    cursor: pointer;
+    transition: color 120ms var(--cp-motion-ease);
+  }
 
-.timeline-error__action:hover {
-  color: var(--cp-ink);
-}
+  .timeline-error__action:hover {
+    color: var(--cp-ink);
+  }
 
-.timeline-error__mark {
-  flex: none;
-  inline-size: 0.875rem;
-  block-size: 0.875rem;
-  color: var(--cp-timeline-danger-text);
-}
+  .timeline-error__mark {
+    flex: none;
+    inline-size: 0.875rem;
+    block-size: 0.875rem;
+    color: var(--cp-timeline-danger-text);
+  }
 
-/* warning 不是失败：图标退回正文的安静色，线与字都不变（R-09）。 */
-.timeline-error[data-level='warning'] .timeline-error__mark {
-  color: var(--cp-timeline-quiet-text);
-}
+  /* warning 不是失败：图标退回正文的安静色，线与字都不变（R-09）。 */
+  .timeline-error[data-level='warning'] .timeline-error__mark {
+    color: var(--cp-timeline-quiet-text);
+  }
 
-/* 截断的只是显示：复制交给剪贴板的仍是完整原文，也不挂 title —— 原生 tooltip 会按原文长度铺开，盖住正好要对照的那条流。 */
-.timeline-error__text {
-  min-inline-size: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+  /* 截断的只是显示：复制交给剪贴板的仍是完整原文，也不挂 title —— 原生 tooltip 会按原文长度铺开，盖住正好要对照的那条流。 */
+  .timeline-error__text {
+    min-inline-size: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
-/* 复制成功后 2.2 秒内整行亮一档：反馈是状态，不是另一种颜色。 */
-.timeline-error[data-copied='true'] .timeline-error__action {
-  color: var(--cp-ink);
-}
+  /* 复制成功后 2.2 秒内整行亮一档：反馈是状态，不是另一种颜色。 */
+  .timeline-error[data-copied='true'] .timeline-error__action {
+    color: var(--cp-ink);
+  }
 
-.timeline-error[data-copied='true'] .timeline-error__mark {
-  color: inherit;
+  .timeline-error[data-copied='true'] .timeline-error__mark {
+    color: inherit;
+  }
 }

@@ -1,39 +1,41 @@
-/* 几何：inline-flex、gap 3px、圆角 var(--ui-radius-md)、左右 4px、上限 240px。 */
-.assistant-prompt-chip {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 3px;
-  max-inline-size: 240px;
-  border-radius: var(--ui-radius-md);
-  padding: 0 4px;
-  color: var(--cp-chip-ink);
-  line-height: inherit;
-  vertical-align: baseline;
-  white-space: nowrap;
-  /* 断行时圆角与底色各给一半，断面才是圆角。 */
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
-}
+@layer components.kit {
+  /* 几何：inline-flex、gap 3px、圆角 var(--ui-radius-md)、左右 4px、上限 240px。 */
+  .assistant-prompt-chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 3px;
+    max-inline-size: 240px;
+    border-radius: var(--ui-radius-md);
+    padding: 0 4px;
+    color: var(--cp-chip-ink);
+    line-height: inherit;
+    vertical-align: baseline;
+    white-space: nowrap;
+    /* 断行时圆角与底色各给一半，断面才是圆角。 */
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
 
-/* 悬停底只给草稿，转录里那一枚是只读的。 */
-[data-slot='prompt-input-editor'] .assistant-prompt-chip {
-  user-select: none;
-  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
-}
+  /* 悬停底只给草稿，转录里那一枚是只读的。 */
+  [data-slot='prompt-input-editor'] .assistant-prompt-chip {
+    user-select: none;
+    transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
+  }
 
-[data-slot='prompt-input-editor'] .assistant-prompt-chip:hover {
-  background: var(--cp-chip-hover);
-}
+  [data-slot='prompt-input-editor'] .assistant-prompt-chip:hover {
+    background: var(--cp-chip-hover);
+  }
 
-.assistant-prompt-chip__icon {
-  flex: none;
-  align-self: center;
-  inline-size: 14px;
-  block-size: 14px;
-}
+  .assistant-prompt-chip__icon {
+    flex: none;
+    align-self: center;
+    inline-size: 14px;
+    block-size: 14px;
+  }
 
-.assistant-prompt-chip__label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  .assistant-prompt-chip__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }

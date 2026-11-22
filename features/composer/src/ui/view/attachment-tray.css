@@ -1,167 +1,169 @@
-/* 几何与颜色全部来自 skin/metrics.css：与输入框同处一张卡，不能各挑各的。 */
+@layer components.features {
+  /* 几何与颜色全部来自 skin/metrics.css：与输入框同处一张卡，不能各挑各的。 */
 
-.composer-tray {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--cp-control-gap);
-  margin: 0;
-  /* 与 textarea 同组内缩：同卡内上下相邻的两块左边缘必须对齐。 */
-  padding: var(--cp-pad-top) var(--cp-pad-x) 0;
-  list-style: none;
-}
-
-.composer-tile {
-  position: relative;
-  flex: none;
-}
-
-.composer-tile__face {
-  display: grid;
-  box-sizing: border-box;
-  block-size: var(--cp-tile);
-  inline-size: var(--cp-tile);
-  place-items: center;
-  overflow: hidden;
-  border: var(--cp-px) solid var(--cp-tile-edge);
-  border-radius: var(--cp-tile-corner);
-  padding: 0;
-  background: var(--cp-tile-face);
-}
-
-.composer-tile__open {
-  cursor: zoom-in;
-}
-
-.composer-tile__open:focus-visible {
-  outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
-  outline-offset: var(--cp-px);
-}
-
-/* 图、转圈、字形同占一格：解码完成时这一格不位移。 */
-.composer-tile__image,
-.composer-tile__spinner,
-.composer-tile__mark {
-  grid-area: 1 / 1;
-}
-
-/* 字形与类型名是竖排的，要覆盖共用的 grid-area，否则字形会压在类型名上。 */
-.composer-tile__file {
-  align-content: center;
-  gap: var(--cp-tile-inset);
-  grid-auto-flow: row;
-}
-
-.composer-tile__spinner,
-.composer-tile__mark {
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-  color: var(--cp-ink-subtle);
-}
-
-.composer-tile__file .composer-tile__mark {
-  grid-area: auto;
-}
-
-.composer-tile__type {
-  font-size: var(--ui-prose-size);
-  color: var(--cp-ink-subtle);
-  line-height: 1;
-}
-
-.composer-tile__image {
-  display: block;
-  block-size: 100%;
-  inline-size: 100%;
-  object-fit: cover;
-  opacity: 0;
-  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-.composer-tile__image[data-state='ready'] {
-  opacity: 1;
-}
-
-.composer-tile__spinner {
-  animation: composer-tile-turn 900ms linear infinite;
-}
-
-@keyframes composer-tile-turn {
-  to {
-    transform: rotate(360deg);
+  .composer-tray {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--cp-control-gap);
+    margin: 0;
+    /* 与 textarea 同组内缩：同卡内上下相邻的两块左边缘必须对齐。 */
+    padding: var(--cp-pad-top) var(--cp-pad-x) 0;
+    list-style: none;
   }
-}
 
-/* 持续旋转是前庭敏感者的诱因（WCAG 2.2 SC 2.3.3）：停的是位移，换成明暗呼吸。 */
-@media (prefers-reduced-motion: reduce) {
+  .composer-tile {
+    position: relative;
+    flex: none;
+  }
+
+  .composer-tile__face {
+    display: grid;
+    box-sizing: border-box;
+    block-size: var(--cp-tile);
+    inline-size: var(--cp-tile);
+    place-items: center;
+    overflow: hidden;
+    border: var(--cp-px) solid var(--cp-tile-edge);
+    border-radius: var(--cp-tile-corner);
+    padding: 0;
+    background: var(--cp-tile-face);
+  }
+
+  .composer-tile__open {
+    cursor: zoom-in;
+  }
+
+  .composer-tile__open:focus-visible {
+    outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
+    outline-offset: var(--cp-px);
+  }
+
+  /* 图、转圈、字形同占一格：解码完成时这一格不位移。 */
+  .composer-tile__image,
+  .composer-tile__spinner,
+  .composer-tile__mark {
+    grid-area: 1 / 1;
+  }
+
+  /* 字形与类型名是竖排的，要覆盖共用的 grid-area，否则字形会压在类型名上。 */
+  .composer-tile__file {
+    align-content: center;
+    gap: var(--cp-tile-inset);
+    grid-auto-flow: row;
+  }
+
+  .composer-tile__spinner,
+  .composer-tile__mark {
+    block-size: var(--cp-icon);
+    inline-size: var(--cp-icon);
+    color: var(--cp-ink-subtle);
+  }
+
+  .composer-tile__file .composer-tile__mark {
+    grid-area: auto;
+  }
+
+  .composer-tile__type {
+    font-size: var(--ui-prose-size);
+    color: var(--cp-ink-subtle);
+    line-height: 1;
+  }
+
+  .composer-tile__image {
+    display: block;
+    block-size: 100%;
+    inline-size: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+  }
+
+  .composer-tile__image[data-state='ready'] {
+    opacity: 1;
+  }
+
   .composer-tile__spinner {
-    animation: composer-tile-breathe 1600ms ease-in-out infinite;
+    animation: composer-tile-turn 900ms linear infinite;
   }
-}
 
-@keyframes composer-tile-breathe {
-  from,
-  to {
-    opacity: 0.35;
+  @keyframes composer-tile-turn {
+    to {
+      transform: rotate(360deg);
+    }
   }
-  50% {
-    opacity: 0.9;
+
+  /* 持续旋转是前庭敏感者的诱因（WCAG 2.2 SC 2.3.3）：停的是位移，换成明暗呼吸。 */
+  @media (prefers-reduced-motion: reduce) {
+    .composer-tile__spinner {
+      animation: composer-tile-breathe 1600ms ease-in-out infinite;
+    }
   }
-}
 
-/* 删除键压在图上，占流内会为按钮多留一列、把这一行撑满输入框宽。 */
-.composer-tile__remove {
-  position: absolute;
-  display: grid;
-  block-size: var(--cp-tile-badge);
-  inline-size: var(--cp-tile-badge);
-  place-items: center;
-  inset-block-start: var(--cp-tile-inset);
-  inset-inline-end: var(--cp-tile-inset);
-  border: 0;
-  border-radius: var(--ui-radius-full);
-  padding: 0;
-  background: var(--cp-tile-badge-face);
-  color: var(--cp-tile-badge-ink);
-  cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    opacity var(--cp-motion-swift) var(--cp-motion-ease),
-    background-color var(--cp-motion-swift) var(--cp-motion-ease);
-}
+  @keyframes composer-tile-breathe {
+    from,
+    to {
+      opacity: 0.35;
+    }
+    50% {
+      opacity: 0.9;
+    }
+  }
 
-/* 指针进格或键盘落在格内控件上按钮都现身：opacity 隐形的按钮仍在无障碍树里、仍可聚焦，只写 :hover 就是「Tab 得到却看不见」的陷阱。 */
-.composer-tile:hover .composer-tile__remove,
-.composer-tile:focus-within .composer-tile__remove {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-/* 没有 hover 能力的设备不能靠悬停发现删除键。 */
-@media (hover: none) and (pointer: coarse) {
+  /* 删除键压在图上，占流内会为按钮多留一列、把这一行撑满输入框宽。 */
   .composer-tile__remove {
+    position: absolute;
+    display: grid;
+    block-size: var(--cp-tile-badge);
+    inline-size: var(--cp-tile-badge);
+    place-items: center;
+    inset-block-start: var(--cp-tile-inset);
+    inset-inline-end: var(--cp-tile-inset);
+    border: 0;
+    border-radius: var(--ui-radius-full);
+    padding: 0;
+    background: var(--cp-tile-badge-face);
+    color: var(--cp-tile-badge-ink);
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      opacity var(--cp-motion-swift) var(--cp-motion-ease),
+      background-color var(--cp-motion-swift) var(--cp-motion-ease);
+  }
+
+  /* 指针进格或键盘落在格内控件上按钮都现身：opacity 隐形的按钮仍在无障碍树里、仍可聚焦，只写 :hover 就是「Tab 得到却看不见」的陷阱。 */
+  .composer-tile:hover .composer-tile__remove,
+  .composer-tile:focus-within .composer-tile__remove {
     opacity: 1;
     pointer-events: auto;
   }
-}
 
-/* 命中区撑到 24×24（WCAG 2.2 SC 2.5.8）：撑的是命中区不是字形。 */
-.composer-tile__remove::after {
-  content: '';
-  position: absolute;
-  inset: calc((var(--cp-tile-badge) - var(--cp-target-min)) / 2);
-}
+  /* 没有 hover 能力的设备不能靠悬停发现删除键。 */
+  @media (hover: none) and (pointer: coarse) {
+    .composer-tile__remove {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
 
-.composer-tile__remove:hover {
-  background: var(--cp-tile-badge-hover);
-}
+  /* 命中区撑到 24×24（WCAG 2.2 SC 2.5.8）：撑的是命中区不是字形。 */
+  .composer-tile__remove::after {
+    content: '';
+    position: absolute;
+    inset: calc((var(--cp-tile-badge) - var(--cp-target-min)) / 2);
+  }
 
-.composer-tile__remove:focus-visible {
-  outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
-  outline-offset: var(--cp-px);
-}
+  .composer-tile__remove:hover {
+    background: var(--cp-tile-badge-hover);
+  }
 
-.composer-tile__remove svg {
-  block-size: var(--cp-tile-badge-glyph);
-  inline-size: var(--cp-tile-badge-glyph);
+  .composer-tile__remove:focus-visible {
+    outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
+    outline-offset: var(--cp-px);
+  }
+
+  .composer-tile__remove svg {
+    block-size: var(--cp-tile-badge-glyph);
+    inline-size: var(--cp-tile-badge-glyph);
+  }
 }

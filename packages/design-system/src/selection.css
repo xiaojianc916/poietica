@@ -1,4 +1,5 @@
-/*
+@layer components.ds {
+  /*
  * 划选高亮，全仓一份。
  *
  * 浏览器默认那支蓝出自 UA 样式表，仓里没有第二处定义过它 —— 想换只能在这里接管一次。裸
@@ -8,7 +9,8 @@
  * apps/desktop/src/styles/app.css），终端的高亮由 xterm 在 canvas 上自绘
  * （走 --terminal-selection）。
  */
-::selection {
-  background-color: var(--ui-selection-background);
-  color: var(--ui-selection-foreground);
+  ::selection {
+    background-color: var(--ui-selection-background);
+    color: var(--ui-selection-foreground);
+  }
 }

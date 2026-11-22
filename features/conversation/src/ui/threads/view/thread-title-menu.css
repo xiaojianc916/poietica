@@ -1,149 +1,151 @@
-/* margin-inline-end: auto 把它顶到最左，右端留给 threadHeaderItems；标题与下拉箭头各一枚按钮、各自铺底色。 */
-.conversation-title {
-  display: inline-flex;
-  block-size: var(--cp-control);
-  min-inline-size: 0;
-  max-inline-size: min(28rem, 55%);
-  align-items: center;
-  margin-inline-end: auto;
-  gap: 2px;
-}
-
-.conversation-title__icon {
-  flex: none;
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-  margin-inline-end: calc(var(--cp-control-gap) - 2px);
-  color: var(--cp-ink-muted);
-}
-
-/* 真机实测：flex 容器上写 text-overflow 无效，超长标题被硬裁掉、看不到「…」，省略号要落在块级盒里。 */
-.conversation-title__label {
-  display: inline-flex;
-  block-size: var(--cp-control-sm);
-  min-inline-size: 0;
-  max-inline-size: 100%;
-  align-items: center;
-  overflow: hidden;
-  border: 0;
-  border-radius: var(--cp-radius-item);
-  padding-inline: var(--cp-pill-lead);
-  background: transparent;
-  font: inherit;
-  font-size: var(--cp-font-label);
-  color: var(--cp-ink);
-  cursor: pointer;
-  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-/* 放不下就用 … 收尾：块级盒 + 单行 + 溢出隐藏，缺一不可。 */
-.conversation-title__text {
-  display: block;
-  min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.conversation-title__label:hover {
-  background: var(--cp-hover);
-}
-
-.conversation-title__label:focus-visible,
-.conversation-title__toggle:focus-visible {
-  outline: var(--cp-px) solid var(--cp-accent);
-  outline-offset: var(--cp-px);
-}
-
-.conversation-title__label--static {
-  cursor: default;
-}
-
-.conversation-title__label--static:hover {
-  background: transparent;
-}
-
-.conversation-title__toggle {
-  display: grid;
-  block-size: var(--cp-control-sm);
-  inline-size: var(--cp-control-sm);
-  flex: none;
-  place-items: center;
-  border: 0;
-  border-radius: var(--cp-radius-item);
-  padding: 0;
-  background: transparent;
-  color: var(--cp-ink-subtle);
-  cursor: pointer;
-  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-.conversation-title__toggle:hover,
-.conversation-title__toggle[data-popup-open] {
-  background: var(--cp-hover);
-}
-
-.conversation-title__toggle > svg {
-  flex: none;
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-}
-
-.conversation-title__rename {
-  display: flex;
-  min-inline-size: 0;
-  align-items: center;
-}
-
-.conversation-title__field {
-  min-inline-size: 16rem;
-  block-size: var(--cp-control);
-  border: 0;
-  border-radius: var(--cp-radius-item);
-  padding-inline: var(--cp-pill-lead);
-  background: var(--cp-hover);
-  font: inherit;
-  font-size: var(--cp-font-label);
-  color: var(--cp-ink);
-  outline: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .conversation-title__label,
-  .conversation-title__toggle {
-    transition: none;
+@layer components.features {
+  /* margin-inline-end: auto 把它顶到最左，右端留给 threadHeaderItems；标题与下拉箭头各一枚按钮、各自铺底色。 */
+  .conversation-title {
+    display: inline-flex;
+    block-size: var(--cp-control);
+    min-inline-size: 0;
+    max-inline-size: min(28rem, 55%);
+    align-items: center;
+    margin-inline-end: auto;
+    gap: 2px;
   }
-}
 
-/*
+  .conversation-title__icon {
+    flex: none;
+    block-size: var(--cp-icon);
+    inline-size: var(--cp-icon);
+    margin-inline-end: calc(var(--cp-control-gap) - 2px);
+    color: var(--cp-ink-muted);
+  }
+
+  /* 真机实测：flex 容器上写 text-overflow 无效，超长标题被硬裁掉、看不到「…」，省略号要落在块级盒里。 */
+  .conversation-title__label {
+    display: inline-flex;
+    block-size: var(--cp-control-sm);
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    align-items: center;
+    overflow: hidden;
+    border: 0;
+    border-radius: var(--cp-radius-item);
+    padding-inline: var(--cp-pill-lead);
+    background: transparent;
+    font: inherit;
+    font-size: var(--cp-font-label);
+    color: var(--cp-ink);
+    cursor: pointer;
+    transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
+  }
+
+  /* 放不下就用 … 收尾：块级盒 + 单行 + 溢出隐藏，缺一不可。 */
+  .conversation-title__text {
+    display: block;
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .conversation-title__label:hover {
+    background: var(--cp-hover);
+  }
+
+  .conversation-title__label:focus-visible,
+  .conversation-title__toggle:focus-visible {
+    outline: var(--cp-px) solid var(--cp-accent);
+    outline-offset: var(--cp-px);
+  }
+
+  .conversation-title__label--static {
+    cursor: default;
+  }
+
+  .conversation-title__label--static:hover {
+    background: transparent;
+  }
+
+  .conversation-title__toggle {
+    display: grid;
+    block-size: var(--cp-control-sm);
+    inline-size: var(--cp-control-sm);
+    flex: none;
+    place-items: center;
+    border: 0;
+    border-radius: var(--cp-radius-item);
+    padding: 0;
+    background: transparent;
+    color: var(--cp-ink-subtle);
+    cursor: pointer;
+    transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
+  }
+
+  .conversation-title__toggle:hover,
+  .conversation-title__toggle[data-popup-open] {
+    background: var(--cp-hover);
+  }
+
+  .conversation-title__toggle > svg {
+    flex: none;
+    block-size: var(--cp-icon);
+    inline-size: var(--cp-icon);
+  }
+
+  .conversation-title__rename {
+    display: flex;
+    min-inline-size: 0;
+    align-items: center;
+  }
+
+  .conversation-title__field {
+    min-inline-size: 16rem;
+    block-size: var(--cp-control);
+    border: 0;
+    border-radius: var(--cp-radius-item);
+    padding-inline: var(--cp-pill-lead);
+    background: var(--cp-hover);
+    font: inherit;
+    font-size: var(--cp-font-label);
+    color: var(--cp-ink);
+    outline: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .conversation-title__label,
+    .conversation-title__toggle {
+      transition: none;
+    }
+  }
+
+  /*
  * 正在生成标题：与时间线「正在进行」同一种画法（一道扫过字的光，见 timeline 的 shimmer.css）。threads 区不引别区的样式，
  * 这里照那一份的写法另写一条；只动 background-position，不碰会改高度的属性。
  */
-.conversation-title__text[data-titling='true'] {
-  color: var(--cp-ink-subtle);
-}
-
-@media (prefers-reduced-motion: no-preference) {
   .conversation-title__text[data-titling='true'] {
-    background-image:
-      linear-gradient(90deg, transparent 40%, var(--cp-ink) 50%, transparent 60%),
-      linear-gradient(var(--cp-ink-subtle), var(--cp-ink-subtle));
-    background-repeat: no-repeat, repeat;
-    background-size:
-      250% 100%,
-      auto;
-    background-clip: text;
-    color: transparent;
-    animation: conversation-title-titling 2000ms linear infinite;
-  }
-}
-
-@keyframes conversation-title-titling {
-  from {
-    background-position: 100% center;
+    color: var(--cp-ink-subtle);
   }
 
-  to {
-    background-position: 0% center;
+  @media (prefers-reduced-motion: no-preference) {
+    .conversation-title__text[data-titling='true'] {
+      background-image:
+        linear-gradient(90deg, transparent 40%, var(--cp-ink) 50%, transparent 60%),
+        linear-gradient(var(--cp-ink-subtle), var(--cp-ink-subtle));
+      background-repeat: no-repeat, repeat;
+      background-size:
+        250% 100%,
+        auto;
+      background-clip: text;
+      color: transparent;
+      animation: conversation-title-titling 2000ms linear infinite;
+    }
+  }
+
+  @keyframes conversation-title-titling {
+    from {
+      background-position: 100% center;
+    }
+
+    to {
+      background-position: 0% center;
+    }
   }
 }

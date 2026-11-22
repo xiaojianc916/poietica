@@ -1,66 +1,68 @@
-/*
+@layer components.features {
+  /*
  * 组头那一格：一行字，思考时像显示屏一样往左滚，其余时候不动、末尾省略号。
  * 高度钉死一行是硬约束：这些行挂着虚拟列表的 measureElement，高度一变就是一次滚动补偿。
  * 全文没有一处 mask-image / 渐隐：被遮住的字淡一点还是被遮住，左边缘直接裁。
  */
 
-.rolling-line {
-  position: relative;
-  display: block;
-  flex: 0 1 auto;
-  min-inline-size: 0;
-  block-size: 1lh;
-  overflow: hidden;
-}
+  .rolling-line {
+    position: relative;
+    display: block;
+    flex: 0 1 auto;
+    min-inline-size: 0;
+    block-size: 1lh;
+    overflow: hidden;
+  }
 
-.rolling-line__slot {
-  display: block;
-}
+  .rolling-line__slot {
+    display: block;
+  }
 
-/*
+  /*
  * 放得下：轨道右侧 auto 外边距吃掉空余，字靠左；放不下：flexbox 不给 auto 外边距分负空余，外边距归零，
  * flex-end 让轨道右端贴住窗口右端 —— 「最新字在右边缘内」「句首不左移」由布局保证，不靠 JS 测量（v1 的两个大问题都出在测量）。
  */
-.ticker-window {
-  display: flex;
-  justify-content: flex-end;
-  min-inline-size: 0;
-  white-space: pre;
-}
+  .ticker-window {
+    display: flex;
+    justify-content: flex-end;
+    min-inline-size: 0;
+    white-space: pre;
+  }
 
-.ticker-track {
-  flex: none;
-  margin-inline-end: auto;
-}
+  .ticker-track {
+    flex: none;
+    margin-inline-end: auto;
+  }
 
-/*
+  /*
  * 思考句：右侧留两字的空 —— 滑行时 o 的上限就是它。
  * 不写颜色：跟组头那一行（.timeline-row）走，与工具调用同一档、同一个悬停反馈；新字的「新」只由透明度说（波浪淡入）。
  */
-.rolling-line[data-variant='thought'] .ticker-track {
-  padding-inline-end: var(--cp-ticker-tail);
-}
+  .rolling-line[data-variant='thought'] .ticker-track {
+    padding-inline-end: var(--cp-ticker-tail);
+  }
 
-/* 只在真正逐帧改 transform 时提示合成层：常驻 will-change 会让每一行都占一层。 */
-.ticker-track[data-moving] {
-  will-change: transform;
-}
+  /* 只在真正逐帧改 transform 时提示合成层：常驻 will-change 会让每一行都占一层。 */
+  .ticker-track[data-moving] {
+    will-change: transform;
+  }
 
-/*
+  /*
  * 工具行与落定态：从头显示，放不下时末尾省略号。
  * 写在最后、与上面同权重：落定的思考句也走这里（去掉右侧留白，交给省略号）。
  */
-.rolling-line[data-variant='tool'] .ticker-window,
-.rolling-line:not([data-following]) .ticker-window {
-  justify-content: flex-start;
-  white-space: nowrap;
-}
+  .rolling-line[data-variant='tool'] .ticker-window,
+  .rolling-line:not([data-following]) .ticker-window {
+    justify-content: flex-start;
+    white-space: nowrap;
+  }
 
-.rolling-line[data-variant='tool'] .ticker-track,
-.rolling-line:not([data-following]) .ticker-track {
-  flex: 0 1 auto;
-  min-inline-size: 0;
-  overflow: hidden;
-  padding-inline-end: 0;
-  text-overflow: ellipsis;
+  .rolling-line[data-variant='tool'] .ticker-track,
+  .rolling-line:not([data-following]) .ticker-track {
+    flex: 0 1 auto;
+    min-inline-size: 0;
+    overflow: hidden;
+    padding-inline-end: 0;
+    text-overflow: ellipsis;
+  }
 }

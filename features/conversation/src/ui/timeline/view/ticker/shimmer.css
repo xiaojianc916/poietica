@@ -1,38 +1,40 @@
-/*
+@layer components.features {
+  /*
  * 一道扫过字的光：「正在进行」唯一的画法 —— 比盒子宽的一条渐变当背景，background-clip: text 裁进字形，背景横着走。
  * background-repeat 必须写全 no-repeat, repeat：上游用的 padding-box 不是合法值，整条声明会被丢掉。
  * 颜色两态都在这里给（跨文件的同特异性声明谁赢看打包顺序）；渐变只在 no-preference 下加。
  * 戴在那句话上而非整行（整行的 color: transparent 会继承到图标描边上）；只动 background-position —— 这些行挂着 measureElement，不能碰会改高度的动画。
  */
-/* 底色与扫过那一道各自可以被消费者换掉：运行状态行有自己的一对蓝，其余沿用时间线那一对。 */
-.timeline-shimmer {
-  --cp-shimmer-base: var(--cp-timeline-quiet-text);
-  --cp-shimmer-sweep: var(--cp-ink);
-  color: var(--cp-shimmer-base);
-}
-
-@media (prefers-reduced-motion: no-preference) {
+  /* 底色与扫过那一道各自可以被消费者换掉：运行状态行有自己的一对蓝，其余沿用时间线那一对。 */
   .timeline-shimmer {
-    background-image:
-      linear-gradient(90deg, transparent 40%, var(--cp-shimmer-sweep) 50%, transparent 60%),
-      linear-gradient(var(--cp-shimmer-base), var(--cp-shimmer-base));
-    background-repeat: no-repeat, repeat;
-    background-size:
-      250% 100%,
-      auto;
-    background-clip: text;
-    color: transparent;
-    animation: timeline-shimmer-sweep 2000ms linear infinite;
-  }
-}
-
-/* 位置百分比对齐的是同名百分点：250% 宽的那层从字的一侧进、另一侧出。 */
-@keyframes timeline-shimmer-sweep {
-  from {
-    background-position: 100% center;
+    --cp-shimmer-base: var(--cp-timeline-quiet-text);
+    --cp-shimmer-sweep: var(--cp-ink);
+    color: var(--cp-shimmer-base);
   }
 
-  to {
-    background-position: 0% center;
+  @media (prefers-reduced-motion: no-preference) {
+    .timeline-shimmer {
+      background-image:
+        linear-gradient(90deg, transparent 40%, var(--cp-shimmer-sweep) 50%, transparent 60%),
+        linear-gradient(var(--cp-shimmer-base), var(--cp-shimmer-base));
+      background-repeat: no-repeat, repeat;
+      background-size:
+        250% 100%,
+        auto;
+      background-clip: text;
+      color: transparent;
+      animation: timeline-shimmer-sweep 2000ms linear infinite;
+    }
+  }
+
+  /* 位置百分比对齐的是同名百分点：250% 宽的那层从字的一侧进、另一侧出。 */
+  @keyframes timeline-shimmer-sweep {
+    from {
+      background-position: 100% center;
+    }
+
+    to {
+      background-position: 0% center;
+    }
   }
 }

@@ -1,52 +1,54 @@
-.emotion-ball {
-  position: relative;
-  display: block;
-  flex: none;
-  aspect-ratio: 1;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: inherit;
+@layer components.features {
+  .emotion-ball {
+    position: relative;
+    display: block;
+    flex: none;
+    aspect-ratio: 1;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: inherit;
 
-  /* 吉祥物的配色不跟主题：它是产品形象，深色下换一档蓝、眼睛翻成近黑，读起来就是另一个角色。这一档是浅色主题解出来的
+    /* 吉祥物的配色不跟主题：它是产品形象，深色下换一档蓝、眼睛翻成近黑，读起来就是另一个角色。这一档是浅色主题解出来的
      主色（正本在 packages/design-system/src/tokens/light.css 的 --ui-primary），钉在这里，两套主题同一套颜色。 */
-  --emotion-ball-body: oklch(0.55 0.19 255);
-}
+    --emotion-ball-body: oklch(0.55 0.19 255);
+  }
 
-.emotion-ball > svg {
-  display: block;
-  block-size: 100%;
-  inline-size: 100%;
-}
+  .emotion-ball > svg {
+    display: block;
+    block-size: 100%;
+    inline-size: 100%;
+  }
 
-.emotion-ball__body-highlight {
-  stop-color: color-mix(in srgb, var(--emotion-ball-body) 78%, white);
-}
+  .emotion-ball__body-highlight {
+    stop-color: color-mix(in srgb, var(--emotion-ball-body) 78%, white);
+  }
 
-.emotion-ball__body-base {
-  stop-color: var(--emotion-ball-body);
-}
+  .emotion-ball__body-base {
+    stop-color: var(--emotion-ball-body);
+  }
 
-.emotion-ball__body-shade {
-  stop-color: color-mix(in srgb, var(--emotion-ball-body) 88%, black);
-}
+  .emotion-ball__body-shade {
+    stop-color: color-mix(in srgb, var(--emotion-ball-body) 88%, black);
+  }
 
-/* 浅色主题的 --ui-primary-foreground：近白，同样不跟主题。 */
-.emotion-ball__eye {
-  fill: oklch(0.99 0 0);
-}
+  /* 浅色主题的 --ui-primary-foreground：近白，同样不跟主题。 */
+  .emotion-ball__eye {
+    fill: oklch(0.99 0 0);
+  }
 
-.emotion-ball--entry {
-  cursor: pointer;
-}
+  .emotion-ball--entry {
+    cursor: pointer;
+  }
 
-.emotion-ball--agent {
-  position: absolute;
-  z-index: 2;
-  inset-block-start: 0;
-  inset-inline-end: var(--cp-inset);
-  block-size: 52px;
-  inline-size: 52px;
-  pointer-events: none;
-  transform: translateY(-100%);
+  .emotion-ball--agent {
+    position: absolute;
+    z-index: 2;
+    inset-block-start: 0;
+    inset-inline-end: var(--cp-inset);
+    block-size: 52px;
+    inline-size: 52px;
+    pointer-events: none;
+    transform: translateY(-100%);
+  }
 }

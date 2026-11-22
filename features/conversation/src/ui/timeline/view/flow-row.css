@@ -1,87 +1,89 @@
-/* 活动流里一条可点的记事：图标、一句话、悬停才出现的箭头；工具调用与调用组共用同一套缩进与音量。 */
+@layer components.features {
+  /* 活动流里一条可点的记事：图标、一句话、悬停才出现的箭头；工具调用与调用组共用同一套缩进与音量。 */
 
-.timeline-row {
-  --cp-row-line: var(--cp-control-sm);
-  --cp-row-measure: var(--cp-timeline-tool-max);
+  .timeline-row {
+    --cp-row-line: var(--cp-control-sm);
+    --cp-row-measure: var(--cp-timeline-tool-max);
 
-  display: inline-flex;
-  min-block-size: var(--cp-row-line);
-  justify-self: start;
-  align-items: center;
-  gap: var(--cp-control-gap);
-  max-inline-size: min(100%, var(--cp-row-measure));
-  border: 0;
-  padding: 0;
-  background: none;
-  color: var(--cp-timeline-quiet-text);
-  font: inherit;
-  font-size: var(--ui-prose-size);
-  line-height: var(--cp-row-line);
-  text-align: start;
-  transition: color var(--cp-motion-swift) var(--cp-motion-ease);
-}
+    display: inline-flex;
+    min-block-size: var(--cp-row-line);
+    justify-self: start;
+    align-items: center;
+    gap: var(--cp-control-gap);
+    max-inline-size: min(100%, var(--cp-row-measure));
+    border: 0;
+    padding: 0;
+    background: none;
+    color: var(--cp-timeline-quiet-text);
+    font: inherit;
+    font-size: var(--ui-prose-size);
+    line-height: var(--cp-row-line);
+    text-align: start;
+    transition: color var(--cp-motion-swift) var(--cp-motion-ease);
+  }
 
-/* 推理摘要的量度归阅读栏：这一行像显示屏一样滚，轨道左边缘直接裁，量度是它唯一的刹车。 */
-.timeline-row[data-measure='prose'] {
-  --cp-row-measure: var(--cp-input-max);
-}
+  /* 推理摘要的量度归阅读栏：这一行像显示屏一样滚，轨道左边缘直接裁，量度是它唯一的刹车。 */
+  .timeline-row[data-measure='prose'] {
+    --cp-row-measure: var(--cp-input-max);
+  }
 
-/* 可点的那几处才有指针与悬停反馈：现场那一行是状态，不是控件。 */
-button.timeline-row {
-  cursor: pointer;
-}
+  /* 可点的那几处才有指针与悬停反馈：现场那一行是状态，不是控件。 */
+  button.timeline-row {
+    cursor: pointer;
+  }
 
-button.timeline-row:hover,
-button.timeline-row:focus-visible {
-  color: var(--cp-ink);
-}
+  button.timeline-row:hover,
+  button.timeline-row:focus-visible {
+    color: var(--cp-ink);
+  }
 
-/* 图标盒与文字盒等高，垂直居中于是恒等；SVG 靠 preserveAspectRatio 等比缩放，字形不会被拉伸。 */
-.timeline-row__icon,
-.timeline-row__chevron {
-  flex: none;
-  inline-size: var(--cp-icon);
-  block-size: 1lh;
-}
+  /* 图标盒与文字盒等高，垂直居中于是恒等；SVG 靠 preserveAspectRatio 等比缩放，字形不会被拉伸。 */
+  .timeline-row__icon,
+  .timeline-row__chevron {
+    flex: none;
+    inline-size: var(--cp-icon);
+    block-size: 1lh;
+  }
 
-/* 箭头是给鼠标的第二遍提示，读屏那一遍由 aria-expanded 说。一直占位，出现时不重排。 */
-.timeline-row__chevron {
-  opacity: 0;
-  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
-}
+  /* 箭头是给鼠标的第二遍提示，读屏那一遍由 aria-expanded 说。一直占位，出现时不重排。 */
+  .timeline-row__chevron {
+    opacity: 0;
+    transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+  }
 
-.timeline-row:hover .timeline-row__chevron,
-.timeline-row:focus-visible .timeline-row__chevron,
-.timeline-row[aria-expanded='true'] .timeline-row__chevron {
-  opacity: 1;
-}
+  .timeline-row:hover .timeline-row__chevron,
+  .timeline-row:focus-visible .timeline-row__chevron,
+  .timeline-row[aria-expanded='true'] .timeline-row__chevron {
+    opacity: 1;
+  }
 
-.timeline-row__label {
-  flex: 0 1 auto;
-  min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+  .timeline-row__label {
+    flex: 0 1 auto;
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
-/* 正文的墨在这一层定，不在 Prose 里：回答与「我」说的话同一档（--cp-timeline-body-ink），两处不各写各的。 */
-.timeline-message {
-  color: var(--cp-timeline-body-ink);
-  overflow-wrap: anywhere;
-}
+  /* 正文的墨在这一层定，不在 Prose 里：回答与「我」说的话同一档（--cp-timeline-body-ink），两处不各写各的。 */
+  .timeline-message {
+    color: var(--cp-timeline-body-ink);
+    overflow-wrap: anywhere;
+  }
 
-/* 收起时整块不挂载（见 disclosure.tsx），所以这里只剩箭头。 */
-.disclosure__chevron {
-  transform: rotate(-90deg);
-  transition: transform var(--cp-motion-drawer) var(--cp-motion-drawer-ease);
-}
-
-[aria-expanded='true'] .disclosure__chevron {
-  transform: rotate(0deg);
-}
-
-@media (prefers-reduced-motion: reduce) {
+  /* 收起时整块不挂载（见 disclosure.tsx），所以这里只剩箭头。 */
   .disclosure__chevron {
-    transition: none;
+    transform: rotate(-90deg);
+    transition: transform var(--cp-motion-drawer) var(--cp-motion-drawer-ease);
+  }
+
+  [aria-expanded='true'] .disclosure__chevron {
+    transform: rotate(0deg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .disclosure__chevron {
+      transition: none;
+    }
   }
 }

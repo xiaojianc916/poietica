@@ -1,520 +1,522 @@
-/* 行是从令牌画的、且带兜底：主题没加载也能读，加载后自动正确。 */
+@layer components.ds {
+  /* 行是从令牌画的、且带兜底：主题没加载也能读，加载后自动正确。 */
 
-/* `--sdm-*` 的兜底不是债：Shiki 经 Streamdown 逐 token 注入，逗号后那一半就是没被注入时的样子；本仓令牌一律不带兜底。 */
+  /* `--sdm-*` 的兜底不是债：Shiki 经 Streamdown 逐 token 注入，逗号后那一半就是没被注入时的样子；本仓令牌一律不带兜底。 */
 
-/*
+  /*
  * 正文纵向节奏在这条流里只声明一次：令牌是 em，容器字号小一档，间距等比收紧，思维链比回答紧全靠这条。
  * 表格不在这张清单里：Streamdown 包了三层，首块清零只够到两层，边距会落在滚动盒内部的 <table> 上顶出空白。
  */
-/* 字号级差一次定死：推翻 UA 那套（h1 是 2em/700），只给三档；字重取 600 —— 这个字号下 700 会糊。 */
-.timeline-prose {
-  --cp-prose-flow: var(--ui-prose-flow);
-  --cp-prose-flow-heading: calc(var(--cp-prose-flow) * 1.4);
+  /* 字号级差一次定死：推翻 UA 那套（h1 是 2em/700），只给三档；字重取 600 —— 这个字号下 700 会糊。 */
+  .timeline-prose {
+    --cp-prose-flow: var(--ui-prose-flow);
+    --cp-prose-flow-heading: calc(var(--cp-prose-flow) * 1.4);
 
-  /*
+    /*
    * 代码块与表格的深色取值（产品指定的实色对）由文件后半的 dark 块改写这几个变量；
    * 浅色不动（#2a2a2a 铺在白纸上是一块黑斑）。主题差异只在变量里。
    */
-  --cp-code-surface: transparent;
-  --cp-code-edge: var(--ui-border);
-  --cp-code-head-surface: var(--cp-timeline-output-surface);
-  --cp-code-head-rule: var(--ui-border);
-  --cp-table-row-rule: var(--cp-hairline);
+    --cp-code-surface: transparent;
+    --cp-code-edge: var(--ui-border);
+    --cp-code-head-surface: var(--cp-timeline-output-surface);
+    --cp-code-head-rule: var(--ui-border);
+    --cp-table-row-rule: var(--cp-hairline);
 
-  font-size: var(--ui-prose-size);
-  line-height: var(--ui-prose-line-height);
-  letter-spacing: var(--ui-letter-spacing-normal);
-  text-wrap: pretty;
-}
+    font-size: var(--ui-prose-size);
+    line-height: var(--ui-prose-line-height);
+    letter-spacing: var(--ui-letter-spacing-normal);
+    text-wrap: pretty;
+  }
 
-/* 包住正文的那层只给波浪淡入（use-wave-reveal.ts）一个扫描范围，不参与布局。 */
-.timeline-prose-host {
-  display: contents;
-}
+  /* 包住正文的那层只给波浪淡入（use-wave-reveal.ts）一个扫描范围，不参与布局。 */
+  .timeline-prose-host {
+    display: contents;
+  }
 
-/* 排版实现到达之前的源码显示（prose-shell.tsx）：原样保留换行，不当成一整段挤在一起。 */
-.timeline-prose--source {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
+  /* 排版实现到达之前的源码显示（prose-shell.tsx）：原样保留换行，不当成一整段挤在一起。 */
+  .timeline-prose--source {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
 
-.timeline-prose :is(p, ul, ol, blockquote, hr, h1, h2, h3, h4, h5, h6) {
-  margin-block: var(--cp-prose-flow) 0;
-}
+  .timeline-prose :is(p, ul, ol, blockquote, hr, h1, h2, h3, h4, h5, h6) {
+    margin-block: var(--cp-prose-flow) 0;
+  }
 
-.timeline-prose :is(h1, h2, h3, h4, h5, h6) {
-  margin-block-start: var(--cp-prose-flow-heading);
-  font-weight: var(--ui-font-weight-semibold);
-  line-height: var(--ui-line-height-tight);
-  letter-spacing: var(--ui-letter-spacing-normal);
-}
+  .timeline-prose :is(h1, h2, h3, h4, h5, h6) {
+    margin-block-start: var(--cp-prose-flow-heading);
+    font-weight: var(--ui-font-weight-semibold);
+    line-height: var(--ui-line-height-tight);
+    letter-spacing: var(--ui-letter-spacing-normal);
+  }
 
-/* 三档不是六档：13px 上多出来的档彼此看不出差别，只会让作者以为自己有更多层可用。 */
-.timeline-prose h1 {
-  font-size: 1.231em;
-}
+  /* 三档不是六档：13px 上多出来的档彼此看不出差别，只会让作者以为自己有更多层可用。 */
+  .timeline-prose h1 {
+    font-size: 1.231em;
+  }
 
-.timeline-prose h2 {
-  font-size: 1.077em;
-}
+  .timeline-prose h2 {
+    font-size: 1.077em;
+  }
 
-.timeline-prose :is(h3, h4, h5, h6) {
-  font-size: 1em;
-}
+  .timeline-prose :is(h3, h4, h5, h6) {
+    font-size: 1em;
+  }
 
-/* 四级往下不再靠大小说话，靠颜色退一步。 */
-.timeline-prose :is(h4, h5, h6) {
-  color: var(--cp-timeline-quiet-text);
-}
+  /* 四级往下不再靠大小说话，靠颜色退一步。 */
+  .timeline-prose :is(h4, h5, h6) {
+    color: var(--cp-timeline-quiet-text);
+  }
 
-.timeline-prose :is(strong, b) {
-  font-weight: var(--ui-font-weight-semibold);
-}
+  .timeline-prose :is(strong, b) {
+    font-weight: var(--ui-font-weight-semibold);
+  }
 
-/* 列表缩进跟着字号走；项间距远小于段间距 —— 一份清单是一个块，不是若干段落。 */
-.timeline-prose :is(ul, ol) {
-  padding-inline-start: 1.35em;
-}
+  /* 列表缩进跟着字号走；项间距远小于段间距 —— 一份清单是一个块，不是若干段落。 */
+  .timeline-prose :is(ul, ol) {
+    padding-inline-start: 1.35em;
+  }
 
-.timeline-prose li + li {
-  margin-block-start: 0.25em;
-}
+  .timeline-prose li + li {
+    margin-block-start: 0.25em;
+  }
 
-.timeline-prose li > :is(ul, ol) {
-  margin-block-start: 0.25em;
-}
+  .timeline-prose li > :is(ul, ol) {
+    margin-block-start: 0.25em;
+  }
 
-.timeline-prose li::marker {
-  color: var(--cp-timeline-quiet-text);
-}
+  .timeline-prose li::marker {
+    color: var(--cp-timeline-quiet-text);
+  }
 
-/* 引用是一条边，不是一个盒子：这条流里已经有卡片，再给引用一个背景，读者就得判断它是不是控件。 */
-.timeline-prose blockquote {
-  padding-inline-start: 0.875em;
-  border-inline-start: 2px solid var(--cp-hairline);
-  color: var(--cp-timeline-quiet-text);
-  font-style: normal;
-}
+  /* 引用是一条边，不是一个盒子：这条流里已经有卡片，再给引用一个背景，读者就得判断它是不是控件。 */
+  .timeline-prose blockquote {
+    padding-inline-start: 0.875em;
+    border-inline-start: 2px solid var(--cp-hairline);
+    color: var(--cp-timeline-quiet-text);
+    font-style: normal;
+  }
 
-/* 间距一律加在块之间，不加在第一个块之前：上面那条边属于整行，加在那里看起来像没对齐。 */
-.timeline-prose > :first-child {
-  margin-block-start: 0;
-}
+  /* 间距一律加在块之间，不加在第一个块之前：上面那条边属于整行，加在那里看起来像没对齐。 */
+  .timeline-prose > :first-child {
+    margin-block-start: 0;
+  }
 
-.timeline-prose blockquote > :first-child {
-  margin-block-start: 0;
-}
+  .timeline-prose blockquote > :first-child {
+    margin-block-start: 0;
+  }
 
-/* 分隔线是一根发丝，且两侧的空白要大于普通段间距，否则它分不开任何东西。 */
-.timeline-prose hr {
-  margin-block: var(--cp-prose-flow-heading) 0;
-  border: 0;
-  block-size: 1px;
-  background: var(--cp-hairline);
-}
+  /* 分隔线是一根发丝，且两侧的空白要大于普通段间距，否则它分不开任何东西。 */
+  .timeline-prose hr {
+    margin-block: var(--cp-prose-flow-heading) 0;
+    border: 0;
+    block-size: 1px;
+    background: var(--cp-hairline);
+  }
 
-/* 墨色走链接自己的一格 `--cp-timeline-link-ink`，不读 `--cp-accent`（那是主色，管着二十来处焦点环与描边）。 */
-.timeline-prose a {
-  color: var(--cp-timeline-link-ink);
-  font-weight: 500;
-  overflow-wrap: anywhere;
-  text-decoration: underline;
-  text-decoration-style: dashed;
-  text-underline-offset: 0.15em;
-  text-decoration-thickness: from-font;
-}
+  /* 墨色走链接自己的一格 `--cp-timeline-link-ink`，不读 `--cp-accent`（那是主色，管着二十来处焦点环与描边）。 */
+  .timeline-prose a {
+    color: var(--cp-timeline-link-ink);
+    font-weight: 500;
+    overflow-wrap: anywhere;
+    text-decoration: underline;
+    text-decoration-style: dashed;
+    text-underline-offset: 0.15em;
+    text-decoration-thickness: from-font;
+  }
 
-/* Streamdown 真实渲染是 container / header / actions / body 四层，容器是唯一的框：body 交出边、圆角与外边距，
+  /* Streamdown 真实渲染是 container / header / actions / body 四层，容器是唯一的框：body 交出边、圆角与外边距，
  * header 变顶栏，一个 grid 把 actions 放进同一条栏而不是浮在代码上方。 */
-/* 栏高与复制键尺寸是一组：抬头与复制键共处一条栏，栏高钉在两者身上，不然行高由较高的那个说话。
+  /* 栏高与复制键尺寸是一组：抬头与复制键共处一条栏，栏高钉在两者身上，不然行高由较高的那个说话。
  * 上游抬头写死 h-8（2rem），对一个语言名太宽裕；栏收一档之后，16px 字形加 8px 内边距的复制键就顶满了这条栏，两者同步收。 */
-.timeline-prose [data-streamdown='code-block'] {
-  --cp-code-band: 1.5rem;
-  --cp-code-control: 1.25rem;
-  --cp-code-icon: 0.875rem;
+  .timeline-prose [data-streamdown='code-block'] {
+    --cp-code-band: 1.5rem;
+    --cp-code-control: 1.25rem;
+    --cp-code-icon: 0.875rem;
 
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0;
-  overflow: hidden;
-  margin-block: var(--cp-prose-flow) 0;
-  padding: 0;
-  border: 1px solid var(--cp-code-edge);
-  border-radius: var(--ui-radius-xl);
-  background: var(--cp-code-surface);
-}
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0;
+    overflow: hidden;
+    margin-block: var(--cp-prose-flow) 0;
+    padding: 0;
+    border: 1px solid var(--cp-code-edge);
+    border-radius: var(--ui-radius-xl);
+    background: var(--cp-code-surface);
+  }
 
-/* 深色：面 #2a2a2a、边 #333333，抬头与正文同一张面、中间不画线；浅色不动（变量基值见容器规则）。
+  /* 深色：面 #2a2a2a、边 #333333，抬头与正文同一张面、中间不画线；浅色不动（变量基值见容器规则）。
  * `:where()` 把主题前缀压成零权重：变量改写只认元素归属，压不过 tool-call.css 里那条
  * 0,3,0 的属性级覆盖（那边直接写 background，不经变量）。 */
-:where(:root[data-theme='dark']) .timeline-prose {
-  --cp-code-edge: #333333;
-  --cp-code-surface: #2a2a2a;
-  --cp-code-head-surface: #2a2a2a;
-  --cp-code-head-rule: transparent;
-}
+  :where(:root[data-theme='dark']) .timeline-prose {
+    --cp-code-edge: #333333;
+    --cp-code-surface: #2a2a2a;
+    --cp-code-head-surface: #2a2a2a;
+    --cp-code-head-rule: transparent;
+  }
 
-.timeline-prose > [data-streamdown='code-block']:first-child {
-  margin-block-start: 0;
-}
+  .timeline-prose > [data-streamdown='code-block']:first-child {
+    margin-block-start: 0;
+  }
 
-.timeline-prose [data-streamdown='code-block-header'],
-.timeline-prose [data-streamdown='code-block'] > :has(> [data-streamdown='code-block-actions']) {
-  border-block-end: 1px solid var(--cp-code-head-rule);
-  background: var(--cp-code-head-surface);
-}
+  .timeline-prose [data-streamdown='code-block-header'],
+  .timeline-prose [data-streamdown='code-block'] > :has(> [data-streamdown='code-block-actions']) {
+    border-block-end: 1px solid var(--cp-code-head-rule);
+    background: var(--cp-code-head-surface);
+  }
 
-.timeline-prose [data-streamdown='code-block-header'] {
-  grid-area: 1 / 1;
-  block-size: var(--cp-code-band);
-  padding-inline-start: 0.75rem;
-  color: var(--cp-timeline-quiet-text);
-}
+  .timeline-prose [data-streamdown='code-block-header'] {
+    grid-area: 1 / 1;
+    block-size: var(--cp-code-band);
+    padding-inline-start: 0.75rem;
+    color: var(--cp-timeline-quiet-text);
+  }
 
-/* actions 从浮层里出来，落到那条栏上。栏高与抬头同一个 token：两条轨道同一行，只能有一个高度。 */
-.timeline-prose [data-streamdown='code-block'] > :has(> [data-streamdown='code-block-actions']) {
-  grid-area: 1 / 2;
-  position: static;
-  margin: 0;
-  padding-inline-end: 0.5rem;
-  block-size: var(--cp-code-band);
-  pointer-events: auto;
-}
+  /* actions 从浮层里出来，落到那条栏上。栏高与抬头同一个 token：两条轨道同一行，只能有一个高度。 */
+  .timeline-prose [data-streamdown='code-block'] > :has(> [data-streamdown='code-block-actions']) {
+    grid-area: 1 / 2;
+    position: static;
+    margin: 0;
+    padding-inline-end: 0.5rem;
+    block-size: var(--cp-code-band);
+    pointer-events: auto;
+  }
 
-.timeline-prose [data-streamdown='code-block-actions'] {
-  border: 0;
-  padding: 0;
-  background: none;
-  backdrop-filter: none;
-}
+  .timeline-prose [data-streamdown='code-block-actions'] {
+    border: 0;
+    padding: 0;
+    background: none;
+    backdrop-filter: none;
+  }
 
-/* 复制键上游带 p-1 包着 size=14 的属性值 —— 属性管不了尺寸：全局的 :where(svg)（0 权重）会把字形改写成 --ui-icon。
+  /* 复制键上游带 p-1 包着 size=14 的属性值 —— 属性管不了尺寸：全局的 :where(svg)（0 权重）会把字形改写成 --ui-icon。
  * 尺寸因此从这里下发，一个变量就够，不必再写一条 svg 选择器；颜色、悬停与 disabled 仍走上游工具类。 */
-.timeline-prose [data-streamdown='code-block-actions'] > button {
-  --ui-icon: var(--cp-code-icon);
+  .timeline-prose [data-streamdown='code-block-actions'] > button {
+    --ui-icon: var(--cp-code-icon);
 
-  display: grid;
-  place-items: center;
-  inline-size: var(--cp-code-control);
-  block-size: var(--cp-code-control);
-  padding: 0;
-  border-radius: var(--ui-radius-sm);
-}
+    display: grid;
+    place-items: center;
+    inline-size: var(--cp-code-control);
+    block-size: var(--cp-code-control);
+    padding: 0;
+    border-radius: var(--ui-radius-sm);
+  }
 
-/* 高度上限与 overflow 缺一不可：外层用 overflow: hidden 拿圆角裁内部，没出口时长行会被裁掉、字符取不到。
+  /* 高度上限与 overflow 缺一不可：外层用 overflow: hidden 拿圆角裁内部，没出口时长行会被裁掉、字符取不到。
  * 纵向上限归 prose.tsx 的 codeBlockMaxHeight —— 只有上游拿到高度，它才给这个盒子挂流式末端锚定。 */
-.timeline-prose [data-streamdown='code-block-body'] {
-  grid-area: 2 / 1 / 3 / 3;
-  overflow: auto;
-  padding: 0.75rem;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  font-family: var(--cp-font-mono);
-  font-size: var(--ui-prose-size-aux);
-  line-height: var(--ui-line-height-normal);
-}
+  .timeline-prose [data-streamdown='code-block-body'] {
+    grid-area: 2 / 1 / 3 / 3;
+    overflow: auto;
+    padding: 0.75rem;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    font-family: var(--cp-font-mono);
+    font-size: var(--ui-prose-size-aux);
+    line-height: var(--ui-line-height-normal);
+  }
 
-/* 行怎么排是包的事；这里只定 tab 宽度 2（上游没有样式表声明它）。代码从不被重排：重排会改写字符串字面量。 */
-.timeline-prose [data-streamdown='code-block-body'] pre {
-  margin: 0;
-  background: transparent;
-  tab-size: 2;
-}
+  /* 行怎么排是包的事；这里只定 tab 宽度 2（上游没有样式表声明它）。代码从不被重排：重排会改写字符串字面量。 */
+  .timeline-prose [data-streamdown='code-block-body'] pre {
+    margin: 0;
+    background: transparent;
+    tab-size: 2;
+  }
 
-/* 行盒是结构不是装饰：streamdown 每源行发一个 <span>、之间不写东西，只有块级才成行。上游把「块」类塞在行号类表里
+  /* 行盒是结构不是装饰：streamdown 每源行发一个 <span>、之间不写东西，只有块级才成行。上游把「块」类塞在行号类表里
  * 条件应用，我们不画行号，行盒随边距槽一起没了，每行都连在一起（vercel/streamdown#532）。 */
-.timeline-prose [data-streamdown='code-block-body'] pre code > span {
-  display: block;
-}
+  .timeline-prose [data-streamdown='code-block-body'] pre code > span {
+    display: block;
+  }
 
-/* 高亮色只在自定义属性里，得由我们花掉：上游的 color 声明在 Tailwind 工具类里，而本应用的 Tailwind 不扫 node_modules ——
+  /* 高亮色只在自定义属性里，得由我们花掉：上游的 color 声明在 Tailwind 工具类里，而本应用的 Tailwind 不扫 node_modules ——
  * 变量照旧下发、没人消费，每个 token 回落到 inherit，结构还在、颜色全丢。fallback 到 inherit：Shiki 没解析完的那几帧是纯文本，不是透明。 */
-.timeline-prose [data-streamdown='code-block-body'] pre code span {
-  color: light-dark(var(--sdm-c, inherit), var(--shiki-dark, var(--sdm-c, inherit)));
-  /* 少数 token 自带底色（diff、命中标记）。只花 --sdm-tbg，不碰 --shiki-dark-bg —— 后者是整块主题底色、会继承下来。 */
-  background-color: var(--sdm-tbg, transparent);
-}
+  .timeline-prose [data-streamdown='code-block-body'] pre code span {
+    color: light-dark(var(--sdm-c, inherit), var(--shiki-dark, var(--sdm-c, inherit)));
+    /* 少数 token 自带底色（diff、命中标记）。只花 --sdm-tbg，不碰 --shiki-dark-bg —— 后者是整块主题底色、会继承下来。 */
+    background-color: var(--sdm-tbg, transparent);
+  }
 
-/* 行内 code 是句子里的一个词，不是块：给一层底色，不给边。 */
-.timeline-prose :not(pre) > code {
-  padding: 0.0625rem 0.25rem;
-  border-radius: 0.3125rem;
-  background: var(--cp-timeline-inline-code-surface);
-  font-family: var(--cp-font-mono);
-  font-size: 0.875em;
-}
+  /* 行内 code 是句子里的一个词，不是块：给一层底色，不给边。 */
+  .timeline-prose :not(pre) > code {
+    padding: 0.0625rem 0.25rem;
+    border-radius: 0.3125rem;
+    background: var(--cp-timeline-inline-code-surface);
+    font-family: var(--cp-font-mono);
+    font-size: 0.875em;
+  }
 
-/* 表格：上游包了三层，正文里因此出现卡中卡；这张表**没有壳** —— 不画边框、表头不铺底色，上下分隔全由行线承担。
+  /* 表格：上游包了三层，正文里因此出现卡中卡；这张表**没有壳** —— 不画边框、表头不铺底色，上下分隔全由行线承担。
  * 栏高只有一个来源：--cp-table-head 同时是表头单元格与控件层的 block-size。包裹层不能 overflow: hidden：复制键是 absolute，裁剪会把它剪断。 */
 
-.timeline-prose [data-streamdown='table-wrapper'] {
-  --cp-table-head: 2.25rem;
-  --cp-table-pad: 0.75rem;
-  --cp-table-control: 1.75rem;
+  .timeline-prose [data-streamdown='table-wrapper'] {
+    --cp-table-head: 2.25rem;
+    --cp-table-pad: 0.75rem;
+    --cp-table-control: 1.75rem;
 
-  position: relative;
-  display: block;
-  margin-block: var(--cp-prose-flow) 0;
-  padding: 0;
-  border: 0;
-  border-radius: var(--ui-radius-md);
-  background: transparent;
-}
+    position: relative;
+    display: block;
+    margin-block: var(--cp-prose-flow) 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--ui-radius-md);
+    background: transparent;
+  }
 
-/* 控件层绝对定位、不参与流、也不撑宽包裹层。写在滚动盒**外面**是要求不是偏好：表格横向滚得动，
+  /* 控件层绝对定位、不参与流、也不撑宽包裹层。写在滚动盒**外面**是要求不是偏好：表格横向滚得动，
  * 埋在滚动盒里的控件会跟着一起滑出视野。 */
-.timeline-prose [data-streamdown='table-actions'] {
-  position: absolute;
-  z-index: 1;
-  inset-block-start: 0;
-  inset-inline-end: 0;
-  display: flex;
-  align-items: center;
-  block-size: var(--cp-table-head);
-}
+  .timeline-prose [data-streamdown='table-actions'] {
+    position: absolute;
+    z-index: 1;
+    inset-block-start: 0;
+    inset-inline-end: 0;
+    display: flex;
+    align-items: center;
+    block-size: var(--cp-table-head);
+  }
 
-.timeline-prose [data-streamdown='table-actions'] > button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  inline-size: var(--cp-table-control);
-  block-size: var(--cp-table-control);
-  padding: 0;
-  border-radius: 0.375rem;
-  color: var(--cp-timeline-quiet-text);
-  transition:
-    background-color 120ms var(--cp-motion-ease),
-    color 120ms var(--cp-motion-ease);
-}
+  .timeline-prose [data-streamdown='table-actions'] > button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--cp-table-control);
+    block-size: var(--cp-table-control);
+    padding: 0;
+    border-radius: 0.375rem;
+    color: var(--cp-timeline-quiet-text);
+    transition:
+      background-color 120ms var(--cp-motion-ease),
+      color 120ms var(--cp-motion-ease);
+  }
 
-.timeline-prose [data-streamdown='table-actions'] > button:hover {
-  background: var(--cp-hover);
-  color: var(--cp-ink);
-}
+  .timeline-prose [data-streamdown='table-actions'] > button:hover {
+    background: var(--cp-hover);
+    color: var(--cp-ink);
+  }
 
-/* 轴写死成「横向 auto、纵向 hidden」：上游给的 overflow-auto 让两个轴都成了滚动容器，而表格从来没有纵向上限 ——
+  /* 轴写死成「横向 auto、纵向 hidden」：上游给的 overflow-auto 让两个轴都成了滚动容器，而表格从来没有纵向上限 ——
  * 一个不会滚的滚动容器会被浮层当成候选轨道，指针停在表格上时滚轮整个失效。 */
-.timeline-prose [data-streamdown='table-wrapper'] > div:last-child {
-  overflow: auto hidden;
-  border: 0;
-  border-radius: inherit;
-  background: transparent;
-}
+  .timeline-prose [data-streamdown='table-wrapper'] > div:last-child {
+    overflow: auto hidden;
+    border: 0;
+    border-radius: inherit;
+    background: transparent;
+  }
 
-.timeline-prose [data-streamdown='table'] {
-  inline-size: 100%;
-  border-collapse: collapse;
-  font-size: var(--ui-prose-size-aux);
-}
+  .timeline-prose [data-streamdown='table'] {
+    inline-size: 100%;
+    border-collapse: collapse;
+    font-size: var(--ui-prose-size-aux);
+  }
 
-/* 表头不铺底色：与正文同一张面，归零也压掉上游的 bg-muted/80。 */
-.timeline-prose [data-streamdown='table-header'] {
-  background: transparent;
-}
+  /* 表头不铺底色：与正文同一张面，归零也压掉上游的 bg-muted/80。 */
+  .timeline-prose [data-streamdown='table-header'] {
+    background: transparent;
+  }
 
-/* padding-block 归零、行高不参与，栏高就是 --cp-table-head —— 控件层用同一个 token，两者不可能错位。 */
-.timeline-prose [data-streamdown='table-header-cell'] {
-  block-size: var(--cp-table-head);
-  padding: 0 var(--cp-table-pad);
-  font-size: inherit;
-  font-weight: 600;
-  text-align: start;
-  vertical-align: middle;
-  white-space: nowrap;
-}
+  /* padding-block 归零、行高不参与，栏高就是 --cp-table-head —— 控件层用同一个 token，两者不可能错位。 */
+  .timeline-prose [data-streamdown='table-header-cell'] {
+    block-size: var(--cp-table-head);
+    padding: 0 var(--cp-table-pad);
+    font-size: inherit;
+    font-weight: 600;
+    text-align: start;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
 
-.timeline-prose [data-streamdown='table-cell'] {
-  padding: 0.5rem var(--cp-table-pad);
-  font-size: inherit;
-  vertical-align: top;
-}
+  .timeline-prose [data-streamdown='table-cell'] {
+    padding: 0.5rem var(--cp-table-pad);
+    font-size: inherit;
+    vertical-align: top;
+  }
 
-/* 表头与正文之间、行与行之间各一根发丝线；末行不留。
+  /* 表头与正文之间、行与行之间各一根发丝线；末行不留。
  * 行线两主题都跟 --cp-hairline（卡内弱分隔档）。历史上这里有过一条深色改 #2a2a2a 的规则，
  * 但它的特异性（0,2,0）从来输给本条（0,3-0 起），是写了从未生效的死规则，样式收敛时删除
  * ——像素与删除前一致；若产品确要深色行线换档，见 refactor-log 的 Q 记录。 */
 
-/* 表头与正文之间、行与行之间各一根发丝线；末行不留。 */
-.timeline-prose [data-streamdown='table-header'] + [data-streamdown='table-body'],
-.timeline-prose [data-streamdown='table-body'] [data-streamdown='table-row'] + [data-streamdown='table-row'] {
-  border-block-start: 1px solid var(--cp-table-row-rule);
-}
+  /* 表头与正文之间、行与行之间各一根发丝线；末行不留。 */
+  .timeline-prose [data-streamdown='table-header'] + [data-streamdown='table-body'],
+  .timeline-prose [data-streamdown='table-body'] [data-streamdown='table-row'] + [data-streamdown='table-row'] {
+    border-block-start: 1px solid var(--cp-table-row-rule);
+  }
 
-/* 末列让位 = 内边距 ×2 + 一枚复制键，与控件层同一组常量：复制键右缘与表头文字之间不会压着一个字。 */
-.timeline-prose [data-streamdown='table-wrapper'] [data-streamdown='table-header-cell']:last-child {
-  padding-inline-end: calc(var(--cp-table-pad) * 2 + var(--cp-table-control));
-}
+  /* 末列让位 = 内边距 ×2 + 一枚复制键，与控件层同一组常量：复制键右缘与表头文字之间不会压着一个字。 */
+  .timeline-prose [data-streamdown='table-wrapper'] [data-streamdown='table-header-cell']:last-child {
+    padding-inline-end: calc(var(--cp-table-pad) * 2 + var(--cp-table-control));
+  }
 
-/* 交出滚动权而不是宽度上限 —— 被裁掉的字符取不回来。纵向不能靠 overflow-y: visible 放行：它与 overflow-x: auto 是非法组合，
+  /* 交出滚动权而不是宽度上限 —— 被裁掉的字符取不回来。纵向不能靠 overflow-y: visible 放行：它与 overflow-x: auto 是非法组合，
  * visible 会被**强制算成 auto**（实测 computed 值就是 auto），于是纵向反而多出一个滚动容器、KaTeX 的溢出照样被裁。
  * 出路是让溢出不发生：KaTeX 把分式、根号、上下限画在内容盒之外（零高度 span 加负外边距），padding-block 把内容盒撑到容得下。
  * 0.5em 是实测余量：十一种上下限形态量到的最大溢出 5px，16px 字号下 0.5em = 8px。 */
-.timeline-prose .katex-display {
-  margin-block: var(--cp-prose-flow) 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-block: 0.5em;
-}
+  .timeline-prose .katex-display {
+    margin-block: var(--cp-prose-flow) 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-block: 0.5em;
+  }
 
-/* 公式不参与「任意处断行」：overflow-wrap 会继承，而 .timeline-message 与 .timeline-user__text 都声明了 anywhere ——
+  /* 公式不参与「任意处断行」：overflow-wrap 会继承，而 .timeline-message 与 .timeline-user__text 都声明了 anywhere ——
  * 那对长 URL 是对的，对 KaTeX 是灾难：anywhere 授权在任意两个字符之间断行，靠近右边缘的公式会被从中间劈开。 */
-.timeline-prose :is(.katex, .katex-display) {
-  overflow-wrap: normal;
-  word-break: normal;
-}
+  .timeline-prose :is(.katex, .katex-display) {
+    overflow-wrap: normal;
+    word-break: normal;
+  }
 
-/* 行内公式不持有滚动盒：实测 `\colorbox` / 长行内式会让 scrollWidth 比 clientWidth 多出 2px，那 2px 就变成一根横杠，
+  /* 行内公式不持有滚动盒：实测 `\colorbox` / 长行内式会让 scrollWidth 比 clientWidth 多出 2px，那 2px 就变成一根横杠，
  * 纵向被 hidden 裁掉后上下标与分数又缺一截。它参与行内排版，放不下时该换行的是这行文字，滚动权只留给 .katex-display。 */
-.timeline-prose :not(.katex-display) > .katex {
-  display: inline-block;
-  max-inline-size: 100%;
-  vertical-align: bottom;
-}
+  .timeline-prose :not(.katex-display) > .katex {
+    display: inline-block;
+    max-inline-size: 100%;
+    vertical-align: bottom;
+  }
 
-.timeline-prose > .katex-display:first-child {
-  margin-block-start: 0;
-}
+  .timeline-prose > .katex-display:first-child {
+    margin-block-start: 0;
+  }
 
-/* 图直接长在正文里：没有底色、边框、固定高度，宽度跟栏宽走、高度由 viewBox 比例定。 */
-.timeline-prose__diagram {
-  --cp-diagram-pad: 0.75rem;
+  /* 图直接长在正文里：没有底色、边框、固定高度，宽度跟栏宽走、高度由 viewBox 比例定。 */
+  .timeline-prose__diagram {
+    --cp-diagram-pad: 0.75rem;
 
-  margin-block: var(--cp-prose-flow);
-}
+    margin-block: var(--cp-prose-flow);
+  }
 
-/* 只按宽度适配，且**只缩不放**：图保留 pele 排出来的自然尺寸，超过栏宽时等比缩小，窄图维持原大。
+  /* 只按宽度适配，且**只缩不放**：图保留 pele 排出来的自然尺寸，超过栏宽时等比缩小，窄图维持原大。
    若改成 width:100%，pele 那种紧凑排版（160×64 的流程图）会被连字号一起放大到满栏。
 
    pele 认的是一组 --pele-* 变量（svg 里就是 var(--pele-fg) 这种引用），所以图上屏时就定好了令牌，
    换主题只是 CSS 重新求值 —— 不重跑布局，也不会先闪一张旧配色的图。这里只做映射，不给具体颜色。
    节点面取 --ui-secondary、线取 --cp-ink-muted：图在对话里不该比正文抢眼，与原先那套配色同一取向。 */
-.timeline-prose__diagram-stage {
-  inline-size: 100%;
+  .timeline-prose__diagram-stage {
+    inline-size: 100%;
 
-  /* 只用 --ui-* 这一层基础令牌：--cp-* 是会话皮肤的中间层，只挂在 [data-assistant-skin] 上，
+    /* 只用 --ui-* 这一层基础令牌：--cp-* 是会话皮肤的中间层，只挂在 [data-assistant-skin] 上，
      而这个正文组件也被计划坞、技能文档、PR 页用 —— 换一处没有那层皮肤，图就会退回引擎的默认色。 */
-  --pele-bg: var(--ui-background);
-  --pele-fg: var(--ui-foreground);
-  --pele-muted: var(--ui-muted-foreground);
-  --pele-line: var(--ui-muted-foreground);
-  --pele-surface: var(--ui-secondary);
-  --pele-surface-alt: var(--ui-sunken);
-  --pele-border: var(--ui-divider);
-  --pele-accent: var(--ui-primary);
-  --pele-critical: var(--ui-destructive);
-  --pele-error: var(--ui-destructive);
-  --pele-radius: var(--ui-radius-md);
-  --pele-font: var(--ui-font-sans);
-  --pele-font-mono: var(--ui-font-mono);
+    --pele-bg: var(--ui-background);
+    --pele-fg: var(--ui-foreground);
+    --pele-muted: var(--ui-muted-foreground);
+    --pele-line: var(--ui-muted-foreground);
+    --pele-surface: var(--ui-secondary);
+    --pele-surface-alt: var(--ui-sunken);
+    --pele-border: var(--ui-divider);
+    --pele-accent: var(--ui-primary);
+    --pele-critical: var(--ui-destructive);
+    --pele-error: var(--ui-destructive);
+    --pele-radius: var(--ui-radius-md);
+    --pele-font: var(--ui-font-sans);
+    --pele-font-mono: var(--ui-font-mono);
 
-  /* 图表八档序列色：pele 默认是它自己那套（蓝、橙、绿…），在深浅两套主题里都不属于本仓。
+    /* 图表八档序列色：pele 默认是它自己那套（蓝、橙、绿…），在深浅两套主题里都不属于本仓。
      这里按「前景墨兑进节点面」的同一把梯子排开，档与档之间只差亮度 —— 与本仓其它图一个取向。 */
-  --pele-series-1: color-mix(in oklab, var(--ui-foreground) 62%, var(--ui-secondary));
-  --pele-series-2: color-mix(in oklab, var(--ui-foreground) 50%, var(--ui-secondary));
-  --pele-series-3: color-mix(in oklab, var(--ui-foreground) 40%, var(--ui-secondary));
-  --pele-series-4: color-mix(in oklab, var(--ui-foreground) 32%, var(--ui-secondary));
-  --pele-series-5: color-mix(in oklab, var(--ui-foreground) 25%, var(--ui-secondary));
-  --pele-series-6: color-mix(in oklab, var(--ui-foreground) 19%, var(--ui-secondary));
-  --pele-series-7: color-mix(in oklab, var(--ui-foreground) 14%, var(--ui-secondary));
-  --pele-series-8: color-mix(in oklab, var(--ui-foreground) 10%, var(--ui-secondary));
-}
+    --pele-series-1: color-mix(in oklab, var(--ui-foreground) 62%, var(--ui-secondary));
+    --pele-series-2: color-mix(in oklab, var(--ui-foreground) 50%, var(--ui-secondary));
+    --pele-series-3: color-mix(in oklab, var(--ui-foreground) 40%, var(--ui-secondary));
+    --pele-series-4: color-mix(in oklab, var(--ui-foreground) 32%, var(--ui-secondary));
+    --pele-series-5: color-mix(in oklab, var(--ui-foreground) 25%, var(--ui-secondary));
+    --pele-series-6: color-mix(in oklab, var(--ui-foreground) 19%, var(--ui-secondary));
+    --pele-series-7: color-mix(in oklab, var(--ui-foreground) 14%, var(--ui-secondary));
+    --pele-series-8: color-mix(in oklab, var(--ui-foreground) 10%, var(--ui-secondary));
+  }
 
-/* 行内元素的基线间隙会在图下方垫出几个像素。颜色与圆角不在这里：
+  /* 行内元素的基线间隙会在图下方垫出几个像素。颜色与圆角不在这里：
    pele 把两者都写成 var(--pele-*) 引用，映射在上面那条 --pele-* 规则里。 */
-.timeline-prose__diagram-stage svg {
-  display: block;
+  .timeline-prose__diagram-stage svg {
+    display: block;
 
-  /* 尺寸必须在这里写回。tokens/controls.css 的 :where(svg) 把所有 svg 默认压成 --ui-icon 一格，
+    /* 尺寸必须在这里写回。tokens/controls.css 的 :where(svg) 把所有 svg 默认压成 --ui-icon 一格，
      而那张图的 width/height 是 SVG 表现属性 —— 比任何 CSS 规则都低，不写回就会变成一枚图标那么大。
      auto 取回引擎排出的自然尺寸，max-inline-size 只管超宽时等比缩小。 */
-  inline-size: auto;
-  block-size: auto;
-  max-inline-size: 100%;
-  margin-inline: auto;
-}
+    inline-size: auto;
+    block-size: auto;
+    max-inline-size: 100%;
+    margin-inline: auto;
+  }
 
-.timeline-prose__diagram[data-view='code'] .timeline-prose__diagram-stage {
-  display: none;
-}
+  .timeline-prose__diagram[data-view='code'] .timeline-prose__diagram-stage {
+    display: none;
+  }
 
-/* 源码视图（围栏未闭合，或引擎画不出来时）：26rem 是上限，长了在自己身上滚。 */
-.timeline-prose__diagram-source {
-  margin: 0;
-  max-block-size: 26rem;
-  padding: var(--cp-diagram-pad);
-  overflow: auto;
-  font-family: var(--cp-font-mono);
-  font-size: var(--ui-prose-size-aux);
-  line-height: var(--ui-line-height-normal);
-  tab-size: 2;
-}
+  /* 源码视图（围栏未闭合，或引擎画不出来时）：26rem 是上限，长了在自己身上滚。 */
+  .timeline-prose__diagram-source {
+    margin: 0;
+    max-block-size: 26rem;
+    padding: var(--cp-diagram-pad);
+    overflow: auto;
+    font-family: var(--cp-font-mono);
+    font-size: var(--ui-prose-size-aux);
+    line-height: var(--ui-line-height-normal);
+    tab-size: 2;
+  }
 
-/* token 的颜色在这里花掉：Shiki 交回两套主题各一个色值，light-dark() 跟着 color-scheme 选；回落到 inherit（分词没到的那几帧是纯文本，不是透明）。 */
-.timeline-prose__diagram-ink {
-  color: light-dark(var(--cp-tok, inherit), var(--cp-tok-dark, var(--cp-tok, inherit)));
-}
+  /* token 的颜色在这里花掉：Shiki 交回两套主题各一个色值，light-dark() 跟着 color-scheme 选；回落到 inherit（分词没到的那几帧是纯文本，不是透明）。 */
+  .timeline-prose__diagram-ink {
+    color: light-dark(var(--cp-tok, inherit), var(--cp-tok-dark, var(--cp-tok, inherit)));
+  }
 
-.timeline-prose__diagram-alert {
-  margin: 0;
-  padding: var(--cp-diagram-pad) var(--cp-diagram-pad) 0;
-  font-size: var(--ui-prose-size-meta);
-  color: var(--cp-timeline-quiet-text);
-}
+  .timeline-prose__diagram-alert {
+    margin: 0;
+    padding: var(--cp-diagram-pad) var(--cp-diagram-pad) 0;
+    font-size: var(--ui-prose-size-meta);
+    color: var(--cp-timeline-quiet-text);
+  }
 
-/* 上游 image.tsx 的外观全在 Tailwind 工具类里（my-4、max-w-full rounded-lg、失败时 hidden），官方 styles.css 不含这些类、
+  /* 上游 image.tsx 的外观全在 Tailwind 工具类里（my-4、max-w-full rounded-lg、失败时 hidden），官方 styles.css 不含这些类、
  * 本应用的 Tailwind 也不扫 node_modules —— 与 --sdm-c 同一个坑：类不存在，加载失败时破图占位与兜底文案同时在屏幕上。 */
-.timeline-prose [data-streamdown='image-wrapper'] {
-  display: block;
-  margin-block: var(--cp-prose-flow) 0;
-}
+  .timeline-prose [data-streamdown='image-wrapper'] {
+    display: block;
+    margin-block: var(--cp-prose-flow) 0;
+  }
 
-.timeline-prose [data-streamdown='image'] {
-  display: block;
-  max-inline-size: 100%;
-  border-radius: var(--ui-radius-md);
-}
+  .timeline-prose [data-streamdown='image'] {
+    display: block;
+    max-inline-size: 100%;
+    border-radius: var(--ui-radius-md);
+  }
 
-/* 兜底文案在 img 之后，所以由包裹层来判：破图不占位，只留那一句话。 */
-.timeline-prose [data-streamdown='image-wrapper']:has([data-streamdown='image-fallback']) [data-streamdown='image'] {
-  display: none;
-}
+  /* 兜底文案在 img 之后，所以由包裹层来判：破图不占位，只留那一句话。 */
+  .timeline-prose [data-streamdown='image-wrapper']:has([data-streamdown='image-fallback']) [data-streamdown='image'] {
+    display: none;
+  }
 
-.timeline-prose [data-streamdown='image-fallback'] {
-  color: var(--cp-timeline-quiet-text);
-  font-size: var(--ui-prose-size-meta);
-  font-style: italic;
-}
+  .timeline-prose [data-streamdown='image-fallback'] {
+    color: var(--cp-timeline-quiet-text);
+    font-size: var(--ui-prose-size-meta);
+    font-style: italic;
+  }
 
-/* 本地文件链接（file-link.tsx）：墨色沿用上面的正文链接，多一枚文件类型图标；图标按字号走，跟着行高不跳。 */
-.timeline-prose .prose-file-link__mark {
-  display: inline-block;
-  inline-size: 1em;
-  block-size: 1em;
-  margin-inline-end: 0.25em;
-  vertical-align: -0.125em;
-}
+  /* 本地文件链接（file-link.tsx）：墨色沿用上面的正文链接，多一枚文件类型图标；图标按字号走，跟着行高不跳。 */
+  .timeline-prose .prose-file-link__mark {
+    display: inline-block;
+    inline-size: 1em;
+    block-size: 1em;
+    margin-inline-end: 0.25em;
+    vertical-align: -0.125em;
+  }
 
-/* 文件名常常一句里连着好几处，常显的虚线会把一段话划成一排格子：平时只有墨色与图标，指上去才出那道虚线（线形仍是上面那一套）。 */
-.timeline-prose a[data-file-ref] {
-  text-decoration-line: none;
-}
+  /* 文件名常常一句里连着好几处，常显的虚线会把一段话划成一排格子：平时只有墨色与图标，指上去才出那道虚线（线形仍是上面那一套）。 */
+  .timeline-prose a[data-file-ref] {
+    text-decoration-line: none;
+  }
 
-.timeline-prose a[data-file-ref]:hover {
-  text-decoration-line: underline;
-}
+  .timeline-prose a[data-file-ref]:hover {
+    text-decoration-line: underline;
+  }
 
-/* 链接里包着的行内代码：文件引用按正文排版，不再是代码字形与代码字号；底色交给链接 —— 一处文件引用只有一种颜色。
+  /* 链接里包着的行内代码：文件引用按正文排版，不再是代码字形与代码字号；底色交给链接 —— 一处文件引用只有一种颜色。
  * 字族点名正文字体而不是 inherit：文件引用若落在等宽上下文里（工具卡片），inherit 会把代码字形又带回来。 */
-.timeline-prose a[data-file-ref] code {
-  padding: 0;
-  background: none;
-  color: inherit;
-  font-family: var(--ui-font-sans);
-  font-size: inherit;
-}
+  .timeline-prose a[data-file-ref] code {
+    padding: 0;
+    background: none;
+    color: inherit;
+    font-family: var(--ui-font-sans);
+    font-size: inherit;
+  }
 
-/* 没有宿主可开（不在对话里的正文）：只是一个带图标的文件名，不装成链接。 */
-.timeline-prose .prose-file-link[data-inert] {
-  overflow-wrap: anywhere;
+  /* 没有宿主可开（不在对话里的正文）：只是一个带图标的文件名，不装成链接。 */
+  .timeline-prose .prose-file-link[data-inert] {
+    overflow-wrap: anywhere;
+  }
 }

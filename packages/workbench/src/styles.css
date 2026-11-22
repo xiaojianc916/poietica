@@ -17,252 +17,255 @@
   initial-value: 0px;
 }
 
-/* 外壳家具不可选：判据是「这是哪一格」不是底色 —— 按底色判会把装文档的主区也一起关掉划选。 */
-.workspace-shell__chrome,
-.workspace-shell__sidebar {
-  -webkit-user-select: none;
-  user-select: none;
-}
+@layer components.workbench {
+  /* 外壳家具不可选：判据是「这是哪一格」不是底色 —— 按底色判会把装文档的主区也一起关掉划选。 */
+  .workspace-shell__chrome,
+  .workspace-shell__sidebar {
+    -webkit-user-select: none;
+    user-select: none;
+  }
 
-.workspace-shell {
-  grid-template-columns:
-    var(--workspace-sidebar-column-width)
-    minmax(0, 1fr)
-    var(--workspace-auxiliary-column-width);
-  /* 两行：页头 / 三列主体（主体 minmax(0, 1fr) 收下剩余高度，永不溢出）。横幅不占格；加回一行会在退出时闪出一条没有字的 `--ui-accent` 色块。 */
-  grid-template-rows: var(--chrome-height) minmax(0, 1fr);
-  grid-template-areas:
-    'chrome chrome chrome'
-    'sidebar main auxiliary';
-  transition:
-    --workspace-sidebar-column-width var(--workspace-layout-duration) var(--workspace-layout-ease),
-    --workspace-auxiliary-column-width var(--workspace-layout-duration) var(--workspace-layout-ease);
-}
-
-/* 拖拽中不插值：宽度每帧都在变，补间只会让列追不上指针。 */
-.workspace-shell[data-splitter='drag'] {
-  transition: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
   .workspace-shell {
+    grid-template-columns:
+      var(--workspace-sidebar-column-width)
+      minmax(0, 1fr)
+      var(--workspace-auxiliary-column-width);
+    /* 两行：页头 / 三列主体（主体 minmax(0, 1fr) 收下剩余高度，永不溢出）。横幅不占格；加回一行会在退出时闪出一条没有字的 `--ui-accent` 色块。 */
+    grid-template-rows: var(--chrome-height) minmax(0, 1fr);
+    grid-template-areas:
+      'chrome chrome chrome'
+      'sidebar main auxiliary';
+    transition:
+      --workspace-sidebar-column-width var(--workspace-layout-duration) var(--workspace-layout-ease),
+      --workspace-auxiliary-column-width var(--workspace-layout-duration) var(--workspace-layout-ease);
+  }
+
+  /* 拖拽中不插值：宽度每帧都在变，补间只会让列追不上指针。 */
+  .workspace-shell[data-splitter='drag'] {
     transition: none;
   }
-}
 
-/* 会话控件是栅格家具：开合只移边界，DOM 不搬家。右边距 = 留白 + 圆角半径，按钮右缘正落在圆角竖切点上；贴窗口边写 12px 会只剩 4px、压在弧上。 */
-.workspace-shell__conversation-control {
-  z-index: 3;
-  display: flex;
-  grid-row: 2;
-  align-self: start;
-  justify-self: end;
-  margin-block-start: 0.5rem;
-  margin-inline-end: calc(var(--workspace-card-gap) + var(--workspace-card-radius));
-}
+  @media (prefers-reduced-motion: reduce) {
+    .workspace-shell {
+      transition: none;
+    }
+  }
 
-/* 钉在主区，不进右栏。 */
-.workspace-shell__conversation-control[data-slot='main'] {
-  grid-column: 2;
-  transition: margin-inline-end var(--workspace-layout-duration) var(--workspace-layout-ease);
-}
+  /* 会话控件是栅格家具：开合只移边界，DOM 不搬家。右边距 = 留白 + 圆角半径，按钮右缘正落在圆角竖切点上；贴窗口边写 12px 会只剩 4px、压在弧上。 */
+  .workspace-shell__conversation-control {
+    z-index: 3;
+    display: flex;
+    grid-row: 2;
+    align-self: start;
+    justify-self: end;
+    margin-block-start: 0.5rem;
+    margin-inline-end: calc(var(--workspace-card-gap) + var(--workspace-card-radius));
+  }
 
-.workspace-shell[data-auxiliary-docked='false'] .workspace-shell__conversation-control[data-slot='main'] {
-  margin-inline-end: calc(var(--workspace-card-gap) + var(--workspace-card-radius) + var(--workspace-card-control));
-}
-
-.workspace-shell__conversation-control[data-slot='window'] {
-  grid-column: 1 / -1;
-}
-
-.workspace-shell[data-auxiliary-fullscreen='true'] .workspace-shell__conversation-control {
-  display: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
+  /* 钉在主区，不进右栏。 */
   .workspace-shell__conversation-control[data-slot='main'] {
-    transition: none;
+    grid-column: 2;
+    transition: margin-inline-end var(--workspace-layout-duration) var(--workspace-layout-ease);
   }
-}
 
-/* 分隔线：格位即列边界，没有第二份坐标。强调态读根节点 data-splitter 不读 :hover —— 拖拽经 setPointerCapture，捕获期间的 hover 记在捕获元素上。 */
-.workspace-shell__divider {
-  --workspace-divider-hover-delay: 50ms;
+  .workspace-shell[data-auxiliary-docked='false'] .workspace-shell__conversation-control[data-slot='main'] {
+    margin-inline-end: calc(var(--workspace-card-gap) + var(--workspace-card-radius) + var(--workspace-card-control));
+  }
 
-  position: relative;
-  z-index: 2;
-  /* 写行号不写命名区域：这条线骑在列边界上，不在任何一格**里**。两行制下主体是第 2 行 —— 写成 3 会让起点终点同为末线、跨度归零，分隔线整条消失。 */
-  grid-area: 2 / 1 / -1 / 2;
-  justify-self: end;
-  inline-size: 0;
-  pointer-events: none;
-  transition: opacity var(--workspace-layout-duration) ease;
-}
+  .workspace-shell__conversation-control[data-slot='window'] {
+    grid-column: 1 / -1;
+  }
 
-/* 抓手：1.5px 骑在边界两侧各 0.75px，上下各收 6% 不顶满整窗高，两端渐隐。 */
-.workspace-shell__divider::after {
-  --workspace-divider-grip: color-mix(
-    in oklab,
-    var(--ui-foreground) 22%,
-    var(--workspace-divider-line, var(--ui-divider))
-  );
+  .workspace-shell[data-auxiliary-fullscreen='true'] .workspace-shell__conversation-control {
+    display: none;
+  }
 
-  content: '';
-  position: absolute;
-  inset-block: 6%;
-  inset-inline-start: calc(-0.75 * var(--ui-region-divider-width));
-  inline-size: calc(var(--ui-region-divider-width) * 1.5);
-  background: linear-gradient(to bottom, transparent, var(--workspace-divider-grip), transparent);
-  opacity: 0;
-  transition: opacity var(--workspace-layout-duration) ease;
-}
+  @media (prefers-reduced-motion: reduce) {
+    .workspace-shell__conversation-control[data-slot='main'] {
+      transition: none;
+    }
+  }
 
-/* 浏览器侧同一根家具，画在主列末像素。 */
-.workspace-shell__divider--auxiliary {
-  grid-area: 2 / 2 / -1 / 3;
-  margin-inline-end: calc(var(--workspace-card-gap) / 2);
-}
+  /* 分隔线：格位即列边界，没有第二份坐标。强调态读根节点 data-splitter 不读 :hover —— 拖拽经 setPointerCapture，捕获期间的 hover 记在捕获元素上。 */
+  .workspace-shell__divider {
+    --workspace-divider-hover-delay: 50ms;
 
-:root:not([data-theme='dark']) .workspace-shell__divider--auxiliary {
-  --workspace-divider-line: var(--ui-card-divider);
-}
+    position: relative;
+    z-index: 2;
+    /* 写行号不写命名区域：这条线骑在列边界上，不在任何一格**里**。两行制下主体是第 2 行 —— 写成 3 会让起点终点同为末线、跨度归零，分隔线整条消失。 */
+    grid-area: 2 / 1 / -1 / 2;
+    justify-self: end;
+    inline-size: 0;
+    pointer-events: none;
+    transition: opacity var(--workspace-layout-duration) ease;
+  }
 
-:root:not([data-theme='dark']) .workspace-shell__divider--auxiliary::after {
-  --workspace-divider-grip: color-mix(in oklab, var(--ui-foreground) 14%, var(--workspace-divider-line));
-}
+  /* 抓手：1.5px 骑在边界两侧各 0.75px，上下各收 6% 不顶满整窗高，两端渐隐。 */
+  .workspace-shell__divider::after {
+    --workspace-divider-grip: color-mix(
+      in oklab,
+      var(--ui-foreground) 22%,
+      var(--workspace-divider-line, var(--ui-divider))
+    );
 
-/* :not 隔离两侧开关；辅助面板全屏时主列消失，其末像素上的分隔线也须隐藏。 */
-.workspace-shell[data-sidebar-docked='false'] .workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
-.workspace-shell[data-auxiliary-docked='false'] .workspace-shell__divider--auxiliary,
-.workspace-shell[data-auxiliary-fullscreen='true'] .workspace-shell__divider--auxiliary {
-  opacity: 0;
-}
+    content: '';
+    position: absolute;
+    inset-block: 6%;
+    inset-inline-start: calc(-0.75 * var(--ui-region-divider-width));
+    inline-size: calc(var(--ui-region-divider-width) * 1.5);
+    background: linear-gradient(to bottom, transparent, var(--workspace-divider-grip), transparent);
+    opacity: 0;
+    transition: opacity var(--workspace-layout-duration) ease;
+  }
 
-/* 悬停要够 50ms 才浮现，擦边划过不闪。 */
-.workspace-shell[data-splitter='hover'][data-splitter-region='sidebar']
-  .workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
-.workspace-shell[data-splitter='hover'][data-splitter-region='auxiliary'] .workspace-shell__divider--auxiliary::after {
-  opacity: 1;
-  transition-delay: var(--workspace-divider-hover-delay);
-}
+  /* 浏览器侧同一根家具，画在主列末像素。 */
+  .workspace-shell__divider--auxiliary {
+    grid-area: 2 / 2 / -1 / 3;
+    margin-inline-end: calc(var(--workspace-card-gap) / 2);
+  }
 
-/* 拖拽中立刻浮现；键盘焦点同样不留延迟。 */
-.workspace-shell[data-splitter='drag'][data-splitter-region='sidebar']
-  .workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
-.workspace-shell[data-splitter='drag'][data-splitter-region='auxiliary'] .workspace-shell__divider--auxiliary::after {
-  opacity: 1;
-}
+  :root:not([data-theme='dark']) .workspace-shell__divider--auxiliary {
+    --workspace-divider-line: var(--ui-card-divider);
+  }
 
-/* 键盘焦点不留延迟。 */
-.workspace-shell:has(.workspace-region-splitter[data-edge='inline-start']:focus-visible)
-  .workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
-.workspace-shell:has(.workspace-region-splitter[data-edge='inline-end']:focus-visible)
-  .workspace-shell__divider--auxiliary::after {
-  opacity: 1;
-}
+  :root:not([data-theme='dark']) .workspace-shell__divider--auxiliary::after {
+    --workspace-divider-grip: color-mix(in oklab, var(--ui-foreground) 14%, var(--workspace-divider-line));
+  }
 
-/* chrome 行不画横线：顶栏、侧栏与主区在圆角外连成一片。 */
-.workspace-shell__chrome {
-  grid-area: chrome;
-}
+  /* :not 隔离两侧开关；辅助面板全屏时主列消失，其末像素上的分隔线也须隐藏。 */
+  .workspace-shell[data-sidebar-docked='false'] .workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
+  .workspace-shell[data-auxiliary-docked='false'] .workspace-shell__divider--auxiliary,
+  .workspace-shell[data-auxiliary-fullscreen='true'] .workspace-shell__divider--auxiliary {
+    opacity: 0;
+  }
 
-/* 收起 = 内容被自己那一列裁掉（裁剪只改绘制，子树不重排不卸载）；被裁掉的是远离主区的一端，方向由裁剪层 justify-content 定。 */
-.workspace-shell__region {
-  position: relative;
-  min-inline-size: 0;
-  min-block-size: 0;
-}
+  /* 悬停要够 50ms 才浮现，擦边划过不闪。 */
+  .workspace-shell[data-splitter='hover'][data-splitter-region='sidebar']
+    .workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
+  .workspace-shell[data-splitter='hover'][data-splitter-region='auxiliary']
+    .workspace-shell__divider--auxiliary::after {
+    opacity: 1;
+    transition-delay: var(--workspace-divider-hover-delay);
+  }
 
-.workspace-shell__region-clip {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  overflow: clip;
-}
+  /* 拖拽中立刻浮现；键盘焦点同样不留延迟。 */
+  .workspace-shell[data-splitter='drag'][data-splitter-region='sidebar']
+    .workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
+  .workspace-shell[data-splitter='drag'][data-splitter-region='auxiliary'] .workspace-shell__divider--auxiliary::after {
+    opacity: 1;
+  }
 
-.workspace-shell__region-content {
-  flex: none;
-  min-block-size: 0;
-  overflow: hidden;
-}
+  /* 键盘焦点不留延迟。 */
+  .workspace-shell:has(.workspace-region-splitter[data-edge='inline-start']:focus-visible)
+    .workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
+  .workspace-shell:has(.workspace-region-splitter[data-edge='inline-end']:focus-visible)
+    .workspace-shell__divider--auxiliary::after {
+    opacity: 1;
+  }
 
-.workspace-shell__sidebar {
-  grid-area: sidebar;
-}
+  /* chrome 行不画横线：顶栏、侧栏与主区在圆角外连成一片。 */
+  .workspace-shell__chrome {
+    grid-area: chrome;
+  }
 
-.workspace-shell__main {
-  position: relative;
-  grid-area: main;
-  /* 不贴右、下两边：这一圈与圆角缺口同色，面板读成浮在 chrome 地色上的卡片。 */
-  padding-block-end: var(--workspace-card-gap);
-  padding-inline-end: var(--workspace-card-gap);
-}
+  /* 收起 = 内容被自己那一列裁掉（裁剪只改绘制，子树不重排不卸载）；被裁掉的是远离主区的一端，方向由裁剪层 justify-content 定。 */
+  .workspace-shell__region {
+    position: relative;
+    min-inline-size: 0;
+    min-block-size: 0;
+  }
 
-/* 主格就是那张卡片：栅格只有侧栏 / 主区 / 辅助列三列，主区自己不再切上下两格。 */
-.workspace-shell__main {
-  display: flex;
-  flex-direction: column;
-}
+  .workspace-shell__region-clip {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    overflow: clip;
+  }
 
-/*
+  .workspace-shell__region-content {
+    flex: none;
+    min-block-size: 0;
+    overflow: hidden;
+  }
+
+  .workspace-shell__sidebar {
+    grid-area: sidebar;
+  }
+
+  .workspace-shell__main {
+    position: relative;
+    grid-area: main;
+    /* 不贴右、下两边：这一圈与圆角缺口同色，面板读成浮在 chrome 地色上的卡片。 */
+    padding-block-end: var(--workspace-card-gap);
+    padding-inline-end: var(--workspace-card-gap);
+  }
+
+  /* 主格就是那张卡片：栅格只有侧栏 / 主区 / 辅助列三列，主区自己不再切上下两格。 */
+  .workspace-shell__main {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /*
  * 换路由时参与过渡的只有主区那一张卡：页头与侧栏不跟着呼吸（整页淡一次读起来像刷新）。
  * 先把 root 的名字摘掉，否则整棵树仍会被拍成一张图、与主区那张叠加成两层淡入。
  * 名字只在过渡进行中给：常驻 name 会让这棵树永远留在合成层里。
  */
-html:active-view-transition-type(ui-route) {
-  view-transition-name: none;
-}
+  html:active-view-transition-type(ui-route) {
+    view-transition-name: none;
+  }
 
-/* 侧栏收起时补左缝：主区贴窗口左缘，不留就三面有缝。 */
-.workspace-shell[data-sidebar-docked='false'] .workspace-shell__main {
-  padding-inline-start: var(--workspace-card-gap);
-}
+  /* 侧栏收起时补左缝：主区贴窗口左缘，不留就三面有缝。 */
+  .workspace-shell[data-sidebar-docked='false'] .workspace-shell__main {
+    padding-inline-start: var(--workspace-card-gap);
+  }
 
-/* 面板圆角：地色铺在格位上、面板只管圆角与页面底色，缺一不可。 */
-.workspace-shell__main-panel {
-  border-radius: var(--workspace-card-radius);
-}
+  /* 面板圆角：地色铺在格位上、面板只管圆角与页面底色，缺一不可。 */
+  .workspace-shell__main-panel {
+    border-radius: var(--workspace-card-radius);
+  }
 
-html:active-view-transition-type(ui-route) .workspace-shell__main-panel {
-  view-transition-name: ui-route-content;
-}
+  html:active-view-transition-type(ui-route) .workspace-shell__main-panel {
+    view-transition-name: ui-route-content;
+  }
 
-.workspace-shell__auxiliary {
-  grid-area: auxiliary;
-}
+  .workspace-shell__auxiliary {
+    grid-area: auxiliary;
+  }
 
-.workspace-shell__auxiliary .workspace-shell__region-clip {
-  justify-content: flex-end;
-}
+  .workspace-shell__auxiliary .workspace-shell__region-clip {
+    justify-content: flex-end;
+  }
 
-/* 留白写内容的 margin：padding 推不动溢出。 */
-.workspace-shell__auxiliary-content {
-  margin-block-end: var(--workspace-card-gap);
-  margin-inline-end: var(--workspace-card-gap);
-  border-radius: var(--workspace-card-radius);
-}
+  /* 留白写内容的 margin：padding 推不动溢出。 */
+  .workspace-shell__auxiliary-content {
+    margin-block-end: var(--workspace-card-gap);
+    margin-inline-end: var(--workspace-card-gap);
+    border-radius: var(--workspace-card-radius);
+  }
 
-/*
+  /*
  * 坞里换格：只补间内容那一块，标签条与整窗不动（整页淡一次读起来像刷新）。
  * root 先摘名字，否则整棵树仍会被拍成一张图，与这一块叠成两层淡入。
  */
-html:active-view-transition-type(ui-dock) {
-  view-transition-name: none;
-}
+  html:active-view-transition-type(ui-dock) {
+    view-transition-name: none;
+  }
 
-html:active-view-transition-type(ui-dock) [data-dock-panel] {
-  view-transition-name: ui-dock-content;
-}
+  html:active-view-transition-type(ui-dock) [data-dock-panel] {
+    view-transition-name: ui-dock-content;
+  }
 
-.workspace-shell[data-auxiliary-fullscreen='true'] .workspace-shell__auxiliary-content {
-  max-inline-size: calc(100% - var(--workspace-card-gap));
-}
+  .workspace-shell[data-auxiliary-fullscreen='true'] .workspace-shell__auxiliary-content {
+    max-inline-size: calc(100% - var(--workspace-card-gap));
+  }
 
-.workspace-shell[data-auxiliary-fullscreen='true'][data-sidebar-docked='false'] .workspace-shell__auxiliary-content {
-  max-inline-size: calc(100% - 2 * var(--workspace-card-gap));
-  margin-inline-start: var(--workspace-card-gap);
-}
+  .workspace-shell[data-auxiliary-fullscreen='true'][data-sidebar-docked='false'] .workspace-shell__auxiliary-content {
+    max-inline-size: calc(100% - 2 * var(--workspace-card-gap));
+    margin-inline-start: var(--workspace-card-gap);
+  }
 
-.workspace-shell[data-auxiliary-fullscreen='true'] .workspace-shell__main {
-  display: none;
+  .workspace-shell[data-auxiliary-fullscreen='true'] .workspace-shell__main {
+    display: none;
+  }
 }

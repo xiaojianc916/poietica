@@ -1,4 +1,5 @@
-/*
+@layer components.ds {
+  /*
  * 视图过渡的时长与曲线，一份出生点。
  *
  * 伪元素树不在元素树里，tokens/accessibility.css 那条全局 `*` 规则压不住它；
@@ -8,10 +9,11 @@
  * 哪一块参与过渡（view-transition-name）由各外壳自己给 —— 本包不认识任何外壳的类名。
  */
 
-::view-transition-group(*),
-::view-transition-image-pair(*),
-::view-transition-old(*),
-::view-transition-new(*) {
-  animation-duration: var(--ui-duration-normal);
-  animation-timing-function: var(--ui-ease-standard);
+  ::view-transition-group(*),
+  ::view-transition-image-pair(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: var(--ui-duration-normal);
+    animation-timing-function: var(--ui-ease-standard);
+  }
 }

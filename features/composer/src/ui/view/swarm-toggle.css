@@ -1,85 +1,87 @@
-/* 上下文栏最右端那枚 Swarm 勾选：几何借栏里两个兄弟的令牌，靠 margin-inline-start: auto 站到最右端，不再加撑开的盒子。 */
-.swarm-toggle {
-  /* 框比 --cp-icon 小两像素：收一圈才读得出是「勾选框」而不是又一颗图标，勾与框同步缩。三个实色是产品
+@layer components.features {
+  /* 上下文栏最右端那枚 Swarm 勾选：几何借栏里两个兄弟的令牌，靠 margin-inline-start: auto 站到最右端，不再加撑开的盒子。 */
+  .swarm-toggle {
+    /* 框比 --cp-icon 小两像素：收一圈才读得出是「勾选框」而不是又一颗图标，勾与框同步缩。三个实色是产品
      直接给的，不是设计系统色板或语义令牌，只在这里命名一次；勾是压在实心面上的反色，跟框走不跟主题走。 */
-  --sw-box: calc(var(--cp-icon) - 2px);
-  --sw-check: calc(var(--cp-icon) - 6px);
-  --sw-corner: 5px;
-  --sw-edge: #e1e1e1;
-  --sw-fill: #494949;
-  --sw-knockout: #ffffff;
+    --sw-box: calc(var(--cp-icon) - 2px);
+    --sw-check: calc(var(--cp-icon) - 6px);
+    --sw-corner: 5px;
+    --sw-edge: #e1e1e1;
+    --sw-fill: #494949;
+    --sw-knockout: #ffffff;
 
-  display: inline-flex;
-  block-size: var(--cp-control);
-  align-items: center;
-  gap: var(--cp-control-gap);
-  margin-inline-start: auto;
-  border: 0;
-  border-radius: var(--cp-radius);
-  padding-inline: var(--cp-inset);
-  background: transparent;
-  color: var(--cp-ink);
-  font: inherit;
-  font-size: var(--cp-font-caption);
-  cursor: pointer;
-  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
-}
+    display: inline-flex;
+    block-size: var(--cp-control);
+    align-items: center;
+    gap: var(--cp-control-gap);
+    margin-inline-start: auto;
+    border: 0;
+    border-radius: var(--cp-radius);
+    padding-inline: var(--cp-inset);
+    background: transparent;
+    color: var(--cp-ink);
+    font: inherit;
+    font-size: var(--cp-font-caption);
+    cursor: pointer;
+    transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
+  }
 
-.swarm-toggle:hover {
-  background: var(--cp-hover);
-}
+  .swarm-toggle:hover {
+    background: var(--cp-hover);
+  }
 
-/* 浅色档 #e1e1e1 压在深色栏底上就是一圈白光（与 --cp-lift 在深色下变成光晕同一个病），深色另给
+  /* 浅色档 #e1e1e1 压在深色栏底上就是一圈白光（与 --cp-lift 在深色下变成光晕同一个病），深色另给
    #333333：框仍在，只是不再发亮。 */
-:root[data-theme='dark'] .swarm-toggle {
-  --sw-edge: #333333;
-}
+  :root[data-theme='dark'] .swarm-toggle {
+    --sw-edge: #333333;
+  }
 
-.swarm-toggle:focus-visible {
-  outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
-  outline-offset: var(--cp-px);
-}
+  .swarm-toggle:focus-visible {
+    outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
+    outline-offset: var(--cp-px);
+  }
 
-.swarm-toggle__box {
-  display: grid;
-  block-size: var(--sw-box);
-  inline-size: var(--sw-box);
-  flex: none;
-  place-items: center;
-  border: var(--cp-px) solid var(--sw-edge);
-  border-radius: var(--sw-corner);
-  background: transparent;
-  transition:
-    background-color var(--cp-motion-swift) var(--cp-motion-ease),
-    border-color var(--cp-motion-swift) var(--cp-motion-ease);
-}
+  .swarm-toggle__box {
+    display: grid;
+    block-size: var(--sw-box);
+    inline-size: var(--sw-box);
+    flex: none;
+    place-items: center;
+    border: var(--cp-px) solid var(--sw-edge);
+    border-radius: var(--sw-corner);
+    background: transparent;
+    transition:
+      background-color var(--cp-motion-swift) var(--cp-motion-ease),
+      border-color var(--cp-motion-swift) var(--cp-motion-ease);
+  }
 
-.swarm-toggle:hover .swarm-toggle__box {
-  border-color: color-mix(in srgb, var(--sw-fill) 30%, var(--sw-edge));
-}
+  .swarm-toggle:hover .swarm-toggle__box {
+    border-color: color-mix(in srgb, var(--sw-fill) 30%, var(--sw-edge));
+  }
 
-.swarm-toggle[aria-pressed='true'] .swarm-toggle__box {
-  border-color: var(--sw-fill);
-  background: var(--sw-fill);
-}
+  .swarm-toggle[aria-pressed='true'] .swarm-toggle__box {
+    border-color: var(--sw-fill);
+    background: var(--sw-fill);
+  }
 
-.swarm-toggle__check {
-  block-size: var(--sw-check);
-  inline-size: var(--sw-check);
-  color: var(--sw-knockout);
-  opacity: 0;
-  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
-}
+  .swarm-toggle__check {
+    block-size: var(--sw-check);
+    inline-size: var(--sw-check);
+    color: var(--sw-knockout);
+    opacity: 0;
+    transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+  }
 
-.swarm-toggle[aria-pressed='true'] .swarm-toggle__check {
-  opacity: 1;
-}
+  .swarm-toggle[aria-pressed='true'] .swarm-toggle__check {
+    opacity: 1;
+  }
 
-/* 名字来自 agent，可以长：长了在 chip 里断，不许把栏挤开。 */
-.swarm-toggle__label {
-  min-inline-size: 0;
-  max-inline-size: var(--cp-pill-label-max);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* 名字来自 agent，可以长：长了在 chip 里断，不许把栏挤开。 */
+  .swarm-toggle__label {
+    min-inline-size: 0;
+    max-inline-size: var(--cp-pill-label-max);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }

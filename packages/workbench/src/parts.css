@@ -1,47 +1,48 @@
-/* 外壳各区域的排版。颜色与尺寸一律取 design-system 的语义令牌，一个色值都不写。 */
+@layer components.workbench {
+  /* 外壳各区域的排版。颜色与尺寸一律取 design-system 的语义令牌，一个色值都不写。 */
 
-/*
+  /*
  * 开合区几何：前导 = 中线 − 控件高 / 2，区宽下限 = 前导 × 2 + 两枚控件宽 + 间距，右侧留白因此与前导恒等。
  * 前导必须显式 max(0px, …)：根字号放大到控件高 > 2 × 中线时前导本该为负，而负 padding 会被静默夹成 0，
  * 区宽若仍按负值算就小于内容，收起态的按钮会溢出到拖拽区底下。
  */
-.desktop-title-bar__toggle-zone {
-  --titlebar-toggle-size: 1.75rem;
-  --titlebar-toggle-gap: 0.125rem;
-  --titlebar-toggle-lead: max(0px, calc(var(--ui-row-icon-center) - var(--titlebar-toggle-size) / 2));
+  .desktop-title-bar__toggle-zone {
+    --titlebar-toggle-size: 1.75rem;
+    --titlebar-toggle-gap: 0.125rem;
+    --titlebar-toggle-lead: max(0px, calc(var(--ui-row-icon-center) - var(--titlebar-toggle-size) / 2));
 
-  display: flex;
-  align-items: center;
-  gap: var(--titlebar-toggle-gap);
-  flex-shrink: 0;
-  padding-inline-start: var(--titlebar-toggle-lead);
-  inline-size: max(
-    var(--workspace-sidebar-column-width, 0px),
-    calc(var(--titlebar-toggle-lead) * 2 + var(--titlebar-toggle-size) * 2 + var(--titlebar-toggle-gap))
-  );
-}
+    display: flex;
+    align-items: center;
+    gap: var(--titlebar-toggle-gap);
+    flex-shrink: 0;
+    padding-inline-start: var(--titlebar-toggle-lead);
+    inline-size: max(
+      var(--workspace-sidebar-column-width, 0px),
+      calc(var(--titlebar-toggle-lead) * 2 + var(--titlebar-toggle-size) * 2 + var(--titlebar-toggle-gap))
+    );
+  }
 
-/* 拖拽由宿主的非客户区命中测试处理，不经 JavaScript/IPC；子元素必须显式 no-drag，因为命中区域按元素矩形计算。 */
-.desktop-title-bar__drag-region {
-  -webkit-app-region: drag;
-}
+  /* 拖拽由宿主的非客户区命中测试处理，不经 JavaScript/IPC；子元素必须显式 no-drag，因为命中区域按元素矩形计算。 */
+  .desktop-title-bar__drag-region {
+    -webkit-app-region: drag;
+  }
 
-.desktop-title-bar__drag-region > * {
-  -webkit-app-region: no-drag;
-}
+  .desktop-title-bar__drag-region > * {
+    -webkit-app-region: no-drag;
+  }
 
-/* 窗口按钮样式由 design-system 的 Button + platform 工具类负责；这里只留一条：交互式标题栏控件不得参与原生拖拽。 */
-.desktop-window-controls {
-  position: relative;
-  z-index: 3;
-  -webkit-app-region: no-drag;
-}
+  /* 窗口按钮样式由 design-system 的 Button + platform 工具类负责；这里只留一条：交互式标题栏控件不得参与原生拖拽。 */
+  .desktop-window-controls {
+    position: relative;
+    z-index: 3;
+    -webkit-app-region: no-drag;
+  }
 
-.desktop-window-controls > * {
-  -webkit-app-region: no-drag;
-}
+  .desktop-window-controls > * {
+    -webkit-app-region: no-drag;
+  }
 
-/*
+  /*
  * 缺省 placement 的侧栏面板这一格。这两条规则合起来才是「框」：宿主那层必须是 flex 列，
  * 面板格才是 flex 项、才吃得到剩余高度；块盒里子项的 flex 值不说话，高度会退回内容高度。
  *
@@ -49,136 +50,137 @@
  * 断在哪一环，列表就长到内容高度、被宿主的 overflow: hidden 裁掉 —— 会话一多既不滚、也看不到下面那几条
  * （真实故障：重构把 legacy 的 .assistant-panel 框随组件一起删了，用户截图 2026-10-13）。
  */
-.workbench__sidebar-panels {
-  display: flex;
-  min-height: 0;
-  flex-direction: column;
-}
+  .workbench__sidebar-panels {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+  }
 
-.workbench__sidebar-section {
-  display: flex;
-  min-height: 0;
-  flex: 1 1 0;
-  flex-direction: column;
-}
+  .workbench__sidebar-section {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 0;
+    flex-direction: column;
+  }
 
-.workbench__empty {
-  padding: 1rem;
-  color: var(--ui-muted-foreground);
-  font-size: var(--ui-font-size-caption);
-  text-align: center;
-}
+  .workbench__empty {
+    padding: 1rem;
+    color: var(--ui-muted-foreground);
+    font-size: var(--ui-font-size-caption);
+    text-align: center;
+  }
 
-.workbench__main {
-  position: relative;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-}
+  .workbench__main {
+    position: relative;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
 
-.workbench__skeleton {
-  height: 100%;
-  background: var(--ui-muted);
-  opacity: 0.4;
-}
+  .workbench__skeleton {
+    height: 100%;
+    background: var(--ui-muted);
+    opacity: 0.4;
+  }
 
-/*
+  /*
  * 右坞的内容格：兜底只当地色。灰块（--ui-muted 40%）叠在 --ui-background 的 #181818 上就是 #212121，
  * 首次打开懒加载的审查 / 文件格时会先闪一帧这个颜色，与功能自己铺的地色对不上。
  */
-.workbench__skeleton[data-quiet='true'] {
-  background: transparent;
-  opacity: 1;
-}
+  .workbench__skeleton[data-quiet='true'] {
+    background: transparent;
+    opacity: 1;
+  }
 
-.workbench__unknown {
-  display: grid;
-  height: 100%;
-  place-items: center;
-  padding: 2rem;
-  text-align: center;
-}
+  .workbench__unknown {
+    display: grid;
+    height: 100%;
+    place-items: center;
+    padding: 2rem;
+    text-align: center;
+  }
 
-.workbench__unknown-title {
-  margin: 0 0 0.5rem;
-  font-size: var(--ui-prose-size);
-  font-weight: var(--ui-font-weight-semibold);
-}
+  .workbench__unknown-title {
+    margin: 0 0 0.5rem;
+    font-size: var(--ui-prose-size);
+    font-weight: var(--ui-font-weight-semibold);
+  }
 
-.workbench__unknown-detail {
-  margin: 0 0 1rem;
-  color: var(--ui-muted-foreground);
-}
+  .workbench__unknown-detail {
+    margin: 0 0 1rem;
+    color: var(--ui-muted-foreground);
+  }
 
-.workbench__button {
-  height: var(--ui-control-height-md);
-  padding-inline: 1rem;
-  border: 1px solid var(--ui-input);
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-background);
-  color: inherit;
-  font-size: var(--ui-font-size-caption);
-  cursor: pointer;
-}
+  .workbench__button {
+    height: var(--ui-control-height-md);
+    padding-inline: 1rem;
+    border: 1px solid var(--ui-input);
+    border-radius: var(--ui-radius-md);
+    background: var(--ui-background);
+    color: inherit;
+    font-size: var(--ui-font-size-caption);
+    cursor: pointer;
+  }
 
-/* 这里原有的 `.workbench__panel*`（底坞）与 `.workbench__status*`（状态栏）规则已随这两块家具整块删除，不留失效规则。 */
+  /* 这里原有的 `.workbench__panel*`（底坞）与 `.workbench__status*`（状态栏）规则已随这两块家具整块删除，不留失效规则。 */
 
-/* 浮层包装层：contents = 不生成盒子。用普通 div 会被自动放进某个格位，等于外壳又替浮层占了一格。 */
-.workbench__overlay {
-  display: contents;
-}
+  /* 浮层包装层：contents = 不生成盒子。用普通 div 会被自动放进某个格位，等于外壳又替浮层占了一格。 */
+  .workbench__overlay {
+    display: contents;
+  }
 
-/* 失效条住在浮层这一层，自己定位到页头下方：顶在窗口上沿会压住可拖拽的标题栏。 */
-.workbench__failures {
-  position: fixed;
-  inset-block-start: calc(var(--chrome-height) + 0.5rem);
-  inset-inline-start: 0.75rem;
-  z-index: var(--ui-z-popover);
-}
+  /* 失效条住在浮层这一层，自己定位到页头下方：顶在窗口上沿会压住可拖拽的标题栏。 */
+  .workbench__failures {
+    position: fixed;
+    inset-block-start: calc(var(--chrome-height) + 0.5rem);
+    inset-inline-start: 0.75rem;
+    z-index: var(--ui-z-popover);
+  }
 
-.workbench__failures-button {
-  border: 0;
-  background: transparent;
-  color: var(--ui-destructive);
-  font-size: var(--ui-font-size-caption);
-  cursor: pointer;
-}
+  .workbench__failures-button {
+    border: 0;
+    background: transparent;
+    color: var(--ui-destructive);
+    font-size: var(--ui-font-size-caption);
+    cursor: pointer;
+  }
 
-.workbench__failures-list {
-  position: absolute;
-  inset-block-start: 100%;
-  inset-inline-start: 0;
-  margin: 0.375rem 0 0;
-  padding: 0.5rem 0.75rem;
-  list-style: none;
-  border: 1px solid var(--ui-divider);
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-popover);
-  box-shadow: var(--ui-shadow-md);
-  white-space: nowrap;
-}
+  .workbench__failures-list {
+    position: absolute;
+    inset-block-start: 100%;
+    inset-inline-start: 0;
+    margin: 0.375rem 0 0;
+    padding: 0.5rem 0.75rem;
+    list-style: none;
+    border: 1px solid var(--ui-divider);
+    border-radius: var(--ui-radius-md);
+    background: var(--ui-popover);
+    box-shadow: var(--ui-shadow-md);
+    white-space: nowrap;
+  }
 
-/* 功能错误边界（ui-kernel 的 FeatureErrorBoundary 用 data-* 属性） */
-[data-feature-error] {
-  display: grid;
-  height: 100%;
-  place-items: center;
-  gap: 0.5rem;
-  padding: 1.5rem;
-  color: var(--ui-destructive);
-  text-align: center;
-}
+  /* 功能错误边界（ui-kernel 的 FeatureErrorBoundary 用 data-* 属性） */
+  [data-feature-error] {
+    display: grid;
+    height: 100%;
+    place-items: center;
+    gap: 0.5rem;
+    padding: 1.5rem;
+    color: var(--ui-destructive);
+    text-align: center;
+  }
 
-[data-feature-error-title] {
-  margin: 0;
-  font-weight: var(--ui-font-weight-semibold);
-}
+  [data-feature-error-title] {
+    margin: 0;
+    font-weight: var(--ui-font-weight-semibold);
+  }
 
-[data-feature-error-detail] {
-  max-width: 32rem;
-  margin: 0;
-  overflow: auto;
-  color: var(--ui-muted-foreground);
-  font-size: var(--ui-font-size-micro);
-  white-space: pre-wrap;
+  [data-feature-error-detail] {
+    max-width: 32rem;
+    margin: 0;
+    overflow: auto;
+    color: var(--ui-muted-foreground);
+    font-size: var(--ui-font-size-micro);
+    white-space: pre-wrap;
+  }
 }

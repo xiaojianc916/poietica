@@ -104,6 +104,11 @@ palette → typography → scales → controls → assistant → rows → layers
 - 不覆盖 design-system 组件的内部类名；需要新外观先改 design-system。
 - 不写全局选择器（`html` / `*` / `:root`）；确需全局的回到 tokens。
 - 新文件必须自带角色注释：这份 CSS 负责哪块布局、为什么工具类不够。
+- 新文件按归属放进对应子层：design-system → `components.ds`、conversation-kit →
+  `components.kit`、workbench → `components.workbench`、功能 → `components.features`。
+  层序在 renderer 入口声明：`theme < base < components.ds < components.kit <
+components.workbench < components.features < utilities`。
+- `tokens/` 保持无层（值的产地）；`control/menu.css` 是已登记的无层例外（行样式要压过工具类）。
 
 ## 浮层与可访问性
 

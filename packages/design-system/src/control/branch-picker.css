@@ -1,152 +1,154 @@
-/*
+@layer components.ds {
+  /*
  * 上下文栏里的第二枚 chip：几何与项目胶囊同一族令牌（--cp-control /
  * --cp-radius / --cp-hover），弹层骨架与项目选择器同一套
  * （assistant-menu-surface + 顶部搜索 + 28px 行）。这里只声明它自己的
  * 差异，不复制一份色板。
  */
-.git-branch-picker {
-  display: inline-flex;
-  min-inline-size: 0;
-}
+  .git-branch-picker {
+    display: inline-flex;
+    min-inline-size: 0;
+  }
 
-.git-branch-picker__trigger {
-  display: inline-flex;
-  block-size: var(--cp-control);
-  min-inline-size: 0;
-  max-inline-size: 100%;
-  align-items: center;
-  gap: var(--cp-control-gap);
-  border: 0;
-  border-radius: var(--cp-radius);
-  padding-inline: var(--cp-inset);
-  background: transparent;
-  color: var(--cp-ink);
-  font: inherit;
-  font-size: var(--cp-font-caption);
-  cursor: pointer;
-  transition:
-    background-color var(--cp-motion-swift) var(--cp-motion-ease),
-    color var(--cp-motion-swift) var(--cp-motion-ease);
-}
+  .git-branch-picker__trigger {
+    display: inline-flex;
+    block-size: var(--cp-control);
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    align-items: center;
+    gap: var(--cp-control-gap);
+    border: 0;
+    border-radius: var(--cp-radius);
+    padding-inline: var(--cp-inset);
+    background: transparent;
+    color: var(--cp-ink);
+    font: inherit;
+    font-size: var(--cp-font-caption);
+    cursor: pointer;
+    transition:
+      background-color var(--cp-motion-swift) var(--cp-motion-ease),
+      color var(--cp-motion-swift) var(--cp-motion-ease);
+  }
 
-.git-branch-picker__trigger:hover,
-.git-branch-picker__trigger[data-popup-open] {
-  background: var(--cp-hover);
-}
+  .git-branch-picker__trigger:hover,
+  .git-branch-picker__trigger[data-popup-open] {
+    background: var(--cp-hover);
+  }
 
-.git-branch-picker__trigger:focus-visible {
-  outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
-  outline-offset: var(--cp-px);
-}
+  .git-branch-picker__trigger:focus-visible {
+    outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
+    outline-offset: var(--cp-px);
+  }
 
-.git-branch-picker__trigger svg {
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-  flex: none;
-  color: var(--cp-ink-muted);
-}
+  .git-branch-picker__trigger svg {
+    block-size: var(--cp-icon);
+    inline-size: var(--cp-icon);
+    flex: none;
+    color: var(--cp-ink-muted);
+  }
 
-/*
+  /*
  * row：状态面板那一行。触发器占满容器、32px 高，首枚图标用正文墨（默认 chip 是 muted）。
  * 这是组件的公开变体，消费方不再按 `.git-branch-picker__trigger` 改尺寸。
  */
-.git-branch-picker[data-variant='row'] .git-branch-picker__trigger {
-  block-size: 32px;
-  inline-size: 100%;
-  justify-content: flex-start;
-  gap: 8px;
-  padding: 0 8px;
-  border-radius: 8px;
-  font-size: 14px;
-}
+  .git-branch-picker[data-variant='row'] .git-branch-picker__trigger {
+    block-size: 32px;
+    inline-size: 100%;
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 0 8px;
+    border-radius: 8px;
+    font-size: 14px;
+  }
 
-.git-branch-picker[data-variant='row'] .git-branch-picker__trigger svg:first-child {
-  color: var(--cp-ink);
-}
+  .git-branch-picker[data-variant='row'] .git-branch-picker__trigger svg:first-child {
+    color: var(--cp-ink);
+  }
 
-/* 分支名可以很长（feature/…），省略号在 chip 里断，不许把上下文栏挤开。 */
-.git-branch-picker__name {
-  min-inline-size: 0;
-  max-inline-size: 24ch;
-  overflow: hidden;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+  /* 分支名可以很长（feature/…），省略号在 chip 里断，不许把上下文栏挤开。 */
+  .git-branch-picker__name {
+    min-inline-size: 0;
+    max-inline-size: 24ch;
+    overflow: hidden;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
-/* 卡面、行盒与那条分隔线都归通用弹窗；这一张只声明自己的最小宽度与搜索栏。 */
-.git-branch-picker__menu {
-  min-inline-size: 216px;
-}
+  /* 卡面、行盒与那条分隔线都归通用弹窗；这一张只声明自己的最小宽度与搜索栏。 */
+  .git-branch-picker__menu {
+    min-inline-size: 216px;
+  }
 
-/* 搜索是弹层的标题栏，与项目选择器同一形状：图标在左，与名单隔一条线。 */
-.git-branch-picker__field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 2px 4px 4px;
-  border-block-end: var(--cp-px) solid var(--cp-picker-rule);
-  padding: 4px 4px 8px;
-  color: var(--cp-ink-subtle);
-}
+  /* 搜索是弹层的标题栏，与项目选择器同一形状：图标在左，与名单隔一条线。 */
+  .git-branch-picker__field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 2px 4px 4px;
+    border-block-end: var(--cp-px) solid var(--cp-picker-rule);
+    padding: 4px 4px 8px;
+    color: var(--cp-ink-subtle);
+  }
 
-.git-branch-picker__field svg {
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-  flex: none;
-}
+  .git-branch-picker__field svg {
+    block-size: var(--cp-icon);
+    inline-size: var(--cp-icon);
+    flex: none;
+  }
 
-.git-branch-picker__search {
-  min-inline-size: 0;
-  flex: 1;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--cp-ink);
-  font: inherit;
-  font-size: var(--cp-font-caption);
-  outline: none;
-}
+  .git-branch-picker__search {
+    min-inline-size: 0;
+    flex: 1;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: var(--cp-ink);
+    font: inherit;
+    font-size: var(--cp-font-caption);
+    outline: none;
+  }
 
-.git-branch-picker__search::placeholder {
-  color: var(--cp-placeholder);
-}
+  .git-branch-picker__search::placeholder {
+    color: var(--cp-placeholder);
+  }
 
-.git-branch-picker__menu .git-branch-picker__item {
-  display: flex;
-  align-items: center;
-}
+  .git-branch-picker__menu .git-branch-picker__item {
+    display: flex;
+    align-items: center;
+  }
 
-.git-branch-picker__item-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+  .git-branch-picker__item-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
-.git-branch-picker__check {
-  margin-inline-start: auto;
-}
+  .git-branch-picker__check {
+    margin-inline-start: auto;
+  }
 
-.git-branch-picker__none {
-  margin: 0;
-  padding: 4px 8px 8px;
-  color: var(--cp-ink-subtle);
-  font-size: var(--cp-font-micro);
-}
+  .git-branch-picker__none {
+    margin: 0;
+    padding: 4px 8px 8px;
+    color: var(--cp-ink-subtle);
+    font-size: var(--cp-font-micro);
+  }
 
-/* 名单最多露 6 行（6 × 28px），超出滚动；滚动条藏起来，保持弹层干净。 */
-.git-branch-picker__menu .git-branch-picker__list {
-  max-block-size: 168px;
-  overflow-y: auto;
-  scrollbar-width: none;
-}
+  /* 名单最多露 6 行（6 × 28px），超出滚动；滚动条藏起来，保持弹层干净。 */
+  .git-branch-picker__menu .git-branch-picker__list {
+    max-block-size: 168px;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
 
-.git-branch-picker__menu .git-branch-picker__list::-webkit-scrollbar {
-  display: none;
-}
+  .git-branch-picker__menu .git-branch-picker__list::-webkit-scrollbar {
+    display: none;
+  }
 
-.git-branch-picker__menu .git-branch-picker__separator {
-  /* 4px：工具条浮层族的 --am-pad 随皮肤拆掉了。 */
-  margin: 4px 8px;
-  background-color: var(--cp-picker-rule);
+  .git-branch-picker__menu .git-branch-picker__separator {
+    /* 4px：工具条浮层族的 --am-pad 随皮肤拆掉了。 */
+    margin: 4px 8px;
+    background-color: var(--cp-picker-rule);
+  }
 }

@@ -1,284 +1,286 @@
-/* 模型与思考档位选择器：量度与配色住在 tokens/assistant.css 的 --cp-model-*，轨道四层的定位关系只在 stopOffset 算一次，分开算会错位。 */
+@layer components.features {
+  /* 模型与思考档位选择器：量度与配色住在 tokens/assistant.css 的 --cp-model-*，轨道四层的定位关系只在 stopOffset 算一次，分开算会错位。 */
 
-/* 静息要透明，跟工具条另外两枚胶囊一样：常驻的灰底会被读成「已选中/已展开」。 */
-.assistant-model-select__button {
-  display: inline-flex;
-  block-size: var(--cp-model-pill);
-  max-inline-size: 100%;
+  /* 静息要透明，跟工具条另外两枚胶囊一样：常驻的灰底会被读成「已选中/已展开」。 */
+  .assistant-model-select__button {
+    display: inline-flex;
+    block-size: var(--cp-model-pill);
+    max-inline-size: 100%;
 
-  flex: none;
-  align-items: center;
-  gap: var(--cp-model-pill-gap);
-  border: 0;
-  border-radius: var(--ui-radius-full);
-  padding-inline: var(--cp-model-pill-pad);
-  background: transparent;
-  font: inherit;
-  font-size: var(--cp-model-size);
-  font-weight: 400;
-  /* 这一格的颜色就是模型名那一段的墨。 */
-  color: var(--cp-model-pill-ink);
-  cursor: pointer;
-  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
-}
+    flex: none;
+    align-items: center;
+    gap: var(--cp-model-pill-gap);
+    border: 0;
+    border-radius: var(--ui-radius-full);
+    padding-inline: var(--cp-model-pill-pad);
+    background: transparent;
+    font: inherit;
+    font-size: var(--cp-model-size);
+    font-weight: 400;
+    /* 这一格的颜色就是模型名那一段的墨。 */
+    color: var(--cp-model-pill-ink);
+    cursor: pointer;
+    transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
+  }
 
-.assistant-model-select__button:hover,
-.assistant-model-select__button[aria-expanded='true'] {
-  background: var(--cp-input-hover);
-}
+  .assistant-model-select__button:hover,
+  .assistant-model-select__button[aria-expanded='true'] {
+    background: var(--cp-input-hover);
+  }
 
-/* 行高要装得下字形自己的盒子：压到 1，'g' 那一捺与括号都在行盒外面，而这两格有 overflow: hidden。 */
-.assistant-model-select__name,
-.assistant-model-select__band {
-  min-inline-size: 0;
-  overflow: hidden;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  /* 居中的是行盒，看着对的却是字身的墨：墨比行盒中心低约 1.2px（14px 档），取 1.5px 把 'p' 'g' 那一捺也算进视觉重心。 */
-  translate: 0 -1.5px;
-}
+  /* 行高要装得下字形自己的盒子：压到 1，'g' 那一捺与括号都在行盒外面，而这两格有 overflow: hidden。 */
+  .assistant-model-select__name,
+  .assistant-model-select__band {
+    min-inline-size: 0;
+    overflow: hidden;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    /* 居中的是行盒，看着对的却是字身的墨：墨比行盒中心低约 1.2px（14px 档），取 1.5px 把 'p' 'g' 那一捺也算进视觉重心。 */
+    translate: 0 -1.5px;
+  }
 
-.assistant-model-select__band {
-  flex: none;
-  color: var(--cp-model-pill-level-ink);
-}
+  .assistant-model-select__band {
+    flex: none;
+    color: var(--cp-model-pill-level-ink);
+  }
 
-/*
+  /*
  * 卡面、圆角、影与内边距全归通用弹窗。卡自己不定宽：宽是当前那一页的，换页时盒子从旧页量到新页（pane-stage.tsx）。
  * 卡的宽若写死在这里，两页就只能同宽，换页也就只剩高可补。
  */
-.assistant-model-select__panel {
-  max-inline-size: calc(100vw - 2 * var(--cp-gutter));
-}
+  .assistant-model-select__panel {
+    max-inline-size: calc(100vw - 2 * var(--cp-gutter));
+  }
 
-/*
+  /*
  * 两页各说各的卡宽（令牌 --cp-model-panel / --cp-model-list-panel，默认同值，与基准截图一致）。卡自带 p-1，两侧合计 8，
  * 所以页宽是卡宽减 8；窄窗口下再与卡的上限取小 —— 长模型名照旧在页里省略，而不是被卡的 overflow 裁掉。
  */
-.assistant-model-select__band-pane {
-  inline-size: min(calc(var(--cp-model-panel) - 8px), calc(100vw - 2 * var(--cp-gutter) - 8px));
-}
+  .assistant-model-select__band-pane {
+    inline-size: min(calc(var(--cp-model-panel) - 8px), calc(100vw - 2 * var(--cp-gutter) - 8px));
+  }
 
-.assistant-model-select__list-pane {
-  inline-size: min(calc(var(--cp-model-list-panel) - 8px), calc(100vw - 2 * var(--cp-gutter) - 8px));
-}
+  .assistant-model-select__list-pane {
+    inline-size: min(calc(var(--cp-model-list-panel) - 8px), calc(100vw - 2 * var(--cp-gutter) - 8px));
+  }
 
-/* 档位页：两行字加一条轨道。 */
-.assistant-model-select__band-pane {
-  display: grid;
-  gap: var(--cp-model-panel-gap);
-  /* 菜单卡自己带 4 的横向内边距（p-1），这里补 8，两侧合计 12 才等于 --cp-model-panel-pad，轨道才是 224 - 24 = 200。 */
-  padding: var(--cp-model-panel-lead) 8px var(--cp-model-panel-pad);
-}
+  /* 档位页：两行字加一条轨道。 */
+  .assistant-model-select__band-pane {
+    display: grid;
+    gap: var(--cp-model-panel-gap);
+    /* 菜单卡自己带 4 的横向内边距（p-1），这里补 8，两侧合计 12 才等于 --cp-model-panel-pad，轨道才是 224 - 24 = 200。 */
+    padding: var(--cp-model-panel-lead) 8px var(--cp-model-panel-pad);
+  }
 
-/*
+  /*
  * 两行字整块居中，不是逐行居中 —— 模型名长短差得远，逐行居中会让档位名左右跳。箭头绝对定位在档位名之后、不参与居中。
  */
-[data-assistant-skin] .assistant-model-select__head {
-  display: grid;
-  justify-self: center;
-  justify-items: center;
-  /* 这一行是菜单里的一行，它带着菜单行的项目间距。 */
-  gap: 0;
-  padding: var(--cp-model-head-pad);
-  border: 0;
-  border-radius: var(--cp-model-head-radius);
-  background: transparent;
-  font: inherit;
-  text-align: center;
-  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
-}
+  [data-assistant-skin] .assistant-model-select__head {
+    display: grid;
+    justify-self: center;
+    justify-items: center;
+    /* 这一行是菜单里的一行，它带着菜单行的项目间距。 */
+    gap: 0;
+    padding: var(--cp-model-head-pad);
+    border: 0;
+    border-radius: var(--cp-model-head-radius);
+    background: transparent;
+    font: inherit;
+    text-align: center;
+    transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
+  }
 
-[data-assistant-skin] .assistant-model-select__head:hover,
-[data-assistant-skin] .assistant-model-select__head[data-highlighted] {
-  outline: none;
-  background: var(--ui-menu-hover);
-}
+  [data-assistant-skin] .assistant-model-select__head:hover,
+  [data-assistant-skin] .assistant-model-select__head[data-highlighted] {
+    outline: none;
+    background: var(--ui-menu-hover);
+  }
 
-.assistant-model-select__head-band {
-  position: relative;
-  color: var(--cp-model-level-ink);
-  font-size: var(--cp-model-level-size);
-  font-weight: 600;
-  line-height: 1.2;
-}
+  .assistant-model-select__head-band {
+    position: relative;
+    color: var(--cp-model-level-ink);
+    font-size: var(--cp-model-level-size);
+    font-weight: 600;
+    line-height: 1.2;
+  }
 
-.assistant-model-select__head-chevron {
-  position: absolute;
-  inset-block-start: 50%;
-  inset-inline-start: 100%;
-  margin-inline-start: 4px;
-  color: var(--cp-model-quiet-ink);
-  transform: translateY(-50%);
-}
+  .assistant-model-select__head-chevron {
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-start: 100%;
+    margin-inline-start: 4px;
+    color: var(--cp-model-quiet-ink);
+    transform: translateY(-50%);
+  }
 
-.assistant-model-select__head-name {
-  color: var(--cp-model-name-ink);
-  font-size: var(--cp-model-name-size);
-  line-height: 1.2;
-}
+  .assistant-model-select__head-name {
+    color: var(--cp-model-name-ink);
+    font-size: var(--cp-model-name-size);
+    line-height: 1.2;
+  }
 
-/*
+  /*
  * 底轨、填充、档位点、滑块四层。填充是底轨自己的一层背景而不是另起元素：它的盒子只有半个滑块宽（14px），9999px 的圆角在这么窄的盒子上会被按比例压成 7px，
  * 滑块滑到最左时轨道左上、左下各露出一弯蓝；背景层由底轨自己的圆角裁切，露不出去。档位点、滑块与原生输入都按 stopOffset 绝对定位。
  */
-.assistant-model-select__rail {
-  position: relative;
-  block-size: var(--cp-model-rail);
-  border-radius: var(--ui-radius-full);
-  background-color: var(--cp-model-rail-face);
-  background-image: linear-gradient(var(--cp-model-rail-fill), var(--cp-model-rail-fill));
-  background-repeat: no-repeat;
-  /* background-size 由 rail() 逐档给出。 */
-  cursor: pointer;
-  touch-action: none;
-  transition: background-size var(--cp-motion-swift) var(--cp-motion-ease);
-}
+  .assistant-model-select__rail {
+    position: relative;
+    block-size: var(--cp-model-rail);
+    border-radius: var(--ui-radius-full);
+    background-color: var(--cp-model-rail-face);
+    background-image: linear-gradient(var(--cp-model-rail-fill), var(--cp-model-rail-fill));
+    background-repeat: no-repeat;
+    /* background-size 由 rail() 逐档给出。 */
+    cursor: pointer;
+    touch-action: none;
+    transition: background-size var(--cp-motion-swift) var(--cp-motion-ease);
+  }
 
-/*
+  /*
  * 位置由 rail() 逐档写出。点自己只有 4px，悬停够不着，所以给它一个透明命中区（::after）撑到设计系统的指针目标下限；
  * 自身 pointer-events: none、命中区 auto，按下时冒泡上来的是底轨，拖动不会因起手在点上就断掉。
  */
-.assistant-model-select__dot {
-  position: absolute;
-  inset-block-start: 50%;
-  inline-size: var(--cp-model-rail-dot);
-  block-size: var(--cp-model-rail-dot);
-  translate: -50% -50%;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--cp-ink) 26%, transparent);
-  pointer-events: none;
-  transition: scale var(--cp-motion-swift) var(--cp-motion-ease);
-}
+  .assistant-model-select__dot {
+    position: absolute;
+    inset-block-start: 50%;
+    inline-size: var(--cp-model-rail-dot);
+    block-size: var(--cp-model-rail-dot);
+    translate: -50% -50%;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--cp-ink) 26%, transparent);
+    pointer-events: none;
+    transition: scale var(--cp-motion-swift) var(--cp-motion-ease);
+  }
 
-.assistant-model-select__dot::after {
-  position: absolute;
-  inset-block-start: 50%;
-  inset-inline-start: 50%;
-  inline-size: var(--cp-target-min);
-  block-size: var(--cp-target-min);
-  translate: -50% -50%;
-  border-radius: 50%;
-  content: '';
-  pointer-events: auto;
-}
+  .assistant-model-select__dot::after {
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-start: 50%;
+    inline-size: var(--cp-target-min);
+    block-size: var(--cp-target-min);
+    translate: -50% -50%;
+    border-radius: 50%;
+    content: '';
+    pointer-events: auto;
+  }
 
-/* 悬停长一圈、挪开缩回去，两趟同一条时长。 */
-.assistant-model-select__dot:hover {
-  scale: 2;
-}
+  /* 悬停长一圈、挪开缩回去，两趟同一条时长。 */
+  .assistant-model-select__dot:hover {
+    scale: 2;
+  }
 
-/* 已越过的档位点长在填充上，那里要的是提亮而不是压深，所以是一层白墨。 */
-.assistant-model-select__dot[data-passed='true'] {
-  --assistant-model-select-passed: rgb(255 255 255 / 30%);
+  /* 已越过的档位点长在填充上，那里要的是提亮而不是压深，所以是一层白墨。 */
+  .assistant-model-select__dot[data-passed='true'] {
+    --assistant-model-select-passed: rgb(255 255 255 / 30%);
 
-  background: var(--assistant-model-select-passed);
-}
+    background: var(--assistant-model-select-passed);
+  }
 
-/* 原生滑块的落点是布局算出来的，位置一变就是跳，CSS 补不了间，所以自己画一颗。 */
-.assistant-model-select__thumb {
-  position: absolute;
-  inset-block-start: 50%;
-  inline-size: var(--cp-model-thumb);
-  block-size: var(--cp-model-thumb);
-  translate: -50% -50%;
-  border: var(--cp-px) solid var(--cp-model-thumb-edge);
-  border-radius: 50%;
-  background: var(--cp-model-thumb-face);
-  box-shadow: var(--cp-model-thumb-lift);
-  pointer-events: none;
-  transition: inset-inline-start var(--cp-motion-swift) var(--cp-motion-ease);
-}
+  /* 原生滑块的落点是布局算出来的，位置一变就是跳，CSS 补不了间，所以自己画一颗。 */
+  .assistant-model-select__thumb {
+    position: absolute;
+    inset-block-start: 50%;
+    inline-size: var(--cp-model-thumb);
+    block-size: var(--cp-model-thumb);
+    translate: -50% -50%;
+    border: var(--cp-px) solid var(--cp-model-thumb-edge);
+    border-radius: 50%;
+    background: var(--cp-model-thumb-face);
+    box-shadow: var(--cp-model-thumb-lift);
+    pointer-events: none;
+    transition: inset-inline-start var(--cp-motion-swift) var(--cp-motion-ease);
+  }
 
-/*
+  /*
  * 指针一律穿透（拖动、点击都归底轨），滑块自己隐形。**不能用 display: none 或 visibility: hidden 藏它**：
  * 那样会掉出无障碍树，方向键、Home/End 与 aria-valuetext 都失效，焦点环也画不出来。
  */
-.assistant-model-select__input {
-  position: absolute;
-  inset: 0;
-  inline-size: 100%;
-  margin: 0;
-  padding: 0;
-  appearance: none;
-  border: 0;
-  border-radius: var(--ui-radius-full);
-  background: transparent;
-  pointer-events: none;
-}
+  .assistant-model-select__input {
+    position: absolute;
+    inset: 0;
+    inline-size: 100%;
+    margin: 0;
+    padding: 0;
+    appearance: none;
+    border: 0;
+    border-radius: var(--ui-radius-full);
+    background: transparent;
+    pointer-events: none;
+  }
 
-.assistant-model-select__input:focus-visible {
-  outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
-  outline-offset: calc(var(--cp-px) * 2);
-}
+  .assistant-model-select__input:focus-visible {
+    outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
+    outline-offset: calc(var(--cp-px) * 2);
+  }
 
-.assistant-model-select__input::-webkit-slider-runnable-track {
-  block-size: var(--cp-model-rail);
-  background: transparent;
-}
+  .assistant-model-select__input::-webkit-slider-runnable-track {
+    block-size: var(--cp-model-rail);
+    background: transparent;
+  }
 
-.assistant-model-select__input::-webkit-slider-thumb {
-  appearance: none;
-  inline-size: var(--cp-model-thumb);
-  block-size: var(--cp-model-thumb);
-  /* 滑块比轨道高，负的偏移把它压回轨道的中线上。 */
-  margin-block-start: calc((var(--cp-model-rail) - var(--cp-model-thumb)) / 2);
-  opacity: 0;
-}
+  .assistant-model-select__input::-webkit-slider-thumb {
+    appearance: none;
+    inline-size: var(--cp-model-thumb);
+    block-size: var(--cp-model-thumb);
+    /* 滑块比轨道高，负的偏移把它压回轨道的中线上。 */
+    margin-block-start: calc((var(--cp-model-rail) - var(--cp-model-thumb)) / 2);
+    opacity: 0;
+  }
 
-/*
+  /*
  * 列宽由面板说了算，不跟最宽那一行撑开：不加这一条，grid 的隐式列按 max-content 算，长模型名把行撑得比面板还宽，字被卡片的 overflow: hidden 裁掉。
  *
  * 这里不再加横向留白：行自带 8、卡片让 4，缩进已经是 12；面板再加一份 12，高亮块就缩在卡片中间（224 的面板只剩 192 给行），看着像整页缩进去了。
  */
-.assistant-model-select__list-pane {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  padding: 6px 0;
-  /*
+  .assistant-model-select__list-pane {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    padding: 6px 0;
+    /*
    * 最多十行，多出来的在页里滚。上限 = 十份行高 + 上下各 6 的内边距；第 11 行起被页自己的 overflow 裁掉。
    *
    * 滚的是页而不是卡：卡（.assistant-model-select__panel）是 overflow: hidden 的，它一滚就把卡面那圈
    * 圆角与边线一起带着滚，看着像整张卡片在动。页滚，卡的边框与投影钉着不动。
    */
-  max-block-size: calc(var(--cp-model-list-rows) * var(--cp-model-item-row) + 12px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  /* 滚动条不画，滚动照旧：滚轮、触屏、方向键与 Home/End 都不走条，条在这里只是十二行里多出的第五条线。 */
-  scrollbar-width: none;
-}
+    max-block-size: calc(var(--cp-model-list-rows) * var(--cp-model-item-row) + 12px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    /* 滚动条不画，滚动照旧：滚轮、触屏、方向键与 Home/End 都不走条，条在这里只是十二行里多出的第五条线。 */
+    scrollbar-width: none;
+  }
 
-.assistant-model-select__list-pane::-webkit-scrollbar {
-  inline-size: 0;
-  block-size: 0;
-  display: none;
-}
+  .assistant-model-select__list-pane::-webkit-scrollbar {
+    inline-size: 0;
+    block-size: 0;
+    display: none;
+  }
 
-/*
+  /*
  * 行盒、悬停底与字色归通用弹窗；这里只留名字那一格怎么收尾。
  *
  * 行高钉成 --cp-model-item-row（29px），不再由字行与内边距凑出来：清单页最多只露十行，那个上限就是
  * 「十份行高」，行高若不是定值，上限只能跟着字级浮动，改一次字号就得重算一次。
  */
-.assistant-model-select__item {
-  display: flex;
-  block-size: var(--cp-model-item-row);
-  /* 行高改由 block-size 说，纵向内边距归零：带着通用弹窗那 4px 再定高，字行会在 29 的盒子里溢出半像素。 */
-  padding-block: 0;
-  align-items: center;
-}
+  .assistant-model-select__item {
+    display: flex;
+    block-size: var(--cp-model-item-row);
+    /* 行高改由 block-size 说，纵向内边距归零：带着通用弹窗那 4px 再定高，字行会在 29 的盒子里溢出半像素。 */
+    padding-block: 0;
+    align-items: center;
+  }
 
-.assistant-model-select__item-name {
-  min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+  .assistant-model-select__item-name {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
-.assistant-model-select__item-tick {
-  display: flex;
-  flex: none;
-  align-items: center;
-  margin-inline-start: auto;
+  .assistant-model-select__item-tick {
+    display: flex;
+    flex: none;
+    align-items: center;
+    margin-inline-start: auto;
+  }
 }

@@ -16,7 +16,10 @@
 3. 不覆盖 design-system 组件的内部类名；需要新外观先改 design-system。
 4. 不写全局选择器（`html` / `*` / `:root`）；确需全局的回到 `tokens/`。
 5. 每个文件头注释写清：负责哪块布局、为什么工具类不够。
-6. 新文件必须放进 `@layer components`（存量迁移单独立项，不在本次整理里做）。
+6. 新文件按归属放进对应子层：design-system → `components.ds`、conversation-kit →
+   `components.kit`、workbench → `components.workbench`、功能 → `components.features`。
+   层序在 renderer 入口声明：`theme < base < components.ds < components.kit <
+components.workbench < components.features < utilities`。
 
 ## 实现位置
 

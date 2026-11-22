@@ -1,15 +1,17 @@
-/* 入口提示浮在吉祥物之上；它是入口版心，不占外壳栅格的行。 */
-.entry-notices {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  inline-size: 100%;
-}
+@layer components.features {
+  /* 入口提示浮在吉祥物之上；它是入口版心，不占外壳栅格的行。 */
+  .entry-notices {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    inline-size: 100%;
+  }
 
-.entry-notice {
-  display: inline-flex;
-  align-items: center;
-  color: var(--ui-muted-foreground);
-  font-size: 13px;
+  .entry-notice {
+    display: inline-flex;
+    align-items: center;
+    color: var(--ui-muted-foreground);
+    font-size: 13px;
+  }
 }

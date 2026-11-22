@@ -1,4 +1,5 @@
-/*
+@layer components.features {
+  /*
  * 对话内智能界面。
  *
  * 界面没有外框、没有底色：它就是回复的一部分，宽度占满正文栏，高度跟内容走（不再封顶 80vh：
@@ -10,316 +11,317 @@
  * 另外只在界面请求确认、出错、打开调整面板时多一行。
  */
 
-.intelligent-ui {
-  position: relative;
-  min-inline-size: 0;
-  margin-block: 0.25rem;
-}
+  .intelligent-ui {
+    position: relative;
+    min-inline-size: 0;
+    margin-block: 0.25rem;
+  }
 
-.intelligent-ui__frame {
-  display: block;
-  inline-size: 100%;
-  border: 0;
-  background: transparent;
-  /*
+  .intelligent-ui__frame {
+    display: block;
+    inline-size: 100%;
+    border: 0;
+    background: transparent;
+    /*
    * 不写 color-scheme，从 :root 继承（主题令牌按 data-theme 设 light/dark）。iframe 元素与组件文档的
    * color-scheme 不一致时，浏览器会给组件垫一块不透明的 Canvas 底色——深色下就是一块比正文更黑的方块。
    */
-}
-
-/* wide：iframe 按 1100px 排版、从左上角缩放（见下面的 __stage） */
-.intelligent-ui[data-wide='true'] .intelligent-ui__frame {
-  max-inline-size: none;
-  transform-origin: 0 0;
-}
-
-.intelligent-ui[data-source='html'] .intelligent-ui__frame {
-  transition: height 160ms var(--cp-motion-ease);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .intelligent-ui[data-source='html'] .intelligent-ui__frame {
-    transition: none;
   }
-}
 
-/*
+  /* wide：iframe 按 1100px 排版、从左上角缩放（见下面的 __stage） */
+  .intelligent-ui[data-wide='true'] .intelligent-ui__frame {
+    max-inline-size: none;
+    transform-origin: 0 0;
+  }
+
+  .intelligent-ui[data-source='html'] .intelligent-ui__frame {
+    transition: height 160ms var(--cp-motion-ease);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .intelligent-ui[data-source='html'] .intelligent-ui__frame {
+      transition: none;
+    }
+  }
+
+  /*
  * 第一次报高度之前不露面（外壳是空白页；有缓存高度时先按它占位）。用 opacity 而不是 visibility、
  * 高度留 1px 而不是 0：Chromium 会停掉不可见、零面积的跨源 iframe 的渲染，界面就永远量不出高度。
  */
-.intelligent-ui[data-source='html'][data-ready='false'] .intelligent-ui__frame {
-  opacity: 0;
-}
-
-.intelligent-ui__button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  inline-size: 1.75rem;
-  block-size: 1.75rem;
-  padding: 0;
-  border: 0;
-  border-radius: var(--ui-radius-sm);
-  background: transparent;
-  color: var(--cp-timeline-quiet-text);
-  cursor: pointer;
-  line-height: 0;
-  transition:
-    color 100ms var(--cp-motion-ease),
-    background-color 100ms var(--cp-motion-ease);
-}
-
-.intelligent-ui__button:hover,
-.intelligent-ui__button:focus-visible {
-  background: var(--cp-hover);
-  color: var(--cp-ink);
-}
-
-/* wide：iframe 按 1100px 排版、整体缩放（card.tsx 算 scale 与这一格的高度），左上角对齐 */
-.intelligent-ui__stage {
-  position: relative;
-}
-
-.intelligent-ui[data-wide='true'] .intelligent-ui__stage {
-  overflow: hidden;
-}
-
-/* 界面下面那一行：高度固定，预览 → 定稿、悬停与否都不跳 */
-.intelligent-ui__bar {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-block-size: 1.75rem;
-  margin-block-start: 0.25rem;
-}
-
-.intelligent-ui__tools {
-  display: flex;
-  align-items: center;
-  gap: 0.125rem;
-  margin-inline-start: auto;
-}
-
-.intelligent-ui__tools[data-placement='header'] {
-  gap: 0.25rem;
-}
-
-/* 时间线里：悬停、键盘聚焦进来、调整面板开着时才露面 */
-.intelligent-ui__tools[data-placement='row'] {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms var(--cp-motion-ease);
-}
-
-.intelligent-ui:hover .intelligent-ui__tools[data-placement='row'],
-.intelligent-ui__bar:focus-within .intelligent-ui__tools[data-placement='row'],
-.intelligent-ui[data-tweaking='true'] .intelligent-ui__tools[data-placement='row'] {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .intelligent-ui__tools[data-placement='row'] {
-    transition: none;
+  .intelligent-ui[data-source='html'][data-ready='false'] .intelligent-ui__frame {
+    opacity: 0;
   }
-}
 
-/* 截图期间藏起所有提示：提示挂在 body 上，可能压在界面上被截进去（尤其对话框表头那一排朝下的） */
-html:has(.intelligent-ui[data-capturing='true']) .ui-tooltip {
-  visibility: hidden;
-}
+  .intelligent-ui__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    inline-size: 1.75rem;
+    block-size: 1.75rem;
+    padding: 0;
+    border: 0;
+    border-radius: var(--ui-radius-sm);
+    background: transparent;
+    color: var(--cp-timeline-quiet-text);
+    cursor: pointer;
+    line-height: 0;
+    transition:
+      color 100ms var(--cp-motion-ease),
+      background-color 100ms var(--cp-motion-ease);
+  }
 
-.intelligent-ui__button[aria-pressed='true'],
-.intelligent-ui-dialog__tools [aria-pressed='true'] {
-  background: var(--cp-hover);
-  color: var(--cp-ink);
-}
+  .intelligent-ui__button:hover,
+  .intelligent-ui__button:focus-visible {
+    background: var(--cp-hover);
+    color: var(--cp-ink);
+  }
 
-/* 调整面板：原生控件，跟着应用的主题；每组一个 fieldset */
-.intelligent-ui__tweaks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-block-start: 0.5rem;
-  padding: 0.625rem 0.75rem;
-  border: 1px solid var(--cp-edge);
-  border-radius: var(--ui-radius-lg);
-  background: var(--cp-timeline-output-surface);
-  font-size: var(--ui-prose-size-aux);
-}
+  /* wide：iframe 按 1100px 排版、整体缩放（card.tsx 算 scale 与这一格的高度），左上角对齐 */
+  .intelligent-ui__stage {
+    position: relative;
+  }
 
-.intelligent-ui__tweak-group {
-  display: grid;
-  grid-template-columns: minmax(0, max-content) minmax(8rem, 1fr) minmax(0, max-content);
-  align-items: center;
-  gap: 0.375rem 0.75rem;
-  flex: 1 1 18rem;
-  min-inline-size: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
+  .intelligent-ui[data-wide='true'] .intelligent-ui__stage {
+    overflow: hidden;
+  }
 
-.intelligent-ui__tweak-legend {
-  grid-column: 1 / -1;
-  padding: 0;
-  margin-block-end: 0.125rem;
-  color: var(--cp-ink);
-  font-weight: 600;
-}
+  /* 界面下面那一行：高度固定，预览 → 定稿、悬停与否都不跳 */
+  .intelligent-ui__bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-block-size: 1.75rem;
+    margin-block-start: 0.25rem;
+  }
 
-.intelligent-ui__tweak {
-  display: contents;
-  color: var(--cp-timeline-quiet-text);
-}
+  .intelligent-ui__tools {
+    display: flex;
+    align-items: center;
+    gap: 0.125rem;
+    margin-inline-start: auto;
+  }
 
-.intelligent-ui__tweak input[type='range'],
-.intelligent-ui__tweak select {
-  min-inline-size: 0;
-  accent-color: var(--cp-accent);
-}
+  .intelligent-ui__tools[data-placement='header'] {
+    gap: 0.25rem;
+  }
 
-.intelligent-ui__tweak input[type='checkbox'] {
-  justify-self: start;
-  accent-color: var(--cp-accent);
-}
+  /* 时间线里：悬停、键盘聚焦进来、调整面板开着时才露面 */
+  .intelligent-ui__tools[data-placement='row'] {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms var(--cp-motion-ease);
+  }
 
-.intelligent-ui__tweak input[type='color'] {
-  justify-self: start;
-  inline-size: 2rem;
-  block-size: 1.5rem;
-  padding: 0;
-  border: 1px solid var(--cp-edge);
-  border-radius: var(--ui-radius-sm);
-  background: transparent;
-}
+  .intelligent-ui:hover .intelligent-ui__tools[data-placement='row'],
+  .intelligent-ui__bar:focus-within .intelligent-ui__tools[data-placement='row'],
+  .intelligent-ui[data-tweaking='true'] .intelligent-ui__tools[data-placement='row'] {
+    opacity: 1;
+    pointer-events: auto;
+  }
 
-.intelligent-ui__tweak-value {
-  color: var(--cp-ink);
-  font-family: var(--cp-font-mono);
-  font-variant-numeric: tabular-nums;
-}
+  @media (prefers-reduced-motion: reduce) {
+    .intelligent-ui__tools[data-placement='row'] {
+      transition: none;
+    }
+  }
 
-.intelligent-ui__tweak-reset {
-  display: inline-flex;
-  grid-column: 1 / -1;
-  align-items: center;
-  justify-self: start;
-  gap: 0.25rem;
-}
+  /* 截图期间藏起所有提示：提示挂在 body 上，可能压在界面上被截进去（尤其对话框表头那一排朝下的） */
+  html:has(.intelligent-ui[data-capturing='true']) .ui-tooltip {
+    visibility: hidden;
+  }
 
-.intelligent-ui__tweak-reset:disabled {
-  cursor: default;
-  opacity: 0.5;
-  text-decoration: none;
-}
+  .intelligent-ui__button[aria-pressed='true'],
+  .intelligent-ui-dialog__tools [aria-pressed='true'] {
+    background: var(--cp-hover);
+    color: var(--cp-ink);
+  }
 
-.intelligent-ui__tweak-hint {
-  flex-basis: 100%;
-  margin: 0;
-  color: var(--cp-timeline-quiet-text);
-}
+  /* 调整面板：原生控件，跟着应用的主题；每组一个 fieldset */
+  .intelligent-ui__tweaks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-block-start: 0.5rem;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--cp-edge);
+    border-radius: var(--ui-radius-lg);
+    background: var(--cp-timeline-output-surface);
+    font-size: var(--ui-prose-size-aux);
+  }
 
-/* 展开后时间线里留的那一格：高度沿用量过的，列表不跳 */
-.intelligent-ui__placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  border: 1px dashed var(--cp-edge);
-  border-radius: var(--ui-radius-lg);
-  color: var(--cp-timeline-quiet-text);
-  font-size: var(--ui-prose-size-aux);
-  min-block-size: 3rem;
-}
+  .intelligent-ui__tweak-group {
+    display: grid;
+    grid-template-columns: minmax(0, max-content) minmax(8rem, 1fr) minmax(0, max-content);
+    align-items: center;
+    gap: 0.375rem 0.75rem;
+    flex: 1 1 18rem;
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
 
-/*
+  .intelligent-ui__tweak-legend {
+    grid-column: 1 / -1;
+    padding: 0;
+    margin-block-end: 0.125rem;
+    color: var(--cp-ink);
+    font-weight: 600;
+  }
+
+  .intelligent-ui__tweak {
+    display: contents;
+    color: var(--cp-timeline-quiet-text);
+  }
+
+  .intelligent-ui__tweak input[type='range'],
+  .intelligent-ui__tweak select {
+    min-inline-size: 0;
+    accent-color: var(--cp-accent);
+  }
+
+  .intelligent-ui__tweak input[type='checkbox'] {
+    justify-self: start;
+    accent-color: var(--cp-accent);
+  }
+
+  .intelligent-ui__tweak input[type='color'] {
+    justify-self: start;
+    inline-size: 2rem;
+    block-size: 1.5rem;
+    padding: 0;
+    border: 1px solid var(--cp-edge);
+    border-radius: var(--ui-radius-sm);
+    background: transparent;
+  }
+
+  .intelligent-ui__tweak-value {
+    color: var(--cp-ink);
+    font-family: var(--cp-font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .intelligent-ui__tweak-reset {
+    display: inline-flex;
+    grid-column: 1 / -1;
+    align-items: center;
+    justify-self: start;
+    gap: 0.25rem;
+  }
+
+  .intelligent-ui__tweak-reset:disabled {
+    cursor: default;
+    opacity: 0.5;
+    text-decoration: none;
+  }
+
+  .intelligent-ui__tweak-hint {
+    flex-basis: 100%;
+    margin: 0;
+    color: var(--cp-timeline-quiet-text);
+  }
+
+  /* 展开后时间线里留的那一格：高度沿用量过的，列表不跳 */
+  .intelligent-ui__placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    border: 1px dashed var(--cp-edge);
+    border-radius: var(--ui-radius-lg);
+    color: var(--cp-timeline-quiet-text);
+    font-size: var(--ui-prose-size-aux);
+    min-block-size: 3rem;
+  }
+
+  /*
  * 展开的对话框：比默认的对话框宽得多（wide 界面在这里按原尺寸画）。这一份不在任何 @layer 里，
  * 压得过对话框自带的 max-w-lg。
  */
-.intelligent-ui-dialog {
-  inline-size: min(1200px, calc(100vw - 4rem));
-  max-inline-size: none;
-  /* 用对话区那张底色（--cp-ground），不用浮层色：界面是照着时间线的底画的，换个底卡片就和背景对不上 */
-  background: var(--ui-background);
-}
+  .intelligent-ui-dialog {
+    inline-size: min(1200px, calc(100vw - 4rem));
+    max-inline-size: none;
+    /* 用对话区那张底色（--cp-ground），不用浮层色：界面是照着时间线的底画的，换个底卡片就和背景对不上 */
+    background: var(--ui-background);
+  }
 
-/* 皮肤补在这一格（见 card.tsx）：它只是令牌的载体，不占版面 */
-.intelligent-ui-dialog__skin {
-  display: contents;
-}
+  /* 皮肤补在这一格（见 card.tsx）：它只是令牌的载体，不占版面 */
+  .intelligent-ui-dialog__skin {
+    display: contents;
+  }
 
-/* 表头那一排：跟关闭钮同一个按钮，挨着排 */
-.intelligent-ui-dialog__tools {
-  display: flex;
-  align-items: center;
-}
+  /* 表头那一排：跟关闭钮同一个按钮，挨着排 */
+  .intelligent-ui-dialog__tools {
+    display: flex;
+    align-items: center;
+  }
 
-/* 内边距由通用弹窗的 p-4 给；这里不再补横向内边距，否则正文会比表头多缩进。 */
-.intelligent-ui-dialog__body {
-  padding: 0;
-}
+  /* 内边距由通用弹窗的 p-4 给；这里不再补横向内边距，否则正文会比表头多缩进。 */
+  .intelligent-ui-dialog__body {
+    padding: 0;
+  }
 
-.intelligent-ui-dialog__body .intelligent-ui {
-  margin-block: 0;
-}
+  .intelligent-ui-dialog__body .intelligent-ui {
+    margin-block: 0;
+  }
 
-.intelligent-ui__pending,
-.intelligent-ui__failure {
-  display: block;
-  font-size: var(--ui-prose-size-aux);
-  line-height: 1.75rem;
-}
+  .intelligent-ui__pending,
+  .intelligent-ui__failure {
+    display: block;
+    font-size: var(--ui-prose-size-aux);
+    line-height: 1.75rem;
+  }
 
-.intelligent-ui__failure {
-  color: var(--cp-timeline-danger-text);
-}
+  .intelligent-ui__failure {
+    color: var(--cp-timeline-danger-text);
+  }
 
-/* 只在界面下面那一行里出现：一行写不下就省略，不把这一行撑高 */
-.intelligent-ui__pending {
-  flex: 1 1 auto;
-  min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+  /* 只在界面下面那一行里出现：一行写不下就省略，不把这一行撑高 */
+  .intelligent-ui__pending {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
-.intelligent-ui__error,
-.intelligent-ui__ask {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.5rem;
-  margin-block-start: 0.25rem;
-  color: var(--cp-timeline-danger-text);
-  font-size: var(--ui-prose-size-aux);
-}
+  .intelligent-ui__error,
+  .intelligent-ui__ask {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-block-start: 0.25rem;
+    color: var(--cp-timeline-danger-text);
+    font-size: var(--ui-prose-size-aux);
+  }
 
-.intelligent-ui__ask {
-  color: var(--cp-timeline-quiet-text);
-}
+  .intelligent-ui__ask {
+    color: var(--cp-timeline-quiet-text);
+  }
 
-.intelligent-ui__error-text,
-.intelligent-ui__ask-text {
-  min-inline-size: 0;
-  overflow-wrap: anywhere;
-}
+  .intelligent-ui__error-text,
+  .intelligent-ui__ask-text {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
 
-.intelligent-ui__link {
-  flex: none;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--cp-timeline-link-ink);
-  font: inherit;
-  cursor: pointer;
-}
+  .intelligent-ui__link {
+    flex: none;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--cp-timeline-link-ink);
+    font: inherit;
+    cursor: pointer;
+  }
 
-.intelligent-ui__link:hover {
-  text-decoration: underline;
-}
+  .intelligent-ui__link:hover {
+    text-decoration: underline;
+  }
 
-.intelligent-ui__link--quiet {
-  color: var(--cp-timeline-quiet-text);
+  .intelligent-ui__link--quiet {
+    color: var(--cp-timeline-quiet-text);
+  }
 }

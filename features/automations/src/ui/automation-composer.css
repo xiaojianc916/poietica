@@ -1,130 +1,132 @@
-/* 与对话输入框是**同一张脸**：legacy 直接复用 conversation 的 composer/frame.css，而跨功能 import 别的功能的 ui 是铁律禁止的，
+@layer components.features {
+  /* 与对话输入框是**同一张脸**：legacy 直接复用 conversation 的 composer/frame.css，而跨功能 import 别的功能的 ui 是铁律禁止的，
  * 所以按同一份度量抄下几何，只认 design-system 的 --cp-* 令牌。conversation 把这张卡导出之后，这份样式应当整份删除。 */
 
-.automation-composer [data-slot='prompt-input'] {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  inline-size: 100%;
-  min-inline-size: 0;
-  flex-direction: column;
-  border: var(--cp-px) solid var(--cp-edge);
-  border-radius: var(--cp-radius);
-  background: var(--cp-input-surface);
-  box-shadow: var(--cp-input-lift);
-  cursor: text;
-}
+  .automation-composer [data-slot='prompt-input'] {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    inline-size: 100%;
+    min-inline-size: 0;
+    flex-direction: column;
+    border: var(--cp-px) solid var(--cp-edge);
+    border-radius: var(--cp-radius);
+    background: var(--cp-input-surface);
+    box-shadow: var(--cp-input-lift);
+    cursor: text;
+  }
 
-.automation-composer [data-slot='prompt-input-body'] {
-  display: flex;
-  inline-size: 100%;
-  min-inline-size: 0;
-  flex-direction: column;
-}
+  .automation-composer [data-slot='prompt-input-body'] {
+    display: flex;
+    inline-size: 100%;
+    min-inline-size: 0;
+    flex-direction: column;
+  }
 
-.automation-composer textarea[data-slot='prompt-input-editor'] {
-  display: block;
-  inline-size: 100%;
-  min-inline-size: 0;
-  min-block-size: var(--cp-editor-idle);
-  max-block-size: var(--cp-editor-max);
-  overflow-y: auto;
-  border: 0;
-  resize: none;
-  padding: var(--cp-pad-top) var(--cp-pad-x) 0;
-  background: transparent;
-  field-sizing: content;
-  font-family: inherit;
-  font-size: var(--cp-font-editor);
-  line-height: var(--cp-line-ratio);
-  color: var(--cp-ink);
-  outline: none;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  box-sizing: border-box;
-}
+  .automation-composer textarea[data-slot='prompt-input-editor'] {
+    display: block;
+    inline-size: 100%;
+    min-inline-size: 0;
+    min-block-size: var(--cp-editor-idle);
+    max-block-size: var(--cp-editor-max);
+    overflow-y: auto;
+    border: 0;
+    resize: none;
+    padding: var(--cp-pad-top) var(--cp-pad-x) 0;
+    background: transparent;
+    field-sizing: content;
+    font-family: inherit;
+    font-size: var(--cp-font-editor);
+    line-height: var(--cp-line-ratio);
+    color: var(--cp-ink);
+    outline: none;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    box-sizing: border-box;
+  }
 
-.automation-composer textarea[data-slot='prompt-input-editor']::placeholder {
-  color: var(--cp-placeholder);
-  opacity: 1;
-}
+  .automation-composer textarea[data-slot='prompt-input-editor']::placeholder {
+    color: var(--cp-placeholder);
+    opacity: 1;
+  }
 
-.automation-composer [data-slot='prompt-input-toolbar'] {
-  display: flex;
-  inline-size: 100%;
-  min-inline-size: 0;
-  align-items: center;
-  gap: var(--cp-control-gap);
-  padding: var(--cp-pad-mid) var(--cp-inset) var(--cp-inset);
-}
+  .automation-composer [data-slot='prompt-input-toolbar'] {
+    display: flex;
+    inline-size: 100%;
+    min-inline-size: 0;
+    align-items: center;
+    gap: var(--cp-control-gap);
+    padding: var(--cp-pad-mid) var(--cp-inset) var(--cp-inset);
+  }
 
-.automation-composer [data-slot='prompt-input-tools'] {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
+  .automation-composer [data-slot='prompt-input-tools'] {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
 
-.automation-composer .assistant-toolbar__spacer {
-  flex: 1;
-}
+  .automation-composer .assistant-toolbar__spacer {
+    flex: 1;
+  }
 
-.automation-composer .composer-context {
-  position: relative;
-  z-index: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--cp-control-gap);
-  min-block-size: calc(var(--cp-control) + var(--cp-pad-mid) + var(--cp-radius));
-  margin-block-start: calc(-1 * var(--cp-radius));
-  border-radius: 0 0 var(--cp-radius) var(--cp-radius);
-  padding-block-start: calc(var(--cp-radius) + var(--cp-pad-mid) / 2);
-  padding-block-end: calc(var(--cp-pad-mid) / 2);
-  padding-inline: var(--cp-inset);
-  background: var(--cp-shelf);
-}
+  .automation-composer .composer-context {
+    position: relative;
+    z-index: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--cp-control-gap);
+    min-block-size: calc(var(--cp-control) + var(--cp-pad-mid) + var(--cp-radius));
+    margin-block-start: calc(-1 * var(--cp-radius));
+    border-radius: 0 0 var(--cp-radius) var(--cp-radius);
+    padding-block-start: calc(var(--cp-radius) + var(--cp-pad-mid) / 2);
+    padding-block-end: calc(var(--cp-pad-mid) / 2);
+    padding-inline: var(--cp-inset);
+    background: var(--cp-shelf);
+  }
 
-.automation-composer__picker {
-  display: inline-flex;
-  block-size: var(--cp-control-sm);
-  max-inline-size: 14rem;
-  align-items: center;
-  gap: 0.25rem;
-  border: 0;
-  border-radius: var(--cp-pill);
-  padding-inline: var(--cp-pill-lead);
-  background: var(--cp-chip);
-  color: var(--cp-ink-muted);
-  font: inherit;
-  font-size: var(--cp-font-label);
-  white-space: nowrap;
-  cursor: pointer;
-  transition: color var(--cp-motion-swift) var(--cp-motion-ease);
-}
+  .automation-composer__picker {
+    display: inline-flex;
+    block-size: var(--cp-control-sm);
+    max-inline-size: 14rem;
+    align-items: center;
+    gap: 0.25rem;
+    border: 0;
+    border-radius: var(--cp-pill);
+    padding-inline: var(--cp-pill-lead);
+    background: var(--cp-chip);
+    color: var(--cp-ink-muted);
+    font: inherit;
+    font-size: var(--cp-font-label);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color var(--cp-motion-swift) var(--cp-motion-ease);
+  }
 
-.automation-composer__picker:hover,
-.automation-composer__picker[data-popup-open],
-.automation-composer__picker:focus-visible {
-  color: var(--cp-ink);
-}
+  .automation-composer__picker:hover,
+  .automation-composer__picker[data-popup-open],
+  .automation-composer__picker:focus-visible {
+    color: var(--cp-ink);
+  }
 
-.automation-composer__picker:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
+  .automation-composer__picker:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
 
-.automation-composer__picker-label {
-  min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+  .automation-composer__picker-label {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
-.automation-composer__picker-glyph,
-.automation-composer__picker-chevron {
-  flex: none;
-  inline-size: 0.75rem;
-  block-size: 0.75rem;
-}
+  .automation-composer__picker-glyph,
+  .automation-composer__picker-chevron {
+    flex: none;
+    inline-size: 0.75rem;
+    block-size: 0.75rem;
+  }
 
-.automation-composer__picker-chevron {
-  opacity: 0.6;
+  .automation-composer__picker-chevron {
+    opacity: 0.6;
+  }
 }

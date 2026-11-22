@@ -1,638 +1,640 @@
-/* 色值照 ZCode 那张卡的字面值取，不跟全站 --cp-*：自身声明恒压过祖先 [data-assistant-skin]
+@layer components.features {
+  /* 色值照 ZCode 那张卡的字面值取，不跟全站 --cp-*：自身声明恒压过祖先 [data-assistant-skin]
  * 投下来的继承值，不必比特异度；每条又都带全局兜底，换挂载点（如浮层宿主）时不会解析成空值。 */
-.status-panel,
-.conversation-status-panel__surface {
-  --status-panel-font-size: 14px;
-  --cp-ink: #262626;
-  --cp-ink-muted: #262626;
-  --cp-ink-subtle: color-mix(in oklab, #262626 60%, transparent);
-  --cp-placeholder: color-mix(in oklab, #262626 40%, transparent);
-  --cp-hover: rgb(13 13 13 / 5%);
-  --cp-diff-added-text: #1e8a3e;
-  --cp-diff-removed-text: #e03131;
-  --status-panel-success: var(--cp-diff-added-text, var(--ui-success));
-  --status-panel-added: var(--cp-diff-added-text, var(--ui-success));
-  --status-panel-removed: var(--cp-diff-removed-text, var(--ui-destructive));
+  .status-panel,
+  .conversation-status-panel__surface {
+    --status-panel-font-size: 14px;
+    --cp-ink: #262626;
+    --cp-ink-muted: #262626;
+    --cp-ink-subtle: color-mix(in oklab, #262626 60%, transparent);
+    --cp-placeholder: color-mix(in oklab, #262626 40%, transparent);
+    --cp-hover: rgb(13 13 13 / 5%);
+    --cp-diff-added-text: #1e8a3e;
+    --cp-diff-removed-text: #e03131;
+    --status-panel-success: var(--cp-diff-added-text, var(--ui-success));
+    --status-panel-added: var(--cp-diff-added-text, var(--ui-success));
+    --status-panel-removed: var(--cp-diff-removed-text, var(--ui-destructive));
 
-  /*
+    /*
    * 这张卡的壳族：卡内分区线（恒定一档）、壳外框、壳底与壳影。折叠悬浮卡（__fold-card，挂 body
    * 皮肤外）与浮层宿主（conversation-status-panel__surface，皮肤内）是同一张壳 —— 后者的取值在
    * 它自己文件里（挂载点跨皮肤内外，做不到一份定义），两边注释互相点名，改一处核另一处。
    */
-  --status-panel-rule: #414141;
-  --status-panel-shell-frame: #2b2b2b;
-  --status-panel-shell: var(--cp-ground, #fff);
-  --status-panel-shell-shadow: 0 4px 6px -1px rgb(0 0 0 / 10%), 0 2px 4px -2px rgb(0 0 0 / 10%);
-}
-
-@keyframes status-panel-fade-in {
-  from {
-    opacity: 0;
+    --status-panel-rule: #414141;
+    --status-panel-shell-frame: #2b2b2b;
+    --status-panel-shell: var(--cp-ground, #fff);
+    --status-panel-shell-shadow: 0 4px 6px -1px rgb(0 0 0 / 10%), 0 2px 4px -2px rgb(0 0 0 / 10%);
   }
 
-  to {
-    opacity: 1;
-  }
-}
+  @keyframes status-panel-fade-in {
+    from {
+      opacity: 0;
+    }
 
-@keyframes status-panel-fade-out {
-  from {
-    opacity: 1;
+    to {
+      opacity: 1;
+    }
   }
 
-  to {
-    opacity: 0;
-  }
-}
+  @keyframes status-panel-fade-out {
+    from {
+      opacity: 1;
+    }
 
-/* 边、圆角、阴影、底色都画在宿主的壳上（conversation-status-panel 的 __surface / __mini），
+    to {
+      opacity: 0;
+    }
+  }
+
+  /* 边、圆角、阴影、底色都画在宿主的壳上（conversation-status-panel 的 __surface / __mini），
  * 这里再画一遍就是双层边框。 */
-.status-panel {
-  display: flex;
-  min-inline-size: 0;
-  flex-direction: column;
-  gap: 0;
-  padding: 8px;
-  color: var(--cp-ink);
-  font-size: var(--status-panel-font-size);
-}
+  .status-panel {
+    display: flex;
+    min-inline-size: 0;
+    flex-direction: column;
+    gap: 0;
+    padding: 8px;
+    color: var(--cp-ink);
+    font-size: var(--status-panel-font-size);
+  }
 
-.status-panel__section {
-  display: block;
-  min-inline-size: 0;
-  flex: none;
-}
+  .status-panel__section {
+    display: block;
+    min-inline-size: 0;
+    flex: none;
+  }
 
-.status-panel__section[data-separated] {
-  margin-block-start: 8px;
-  padding-block-start: 8px;
-  border-block-start: 1px solid var(--status-panel-rule);
-}
+  .status-panel__section[data-separated] {
+    margin-block-start: 8px;
+    padding-block-start: 8px;
+    border-block-start: 1px solid var(--status-panel-rule);
+  }
 
-.status-panel__heading {
-  margin: 0 0 2px;
-}
+  .status-panel__heading {
+    margin: 0 0 2px;
+  }
 
-.status-panel__trigger {
-  display: flex;
-  block-size: 32px;
-  inline-size: 100%;
-  min-inline-size: 0;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  padding: 0 32px 0 8px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-size: var(--status-panel-font-size);
-  text-align: start;
-  cursor: pointer;
-}
+  .status-panel__trigger {
+    display: flex;
+    block-size: 32px;
+    inline-size: 100%;
+    min-inline-size: 0;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    padding: 0 32px 0 8px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: var(--status-panel-font-size);
+    text-align: start;
+    cursor: pointer;
+  }
 
-.status-panel__trigger:focus-visible {
-  outline: 2px solid var(--cp-accent);
-  outline-offset: -2px;
-}
+  .status-panel__trigger:focus-visible {
+    outline: 2px solid var(--cp-accent);
+    outline-offset: -2px;
+  }
 
-.status-panel__title {
-  flex: none;
-  color: var(--cp-ink-subtle);
-  font-size: var(--status-panel-font-size);
-  line-height: 24px;
-}
+  .status-panel__title {
+    flex: none;
+    color: var(--cp-ink-subtle);
+    font-size: var(--status-panel-font-size);
+    line-height: 24px;
+  }
 
-.status-panel__chevron {
-  display: grid;
-  block-size: 14px;
-  inline-size: 14px;
-  flex: none;
-  place-items: center;
-  color: var(--cp-ink-subtle);
-  opacity: 0;
-  transition:
-    transform 300ms ease-in-out,
-    opacity 150ms ease-in-out;
-}
+  .status-panel__chevron {
+    display: grid;
+    block-size: 14px;
+    inline-size: 14px;
+    flex: none;
+    place-items: center;
+    color: var(--cp-ink-subtle);
+    opacity: 0;
+    transition:
+      transform 300ms ease-in-out,
+      opacity 150ms ease-in-out;
+  }
 
-.status-panel__chevron svg {
-  block-size: 14px;
-  inline-size: 14px;
-}
+  .status-panel__chevron svg {
+    block-size: 14px;
+    inline-size: 14px;
+  }
 
-.status-panel__trigger:hover .status-panel__chevron,
-.status-panel__trigger:focus-visible .status-panel__chevron {
-  opacity: 1;
-}
+  .status-panel__trigger:hover .status-panel__chevron,
+  .status-panel__trigger:focus-visible .status-panel__chevron {
+    opacity: 1;
+  }
 
-.status-panel__trigger[data-panel-open] .status-panel__chevron {
-  transform: rotate(90deg);
-}
+  .status-panel__trigger[data-panel-open] .status-panel__chevron {
+    transform: rotate(90deg);
+  }
 
-/* 行内摘要：text-ui-sm text-[--color-foreground-subtlest]，占满剩余宽度、内容靠右。 */
-.status-panel__trailing {
-  display: inline-flex;
-  min-inline-size: 0;
-  max-inline-size: 100%;
-  flex: 1 1 auto;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  overflow: hidden;
-  color: var(--cp-placeholder);
-  font-size: calc(var(--status-panel-font-size) - 2px);
-  line-height: 16px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
+  /* 行内摘要：text-ui-sm text-[--color-foreground-subtlest]，占满剩余宽度、内容靠右。 */
+  .status-panel__trailing {
+    display: inline-flex;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    overflow: hidden;
+    color: var(--cp-placeholder);
+    font-size: calc(var(--status-panel-font-size) - 2px);
+    line-height: 16px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
 
-/* 例外只有 Git 那一格：收起时 +N -M 要贴着「Git 工具」显示，不是甩到对边。 */
-.status-panel__trailing:has(.status-panel__git-stats--summary) {
-  justify-content: flex-start;
-}
+  /* 例外只有 Git 那一格：收起时 +N -M 要贴着「Git 工具」显示，不是甩到对边。 */
+  .status-panel__trailing:has(.status-panel__git-stats--summary) {
+    justify-content: flex-start;
+  }
 
-/* 展开时右侧那份 +N -M 撤掉：正文里已经有一行「更改」在报同样的数。 */
-.status-panel__section[data-open] .status-panel__git-stats--summary {
-  display: none;
-}
+  /* 展开时右侧那份 +N -M 撤掉：正文里已经有一行「更改」在报同样的数。 */
+  .status-panel__section[data-open] .status-panel__git-stats--summary {
+    display: none;
+  }
 
-.status-panel__elapsed {
-  flex: none;
-  font-variant-numeric: tabular-nums;
-}
+  .status-panel__elapsed {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+  }
 
-.status-panel__dot {
-  flex: none;
-}
+  .status-panel__dot {
+    flex: none;
+  }
 
-.status-panel__count {
-  flex: none;
-  color: var(--cp-ink-subtle);
-  font-variant-numeric: tabular-nums;
-}
+  .status-panel__count {
+    flex: none;
+    color: var(--cp-ink-subtle);
+    font-variant-numeric: tabular-nums;
+  }
 
-.status-panel__count--success {
-  color: var(--status-panel-success);
-}
+  .status-panel__count--success {
+    color: var(--status-panel-success);
+  }
 
-.status-panel__icon-button {
-  display: inline-flex;
-  block-size: 24px;
-  inline-size: 24px;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 0;
-  border-radius: var(--ui-radius-full);
-  background: transparent;
-  color: var(--cp-ink-subtle);
-  cursor: pointer;
-}
+  .status-panel__icon-button {
+    display: inline-flex;
+    block-size: 24px;
+    inline-size: 24px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: var(--ui-radius-full);
+    background: transparent;
+    color: var(--cp-ink-subtle);
+    cursor: pointer;
+  }
 
-.status-panel__icon-button:hover {
-  background: var(--cp-hover);
-  color: var(--cp-ink);
-}
+  .status-panel__icon-button:hover {
+    background: var(--cp-hover);
+    color: var(--cp-ink);
+  }
 
-.status-panel__icon {
-  block-size: 14px;
-  inline-size: 14px;
-}
+  .status-panel__icon {
+    block-size: 14px;
+    inline-size: 14px;
+  }
 
-/* 用 transition 而不是 @keyframes：Base UI 在挂上 [data-ending-style] 之前就读 computedStyle
+  /* 用 transition 而不是 @keyframes：Base UI 在挂上 [data-ending-style] 之前就读 computedStyle
  * 判动画种类，只写在该属性下的关键帧它读不到，会判定「无动画」直接卸载面板 —— 收起变成一次硬跳。
  * height 用 Base UI 量出的 var(--accordion-panel-height)，两个方向都从实数补间，auto 不参与。 */
-.status-panel__body {
-  height: var(--accordion-panel-height);
-  overflow: hidden;
-  transition: height 300ms ease-in-out;
-}
+  .status-panel__body {
+    height: var(--accordion-panel-height);
+    overflow: hidden;
+    transition: height 300ms ease-in-out;
+  }
 
-.status-panel__body[data-starting-style],
-.status-panel__body[data-ending-style] {
-  height: 0;
-}
+  .status-panel__body[data-starting-style],
+  .status-panel__body[data-ending-style] {
+    height: 0;
+  }
 
-.status-panel__region {
-  min-inline-size: 0;
-  padding: 0;
-  animation: status-panel-fade-in 300ms ease-in-out;
-}
+  .status-panel__region {
+    min-inline-size: 0;
+    padding: 0;
+    animation: status-panel-fade-in 300ms ease-in-out;
+  }
 
-.status-panel__body[data-ending-style] .status-panel__region {
-  animation: status-panel-fade-out 300ms ease-in-out forwards;
-}
+  .status-panel__body[data-ending-style] .status-panel__region {
+    animation: status-panel-fade-out 300ms ease-in-out forwards;
+  }
 
-.status-panel__scroll--goal,
-.status-panel__scroll--agents,
-.status-panel__scroll--terminals {
-  max-block-size: 12rem;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding-inline-end: 4px;
-}
+  .status-panel__scroll--goal,
+  .status-panel__scroll--agents,
+  .status-panel__scroll--terminals {
+    max-block-size: 12rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-inline-end: 4px;
+  }
 
-.status-panel__scroll--todo {
-  max-block-size: 20rem;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding-inline-end: 4px;
-}
+  .status-panel__scroll--todo {
+    max-block-size: 20rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-inline-end: 4px;
+  }
 
-.status-panel__list {
-  display: flex;
-  min-inline-size: 0;
-  flex-direction: column;
-  gap: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
+  .status-panel__list {
+    display: flex;
+    min-inline-size: 0;
+    flex-direction: column;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
 
-.status-panel__item {
-  display: flex;
-  min-block-size: 32px;
-  min-inline-size: 0;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  color: var(--cp-ink-muted);
-  font-size: var(--status-panel-font-size);
-  line-height: 20px;
-}
+  .status-panel__item {
+    display: flex;
+    min-block-size: 32px;
+    min-inline-size: 0;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    color: var(--cp-ink-muted);
+    font-size: var(--status-panel-font-size);
+    line-height: 20px;
+  }
 
-.status-panel__item:hover {
-  background: var(--cp-hover);
-}
+  .status-panel__item:hover {
+    background: var(--cp-hover);
+  }
 
-.status-panel__item[data-status='in_progress'],
-.status-panel__item[data-status='running'] {
-  color: var(--cp-ink);
-}
+  .status-panel__item[data-status='in_progress'],
+  .status-panel__item[data-status='running'] {
+    color: var(--cp-ink);
+  }
 
-.status-panel__item-icon {
-  block-size: 16px;
-  inline-size: 16px;
-  flex: none;
-  margin-block-start: 2px;
-  color: var(--cp-ink-subtle);
-}
+  .status-panel__item-icon {
+    block-size: 16px;
+    inline-size: 16px;
+    flex: none;
+    margin-block-start: 2px;
+    color: var(--cp-ink-subtle);
+  }
 
-.status-panel__item-body {
-  display: flex;
-  min-inline-size: 0;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 6px;
-}
+  .status-panel__item-body {
+    display: flex;
+    min-inline-size: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 6px;
+  }
 
-.status-panel__item-text {
-  min-inline-size: 0;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow-wrap: break-word;
-  color: var(--cp-ink);
-  line-height: 20px;
-}
+  .status-panel__item-text {
+    min-inline-size: 0;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow-wrap: break-word;
+    color: var(--cp-ink);
+    line-height: 20px;
+  }
 
-.status-panel__item-text[data-done] {
-  color: var(--cp-placeholder);
-  text-decoration: line-through;
-}
+  .status-panel__item-text[data-done] {
+    color: var(--cp-placeholder);
+    text-decoration: line-through;
+  }
 
-.status-panel__glyph {
-  display: grid;
-  block-size: 16px;
-  inline-size: 16px;
-  flex: none;
-  margin-block-start: 2px;
-  place-items: center;
-}
+  .status-panel__glyph {
+    display: grid;
+    block-size: 16px;
+    inline-size: 16px;
+    flex: none;
+    margin-block-start: 2px;
+    place-items: center;
+  }
 
-.status-panel__glyph svg {
-  block-size: 14px;
-  inline-size: 14px;
-}
+  .status-panel__glyph svg {
+    block-size: 14px;
+    inline-size: 14px;
+  }
 
-.status-panel__glyph--done {
-  color: var(--status-panel-success);
-}
+  .status-panel__glyph--done {
+    color: var(--status-panel-success);
+  }
 
-.status-panel__glyph--active {
-  color: var(--cp-ink);
-}
+  .status-panel__glyph--active {
+    color: var(--cp-ink);
+  }
 
-.status-panel__glyph--pending {
-  color: var(--cp-placeholder);
-}
+  .status-panel__glyph--pending {
+    color: var(--cp-placeholder);
+  }
 
-.status-panel__glyph--failed {
-  color: var(--cp-diff-removed-text, #f9423e);
-}
+  .status-panel__glyph--failed {
+    color: var(--cp-diff-removed-text, #f9423e);
+  }
 
-.status-panel__spin {
-  animation: status-panel-spin 1s linear infinite;
-}
+  .status-panel__spin {
+    animation: status-panel-spin 1s linear infinite;
+  }
 
-.status-panel__fold-item {
-  margin: 0;
-  padding: 0;
-}
+  .status-panel__fold-item {
+    margin: 0;
+    padding: 0;
+  }
 
-/* 折叠行本身是一颗按钮（悬浮卡的触发器）：去掉按钮自带的边框与底色，样子与原来那一行一致。 */
-.status-panel__fold {
-  display: flex;
-  inline-size: 100%;
-  block-size: 32px;
-  min-inline-size: 0;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--cp-ink-subtle);
-  font: inherit;
-  font-size: var(--status-panel-font-size);
-  line-height: 20px;
-  text-align: start;
-  cursor: default;
-}
+  /* 折叠行本身是一颗按钮（悬浮卡的触发器）：去掉按钮自带的边框与底色，样子与原来那一行一致。 */
+  .status-panel__fold {
+    display: flex;
+    inline-size: 100%;
+    block-size: 32px;
+    min-inline-size: 0;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--cp-ink-subtle);
+    font: inherit;
+    font-size: var(--status-panel-font-size);
+    line-height: 20px;
+    text-align: start;
+    cursor: default;
+  }
 
-.status-panel__fold:focus-visible {
-  outline: 2px solid var(--cp-accent);
-  outline-offset: -2px;
-}
+  .status-panel__fold:focus-visible {
+    outline: 2px solid var(--cp-accent);
+    outline-offset: -2px;
+  }
 
-/*
+  /*
  * 折叠悬浮卡：一块小号的状态面板（同挂 .status-panel，墨色与深浅主题都从那一格来）。外壳照浮层面板
  * （conversation-status-panel__surface）：同一圈 #2b2b2b 外框、同一档阴影、深色同一块 #202020 —— 只把圆角收一档。
  * 双类是为了压过提示气泡的默认皮（.ui-tooltip 与它的 bg-foreground / px-3 / text-xs）。
  */
-.status-panel.status-panel__fold-card {
-  inline-size: 320px;
-  max-inline-size: min(320px, 80vw);
-  max-block-size: min(64dvh, 32rem);
-  padding: 8px;
-  overflow-y: auto;
-  border: 1px solid var(--status-panel-shell-frame);
-  border-radius: 12px;
-  background: var(--status-panel-shell);
-  color: var(--cp-ink);
-  font-size: var(--status-panel-font-size);
-  line-height: 20px;
-  box-shadow: var(--status-panel-shell-shadow);
-}
-
-/* 「还有 N 项」借折叠行的样子，但它不是按钮，悬停不变色。 */
-.status-panel__fold-more,
-.status-panel__fold-more:hover {
-  background: transparent;
-}
-
-.status-panel__fold:hover {
-  background: var(--cp-hover);
-}
-
-.status-panel__fold-icon {
-  display: grid;
-  block-size: 14px;
-  inline-size: 14px;
-  flex: none;
-  place-items: center;
-  transform: rotate(180deg);
-}
-
-.status-panel__fold-icon svg {
-  block-size: 14px;
-  inline-size: 14px;
-}
-
-.status-panel__git {
-  display: flex;
-  min-inline-size: 0;
-  flex-direction: column;
-}
-
-.status-panel__git-row {
-  display: flex;
-  block-size: 32px;
-  inline-size: 100%;
-  min-inline-size: 0;
-  align-items: center;
-  gap: 8px;
-  padding: 0 8px;
-  border-radius: 8px;
-  color: var(--cp-ink);
-  font-size: var(--status-panel-font-size);
-  text-align: start;
-}
-
-.status-panel__git-row:hover {
-  background: var(--cp-hover);
-}
-
-/* 三行的图标都用正文墨；branch picker 的 row 变体自己处理首枚图标。 */
-.status-panel__git-row .status-panel__item-icon {
-  color: var(--cp-ink);
-}
-
-.status-panel__git-label {
-  min-inline-size: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.status-panel__git-row--action {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-size: var(--status-panel-font-size);
-  text-align: start;
-  cursor: pointer;
-}
-
-.status-panel__git-row--action:disabled {
-  cursor: default;
-}
-
-.status-panel__git-row--action:focus-visible {
-  outline: 2px solid var(--cp-accent);
-  outline-offset: -2px;
-}
-
-.status-panel__git-row--branch {
-  padding: 0;
-}
-
-.status-panel__git-row--branch > * {
-  inline-size: 100%;
-}
-
-.status-panel__git-stats {
-  display: inline-flex;
-  flex: none;
-  gap: 6px;
-  font-variant-numeric: tabular-nums;
-}
-
-.status-panel__added {
-  color: var(--status-panel-added);
-}
-
-.status-panel__removed {
-  color: var(--status-panel-removed);
-}
-
-.status-panel__ended[data-separated] {
-  margin-block-start: 8px;
-  padding-block-start: 8px;
-  border-block-start: 1px solid var(--status-panel-rule);
-}
-
-.status-panel__ended-row {
-  display: flex;
-  inline-size: 100%;
-  min-inline-size: 0;
-  align-items: center;
-  gap: 8px;
-  padding: 8px;
-  border-radius: 8px;
-  color: var(--cp-ink);
-  font-size: var(--status-panel-font-size);
-}
-
-.status-panel__ended-row:hover {
-  background: var(--cp-hover);
-}
-
-.status-panel__ended-chevron {
-  block-size: 16px;
-  inline-size: 16px;
-  flex: none;
-  margin-inline-start: auto;
-  color: var(--cp-ink-subtle);
-}
-
-.status-panel__goal {
-  display: flex;
-  min-inline-size: 0;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 8px;
-  border-radius: 8px;
-  cursor: default;
-}
-
-.status-panel__goal:hover {
-  background: var(--cp-hover);
-}
-
-.status-panel__goal-text {
-  min-inline-size: 0;
-  flex: 1 1 auto;
-  margin: 0;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow-wrap: break-word;
-  color: var(--cp-ink);
-  font-size: var(--status-panel-font-size);
-  line-height: 16px;
-}
-
-@keyframes status-panel-spin {
-  to {
-    transform: rotate(360deg);
+  .status-panel.status-panel__fold-card {
+    inline-size: 320px;
+    max-inline-size: min(320px, 80vw);
+    max-block-size: min(64dvh, 32rem);
+    padding: 8px;
+    overflow-y: auto;
+    border: 1px solid var(--status-panel-shell-frame);
+    border-radius: 12px;
+    background: var(--status-panel-shell);
+    color: var(--cp-ink);
+    font-size: var(--status-panel-font-size);
+    line-height: 20px;
+    box-shadow: var(--status-panel-shell-shadow);
   }
-}
 
-/* 深色下 --cp-ground 与地色齐平只剩一圈边线，抬到产品指定的 #202020（不是 ZCode 的 #2b2b2b）；
+  /* 「还有 N 项」借折叠行的样子，但它不是按钮，悬停不变色。 */
+  .status-panel__fold-more,
+  .status-panel__fold-more:hover {
+    background: transparent;
+  }
+
+  .status-panel__fold:hover {
+    background: var(--cp-hover);
+  }
+
+  .status-panel__fold-icon {
+    display: grid;
+    block-size: 14px;
+    inline-size: 14px;
+    flex: none;
+    place-items: center;
+    transform: rotate(180deg);
+  }
+
+  .status-panel__fold-icon svg {
+    block-size: 14px;
+    inline-size: 14px;
+  }
+
+  .status-panel__git {
+    display: flex;
+    min-inline-size: 0;
+    flex-direction: column;
+  }
+
+  .status-panel__git-row {
+    display: flex;
+    block-size: 32px;
+    inline-size: 100%;
+    min-inline-size: 0;
+    align-items: center;
+    gap: 8px;
+    padding: 0 8px;
+    border-radius: 8px;
+    color: var(--cp-ink);
+    font-size: var(--status-panel-font-size);
+    text-align: start;
+  }
+
+  .status-panel__git-row:hover {
+    background: var(--cp-hover);
+  }
+
+  /* 三行的图标都用正文墨；branch picker 的 row 变体自己处理首枚图标。 */
+  .status-panel__git-row .status-panel__item-icon {
+    color: var(--cp-ink);
+  }
+
+  .status-panel__git-label {
+    min-inline-size: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .status-panel__git-row--action {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: var(--status-panel-font-size);
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .status-panel__git-row--action:disabled {
+    cursor: default;
+  }
+
+  .status-panel__git-row--action:focus-visible {
+    outline: 2px solid var(--cp-accent);
+    outline-offset: -2px;
+  }
+
+  .status-panel__git-row--branch {
+    padding: 0;
+  }
+
+  .status-panel__git-row--branch > * {
+    inline-size: 100%;
+  }
+
+  .status-panel__git-stats {
+    display: inline-flex;
+    flex: none;
+    gap: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .status-panel__added {
+    color: var(--status-panel-added);
+  }
+
+  .status-panel__removed {
+    color: var(--status-panel-removed);
+  }
+
+  .status-panel__ended[data-separated] {
+    margin-block-start: 8px;
+    padding-block-start: 8px;
+    border-block-start: 1px solid var(--status-panel-rule);
+  }
+
+  .status-panel__ended-row {
+    display: flex;
+    inline-size: 100%;
+    min-inline-size: 0;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 8px;
+    color: var(--cp-ink);
+    font-size: var(--status-panel-font-size);
+  }
+
+  .status-panel__ended-row:hover {
+    background: var(--cp-hover);
+  }
+
+  .status-panel__ended-chevron {
+    block-size: 16px;
+    inline-size: 16px;
+    flex: none;
+    margin-inline-start: auto;
+    color: var(--cp-ink-subtle);
+  }
+
+  .status-panel__goal {
+    display: flex;
+    min-inline-size: 0;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 8px;
+    cursor: default;
+  }
+
+  .status-panel__goal:hover {
+    background: var(--cp-hover);
+  }
+
+  .status-panel__goal-text {
+    min-inline-size: 0;
+    flex: 1 1 auto;
+    margin: 0;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow-wrap: break-word;
+    color: var(--cp-ink);
+    font-size: var(--status-panel-font-size);
+    line-height: 16px;
+  }
+
+  @keyframes status-panel-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* 深色下 --cp-ground 与地色齐平只剩一圈边线，抬到产品指定的 #202020（不是 ZCode 的 #2b2b2b）；
  * 墨色档位仍照 zai-dark：正文 #d4d4d4、次要 60%、最次 30%。 */
-:root[data-theme='dark'] .status-panel,
-:root[data-theme='dark'] .conversation-status-panel__surface {
-  --cp-ink: #d4d4d4;
-  --cp-ink-muted: #d4d4d4;
-  --cp-ink-subtle: color-mix(in oklab, #d4d4d4 60%, transparent);
-  --cp-placeholder: color-mix(in oklab, #d4d4d4 30%, transparent);
-  --cp-hover: rgb(255 255 255 / 5%);
-  --cp-diff-added-text: #46bf72;
-  --cp-diff-removed-text: #f9423e;
-  --status-panel-shell: #202020;
-}
-
-:root[data-theme='dark'] .status-panel {
-  background: var(--status-panel-shell);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .status-panel__body,
-  .status-panel__region,
-  .status-panel__body[data-ending-style] .status-panel__region {
-    animation: none;
-    transition: none;
+  :root[data-theme='dark'] .status-panel,
+  :root[data-theme='dark'] .conversation-status-panel__surface {
+    --cp-ink: #d4d4d4;
+    --cp-ink-muted: #d4d4d4;
+    --cp-ink-subtle: color-mix(in oklab, #d4d4d4 60%, transparent);
+    --cp-placeholder: color-mix(in oklab, #d4d4d4 30%, transparent);
+    --cp-hover: rgb(255 255 255 / 5%);
+    --cp-diff-added-text: #46bf72;
+    --cp-diff-removed-text: #f9423e;
+    --status-panel-shell: #202020;
   }
 
-  .status-panel__chevron {
-    transition: none;
+  :root[data-theme='dark'] .status-panel {
+    background: var(--status-panel-shell);
   }
 
-  .status-panel__spin {
-    animation: none;
+  @media (prefers-reduced-motion: reduce) {
+    .status-panel__body,
+    .status-panel__region,
+    .status-panel__body[data-ending-style] .status-panel__region {
+      animation: none;
+      transition: none;
+    }
+
+    .status-panel__chevron {
+      transition: none;
+    }
+
+    .status-panel__spin {
+      animation: none;
+    }
   }
-}
 
-/* 子代理一行：整行是按钮时去掉按钮自带的皮，悬停与普通行同色。 */
-.status-panel__agent {
-  list-style: none;
-}
+  /* 子代理一行：整行是按钮时去掉按钮自带的皮，悬停与普通行同色。 */
+  .status-panel__agent {
+    list-style: none;
+  }
 
-.status-panel__item--action {
-  inline-size: 100%;
-  border: 0;
-  background: transparent;
-  font: inherit;
-  font-size: var(--status-panel-font-size);
-  text-align: start;
-  cursor: pointer;
-}
+  .status-panel__item--action {
+    inline-size: 100%;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: var(--status-panel-font-size);
+    text-align: start;
+    cursor: pointer;
+  }
 
-.status-panel__item--action:focus-visible {
-  outline: 2px solid var(--cp-accent);
-  outline-offset: -2px;
-}
+  .status-panel__item--action:focus-visible {
+    outline: 2px solid var(--cp-accent);
+    outline-offset: -2px;
+  }
 
-.status-panel__agent[data-status='running'] .status-panel__item {
-  color: var(--cp-ink);
-}
+  .status-panel__agent[data-status='running'] .status-panel__item {
+    color: var(--cp-ink);
+  }
 
-.status-panel__ended-row {
-  border: 0;
-  background: transparent;
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
-}
+  .status-panel__ended-row {
+    border: 0;
+    background: transparent;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
 
-.status-panel__ended-chevron {
-  transition: transform 120ms ease;
-}
+  .status-panel__ended-chevron {
+    transition: transform 120ms ease;
+  }
 
-.status-panel__ended-chevron[data-open] {
-  transform: rotate(90deg);
-}
-/* 智能体行的记号是瓦片脸（与时间线那一行、右坞标签同一张）：原语的 20px 下限压回图标那一格。 */
-.status-panel__agent-face {
-  min-inline-size: 16px;
-  min-block-size: 16px;
+  .status-panel__ended-chevron[data-open] {
+    transform: rotate(90deg);
+  }
+  /* 智能体行的记号是瓦片脸（与时间线那一行、右坞标签同一张）：原语的 20px 下限压回图标那一格。 */
+  .status-panel__agent-face {
+    min-inline-size: 16px;
+    min-block-size: 16px;
+  }
 }

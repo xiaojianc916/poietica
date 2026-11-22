@@ -1,198 +1,200 @@
-/* 卡片随内容增长，滚动交给设置页：避免嵌套滚动条。 */
+@layer components.features {
+  /* 卡片随内容增长，滚动交给设置页：避免嵌套滚动条。 */
 
-.skill-page {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
+  .skill-page {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
 
-.skill-page__tools {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+  .skill-page__tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 
-.skill-page__tools > .settings-input {
-  min-inline-size: 0;
-  flex: 1;
-}
+  .skill-page__tools > .settings-input {
+    min-inline-size: 0;
+    flex: 1;
+  }
 
-.skill-page__filter {
-  flex: none;
-}
+  .skill-page__filter {
+    flex: none;
+  }
 
-/* 安装：与来源筛选同一条工具行，右侧收口；外观跟同页的「新建」一档（soft 小键）。 */
-.skill-page__install {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex: none;
-  block-size: 26px;
-  padding-inline: 10px;
-  border: 0;
-  border-radius: 8px;
-  background: var(--settings-field);
-  color: var(--ui-foreground);
-  font-size: 12px;
-}
+  /* 安装：与来源筛选同一条工具行，右侧收口；外观跟同页的「新建」一档（soft 小键）。 */
+  .skill-page__install {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex: none;
+    block-size: 26px;
+    padding-inline: 10px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--settings-field);
+    color: var(--ui-foreground);
+    font-size: 12px;
+  }
 
-.skill-page__install:hover {
-  background: var(--ui-divider);
-}
+  .skill-page__install:hover {
+    background: var(--ui-divider);
+  }
 
-.skill-page__install svg {
-  inline-size: 13px;
-}
+  .skill-page__install svg {
+    inline-size: 13px;
+  }
 
-.skill-list {
-  display: flex;
-  flex-direction: column;
-  padding-block: 6px;
-  overflow: hidden;
-  border: 1px solid var(--settings-frame);
-  border-radius: 12px;
-  background: var(--settings-surface);
-}
+  .skill-list {
+    display: flex;
+    flex-direction: column;
+    padding-block: 6px;
+    overflow: hidden;
+    border: 1px solid var(--settings-frame);
+    border-radius: 12px;
+    background: var(--settings-surface);
+  }
 
-.skill-list__row {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-block-size: 58px;
-  inline-size: calc(100% - 12px);
-  margin-inline: 6px;
-  padding: 7px 10px;
-  border-radius: 9px;
-}
+  .skill-list__row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-block-size: 58px;
+    inline-size: calc(100% - 12px);
+    margin-inline: 6px;
+    padding: 7px 10px;
+    border-radius: 9px;
+  }
 
-.skill-list__row + .skill-list__row::before {
-  content: '';
-  position: absolute;
-  inset-inline: 20px;
-  inset-block-start: 0;
-  block-size: 0;
-  border-block-start: 1px solid var(--settings-divider);
-}
+  .skill-list__row + .skill-list__row::before {
+    content: '';
+    position: absolute;
+    inset-inline: 20px;
+    inset-block-start: 0;
+    block-size: 0;
+    border-block-start: 1px solid var(--settings-divider);
+  }
 
-.skill-list__row:hover,
-.skill-list__row[data-focused='true'] {
-  background: var(--ui-accent);
-}
+  .skill-list__row:hover,
+  .skill-list__row[data-focused='true'] {
+    background: var(--ui-accent);
+  }
 
-/* 行本身不是按钮：开关与菜单住在行里，嵌套交互元素不能压在一个按钮上。 */
-.skill-list__open {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-inline-size: 0;
-  flex: 1;
-  padding: 0;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: inherit;
-  text-align: start;
-}
+  /* 行本身不是按钮：开关与菜单住在行里，嵌套交互元素不能压在一个按钮上。 */
+  .skill-list__open {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-inline-size: 0;
+    flex: 1;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: inherit;
+    text-align: start;
+  }
 
-.skill-list__open:focus-visible {
-  box-shadow: inset 0 0 0 2px var(--ui-ring);
-  border-radius: 8px;
-}
+  .skill-list__open:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--ui-ring);
+    border-radius: 8px;
+  }
 
-.skill-list__glyph {
-  display: grid;
-  flex: none;
-  inline-size: 30px;
-  block-size: 30px;
-  place-items: center;
-  border-radius: 8px;
-  background: var(--settings-field);
-  color: var(--ui-muted-foreground);
-}
+  .skill-list__glyph {
+    display: grid;
+    flex: none;
+    inline-size: 30px;
+    block-size: 30px;
+    place-items: center;
+    border-radius: 8px;
+    background: var(--settings-field);
+    color: var(--ui-muted-foreground);
+  }
 
-.skill-list__glyph svg {
-  inline-size: 14px;
-}
+  .skill-list__glyph svg {
+    inline-size: 14px;
+  }
 
-.skill-list__copy {
-  display: flex;
-  min-inline-size: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-}
+  .skill-list__copy {
+    display: flex;
+    min-inline-size: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+  }
 
-.skill-list__title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-inline-size: 0;
-}
+  .skill-list__title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-inline-size: 0;
+  }
 
-.skill-list__title strong,
-.skill-list__copy small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+  .skill-list__title strong,
+  .skill-list__copy small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
-.skill-list__title strong {
-  min-inline-size: 0;
-  color: var(--ui-foreground);
-  font-size: 13px;
-  font-weight: 550;
-  line-height: 1.3;
-}
+  .skill-list__title strong {
+    min-inline-size: 0;
+    color: var(--ui-foreground);
+    font-size: 13px;
+    font-weight: 550;
+    line-height: 1.3;
+  }
 
-.skill-list__title em {
-  flex: none;
-  color: var(--ui-destructive);
-  font-size: 9px;
-  font-style: normal;
-}
+  .skill-list__title em {
+    flex: none;
+    color: var(--ui-destructive);
+    font-size: 9px;
+    font-style: normal;
+  }
 
-.skill-list__copy small {
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-  line-height: 1.4;
-}
+  .skill-list__copy small {
+    color: var(--ui-muted-foreground);
+    font-size: 12px;
+    line-height: 1.4;
+  }
 
-.skill-list__switch {
-  display: grid;
-  flex: none;
-  place-items: center;
-}
+  .skill-list__switch {
+    display: grid;
+    flex: none;
+    place-items: center;
+  }
 
-.skill-list__more {
-  display: grid;
-  flex: none;
-  inline-size: 22px;
-  block-size: 22px;
-  place-items: center;
-  border-radius: 6px;
-  color: var(--ui-muted-foreground);
-  opacity: 0;
-}
+  .skill-list__more {
+    display: grid;
+    flex: none;
+    inline-size: 22px;
+    block-size: 22px;
+    place-items: center;
+    border-radius: 6px;
+    color: var(--ui-muted-foreground);
+    opacity: 0;
+  }
 
-.skill-list__row:hover .skill-list__more,
-.skill-list__row:focus-within .skill-list__more {
-  opacity: 1;
-}
+  .skill-list__row:hover .skill-list__more,
+  .skill-list__row:focus-within .skill-list__more {
+    opacity: 1;
+  }
 
-.skill-list__more:hover {
-  background: var(--ui-divider);
-  color: var(--ui-foreground);
-}
+  .skill-list__more:hover {
+    background: var(--ui-divider);
+    color: var(--ui-foreground);
+  }
 
-.skill-list__more svg {
-  inline-size: 15px;
-}
+  .skill-list__more svg {
+    inline-size: 15px;
+  }
 
-.skill-list__empty {
-  margin: 0;
-  padding: 40px 14px;
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-  text-align: center;
+  .skill-list__empty {
+    margin: 0;
+    padding: 40px 14px;
+    color: var(--ui-muted-foreground);
+    font-size: 12px;
+    text-align: center;
+  }
 }

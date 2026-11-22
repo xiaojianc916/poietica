@@ -1,4 +1,5 @@
-/*
+@layer components.ds {
+  /*
  * 一张卡的外壳。戴上 data-surface 的盒子，边框、圆角、投影全部由这里给。这里不点名消费者：
  * 那份名单会腐烂，而它腐烂的时候编译器不会说话。
  *
@@ -11,15 +12,16 @@
  * 下是 3 个设备像素）。
  */
 
-:root {
-  --ui-surface-radius: var(--ui-radius-xl);
-}
+  :root {
+    --ui-surface-radius: var(--ui-radius-xl);
+  }
 
-[data-surface] {
-  --surface-line: var(--ui-surface-frame);
-  --surface-rule: var(--ui-divider-subtle);
+  [data-surface] {
+    --surface-line: var(--ui-surface-frame);
+    --surface-rule: var(--ui-divider-subtle);
 
-  border: var(--ui-region-divider-width) solid var(--surface-line);
-  border-radius: var(--ui-surface-radius);
-  box-shadow: var(--ui-surface-shadow);
+    border: var(--ui-region-divider-width) solid var(--surface-line);
+    border-radius: var(--ui-surface-radius);
+    box-shadow: var(--ui-surface-shadow);
+  }
 }

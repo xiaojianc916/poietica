@@ -1,18 +1,20 @@
-/* 卡片自身的 hover 写在这里而不是 Tailwind 的 hover:bg-[…]：主题由 :root[data-theme] 驱动，深色那一档只能这样给。卡片 hover 时
+@layer components.features {
+  /* 卡片自身的 hover 写在这里而不是 Tailwind 的 hover:bg-[…]：主题由 :root[data-theme] 驱动，深色那一档只能这样给。卡片 hover 时
  * 安装按钮同步高亮：用 color-mix 复刻 bg-divider/70，不依赖 Tailwind 的透明度修饰符（--color-divider 是完整色值而非 RGB 通道）。
  * 悬停那对（#f3f3f4 / #242424）与 --ui-dock-hover（#f2f3f3 / 10% 白墨）差一档且深色取实色，是目录卡自己的产品取值，不共用。 */
-.catalog-card {
-  --catalog-card-hover: #f3f3f4;
-}
+  .catalog-card {
+    --catalog-card-hover: #f3f3f4;
+  }
 
-.catalog-card:hover {
-  background: var(--catalog-card-hover);
-}
+  .catalog-card:hover {
+    background: var(--catalog-card-hover);
+  }
 
-:root[data-theme='dark'] .catalog-card {
-  --catalog-card-hover: #242424;
-}
+  :root[data-theme='dark'] .catalog-card {
+    --catalog-card-hover: #242424;
+  }
 
-.catalog-card:hover .catalog-card__install-btn:not(:disabled) {
-  background-color: color-mix(in srgb, var(--ui-divider) 70%, transparent);
+  .catalog-card:hover .catalog-card__install-btn:not(:disabled) {
+    background-color: color-mix(in srgb, var(--ui-divider) 70%, transparent);
+  }
 }

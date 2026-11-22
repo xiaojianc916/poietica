@@ -1,98 +1,99 @@
-/*
+@layer components.features {
+  /*
  * End-aligned so a glance tells who said what without a label; capped so a
  * pasted page still reads as a message.
  */
 
-.timeline-user {
-  display: grid;
-  justify-items: end;
-  gap: 0.25rem;
-  margin: 0;
-  margin-inline-start: auto;
-  /* 短句按内容收窄；一滚起来就钉到上限（见下 data-long 那一条），宽度才不随行变。 */
-  inline-size: fit-content;
-  max-inline-size: min(100%, 32rem);
-  padding: var(--cp-timeline-pad);
-  border-radius: var(--ui-radius-xl);
-  background: var(--cp-timeline-user-surface);
-  color: var(--cp-timeline-body-ink);
-}
+  .timeline-user {
+    display: grid;
+    justify-items: end;
+    gap: 0.25rem;
+    margin: 0;
+    margin-inline-start: auto;
+    /* 短句按内容收窄；一滚起来就钉到上限（见下 data-long 那一条），宽度才不随行变。 */
+    inline-size: fit-content;
+    max-inline-size: min(100%, 32rem);
+    padding: var(--cp-timeline-pad);
+    border-radius: var(--ui-radius-xl);
+    background: var(--cp-timeline-user-surface);
+    color: var(--cp-timeline-body-ink);
+  }
 
-/*
+  /*
  * 刚说出的一句：从下方轻轻托上来并淡入，落定后不再动。
  *
  * 只在「这一句真的刚被说出来」时挂 data-entering —— 滚动导致的行重挂载、打开旧对话都不带这个标记。
  * 提交行换成真实行时 React 会换一颗元素：行内给的负延迟（--timeline-user-arrive-delay）让动画
  * 从上一颗播到的进度接着走，而不是重头再来一遍。
  */
-.timeline-user[data-entering='true'] {
-  animation: timeline-user-arrive var(--cp-motion-settle) var(--cp-motion-settle-ease)
-    var(--timeline-user-arrive-delay, 0ms) both;
-}
-
-@keyframes timeline-user-arrive {
-  from {
-    opacity: 0;
-    transform: translateY(calc(var(--cp-motion-rise) * 2));
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
   .timeline-user[data-entering='true'] {
-    animation: none;
+    animation: timeline-user-arrive var(--cp-motion-settle) var(--cp-motion-settle-ease)
+      var(--timeline-user-arrive-delay, 0ms) both;
   }
-}
 
-/*
+  @keyframes timeline-user-arrive {
+    from {
+      opacity: 0;
+      transform: translateY(calc(var(--cp-motion-rise) * 2));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .timeline-user[data-entering='true'] {
+      animation: none;
+    }
+  }
+
+  /*
  * 定时任务触发的那一轮：占满一行、居中的系统条。
  *
  * 它不是人打的字（所以没有气泡、没有「未送达」），但**必须看得见** —— 一条自动化对话里
  * 只有它在最上方，藏掉它，屏幕就是一片空白，人分不清「任务没跑」还是「跑完了没说话」。
  * 用发丝线左右分开，跟正文区隔开，但字号与墨色仍与正文同档（它不是警告，是事实）。
  */
-.timeline-automation {
-  display: grid;
-  gap: 0.125rem;
-  margin: 0;
-  padding-block: 0.25rem;
-  border-block-start: 1px solid var(--cp-hairline);
-  border-block-end: 1px solid var(--cp-hairline);
-  color: var(--cp-timeline-body-ink);
-}
+  .timeline-automation {
+    display: grid;
+    gap: 0.125rem;
+    margin: 0;
+    padding-block: 0.25rem;
+    border-block-start: 1px solid var(--cp-hairline);
+    border-block-end: 1px solid var(--cp-hairline);
+    color: var(--cp-timeline-body-ink);
+  }
 
-.timeline-automation__label {
-  margin: 0;
-  color: var(--ui-ink-muted);
-  font-size: var(--ui-prose-size);
-  line-height: var(--ui-prose-line-height);
-}
+  .timeline-automation__label {
+    margin: 0;
+    color: var(--ui-ink-muted);
+    font-size: var(--ui-prose-size);
+    line-height: var(--ui-prose-line-height);
+  }
 
-.timeline-automation__text {
-  margin: 0;
-  font-size: var(--ui-prose-size);
-  line-height: var(--ui-prose-line-height);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
+  .timeline-automation__text {
+    margin: 0;
+    font-size: var(--ui-prose-size);
+    line-height: var(--ui-prose-line-height);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
 
-.timeline-user__text {
-  margin: 0;
-  font-size: var(--ui-prose-size);
-  line-height: var(--ui-prose-line-height);
-  inline-size: 100%;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
+  .timeline-user__text {
+    margin: 0;
+    font-size: var(--ui-prose-size);
+    line-height: var(--ui-prose-line-height);
+    inline-size: 100%;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
 
-/*
+  /*
  * 没送达的那一句（R-08-5）：虚线框说「它在，但没到 agent 手里」。不换底色、不把字染成失败色 ——
  * 说出口的话还是那句话，错的是投递。
  */
-.timeline-user[data-undelivered='true'] {
-  border: 1px dashed var(--cp-hairline);
-}
+  .timeline-user[data-undelivered='true'] {
+    border: 1px dashed var(--cp-hairline);
+  }
 
-/*
+  /*
  * 滚动那一档的形状（产品指出两条现象）。
  *
  * 1. **宽度钉死**。气泡本来是 fit-content，宽度跟着最长的那行变；虚拟化之后 DOM 里只有视口附近几行，
@@ -105,32 +106,33 @@
  * 不写 overscroll-behavior: contain —— 滚到两头时这一笔要照原样交给转录视口认（feed/nested-scroll.ts 的仲裁靠这个）。
  * 也不加两端渐隐：条已经说了「下面还有」，再加一层雾就是两种说法。
  */
-.timeline-user[data-long='true'] {
-  inline-size: 100%;
-  padding-inline-end: 0.25rem;
-}
+  .timeline-user[data-long='true'] {
+    inline-size: 100%;
+    padding-inline-end: 0.25rem;
+  }
 
-.timeline-user__text[data-scrollable] {
-  max-block-size: var(--cp-timeline-said-max);
-  overflow: hidden auto;
-}
+  .timeline-user__text[data-scrollable] {
+    max-block-size: var(--cp-timeline-said-max);
+    overflow: hidden auto;
+  }
 
-/* 记号排在正文之前、滚动盒之外：跟着行走就会随滚动消失。气泡是 justify-items: end 的网格，这一格要自己靠左。 */
-.timeline-user__chips {
-  margin: 0;
-  font: inherit;
-  justify-self: start;
-  white-space: pre-wrap;
-}
+  /* 记号排在正文之前、滚动盒之外：跟着行走就会随滚动消失。气泡是 justify-items: end 的网格，这一格要自己靠左。 */
+  .timeline-user__chips {
+    margin: 0;
+    font: inherit;
+    justify-self: start;
+    white-space: pre-wrap;
+  }
 
-/* 虚拟化的行盒必须与气泡里其它行一字不差，交界处才看不出接缝。 */
-.timeline-user__output {
-  min-inline-size: min-content;
-}
+  /* 虚拟化的行盒必须与气泡里其它行一字不差，交界处才看不出接缝。 */
+  .timeline-user__output {
+    min-inline-size: min-content;
+  }
 
-/* 一行一格；折行后的真高由虚拟器量（measured），这里只保证不折行时的高度与正文同档。 */
-.timeline-user__line {
-  min-block-size: calc(var(--ui-prose-size) * var(--ui-prose-line-height));
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  /* 一行一格；折行后的真高由虚拟器量（measured），这里只保证不折行时的高度与正文同档。 */
+  .timeline-user__line {
+    min-block-size: calc(var(--ui-prose-size) * var(--ui-prose-line-height));
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
 }

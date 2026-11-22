@@ -1,231 +1,233 @@
-/* 外框圆角归 [data-surface]，这里不加。 */
+@layer components.features {
+  /* 外框圆角归 [data-surface]，这里不加。 */
 
-/* 列宽必须显式钉住：隐式 auto 轨道按 max-content 定宽，展开的散文会把轨道撑出阅读列。 */
-.timeline-tool {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-}
+  /* 列宽必须显式钉住：隐式 auto 轨道按 max-content 定宽，展开的散文会把轨道撑出阅读列。 */
+  .timeline-tool {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
 
-/* 圆角收在这一层才剪得掉里面的滚动条；上限要减掉缩进，否则整块会探出一枚图标的宽度。 */
-.timeline-tool__body {
-  display: grid;
-  gap: 0;
-  max-inline-size: min(100%, var(--cp-timeline-tool-max) - var(--cp-timeline-tool-indent));
-  margin-block-start: var(--cp-control-gap);
-  margin-inline-start: var(--cp-timeline-tool-indent);
-  border-radius: var(--cp-radius-item);
-  background: var(--cp-timeline-drawer-surface);
-  overflow: hidden;
-}
+  /* 圆角收在这一层才剪得掉里面的滚动条；上限要减掉缩进，否则整块会探出一枚图标的宽度。 */
+  .timeline-tool__body {
+    display: grid;
+    gap: 0;
+    max-inline-size: min(100%, var(--cp-timeline-tool-max) - var(--cp-timeline-tool-indent));
+    margin-block-start: var(--cp-control-gap);
+    margin-inline-start: var(--cp-timeline-tool-indent);
+    border-radius: var(--cp-radius-item);
+    background: var(--cp-timeline-drawer-surface);
+    overflow: hidden;
+  }
 
-/* 唯一的滚动容器：上限挂在整个面上（挂到每段产出上就是三个滚动容器）。 */
-.timeline-tool__panel {
-  max-block-size: var(--cp-timeline-output-max);
-  padding: 0.625rem 0.75rem;
-  overflow: auto;
-}
+  /* 唯一的滚动容器：上限挂在整个面上（挂到每段产出上就是三个滚动容器）。 */
+  .timeline-tool__panel {
+    max-block-size: var(--cp-timeline-output-max);
+    padding: 0.625rem 0.75rem;
+    overflow: auto;
+  }
 
-/* 不写 overscroll-behavior：它按轴阻断滚动链、不问该轴有没有可滚距离，内容不满的面板会把滚轮困住。 */
+  /* 不写 overscroll-behavior：它按轴阻断滚动链、不问该轴有没有可滚距离，内容不满的面板会把滚轮困住。 */
 
-/* 上下相接的第二面：隔一条发丝线，说明这不是又一次调用。 */
-.timeline-tool__panel[data-seam] {
-  box-shadow: inset 0 1px 0 var(--cp-timeline-seam);
-}
+  /* 上下相接的第二面：隔一条发丝线，说明这不是又一次调用。 */
+  .timeline-tool__panel[data-seam] {
+    box-shadow: inset 0 1px 0 var(--cp-timeline-seam);
+  }
 
-/* 排版归 .timeline-prose，盒子那几条归 __panel，这里只剩「比回答小一档」。 */
-.timeline-prose.timeline-tool__prose {
-  margin: 0;
-  font-size: var(--ui-prose-size-aux);
-}
+  /* 排版归 .timeline-prose，盒子那几条归 __panel，这里只剩「比回答小一档」。 */
+  .timeline-prose.timeline-tool__prose {
+    margin: 0;
+    font-size: var(--ui-prose-size-aux);
+  }
 
-/* 围栏在这里不滚、只由面板滚：code-block-body 的 max-block-size + overflow 会让它变成第二个滚动容器。这几条与全局特异性相同，靠书写顺序取胜。 */
-.timeline-prose.timeline-tool__prose [data-streamdown='code-block'] {
-  display: block;
-  overflow: visible;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  margin: 0;
-  padding: 0;
-}
+  /* 围栏在这里不滚、只由面板滚：code-block-body 的 max-block-size + overflow 会让它变成第二个滚动容器。这几条与全局特异性相同，靠书写顺序取胜。 */
+  .timeline-prose.timeline-tool__prose [data-streamdown='code-block'] {
+    display: block;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    margin: 0;
+    padding: 0;
+  }
 
-.timeline-prose.timeline-tool__prose [data-streamdown='code-block-header'],
-.timeline-prose.timeline-tool__prose [data-streamdown='code-block'] > :has(> [data-streamdown='code-block-actions']) {
-  display: none;
-}
+  .timeline-prose.timeline-tool__prose [data-streamdown='code-block-header'],
+  .timeline-prose.timeline-tool__prose [data-streamdown='code-block'] > :has(> [data-streamdown='code-block-actions']) {
+    display: none;
+  }
 
-.timeline-prose.timeline-tool__prose [data-streamdown='code-block-body'] {
-  max-block-size: none;
-  overflow: visible;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  padding: 0;
-}
+  .timeline-prose.timeline-tool__prose [data-streamdown='code-block-body'] {
+    max-block-size: none;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
+  }
 
-/* 代码不折行：等宽的价值在列对齐，长行交给面板那唯一的滚动容器。 */
-.timeline-prose.timeline-tool__prose [data-streamdown='code-block-body'] pre {
-  white-space: pre;
-}
+  /* 代码不折行：等宽的价值在列对齐，长行交给面板那唯一的滚动容器。 */
+  .timeline-prose.timeline-tool__prose [data-streamdown='code-block-body'] pre {
+    white-space: pre;
+  }
 
-/* 行内代码退一档：它平时的底色就是 --cp-timeline-inline-code-surface，而这个块自己已是那个颜色，同色叠同色就消失了。 */
-.timeline-prose.timeline-tool__prose :not(pre) > code {
-  background: var(--cp-hover);
-}
+  /* 行内代码退一档：它平时的底色就是 --cp-timeline-inline-code-surface，而这个块自己已是那个颜色，同色叠同色就消失了。 */
+  .timeline-prose.timeline-tool__prose :not(pre) > code {
+    background: var(--cp-hover);
+  }
 
-/* 截图竖排限宽，全屏截图按原始尺寸铺开会把抽屉撑到几屏高。走 <img> 不走 markdown：data URL 会被 Streamdown 当可疑来源拦掉。 */
-.timeline-tool__shots {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-  margin-block-start: 0.5rem;
-}
+  /* 截图竖排限宽，全屏截图按原始尺寸铺开会把抽屉撑到几屏高。走 <img> 不走 markdown：data URL 会被 Streamdown 当可疑来源拦掉。 */
+  .timeline-tool__shots {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    margin-block-start: 0.5rem;
+  }
 
-.timeline-tool__shot {
-  align-self: flex-start;
-  max-inline-size: 100%;
-  padding: 0;
-  border: 0;
-  border-radius: var(--cp-radius-item);
-  background: transparent;
-  cursor: zoom-in;
-  overflow: hidden;
-}
+  .timeline-tool__shot {
+    align-self: flex-start;
+    max-inline-size: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: var(--cp-radius-item);
+    background: transparent;
+    cursor: zoom-in;
+    overflow: hidden;
+  }
 
-.timeline-tool__shot img {
-  display: block;
-  max-inline-size: 100%;
-  max-block-size: var(--cp-timeline-output-max);
-  object-fit: contain;
-}
+  .timeline-tool__shot img {
+    display: block;
+    max-inline-size: 100%;
+    max-block-size: var(--cp-timeline-output-max);
+    object-fit: contain;
+  }
 
-.timeline-tool__shots:only-child {
-  margin-block-start: 0;
-}
+  .timeline-tool__shots:only-child {
+    margin-block-start: 0;
+  }
 
-/* 切换条自占一条窄带，底色归 __body 一处声明。不改 tabs.css 那个全局原语：半透明墨叠在纸上只解出约 12% 的对比，这里换成实色的上一档。 */
-.timeline-tool__tabs {
-  padding: 0.375rem 0.75rem;
-}
+  /* 切换条自占一条窄带，底色归 __body 一处声明。不改 tabs.css 那个全局原语：半透明墨叠在纸上只解出约 12% 的对比，这里换成实色的上一档。 */
+  .timeline-tool__tabs {
+    padding: 0.375rem 0.75rem;
+  }
 
-.timeline-tool__tabs .tabs__tab[aria-selected='true'] {
-  background: var(--cp-timeline-tabs-active);
-}
+  .timeline-tool__tabs .tabs__tab[aria-selected='true'] {
+    background: var(--cp-timeline-tabs-active);
+  }
 
-.timeline-tool__background {
-  flex: none;
-  color: var(--cp-ink-subtle);
-  font-size: var(--cp-font-micro);
-  line-height: 1;
-  white-space: nowrap;
-}
+  .timeline-tool__background {
+    flex: none;
+    color: var(--cp-ink-subtle);
+    font-size: var(--cp-font-micro);
+    line-height: 1;
+    white-space: nowrap;
+  }
 
-/* 改动规模：等宽 + tabular-nums，连续几次编辑读下来数字成一列。 */
+  /* 改动规模：等宽 + tabular-nums，连续几次编辑读下来数字成一列。 */
 
-.timeline-tool__diffstat {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 0.375rem;
-  font-family: var(--cp-font-mono);
-  /* 只比正文小一号：它是行里的一处事实，不是注脚。 */
-  font-size: var(--ui-prose-size-aux);
-  font-variant-numeric: tabular-nums;
-  /* 盒高收到一个字高：继承行高时盒子与行等高，下面那 2px 位移会探出行底；在组成员那个自己滚的盒子里，这 2px 会被当成「下面还有」，整行戴上渐隐的雾。字形在行盒里本就居中，收行高不挪字。 */
-  line-height: 1;
-  /* 数字偏上是真机量出来的：14px 的 Segoe UI 比 13px 的 Consolas 低 2px。不用 baseline 修，那会让整行重解行盒、其它几格一起跳。 */
-  translate: 0 2px;
-}
+  .timeline-tool__diffstat {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.375rem;
+    font-family: var(--cp-font-mono);
+    /* 只比正文小一号：它是行里的一处事实，不是注脚。 */
+    font-size: var(--ui-prose-size-aux);
+    font-variant-numeric: tabular-nums;
+    /* 盒高收到一个字高：继承行高时盒子与行等高，下面那 2px 位移会探出行底；在组成员那个自己滚的盒子里，这 2px 会被当成「下面还有」，整行戴上渐隐的雾。字形在行盒里本就居中，收行高不挪字。 */
+    line-height: 1;
+    /* 数字偏上是真机量出来的：14px 的 Segoe UI 比 13px 的 Consolas 低 2px。不用 baseline 修，那会让整行重解行盒、其它几格一起跳。 */
+    translate: 0 2px;
+  }
 
-.timeline-tool__diffstat-added {
-  color: var(--cp-diff-added-text);
-}
+  .timeline-tool__diffstat-added {
+    color: var(--cp-diff-added-text);
+  }
 
-.timeline-tool__diffstat-removed {
-  color: var(--cp-diff-removed-text);
-}
+  .timeline-tool__diffstat-removed {
+    color: var(--cp-diff-removed-text);
+  }
 
-/* 行带来自 design-system 的 DiffBody（全仓一份）；这一格只做唯一的双轴滚动容器 —— 两条横条并排只会说同一件事。 */
-.timeline-tool__diff {
-  position: relative;
-  max-block-size: var(--cp-timeline-diff-max);
-  padding-block: 0.375rem;
-  overflow: auto;
-}
+  /* 行带来自 design-system 的 DiffBody（全仓一份）；这一格只做唯一的双轴滚动容器 —— 两条横条并排只会说同一件事。 */
+  .timeline-tool__diff {
+    position: relative;
+    max-block-size: var(--cp-timeline-diff-max);
+    padding-block: 0.375rem;
+    overflow: auto;
+  }
 
-.timeline-tool__file + .timeline-tool__file {
-  border-block-start: 1px solid var(--cp-hairline);
-}
+  .timeline-tool__file + .timeline-tool__file {
+    border-block-start: 1px solid var(--cp-hairline);
+  }
 
-.timeline-tool__path {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.375rem 0.75rem;
-  color: var(--cp-timeline-quiet-text);
-  font-size: calc(var(--ui-prose-size) - 2px);
-}
+  .timeline-tool__path {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    color: var(--cp-timeline-quiet-text);
+    font-size: calc(var(--ui-prose-size) - 2px);
+  }
 
-.timeline-tool__path-icon {
-  display: inline-flex;
-  flex: none;
-  color: var(--cp-ink-subtle);
-}
+  .timeline-tool__path-icon {
+    display: inline-flex;
+    flex: none;
+    color: var(--cp-ink-subtle);
+  }
 
-.timeline-tool__path-name {
-  font-family: var(--cp-font-mono);
-  overflow-wrap: anywhere;
-}
+  .timeline-tool__path-name {
+    font-family: var(--cp-font-mono);
+    overflow-wrap: anywhere;
+  }
 
-/* 虚拟化的行盒必须与围栏里的行一字不差，交界处才看不出接缝。 */
-.timeline-tool__output {
-  min-inline-size: min-content;
-}
+  /* 虚拟化的行盒必须与围栏里的行一字不差，交界处才看不出接缝。 */
+  .timeline-tool__output {
+    min-inline-size: min-content;
+  }
 
-.timeline-tool__output-line {
-  min-block-size: calc(var(--ui-prose-size-aux) * var(--ui-line-height-normal));
-  font-family: var(--cp-font-mono);
-  font-size: var(--ui-prose-size-aux);
-  line-height: var(--ui-line-height-normal);
-  white-space: pre;
-}
-/*
+  .timeline-tool__output-line {
+    min-block-size: calc(var(--ui-prose-size-aux) * var(--ui-line-height-normal));
+    font-family: var(--cp-font-mono);
+    font-size: var(--ui-prose-size-aux);
+    line-height: var(--ui-line-height-normal);
+    white-space: pre;
+  }
+  /*
  * 派发行（照 ZCode 的 Agent 摘要行，zai-org/ZCode @ fec9759 的 renderers/agent.tsx + ToolSummaryRow）：
  * 16px 的瓦片脸 + 身份色的类型名 + 那次派发的描述。行几何本身归 .timeline-row，这里只补三格与身份色的量。
  */
 
-.timeline-delegates {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  justify-items: start;
-  gap: var(--cp-feed-glyph-row-gap);
-}
+  .timeline-delegates {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+    gap: var(--cp-feed-glyph-row-gap);
+  }
 
-/* 这一格是 flex 子项，自己钉死 16 见方：脸的原语只保证最小 20×20，行里要的是一格字形的大小。 */
-.timeline-delegate__face {
-  inline-size: var(--cp-icon);
-  block-size: var(--cp-icon);
-  min-inline-size: var(--cp-icon);
-  min-block-size: var(--cp-icon);
-}
+  /* 这一格是 flex 子项，自己钉死 16 见方：脸的原语只保证最小 20×20，行里要的是一格字形的大小。 */
+  .timeline-delegate__face {
+    inline-size: var(--cp-icon);
+    block-size: var(--cp-icon);
+    min-inline-size: var(--cp-icon);
+    min-block-size: var(--cp-icon);
+  }
 
-/* 类型名与描述都是单行截断：这一行说的是「谁在做什么」，折行会把它读成两条事实。 */
-.timeline-delegate__type,
-.timeline-delegate__said {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+  /* 类型名与描述都是单行截断：这一行说的是「谁在做什么」，折行会把它读成两条事实。 */
+  .timeline-delegate__type,
+  .timeline-delegate__said {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
-/* 身份色由组件写在 style 上（与 --agent-face-body 同一份），这里只管它不被压扁：ZCode 的 max-w-36。 */
-.timeline-delegate__type {
-  flex: 0 0 auto;
-  max-inline-size: 9rem;
-}
+  /* 身份色由组件写在 style 上（与 --agent-face-body 同一份），这里只管它不被压扁：ZCode 的 max-w-36。 */
+  .timeline-delegate__type {
+    flex: 0 0 auto;
+    max-inline-size: 9rem;
+  }
 
-/* 描述是这一行的正文：比墨色淡一档（ZCode 的 text-foreground-subtlest），与类别行同一个刻度。 */
-.timeline-delegate__said {
-  flex: 0 1 auto;
-  min-inline-size: 0;
-  color: var(--cp-placeholder);
+  /* 描述是这一行的正文：比墨色淡一档（ZCode 的 text-foreground-subtlest），与类别行同一个刻度。 */
+  .timeline-delegate__said {
+    flex: 0 1 auto;
+    min-inline-size: 0;
+    color: var(--cp-placeholder);
+  }
 }

@@ -1,9 +1,11 @@
-/* 两列各自滚但不画条：面板一共两列宽，一条滚动条占掉近四分之一。::-webkit-scrollbar 与 scrollbar-width 并存是因为
+@layer components.features {
+  /* 两列各自滚但不画条：面板一共两列宽，一条滚动条占掉近四分之一。::-webkit-scrollbar 与 scrollbar-width 并存是因为
  * Chromium 见到前者就用前者，只写标准属性在它那里不生效。 */
-.automation-schedule-field__column {
-  scrollbar-width: none;
-}
+  .automation-schedule-field__column {
+    scrollbar-width: none;
+  }
 
-.automation-schedule-field__column::-webkit-scrollbar {
-  display: none;
+  .automation-schedule-field__column::-webkit-scrollbar {
+    display: none;
+  }
 }

@@ -1,4 +1,5 @@
-/*
+@layer components.kit {
+  /*
  * 瓦片脸：应用图标的圆角方块去掉字母、加上两只眼睛。子代理的身份记号 ——
  * 时间线的派发行、右坞的标签、通道面板的头共用这一张脸。
  *
@@ -7,203 +8,204 @@
  * 机身色与眼白走私有变量（--agent-face-*），由组件按身份色写进 style。
  */
 
-.agent-face {
-  min-inline-size: 20px;
-  min-block-size: 20px;
-  flex: none;
-  --agent-face-body: var(--cp-ink-subtle);
-  --agent-face-eye: #ffffff;
-  --agent-face-x: 0px;
-  --agent-face-y: 0px;
-}
-
-.agent-face__eyes {
-  transform: translate(var(--agent-face-x), var(--agent-face-y));
-  transition: transform 360ms ease-in-out;
-}
-
-.agent-face__lids {
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
-.agent-face [data-eye-expression] {
-  display: none;
-}
-
-.agent-face[data-expression='dots'] [data-eye-expression='dots'],
-.agent-face[data-expression='pill'] [data-eye-expression='pill'] {
-  display: inline;
-}
-
-.agent-face[data-expression='happy'] [data-eye-expression='happy'] {
-  display: inline;
-}
-
-.agent-face[data-expression='sleepy'] [data-eye-expression='sleepy'] {
-  display: inline;
-}
-
-.agent-face[data-expression='focused'] [data-eye-expression='focused'] {
-  display: inline;
-}
-
-.agent-face[data-expression='sad'] [data-eye-expression='sad'] {
-  display: inline;
-}
-
-.agent-face[data-expression='confused'] [data-eye-expression='confused'] {
-  display: inline;
-}
-
-.agent-face[data-motion='blink'] .agent-face__lids {
-  animation: agent-face-blink var(--agent-face-blink-time, 230ms) ease-in-out var(--agent-face-blinks, 2);
-}
-
-.agent-face[data-motion='morph'] .agent-face__lids {
-  animation: agent-face-morph 180ms ease-in-out;
-}
-
-.agent-face[data-motion='hop'] .agent-face__bounce {
-  animation: agent-face-hop 240ms ease-in-out var(--agent-face-hops, 2);
-}
-
-.agent-face__closed {
-  opacity: 0;
-}
-
-.agent-face[data-motion='blink'] .agent-face__closed {
-  animation: agent-face-closed-blink var(--agent-face-blink-time, 230ms) ease-in-out var(--agent-face-blinks, 2);
-}
-
-.agent-face[data-motion='morph'] .agent-face__closed {
-  animation: agent-face-closed-morph 180ms ease-in-out;
-}
-
-@keyframes agent-face-blink {
-  0%,
-  70%,
-  100% {
-    transform: scaleY(1);
-    opacity: 1;
+  .agent-face {
+    min-inline-size: 20px;
+    min-block-size: 20px;
+    flex: none;
+    --agent-face-body: var(--cp-ink-subtle);
+    --agent-face-eye: #ffffff;
+    --agent-face-x: 0px;
+    --agent-face-y: 0px;
   }
 
-  35% {
-    transform: scaleY(0.333333);
-    opacity: 0;
+  .agent-face__eyes {
+    transform: translate(var(--agent-face-x), var(--agent-face-y));
+    transition: transform 360ms ease-in-out;
   }
-}
 
-@keyframes agent-face-closed-blink {
-  0%,
-  70%,
-  100% {
+  .agent-face__lids {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  .agent-face [data-eye-expression] {
+    display: none;
+  }
+
+  .agent-face[data-expression='dots'] [data-eye-expression='dots'],
+  .agent-face[data-expression='pill'] [data-eye-expression='pill'] {
+    display: inline;
+  }
+
+  .agent-face[data-expression='happy'] [data-eye-expression='happy'] {
+    display: inline;
+  }
+
+  .agent-face[data-expression='sleepy'] [data-eye-expression='sleepy'] {
+    display: inline;
+  }
+
+  .agent-face[data-expression='focused'] [data-eye-expression='focused'] {
+    display: inline;
+  }
+
+  .agent-face[data-expression='sad'] [data-eye-expression='sad'] {
+    display: inline;
+  }
+
+  .agent-face[data-expression='confused'] [data-eye-expression='confused'] {
+    display: inline;
+  }
+
+  .agent-face[data-motion='blink'] .agent-face__lids {
+    animation: agent-face-blink var(--agent-face-blink-time, 230ms) ease-in-out var(--agent-face-blinks, 2);
+  }
+
+  .agent-face[data-motion='morph'] .agent-face__lids {
+    animation: agent-face-morph 180ms ease-in-out;
+  }
+
+  .agent-face[data-motion='hop'] .agent-face__bounce {
+    animation: agent-face-hop 240ms ease-in-out var(--agent-face-hops, 2);
+  }
+
+  .agent-face__closed {
     opacity: 0;
   }
 
-  35% {
-    opacity: 1;
-  }
-}
-
-@keyframes agent-face-morph {
-  0%,
-  100% {
-    transform: scaleY(1);
-    opacity: 1;
+  .agent-face[data-motion='blink'] .agent-face__closed {
+    animation: agent-face-closed-blink var(--agent-face-blink-time, 230ms) ease-in-out var(--agent-face-blinks, 2);
   }
 
-  40%,
-  50% {
-    transform: scaleY(0.333333);
-    opacity: 0;
-  }
-}
-
-@keyframes agent-face-closed-morph {
-  0%,
-  100% {
-    opacity: 0;
+  .agent-face[data-motion='morph'] .agent-face__closed {
+    animation: agent-face-closed-morph 180ms ease-in-out;
   }
 
-  40%,
-  50% {
-    opacity: 1;
-  }
-}
+  @keyframes agent-face-blink {
+    0%,
+    70%,
+    100% {
+      transform: scaleY(1);
+      opacity: 1;
+    }
 
-.agent-face[data-motion='float'] .agent-face__bounce {
-  animation: agent-face-float 600ms ease-in-out var(--agent-face-floats, 1);
-}
-
-.agent-face[data-motion='shake'] .agent-face__bounce {
-  animation: agent-face-shake 90ms linear var(--agent-face-shakes, 3);
-}
-
-@keyframes agent-face-float {
-  0%,
-  100% {
-    transform: translateY(0);
+    35% {
+      transform: scaleY(0.333333);
+      opacity: 0;
+    }
   }
 
-  30% {
-    transform: translateY(-0.5px);
+  @keyframes agent-face-closed-blink {
+    0%,
+    70%,
+    100% {
+      opacity: 0;
+    }
+
+    35% {
+      opacity: 1;
+    }
   }
 
-  70% {
-    transform: translateY(0.5px);
-  }
-}
+  @keyframes agent-face-morph {
+    0%,
+    100% {
+      transform: scaleY(1);
+      opacity: 1;
+    }
 
-@keyframes agent-face-shake {
-  0%,
-  100% {
-    transform: translate(0, 0);
-  }
-
-  25% {
-    transform: translate(-0.9px, -0.35px);
-  }
-
-  75% {
-    transform: translate(0.9px, 0.35px);
-  }
-}
-
-.agent-face[data-motion='dots-wave'] [data-eye-expression='dots'] circle {
-  animation: agent-face-dot-float 500ms ease-in-out both;
-}
-
-.agent-face[data-motion='dots-wave'] [data-eye-expression='dots'] circle:nth-child(2) {
-  animation-delay: 200ms;
-}
-
-.agent-face[data-motion='dots-wave'] [data-eye-expression='dots'] circle:nth-child(3) {
-  animation-delay: 400ms;
-}
-
-@keyframes agent-face-dot-float {
-  0%,
-  100% {
-    transform: translateY(0);
+    40%,
+    50% {
+      transform: scaleY(0.333333);
+      opacity: 0;
+    }
   }
 
-  50% {
-    transform: translateY(-1.5px);
-  }
-}
+  @keyframes agent-face-closed-morph {
+    0%,
+    100% {
+      opacity: 0;
+    }
 
-@keyframes agent-face-hop {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-
-  35% {
-    transform: translateY(-1px);
+    40%,
+    50% {
+      opacity: 1;
+    }
   }
 
-  70% {
-    transform: translateY(0.7px);
+  .agent-face[data-motion='float'] .agent-face__bounce {
+    animation: agent-face-float 600ms ease-in-out var(--agent-face-floats, 1);
+  }
+
+  .agent-face[data-motion='shake'] .agent-face__bounce {
+    animation: agent-face-shake 90ms linear var(--agent-face-shakes, 3);
+  }
+
+  @keyframes agent-face-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+
+    30% {
+      transform: translateY(-0.5px);
+    }
+
+    70% {
+      transform: translateY(0.5px);
+    }
+  }
+
+  @keyframes agent-face-shake {
+    0%,
+    100% {
+      transform: translate(0, 0);
+    }
+
+    25% {
+      transform: translate(-0.9px, -0.35px);
+    }
+
+    75% {
+      transform: translate(0.9px, 0.35px);
+    }
+  }
+
+  .agent-face[data-motion='dots-wave'] [data-eye-expression='dots'] circle {
+    animation: agent-face-dot-float 500ms ease-in-out both;
+  }
+
+  .agent-face[data-motion='dots-wave'] [data-eye-expression='dots'] circle:nth-child(2) {
+    animation-delay: 200ms;
+  }
+
+  .agent-face[data-motion='dots-wave'] [data-eye-expression='dots'] circle:nth-child(3) {
+    animation-delay: 400ms;
+  }
+
+  @keyframes agent-face-dot-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(-1.5px);
+    }
+  }
+
+  @keyframes agent-face-hop {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+
+    35% {
+      transform: translateY(-1px);
+    }
+
+    70% {
+      transform: translateY(0.7px);
+    }
   }
 }

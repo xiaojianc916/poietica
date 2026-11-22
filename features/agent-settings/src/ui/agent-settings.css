@@ -1,6 +1,8 @@
-/* 排版词汇（行、组、页、输入框外观）全部来自 design-system 的 settings-primitives，这里只放控件那一格 —— 数值照 legacy 一字未改。 */
+@layer components.features {
+  /* 排版词汇（行、组、页、输入框外观）全部来自 design-system 的 settings-primitives，这里只放控件那一格 —— 数值照 legacy 一字未改。 */
 
-/* 一行里既有开关也有输入框，不固定宽度会让每一行的右边缘参差。 */
-.agent-setting__input {
-  inline-size: 190px;
+  /* 一行里既有开关也有输入框，不固定宽度会让每一行的右边缘参差。 */
+  .agent-setting__input {
+    inline-size: 190px;
+  }
 }

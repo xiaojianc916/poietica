@@ -1,4 +1,5 @@
-/*
+@layer components.features {
+  /*
  * 一轮回复下面那条「N 个文件已更改 / 撤销」。几何照 zcode 的 MessageChangeSummaryPanel：
  *
  *   卡：rounded-xl + 1px 边线 + **实色卡面**（bg-card），无投影
@@ -11,267 +12,268 @@
  * 而这一条要和工具卡、附件格同属一层「内容块」。
  */
 
-.turn-changes {
-  overflow: hidden;
-  inline-size: 100%;
-  max-inline-size: 100%;
-  /* 与上面那段回复正文之间留一档呼吸：压实了会读成正文的最后一段，而不是「这一轮之外的一笔账」。 */
-  margin-block-start: 1rem;
-  border: 1px solid var(--ui-card-frame);
-  border-radius: var(--ui-radius-xl);
-  background: var(--ui-card);
-}
+  .turn-changes {
+    overflow: hidden;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    /* 与上面那段回复正文之间留一档呼吸：压实了会读成正文的最后一段，而不是「这一轮之外的一笔账」。 */
+    margin-block-start: 1rem;
+    border: 1px solid var(--ui-card-frame);
+    border-radius: var(--ui-radius-xl);
+    background: var(--ui-card);
+  }
 
-/* 头部 40px：与 zcode 的 h-10 同档，是两个动作并排时最舒服的一条。 */
-.turn-changes__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  block-size: 2.5rem;
-  padding-inline: 0.5rem;
-  transition: background-color var(--ui-duration-fast) var(--cp-motion-ease);
-}
+  /* 头部 40px：与 zcode 的 h-10 同档，是两个动作并排时最舒服的一条。 */
+  .turn-changes__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    block-size: 2.5rem;
+    padding-inline: 0.5rem;
+    transition: background-color var(--ui-duration-fast) var(--cp-motion-ease);
+  }
 
-/* 悬停抬到整行（zcode 的 hover:bg-hover 在 header 上）：只有左半可点，但整行都该有回执。 */
-.turn-changes__head:hover {
-  background: var(--cp-hover);
-}
+  /* 悬停抬到整行（zcode 的 hover:bg-hover 在 header 上）：只有左半可点，但整行都该有回执。 */
+  .turn-changes__head:hover {
+    background: var(--cp-hover);
+  }
 
-/*
+  /*
  * 开关占满左半：箭头与摘要同属一颗键，整条都能点开，「哪一枚是开关」不该由人猜。
  * 右内距 4px 与 zcode 的 px-1 同档 —— 让摘要末端与右侧撤销键之间留出它自己的呼吸。
  */
-.turn-changes__toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex: 1;
-  min-inline-size: 0;
-  block-size: 100%;
-  padding: 0 0.25rem;
-  border: 0;
-  background: transparent;
-  color: var(--cp-ink);
-  font: inherit;
-  font-size: var(--ui-prose-size);
-  line-height: var(--ui-line-height-tight);
-  text-align: start;
-  cursor: pointer;
-}
+  .turn-changes__toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    min-inline-size: 0;
+    block-size: 100%;
+    padding: 0 0.25rem;
+    border: 0;
+    background: transparent;
+    color: var(--cp-ink);
+    font: inherit;
+    font-size: var(--ui-prose-size);
+    line-height: var(--ui-line-height-tight);
+    text-align: start;
+    cursor: pointer;
+  }
 
-/* 箭头 14 一格（zcode 的 size-3.5）：比正文小一档，位置在文字之前居中。 */
-.turn-changes__chevron {
-  display: block;
-  flex: none;
-  inline-size: 0.875rem;
-  block-size: 0.875rem;
-  color: var(--cp-ink-subtle);
-  /*
+  /* 箭头 14 一格（zcode 的 size-3.5）：比正文小一档，位置在文字之前居中。 */
+  .turn-changes__chevron {
+    display: block;
+    flex: none;
+    inline-size: 0.875rem;
+    block-size: 0.875rem;
+    color: var(--cp-ink-subtle);
+    /*
    * 字形原生朝下（lucide 的 ChevronDown）。收起时**逆时针**转 90° 朝右（顺时针是朝左），
    * 展开后转回朝下 —— 与 zcode 的 ChevronRight + rotate-90 是同一个手势，只是两边的基准朝向相反。
    */
-  rotate: -90deg;
-  transition: rotate var(--cp-motion-swift) cubic-bezier(0.2, 0, 0, 1);
-}
+    rotate: -90deg;
+    transition: rotate var(--cp-motion-swift) cubic-bezier(0.2, 0, 0, 1);
+  }
 
-.turn-changes__toggle[aria-expanded='true'] .turn-changes__chevron {
-  rotate: 0deg;
-}
+  .turn-changes__toggle[aria-expanded='true'] .turn-changes__chevron {
+    rotate: 0deg;
+  }
 
-/* 摘要：主墨、正文一档、有长路径时省略而不是把撤销键挤出去。 */
-.turn-changes__summary {
-  overflow: hidden;
-  min-inline-size: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--cp-ink);
-  font-weight: 500;
-}
+  /* 摘要：主墨、正文一档、有长路径时省略而不是把撤销键挤出去。 */
+  .turn-changes__summary {
+    overflow: hidden;
+    min-inline-size: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--cp-ink);
+    font-weight: 500;
+  }
 
-/*
+  /*
  * 增删数字：等宽 + tabular-nums，相邻几轮读下来数字对齐成一条。
  * 取色只读 diff 那一对令牌（深色主题另有更艳的一档，见 assistant.css）。
  */
-.turn-changes__stat {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 0.5rem;
-  font-family: var(--cp-font-mono);
-  font-size: var(--ui-prose-size);
-  font-variant-numeric: tabular-nums;
-}
+  .turn-changes__stat {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--cp-font-mono);
+    font-size: var(--ui-prose-size);
+    font-variant-numeric: tabular-nums;
+  }
 
-.turn-changes__added {
-  color: var(--cp-diff-added-text);
-}
+  .turn-changes__added {
+    color: var(--cp-diff-added-text);
+  }
 
-.turn-changes__removed {
-  color: var(--cp-diff-removed-text);
-}
+  .turn-changes__removed {
+    color: var(--cp-diff-removed-text);
+  }
 
-/*
+  /*
  * 撤销键：文字钮（zcode 的 ghost Button，高 28、内距 8、字与正文同档）。
  * 「撤销」两个字比一个回箭头说得清楚，而这一条上只有它一个危险动作。
  */
-.turn-changes__rewind {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 0.375rem;
-  block-size: 1.75rem;
-  padding: 0 0.5rem;
-  border: 0;
-  border-radius: var(--ui-radius-md);
-  background: transparent;
-  color: var(--cp-ink-subtle);
-  font: inherit;
-  font-size: var(--ui-prose-size);
-  line-height: var(--ui-line-height-tight);
-  cursor: pointer;
-  transition:
-    background-color var(--ui-duration-fast) var(--cp-motion-ease),
-    color var(--ui-duration-fast) var(--cp-motion-ease);
-}
+  .turn-changes__rewind {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 0.375rem;
+    block-size: 1.75rem;
+    padding: 0 0.5rem;
+    border: 0;
+    border-radius: var(--ui-radius-md);
+    background: transparent;
+    color: var(--cp-ink-subtle);
+    font: inherit;
+    font-size: var(--ui-prose-size);
+    line-height: var(--ui-line-height-tight);
+    cursor: pointer;
+    transition:
+      background-color var(--ui-duration-fast) var(--cp-motion-ease),
+      color var(--ui-duration-fast) var(--cp-motion-ease);
+  }
 
-.turn-changes__rewind:hover:not(:disabled),
-.turn-changes__rewind:focus-visible:not(:disabled) {
-  background: var(--cp-hover);
-  color: var(--cp-ink);
-}
+  .turn-changes__rewind:hover:not(:disabled),
+  .turn-changes__rewind:focus-visible:not(:disabled) {
+    background: var(--cp-hover);
+    color: var(--cp-ink);
+  }
 
-.turn-changes__rewind:disabled {
-  cursor: default;
-  color: var(--cp-timeline-quiet-text);
-}
+  .turn-changes__rewind:disabled {
+    cursor: default;
+    color: var(--cp-timeline-quiet-text);
+  }
 
-.turn-changes__rewind-icon {
-  display: block;
-  flex: none;
-  inline-size: 0.875rem;
-  block-size: 0.875rem;
-}
+  .turn-changes__rewind-icon {
+    display: block;
+    flex: none;
+    inline-size: 0.875rem;
+    block-size: 0.875rem;
+  }
 
-/*
+  /*
  * 抬起来的那一段：已撤销的整条退到背景里。它还在，但已经不再是一件待办 ——
  * 只走既有的次要墨，不给它另发明一套「已完成」的视觉。
  */
-.turn-changes[data-reverted='true'] .turn-changes__summary,
-.turn-changes[data-reverted='true'] .turn-changes__stat {
-  color: var(--cp-timeline-quiet-text);
-}
+  .turn-changes[data-reverted='true'] .turn-changes__summary,
+  .turn-changes[data-reverted='true'] .turn-changes__stat {
+    color: var(--cp-timeline-quiet-text);
+  }
 
-/*
+  /*
  * 展开后的文件清单（zcode 的 CollapsibleContent）：每行 py-2、路径主墨、增删跟在后面。
  * 不铺 inline diff —— 这一条在回复末尾，摊开一整份补丁会把下一轮推走好几屏。
  */
-.turn-changes__files {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  border-block-start: 1px solid var(--cp-hairline);
-  list-style: none;
-}
+  .turn-changes__files {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    border-block-start: 1px solid var(--cp-hairline);
+    list-style: none;
+  }
 
-/*
+  /*
  * 文件行：文件名一档正文（aux），右边的目录（面包屑）再小一档（见 .turn-changes__dir）。
  * 要读的是叶子那一段，路径只是它「在哪」的注脚 —— 两者同号时，眼睛得先穿过一长串目录才找到名字。
  */
-.turn-changes__file {
-  display: flex;
-  align-items: baseline;
-  gap: 0.375rem;
-  padding: 0.375rem 0.5rem;
-  font-size: var(--ui-prose-size-aux);
-  line-height: var(--ui-line-height-tight);
-}
+  .turn-changes__file {
+    display: flex;
+    align-items: baseline;
+    gap: 0.375rem;
+    padding: 0.375rem 0.5rem;
+    font-size: var(--ui-prose-size-aux);
+    line-height: var(--ui-line-height-tight);
+  }
 
-/* 文件类型图标：比文字再小一点，它只是认种类的记号，不是内容。 */
-.turn-changes__mark {
-  display: block;
-  flex: none;
-  inline-size: 0.875rem;
-  block-size: 0.875rem;
-  object-fit: contain;
-  /* 图标跟着基线走：与文件名同一行的文字对齐，不把整行撑高。 */
-  align-self: center;
-}
+  /* 文件类型图标：比文字再小一点，它只是认种类的记号，不是内容。 */
+  .turn-changes__mark {
+    display: block;
+    flex: none;
+    inline-size: 0.875rem;
+    block-size: 0.875rem;
+    object-fit: contain;
+    /* 图标跟着基线走：与文件名同一行的文字对齐，不把整行撑高。 */
+    align-self: center;
+  }
 
-/* 能点开右坞 diff 的那一行：按钮长成行本身，悬停给个回执（与头部同一条墨）。 */
-.turn-changes__file--open {
-  inline-size: 100%;
-  border: 0;
-  border-radius: var(--ui-radius-sm);
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
-  transition: background-color var(--ui-duration-fast) var(--cp-motion-ease);
-}
+  /* 能点开右坞 diff 的那一行：按钮长成行本身，悬停给个回执（与头部同一条墨）。 */
+  .turn-changes__file--open {
+    inline-size: 100%;
+    border: 0;
+    border-radius: var(--ui-radius-sm);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+    transition: background-color var(--ui-duration-fast) var(--cp-motion-ease);
+  }
 
-.turn-changes__file--open:hover,
-.turn-changes__file--open:focus-visible {
-  background: var(--cp-hover);
-}
+  .turn-changes__file--open:hover,
+  .turn-changes__file--open:focus-visible {
+    background: var(--cp-hover);
+  }
 
-/*
+  /*
  * 路径占满剩下的宽度，增删跟在后面对齐：连续几个文件读下来数字成一列。
  * 文件名在前、目录在后（zcode 的 FileDisplayInline 同一个读法），整格省略时先丢目录尾巴。
  */
-.turn-changes__path {
-  display: flex;
-  flex: 1;
-  min-inline-size: 0;
-  /*
+  .turn-changes__path {
+    display: flex;
+    flex: 1;
+    min-inline-size: 0;
+    /*
    * 按**基线**对齐，不是居中：文件名与面包屑两档字号的行盒高度不同，居中对齐会把小的那一段
    * 抬高约半像素（行高是倍率，两档的 ascent 占比一样但盒高不一样，居中后基线差 0.6px 上下）——
    * 在 2 倍屏上就是「面包屑整体偏上」。基线对齐才是同一行文字该有的读法。
    */
-  align-items: baseline;
-  gap: 0.375rem;
-  overflow: hidden;
-  white-space: nowrap;
-  /* 长路径宁可省略也不折行：一折行，那一列数字就散了。 */
-  direction: ltr;
-}
+    align-items: baseline;
+    gap: 0.375rem;
+    overflow: hidden;
+    white-space: nowrap;
+    /* 长路径宁可省略也不折行：一折行，那一列数字就散了。 */
+    direction: ltr;
+  }
 
-/*
+  /*
  * 文件名：主墨、比行字号再小一档（meta），字重稍重（zcode 的 font-medium）。
  *
  * **不用等宽字体** —— zcode 的 FileDisplayInline 走的是正文字体（text-ui-base）。
  * 等宽在同样字号下字形更宽更高、基线位置也不同，放在一行里读起来就是「这一格换了个字体」。
  */
-.turn-changes__name {
-  overflow: hidden;
-  flex: none;
-  max-inline-size: 100%;
-  text-overflow: ellipsis;
-  color: var(--cp-ink);
-}
+  .turn-changes__name {
+    overflow: hidden;
+    flex: none;
+    max-inline-size: 100%;
+    text-overflow: ellipsis;
+    color: var(--cp-ink);
+  }
 
-/*
+  /*
  * 面包屑：与文件名同一个字体族，只小一档字号、退一档墨（zcode 的 text-foreground-subtlest）。
  * 两段按基线对齐（见 __file 与 __path）：居中对齐会让小字号那一段在基线方向上抬起半个像素，
  * 屏幕上就是「面包屑整体偏上」。
  */
-.turn-changes__dir {
-  overflow: hidden;
-  min-inline-size: 0;
-  text-overflow: ellipsis;
-  color: var(--cp-ink-subtle);
-  font-size: var(--ui-font-size-caption);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .turn-changes__head,
-  .turn-changes__rewind {
-    transition: none;
+  .turn-changes__dir {
+    overflow: hidden;
+    min-inline-size: 0;
+    text-overflow: ellipsis;
+    color: var(--cp-ink-subtle);
+    font-size: var(--ui-font-size-caption);
   }
 
-  .turn-changes__chevron {
-    transition: none;
+  @media (prefers-reduced-motion: reduce) {
+    .turn-changes__head,
+    .turn-changes__rewind {
+      transition: none;
+    }
+
+    .turn-changes__chevron {
+      transition: none;
+    }
   }
 }

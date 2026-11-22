@@ -1,91 +1,93 @@
-/* 文件树：审查的变更树与右坞「文件」共用的那一份行样式（原 review-pane.css 的 .tree-guide / .review-tree-row，数值逐条照搬）。 */
+@layer components.ds {
+  /* 文件树：审查的变更树与右坞「文件」共用的那一份行样式（原 review-pane.css 的 .tree-guide / .review-tree-row，数值逐条照搬）。 */
 
-.file-tree__guide {
-  /*
+  .file-tree__guide {
+    /*
    * 引导线：浅色产品档；深色下必须给实色 —— 引导线每行一根、上下各探 2px 过缝，相邻两行的
    * 线在缝处叠 2px，半透明的墨叠起来会加倍（14% + 14% ≈ 26%），那条缝上就出现一串比线本身
    * 亮的 2px 小点。实色叠加仍是同一个颜色。
    */
-  --file-tree-guide: #f1f1f1;
+    --file-tree-guide: #f1f1f1;
 
-  position: absolute;
-  top: 0;
-  margin-top: -2px;
-  height: calc(100% + 2px);
-  width: 1px;
-  pointer-events: none;
-  background: var(--file-tree-guide);
-  /* 宿主可以让整块区域悬停时亮出引导线：在自己的祖先上写这个变量，不按内部类名改。 */
-  opacity: var(--file-tree-guide-opacity, 0);
-}
+    position: absolute;
+    top: 0;
+    margin-top: -2px;
+    height: calc(100% + 2px);
+    width: 1px;
+    pointer-events: none;
+    background: var(--file-tree-guide);
+    /* 宿主可以让整块区域悬停时亮出引导线：在自己的祖先上写这个变量，不按内部类名改。 */
+    opacity: var(--file-tree-guide-opacity, 0);
+  }
 
-.file-tree:hover .file-tree__guide {
-  opacity: 1;
-}
+  .file-tree:hover .file-tree__guide {
+    opacity: 1;
+  }
 
-/*
+  /*
  * 非整数倍屏：1 CSS px 会被吸到两个设备像素上（Windows 150% 缩放下一整条 #383838 占两列，读起来就是 2px），
  * 比正文字形还粗。引导线不是边框，是实色块 —— 宽度取 1/dpr 后只落在一列设备像素里，不再跨两列。
  * 这里只改粗细；颜色与「悬停才亮」的时机都不动。1 倍屏不碰，2 倍屏见下面那条。
  */
-@media (1.2dppx <= resolution < 1.5dppx) {
-  .file-tree__guide {
-    width: 0.8px;
+  @media (1.2dppx <= resolution < 1.5dppx) {
+    .file-tree__guide {
+      width: 0.8px;
+    }
   }
-}
 
-@media (1.5dppx <= resolution < 1.75dppx) {
-  .file-tree__guide {
-    width: 0.6667px;
+  @media (1.5dppx <= resolution < 1.75dppx) {
+    .file-tree__guide {
+      width: 0.6667px;
+    }
   }
-}
 
-@media (1.75dppx <= resolution < 2dppx) {
-  .file-tree__guide {
-    width: 0.5714px;
+  @media (1.75dppx <= resolution < 2dppx) {
+    .file-tree__guide {
+      width: 0.5714px;
+    }
   }
-}
 
-/*
+  /*
  * 2 倍屏上 1px 占两个设备像素，比正文字形还粗；这一档缩到 0.5px 恰好一个设备像素（引导线位置与
  * 行位移都是整数 CSS 像素，2× 下落在设备栅格上，画出来是实线）。
  */
-@media (min-resolution: 2dppx) {
-  .file-tree__guide {
-    width: 0.5px;
+  @media (min-resolution: 2dppx) {
+    .file-tree__guide {
+      width: 0.5px;
+    }
   }
-}
 
-:root[data-theme='dark'] .file-tree__guide {
-  --file-tree-guide: #383838;
-}
+  :root[data-theme='dark'] .file-tree__guide {
+    --file-tree-guide: #383838;
+  }
 
-.file-tree__row {
-  /* 行悬停底：浅色读沉地档；深色铺一层 5% 白墨（压在树自己的底上跟着底走）。 */
-  --file-tree-row-hover: var(--ui-sunken);
+  .file-tree__row {
+    /* 行悬停底：浅色读沉地档；深色铺一层 5% 白墨（压在树自己的底上跟着底走）。 */
+    --file-tree-row-hover: var(--ui-sunken);
 
-  cursor: default;
-  user-select: none;
-}
+    cursor: default;
+    user-select: none;
+  }
 
-.file-tree__row:hover {
-  background: var(--file-tree-row-hover);
-}
+  .file-tree__row:hover {
+    background: var(--file-tree-row-hover);
+  }
 
-/* 选中（右坞里正开着的那个文件）比悬停深一档；悬停在选中行上不再变。 */
-.file-tree__row[aria-selected='true'] {
-  background: var(--cp-hover);
-}
+  /* 选中（右坞里正开着的那个文件）比悬停深一档；悬停在选中行上不再变。 */
+  .file-tree__row[aria-selected='true'] {
+    background: var(--cp-hover);
+  }
 
-.file-tree__row:focus-visible {
-  outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
-  outline-offset: calc(var(--cp-px) * -2);
-}
+  .file-tree__row:focus-visible {
+    outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
+    outline-offset: calc(var(--cp-px) * -2);
+  }
 
-.file-tree__row[data-dimmed] .file-tree__label {
-  opacity: 0.5;
-}
+  .file-tree__row[data-dimmed] .file-tree__label {
+    opacity: 0.5;
+  }
 
-:root[data-theme='dark'] .file-tree__row {
-  --file-tree-row-hover: color-mix(in srgb, #ffffff 5%, transparent);
+  :root[data-theme='dark'] .file-tree__row {
+    --file-tree-row-hover: color-mix(in srgb, #ffffff 5%, transparent);
+  }
 }

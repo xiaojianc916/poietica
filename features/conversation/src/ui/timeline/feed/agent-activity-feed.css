@@ -1,112 +1,114 @@
-.agent-activity-feed {
-  position: relative;
-  display: flex;
-  min-block-size: 0;
-  min-inline-size: 0;
-  flex: 1;
-  flex-direction: column;
-}
+@layer components.features {
+  .agent-activity-feed {
+    position: relative;
+    display: flex;
+    min-block-size: 0;
+    min-inline-size: 0;
+    flex: 1;
+    flex-direction: column;
+  }
 
-/* position: relative 当转录的 offsetParent；overflow-anchor: none 是因为滚动位置已有两个写入者，原生锚定是第三个且不知情：同一次尺寸变化被补两次就是那一下跳变。 */
-.agent-activity-feed__viewport {
-  position: relative;
-  display: flex;
-  min-block-size: 0;
-  min-inline-size: 0;
-  flex: 1 1 auto;
-  flex-direction: column;
-  /* 横向留 visible 会被 CSS Overflow 3 提升成 auto，凭空多出一条只滚得出空白的横条。 */
-  overflow: clip auto;
-  overflow-anchor: none;
-  /* 必须留在 auto：末端跟随每次提交都写 scrollTop，改成 smooth 会把每帧的新目标当新起点，永远追不上。 */
-  scroll-behavior: auto;
-  overscroll-behavior: contain;
-  contain: layout paint;
-  padding-block-start: var(--cp-gutter);
-  --assistant-feed-inline-padding: max(
-    var(--cp-gutter),
-    calc((100% - var(--assistant-surface-inline-end-clearance, 0px) - var(--cp-grid)) / 2)
-  );
-  padding-inline-start: var(--assistant-feed-inline-padding);
-  padding-inline-end: calc(var(--assistant-feed-inline-padding) + var(--assistant-surface-inline-end-clearance, 0px));
-  /* 条常驻，此刻不改任何一帧；防的是将来改回自动隐藏时内容宽度横向跳动。 */
-  scrollbar-gutter: stable;
-}
+  /* position: relative 当转录的 offsetParent；overflow-anchor: none 是因为滚动位置已有两个写入者，原生锚定是第三个且不知情：同一次尺寸变化被补两次就是那一下跳变。 */
+  .agent-activity-feed__viewport {
+    position: relative;
+    display: flex;
+    min-block-size: 0;
+    min-inline-size: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    /* 横向留 visible 会被 CSS Overflow 3 提升成 auto，凭空多出一条只滚得出空白的横条。 */
+    overflow: clip auto;
+    overflow-anchor: none;
+    /* 必须留在 auto：末端跟随每次提交都写 scrollTop，改成 smooth 会把每帧的新目标当新起点，永远追不上。 */
+    scroll-behavior: auto;
+    overscroll-behavior: contain;
+    contain: layout paint;
+    padding-block-start: var(--cp-gutter);
+    --assistant-feed-inline-padding: max(
+      var(--cp-gutter),
+      calc((100% - var(--assistant-surface-inline-end-clearance, 0px) - var(--cp-grid)) / 2)
+    );
+    padding-inline-start: var(--assistant-feed-inline-padding);
+    padding-inline-end: calc(var(--assistant-feed-inline-padding) + var(--assistant-surface-inline-end-clearance, 0px));
+    /* 条常驻，此刻不改任何一帧；防的是将来改回自动隐藏时内容宽度横向跳动。 */
+    scrollbar-gutter: stable;
+  }
 
-.agent-activity-feed__lead {
-  flex: none;
-}
+  .agent-activity-feed__lead {
+    flex: none;
+  }
 
-/*
+  /*
  * 转录末尾那一格（运行状态行）。绝对定位在「最后一行之后、输入框留白之内」—— 纵向位移由
  * 组件按虚拟器算出的 total 减去 paddingEnd 给出，所以它跟着行位置走，但自己不参与行测量。
  */
-.agent-activity-feed__trailing {
-  position: absolute;
-  inset-inline: 0;
-  contain: style;
-  pointer-events: none;
-}
+  .agent-activity-feed__trailing {
+    position: absolute;
+    inset-inline: 0;
+    contain: style;
+    pointer-events: none;
+  }
 
-/* 高度由虚拟器以行内样式给出：这里声明它不参与 flex 伸缩，否则高度会有第二个来源。 */
-.agent-activity-feed__transcript {
-  position: relative;
-  inline-size: 100%;
-  flex: none;
-}
+  /* 高度由虚拟器以行内样式给出：这里声明它不参与 flex 伸缩，否则高度会有第二个来源。 */
+  .agent-activity-feed__transcript {
+    position: relative;
+    inline-size: 100%;
+    flex: none;
+  }
 
-/* contain 只取 style：size 会让 measureElement 读回零，layout 会把每行变成包含块并新开层叠上下文、行内浮层会换锚点。绝对定位是不让位置出现第二个来源。 */
-.agent-activity-feed__row {
-  position: absolute;
-  inset-block-start: 0;
-  inset-inline: 0;
-  contain: style;
-  padding-block: var(--cp-feed-prose-row-gap);
-}
+  /* contain 只取 style：size 会让 measureElement 读回零，layout 会把每行变成包含块并新开层叠上下文、行内浮层会换锚点。绝对定位是不让位置出现第二个来源。 */
+  .agent-activity-feed__row {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline: 0;
+    contain: style;
+    padding-block: var(--cp-feed-prose-row-gap);
+  }
 
-.agent-activity-feed__row[data-rhythm='glyph'] {
-  padding-block: var(--cp-feed-glyph-row-gap);
-}
+  .agent-activity-feed__row[data-rhythm='glyph'] {
+    padding-block: var(--cp-feed-glyph-row-gap);
+  }
 
-/* 行绝对定位，容器 gap 与相邻兄弟选择器都无从成立，所以行距是每行自己的上下内边距。 */
-.agent-activity-feed__to-latest {
-  position: absolute;
-  inset-block-end: calc(var(--cp-dock-clearance) + var(--cp-dock-runway));
-  inset-inline-start: 0;
-  inset-inline-end: var(--assistant-surface-inline-end-clearance, 0px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  inline-size: var(--cp-control);
-  block-size: var(--cp-control);
-  margin-inline: auto;
-  appearance: none;
-  border: var(--cp-px) solid var(--cp-to-latest-edge);
-  border-radius: 50%;
-  background: var(--cp-surface);
-  color: var(--cp-ink);
-  cursor: pointer;
-  opacity: 0;
-  transform: translateY(var(--cp-motion-rise));
-  transition:
-    opacity var(--cp-motion-swift) var(--cp-motion-ease),
-    transform var(--cp-motion-swift) var(--cp-motion-ease),
-    background-color var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-.agent-activity-feed__to-latest[data-shown='true'] {
-  opacity: 1;
-  transform: none;
-}
-
-.agent-activity-feed__to-latest:hover {
-  background: var(--cp-overlay-hover);
-}
-
-/* 焦点圈不自己画：没有 outline: none，浏览器的 :focus-visible 因此照常生效。 */
-
-@media (prefers-reduced-motion: reduce) {
+  /* 行绝对定位，容器 gap 与相邻兄弟选择器都无从成立，所以行距是每行自己的上下内边距。 */
   .agent-activity-feed__to-latest {
-    transition: none;
+    position: absolute;
+    inset-block-end: calc(var(--cp-dock-clearance) + var(--cp-dock-runway));
+    inset-inline-start: 0;
+    inset-inline-end: var(--assistant-surface-inline-end-clearance, 0px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--cp-control);
+    block-size: var(--cp-control);
+    margin-inline: auto;
+    appearance: none;
+    border: var(--cp-px) solid var(--cp-to-latest-edge);
+    border-radius: 50%;
+    background: var(--cp-surface);
+    color: var(--cp-ink);
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(var(--cp-motion-rise));
+    transition:
+      opacity var(--cp-motion-swift) var(--cp-motion-ease),
+      transform var(--cp-motion-swift) var(--cp-motion-ease),
+      background-color var(--cp-motion-swift) var(--cp-motion-ease);
+  }
+
+  .agent-activity-feed__to-latest[data-shown='true'] {
+    opacity: 1;
+    transform: none;
+  }
+
+  .agent-activity-feed__to-latest:hover {
+    background: var(--cp-overlay-hover);
+  }
+
+  /* 焦点圈不自己画：没有 outline: none，浏览器的 :focus-visible 因此照常生效。 */
+
+  @media (prefers-reduced-motion: reduce) {
+    .agent-activity-feed__to-latest {
+      transition: none;
+    }
   }
 }

@@ -1,285 +1,287 @@
-/* 选择器与数值**逐字迁移**自 legacy conversation 的 `surface/threads/assistant-threads.css` 里 `.workspace-picker*` 的那几条规则。
+@layer components.ds {
+  /* 选择器与数值**逐字迁移**自 legacy conversation 的 `surface/threads/assistant-threads.css` 里 `.workspace-picker*` 的那几条规则。
  * legacy 把选择器与线程列表放在同一份样式表里；新架构里按归属把这一段切出来。 */
-/* 归本目录而不是归共享皮肤：这些类名只有这里的组件画得出来。令牌与皮从 skin 来。 */
+  /* 归本目录而不是归共享皮肤：这些类名只有这里的组件画得出来。令牌与皮从 skin 来。 */
 
-.workspace-picker__field svg,
-.workspace-picker__context-trigger svg {
-  flex: none;
-}
+  .workspace-picker__field svg,
+  .workspace-picker__context-trigger svg {
+    flex: none;
+  }
 
-/* 这三处图标的盒子由组件自己定：消费方不再按类名补 block-size / inline-size。 */
-.workspace-picker__repositories-action svg,
-.workspace-picker__field svg,
-.workspace-picker__context-trigger svg {
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-}
+  /* 这三处图标的盒子由组件自己定：消费方不再按类名补 block-size / inline-size。 */
+  .workspace-picker__repositories-action svg,
+  .workspace-picker__field svg,
+  .workspace-picker__context-trigger svg {
+    block-size: var(--cp-icon);
+    inline-size: var(--cp-icon);
+  }
 
-.workspace-picker__context-trigger svg {
-  color: var(--cp-ink-muted);
-}
+  .workspace-picker__context-trigger svg {
+    color: var(--cp-ink-muted);
+  }
 
-/* 左侧标题仍是工作区切换入口；右侧筛选按钮打开同一张选择菜单，添加按钮调用宿主的文件夹选择器。 */
-.workspace-picker[data-placement='sidebar'] {
-  display: flex;
-  block-size: var(--ui-row-height);
-  flex: none;
-  align-items: center;
-  gap: var(--ui-row-gap);
-  margin-block-start: var(--cp-mast-gap);
-  padding-inline-start: calc(var(--ui-row-inset) + var(--ui-row-lead));
-  padding-inline-end: calc(var(--ui-row-inset) + var(--ui-row-trail));
-}
+  /* 左侧标题仍是工作区切换入口；右侧筛选按钮打开同一张选择菜单，添加按钮调用宿主的文件夹选择器。 */
+  .workspace-picker[data-placement='sidebar'] {
+    display: flex;
+    block-size: var(--ui-row-height);
+    flex: none;
+    align-items: center;
+    gap: var(--ui-row-gap);
+    margin-block-start: var(--cp-mast-gap);
+    padding-inline-start: calc(var(--ui-row-inset) + var(--ui-row-lead));
+    padding-inline-end: calc(var(--ui-row-inset) + var(--ui-row-trail));
+  }
 
-.workspace-picker__repositories-title {
-  display: inline-flex;
-  min-inline-size: 0;
-  flex: 0 1 auto;
-  align-items: center;
-  gap: var(--ui-row-gap);
-  border: 0;
-  border-radius: var(--ui-row-radius);
-  padding: 0;
-  background: transparent;
-  color: var(--cp-ink);
-  font: inherit;
-  font-size: var(--cp-font-caption);
-  cursor: pointer;
-}
+  .workspace-picker__repositories-title {
+    display: inline-flex;
+    min-inline-size: 0;
+    flex: 0 1 auto;
+    align-items: center;
+    gap: var(--ui-row-gap);
+    border: 0;
+    border-radius: var(--ui-row-radius);
+    padding: 0;
+    background: transparent;
+    color: var(--cp-ink);
+    font: inherit;
+    font-size: var(--cp-font-caption);
+    cursor: pointer;
+  }
 
-.workspace-picker__repositories-title:hover {
-  color: var(--ui-foreground);
-}
+  .workspace-picker__repositories-title:hover {
+    color: var(--ui-foreground);
+  }
 
-.workspace-picker__repositories-chevron {
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-  flex: none;
-  opacity: 0;
-  color: var(--cp-ink-muted);
-  pointer-events: none;
-  transform: rotate(-90deg);
-  transition:
-    opacity var(--cp-motion-swift) var(--cp-motion-ease),
-    transform var(--cp-motion-swift) var(--cp-motion-ease);
-}
+  .workspace-picker__repositories-chevron {
+    block-size: var(--cp-icon);
+    inline-size: var(--cp-icon);
+    flex: none;
+    opacity: 0;
+    color: var(--cp-ink-muted);
+    pointer-events: none;
+    transform: rotate(-90deg);
+    transition:
+      opacity var(--cp-motion-swift) var(--cp-motion-ease),
+      transform var(--cp-motion-swift) var(--cp-motion-ease);
+  }
 
-.workspace-picker__repositories-title[aria-expanded='true'] .workspace-picker__repositories-chevron {
-  transform: rotate(0deg);
-}
+  .workspace-picker__repositories-title[aria-expanded='true'] .workspace-picker__repositories-chevron {
+    transform: rotate(0deg);
+  }
 
-.workspace-picker__repositories-title:hover .workspace-picker__repositories-chevron,
-.workspace-picker__repositories-title:focus-visible .workspace-picker__repositories-chevron {
-  opacity: 1;
-}
+  .workspace-picker__repositories-title:hover .workspace-picker__repositories-chevron,
+  .workspace-picker__repositories-title:focus-visible .workspace-picker__repositories-chevron {
+    opacity: 1;
+  }
 
-.workspace-picker__repositories-title:focus-visible {
-  outline: var(--cp-px) solid var(--cp-accent);
-  outline-offset: var(--cp-px);
-}
+  .workspace-picker__repositories-title:focus-visible {
+    outline: var(--cp-px) solid var(--cp-accent);
+    outline-offset: var(--cp-px);
+  }
 
-.workspace-picker__repositories-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: calc(var(--ui-hairline) * 2);
-  margin-inline-start: auto;
-}
+  .workspace-picker__repositories-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: calc(var(--ui-hairline) * 2);
+    margin-inline-start: auto;
+  }
 
-.workspace-picker__repositories-action {
-  display: grid;
-  block-size: var(--assistant-threads-action-size);
-  inline-size: var(--assistant-threads-action-size);
-  place-items: center;
-  border: 0;
-  border-radius: var(--cp-optical);
-  padding: 0;
-  background: transparent;
-  color: var(--cp-ink-muted);
-  cursor: pointer;
-  transition:
-    background-color var(--cp-motion-swift) var(--cp-motion-ease),
-    color var(--cp-motion-swift) var(--cp-motion-ease),
-    transform var(--cp-motion-swift) var(--cp-motion-ease);
-}
+  .workspace-picker__repositories-action {
+    display: grid;
+    block-size: var(--assistant-threads-action-size);
+    inline-size: var(--assistant-threads-action-size);
+    place-items: center;
+    border: 0;
+    border-radius: var(--cp-optical);
+    padding: 0;
+    background: transparent;
+    color: var(--cp-ink-muted);
+    cursor: pointer;
+    transition:
+      background-color var(--cp-motion-swift) var(--cp-motion-ease),
+      color var(--cp-motion-swift) var(--cp-motion-ease),
+      transform var(--cp-motion-swift) var(--cp-motion-ease);
+  }
 
-.workspace-picker__repositories-action:hover,
-.workspace-picker__repositories-action[data-popup-open],
-.workspace-picker__repositories-action[aria-expanded='true'] {
-  background: var(--cp-hover);
-  color: var(--cp-ink);
-}
+  .workspace-picker__repositories-action:hover,
+  .workspace-picker__repositories-action[data-popup-open],
+  .workspace-picker__repositories-action[aria-expanded='true'] {
+    background: var(--cp-hover);
+    color: var(--cp-ink);
+  }
 
-.workspace-picker__repositories-action:active {
-  transform: scale(0.94);
-}
+  .workspace-picker__repositories-action:active {
+    transform: scale(0.94);
+  }
 
-/* 列表原本用 --cp-mast-gap 作顶部内边距，第一行工作区离工具栏过远；这里只保留一道最小的视觉间隔，不影响列表底部留白。
+  /* 列表原本用 --cp-mast-gap 作顶部内边距，第一行工作区离工具栏过远；这里只保留一道最小的视觉间隔，不影响列表底部留白。
  * 只认「紧邻的下一个兄弟」，不点名具体功能的列表类名。 */
-.workspace-picker[data-placement='sidebar'] + * {
-  padding-block-start: calc(var(--ui-hairline) * 2);
-}
+  .workspace-picker[data-placement='sidebar'] + * {
+    padding-block-start: calc(var(--ui-hairline) * 2);
+  }
 
-/* 收起时只隐藏下面整张会话导航，Repositories 工具栏本身继续保留。 */
-.workspace-picker[data-placement='sidebar']:has(.workspace-picker__repositories-title[aria-expanded='false']) + * {
-  display: none;
-}
+  /* 收起时只隐藏下面整张会话导航，Repositories 工具栏本身继续保留。 */
+  .workspace-picker[data-placement='sidebar']:has(.workspace-picker__repositories-title[aria-expanded='false']) + * {
+    display: none;
+  }
 
-/* 卡面、行盒与那条分隔线都归通用弹窗；这一张只声明自己的最小宽度、搜索栏与两条横线。 */
-.workspace-picker__menu {
-  min-inline-size: 216px;
-}
+  /* 卡面、行盒与那条分隔线都归通用弹窗；这一张只声明自己的最小宽度、搜索栏与两条横线。 */
+  .workspace-picker__menu {
+    min-inline-size: 216px;
+  }
 
-.workspace-picker__menu .workspace-picker__separator {
-  background-color: var(--cp-picker-rule);
-}
+  .workspace-picker__menu .workspace-picker__separator {
+    background-color: var(--cp-picker-rule);
+  }
 
-.workspace-picker__field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 2px 4px 4px;
-  border-block-end: var(--cp-px) solid var(--cp-picker-rule);
-  padding: 4px 4px 8px;
-  color: var(--cp-ink-subtle);
-}
+  .workspace-picker__field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 2px 4px 4px;
+    border-block-end: var(--cp-px) solid var(--cp-picker-rule);
+    padding: 4px 4px 8px;
+    color: var(--cp-ink-subtle);
+  }
 
-.workspace-picker__search {
-  min-inline-size: 0;
-  flex: 1;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--cp-ink);
-  font: inherit;
-  font-size: var(--cp-font-caption);
-  outline: none;
-}
+  .workspace-picker__search {
+    min-inline-size: 0;
+    flex: 1;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: var(--cp-ink);
+    font: inherit;
+    font-size: var(--cp-font-caption);
+    outline: none;
+  }
 
-.workspace-picker__search::placeholder {
-  color: var(--cp-placeholder);
-}
+  .workspace-picker__search::placeholder {
+    color: var(--cp-placeholder);
+  }
 
-.workspace-picker__menu .workspace-picker__item {
-  display: flex;
-  align-items: center;
-}
+  .workspace-picker__menu .workspace-picker__item {
+    display: flex;
+    align-items: center;
+  }
 
-.workspace-picker__item-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+  .workspace-picker__item-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
-.workspace-picker__none {
-  margin: 0;
-  padding: 4px 8px 8px;
-  color: var(--cp-ink-subtle);
-  font-size: var(--cp-font-micro);
-}
+  .workspace-picker__none {
+    margin: 0;
+    padding: 4px 8px 8px;
+    color: var(--cp-ink-subtle);
+    font-size: var(--cp-font-micro);
+  }
 
-/* 灰色基座属于 .composer-context：项目与分支是它里面的两枚平级 chip，条不归任何一枚 chip 所有。这里只剩项目胶囊自己的盒子。 */
-.workspace-picker[data-placement='composer'] {
-  display: inline-flex;
-  min-inline-size: 0;
-  align-items: center;
-}
+  /* 灰色基座属于 .composer-context：项目与分支是它里面的两枚平级 chip，条不归任何一枚 chip 所有。这里只剩项目胶囊自己的盒子。 */
+  .workspace-picker[data-placement='composer'] {
+    display: inline-flex;
+    min-inline-size: 0;
+    align-items: center;
+  }
 
-.workspace-picker__context-trigger {
-  display: inline-flex;
-  block-size: var(--cp-control);
-  min-inline-size: 0;
-  max-inline-size: 100%;
-  align-items: center;
-  gap: var(--cp-control-gap);
-  border: 0;
-  /* 控件高度会自然限制实际圆角。 */
-  border-radius: var(--cp-radius);
-  padding-inline: var(--cp-inset);
-  background: transparent;
-  color: var(--cp-ink);
-  font: inherit;
-  font-size: var(--cp-font-caption);
-  cursor: pointer;
-  transition:
-    background-color var(--cp-motion-swift) var(--cp-motion-ease),
-    color var(--cp-motion-swift) var(--cp-motion-ease);
-}
+  .workspace-picker__context-trigger {
+    display: inline-flex;
+    block-size: var(--cp-control);
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    align-items: center;
+    gap: var(--cp-control-gap);
+    border: 0;
+    /* 控件高度会自然限制实际圆角。 */
+    border-radius: var(--cp-radius);
+    padding-inline: var(--cp-inset);
+    background: transparent;
+    color: var(--cp-ink);
+    font: inherit;
+    font-size: var(--cp-font-caption);
+    cursor: pointer;
+    transition:
+      background-color var(--cp-motion-swift) var(--cp-motion-ease),
+      color var(--cp-motion-swift) var(--cp-motion-ease);
+  }
 
-.workspace-picker__context-trigger:hover,
-.workspace-picker__context-trigger[data-popup-open] {
-  background: var(--cp-hover);
-}
+  .workspace-picker__context-trigger:hover,
+  .workspace-picker__context-trigger[data-popup-open] {
+    background: var(--cp-hover);
+  }
 
-.workspace-picker__context-trigger:focus-visible {
-  outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
-  outline-offset: var(--cp-px);
-}
+  .workspace-picker__context-trigger:focus-visible {
+    outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
+    outline-offset: var(--cp-px);
+  }
 
-.workspace-picker__context-name {
-  min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+  .workspace-picker__context-name {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
-.workspace-picker__context-control {
-  display: inline-flex;
-  block-size: var(--cp-control);
-  min-inline-size: 0;
-  max-inline-size: 100%;
-  align-items: center;
-  border-radius: var(--cp-radius);
-  background: transparent;
-  color: var(--cp-ink);
-  transition:
-    background-color var(--cp-motion-swift) var(--cp-motion-ease),
-    color var(--cp-motion-swift) var(--cp-motion-ease);
-}
+  .workspace-picker__context-control {
+    display: inline-flex;
+    block-size: var(--cp-control);
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    align-items: center;
+    border-radius: var(--cp-radius);
+    background: transparent;
+    color: var(--cp-ink);
+    transition:
+      background-color var(--cp-motion-swift) var(--cp-motion-ease),
+      color var(--cp-motion-swift) var(--cp-motion-ease);
+  }
 
-.workspace-picker__context-control:hover,
-.workspace-picker__context-control:has(.workspace-picker__context-trigger[data-popup-open]) {
-  background: var(--cp-hover);
-}
+  .workspace-picker__context-control:hover,
+  .workspace-picker__context-control:has(.workspace-picker__context-trigger[data-popup-open]) {
+    background: var(--cp-hover);
+  }
 
-.workspace-picker__context-control .workspace-picker__context-trigger {
-  min-inline-size: 0;
-  border-radius: var(--cp-radius);
-  padding-inline-start: var(--cp-inset);
-  background: transparent;
-}
+  .workspace-picker__context-control .workspace-picker__context-trigger {
+    min-inline-size: 0;
+    border-radius: var(--cp-radius);
+    padding-inline-start: var(--cp-inset);
+    background: transparent;
+  }
 
-/* 还没选项目：名字写的是「选择项目」，用次级墨色；选了之后用正文墨色。 */
-.workspace-picker__context-trigger[data-empty='true'] {
-  color: var(--cp-ink-subtle);
-}
+  /* 还没选项目：名字写的是「选择项目」，用次级墨色；选了之后用正文墨色。 */
+  .workspace-picker__context-trigger[data-empty='true'] {
+    color: var(--cp-ink-subtle);
+  }
 
-.workspace-picker__context-trigger[data-empty='true'] svg {
-  color: currentcolor;
-}
+  .workspace-picker__context-trigger[data-empty='true'] svg {
+    color: currentcolor;
+  }
 
-.workspace-picker__context-control .workspace-picker__context-trigger:hover,
-.workspace-picker__context-control .workspace-picker__context-trigger[data-popup-open] {
-  background: transparent;
-}
+  .workspace-picker__context-control .workspace-picker__context-trigger:hover,
+  .workspace-picker__context-control .workspace-picker__context-trigger[data-popup-open] {
+    background: transparent;
+  }
 
-.workspace-picker__check {
-  margin-inline-start: auto;
-}
+  .workspace-picker__check {
+    margin-inline-start: auto;
+  }
 
-/* `data-persisted-highlight` 由组件维护：菜单打开时自动落在当前项目或第一项，指针/键盘移动时只替换为一个新 id，指针离开菜单后不清除。
+  /* `data-persisted-highlight` 由组件维护：菜单打开时自动落在当前项目或第一项，指针/键盘移动时只替换为一个新 id，指针离开菜单后不清除。
  * 当前项目的 `data-current` 只负责右侧勾号。高亮底与「新建项目」等普通菜单行读同一支 --ui-menu-hover
  * （zcode 的 bg-menu-hover），不另取实色 --cp-menu-hover：两种底色压在卡面上会是两个颜色。 */
-.workspace-picker__menu[data-assistant-skin] .workspace-picker__item[data-workspace-choice='true'][data-highlighted],
-.workspace-picker__menu[data-assistant-skin]
-  .workspace-picker__item[data-workspace-choice='true'][data-current='true'] {
-  background: transparent;
-}
+  .workspace-picker__menu[data-assistant-skin] .workspace-picker__item[data-workspace-choice='true'][data-highlighted],
+  .workspace-picker__menu[data-assistant-skin]
+    .workspace-picker__item[data-workspace-choice='true'][data-current='true'] {
+    background: transparent;
+  }
 
-.workspace-picker__menu[data-assistant-skin]
-  .workspace-picker__item[data-workspace-choice='true'][data-persisted-highlight='true'],
-.workspace-picker__menu[data-assistant-skin]
-  .workspace-picker__item[data-workspace-choice='true'][data-persisted-highlight='true'][data-highlighted],
-.workspace-picker__menu[data-assistant-skin]
-  .workspace-picker__item[data-workspace-choice='true'][data-persisted-highlight='true'][data-current='true'] {
-  background: var(--ui-menu-hover);
+  .workspace-picker__menu[data-assistant-skin]
+    .workspace-picker__item[data-workspace-choice='true'][data-persisted-highlight='true'],
+  .workspace-picker__menu[data-assistant-skin]
+    .workspace-picker__item[data-workspace-choice='true'][data-persisted-highlight='true'][data-highlighted],
+  .workspace-picker__menu[data-assistant-skin]
+    .workspace-picker__item[data-workspace-choice='true'][data-persisted-highlight='true'][data-current='true'] {
+    background: var(--ui-menu-hover);
+  }
 }

@@ -1,99 +1,101 @@
-/* 整轮最后一个可见条目的包裹层：旧轮次靠它做悬停边界，最后一轮（data-latest）不靠悬停。 */
-.timeline-turn-end {
-  min-inline-size: 0;
-}
+@layer components.features {
+  /* 整轮最后一个可见条目的包裹层：旧轮次靠它做悬停边界，最后一轮（data-latest）不靠悬停。 */
+  .timeline-turn-end {
+    min-inline-size: 0;
+  }
 
-/*
+  /*
  * 回复操作行：流内占位；只有最后一轮常显，更早各轮悬停整段末端才淡入。
  *
  * 行高始终保留，淡入淡出不引起布局跳动；透明时 pointer-events: none，不挡正文的选择与点击。
  * 不做绝对定位浮层：行由虚拟器绝对定位（agent-activity-feed.css），横贯整行的浮层会盖住相邻行可点的卡片。
  */
-.timeline-reply-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.125rem;
-  min-block-size: 1.75rem;
-  margin-block-start: 0.25rem;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms var(--cp-motion-ease);
-}
-
-/* 最后一轮常显；更早的轮次悬停轮次末端，或键盘聚焦到任一按钮，才显现并接管指针。 */
-.timeline-turn-end[data-latest='true'] .timeline-reply-actions,
-.timeline-turn-end:hover .timeline-reply-actions,
-.timeline-turn-end:focus-within .timeline-reply-actions {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.timeline-reply-actions__button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  inline-size: 1.75rem;
-  block-size: 1.75rem;
-  padding: 0;
-  border: 0;
-  border-radius: var(--ui-radius-sm);
-  background: transparent;
-  color: var(--cp-timeline-quiet-text);
-  cursor: pointer;
-  line-height: 0;
-  transition:
-    color 100ms var(--cp-motion-ease),
-    background-color 100ms var(--cp-motion-ease);
-}
-
-.timeline-reply-actions__button:hover:not(:disabled),
-.timeline-reply-actions__button:focus-visible {
-  background: var(--cp-hover);
-  color: var(--cp-ink);
-}
-
-.timeline-reply-actions__button[data-copied='true'] {
-  color: var(--cp-ink);
-}
-
-/* 分叉当前只有 UI，但仍使用真实的 Lucide Split 图标。 */
-.timeline-reply-actions__button:disabled {
-  cursor: default;
-}
-
-.timeline-reply-actions__button svg {
-  display: block;
-  inline-size: 0.875rem;
-  block-size: 0.875rem;
-}
-
-/* Lucide Split 默认从下方向上分叉；顺时针转 90° 让主干从左侧进入、两条分叉朝右。 */
-.timeline-reply-actions__split-icon {
-  transform: rotate(90deg);
-  transform-origin: center;
-}
-
-/* token 用量标签：跟在操作按钮右侧，用 quieter 的颜色不抢注意力。 */
-.timeline-reply-actions__usage {
-  margin-inline-start: 0.25rem;
-  font-size: 0.8125rem;
-  line-height: 1;
-  color: var(--cp-timeline-quiet-text);
-  user-select: none;
-}
-
-/* 没有 hover 能力的设备不能依赖悬停发现旧轮次的操作。 */
-@media (hover: none) and (pointer: coarse) {
   .timeline-reply-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.125rem;
+    min-block-size: 1.75rem;
+    margin-block-start: 0.25rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms var(--cp-motion-ease);
+  }
+
+  /* 最后一轮常显；更早的轮次悬停轮次末端，或键盘聚焦到任一按钮，才显现并接管指针。 */
+  .timeline-turn-end[data-latest='true'] .timeline-reply-actions,
+  .timeline-turn-end:hover .timeline-reply-actions,
+  .timeline-turn-end:focus-within .timeline-reply-actions {
     opacity: 1;
     pointer-events: auto;
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .timeline-reply-actions,
   .timeline-reply-actions__button {
-    transition: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    inline-size: 1.75rem;
+    block-size: 1.75rem;
+    padding: 0;
+    border: 0;
+    border-radius: var(--ui-radius-sm);
+    background: transparent;
+    color: var(--cp-timeline-quiet-text);
+    cursor: pointer;
+    line-height: 0;
+    transition:
+      color 100ms var(--cp-motion-ease),
+      background-color 100ms var(--cp-motion-ease);
+  }
+
+  .timeline-reply-actions__button:hover:not(:disabled),
+  .timeline-reply-actions__button:focus-visible {
+    background: var(--cp-hover);
+    color: var(--cp-ink);
+  }
+
+  .timeline-reply-actions__button[data-copied='true'] {
+    color: var(--cp-ink);
+  }
+
+  /* 分叉当前只有 UI，但仍使用真实的 Lucide Split 图标。 */
+  .timeline-reply-actions__button:disabled {
+    cursor: default;
+  }
+
+  .timeline-reply-actions__button svg {
+    display: block;
+    inline-size: 0.875rem;
+    block-size: 0.875rem;
+  }
+
+  /* Lucide Split 默认从下方向上分叉；顺时针转 90° 让主干从左侧进入、两条分叉朝右。 */
+  .timeline-reply-actions__split-icon {
+    transform: rotate(90deg);
+    transform-origin: center;
+  }
+
+  /* token 用量标签：跟在操作按钮右侧，用 quieter 的颜色不抢注意力。 */
+  .timeline-reply-actions__usage {
+    margin-inline-start: 0.25rem;
+    font-size: 0.8125rem;
+    line-height: 1;
+    color: var(--cp-timeline-quiet-text);
+    user-select: none;
+  }
+
+  /* 没有 hover 能力的设备不能依赖悬停发现旧轮次的操作。 */
+  @media (hover: none) and (pointer: coarse) {
+    .timeline-reply-actions {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .timeline-reply-actions,
+    .timeline-reply-actions__button {
+      transition: none;
+    }
   }
 }

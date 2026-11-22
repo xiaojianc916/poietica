@@ -71,8 +71,7 @@
 - `design-system` 保持独立包，不学 ZCode 把设计系统、应用装配与 RPC 依赖塞进同一个包。
 - 新增 `packages/design-system/DESIGN.md` 作为界面使用规范：只写语义与边界，数值仍只在 `tokens/`。
 - 新增 `docs/design/` 记录已拍板的设计规则与 UI 资产归属表。
-- 功能 CSS 只做布局；新文件进 `@layer components`，颜色与主题分支回令牌层。
-  存量 65 份 / 10,673 行不在本次整体迁层（层叠会全局变化，另开专项）。
+- 功能 CSS 只做布局；层归属与层序见下面「项目 CSS 全量迁入层」。
 - 补齐 DS 缺口：`Input` / `Textarea` / `Checkbox` / `Radio` / `RowButton`；
   替换时按 L1/L2 对拍，不追求一次覆盖全部原生控件。
 - `style-boundaries` 增 S11：引用未定义的 `--ui-*` / `--cp-*` 记红（两道已知缺陷与
@@ -80,6 +79,21 @@
 - 样板：automations（第二块 review，参照 agent-settings）；每批只做一类事，
   `bun run all` 绿才提交。
 - 明确不做：拆 `assistant.css` 的业务耦合、换 CVA、搬 ZCode 的 2360 行 policy YAML。
+
+### 项目 CSS 全量迁入层（2026-11-22）
+
+按用户裁决做一次性完整迁移，不逐功能 L2：
+
+- 层序在 `apps/desktop/src/renderer/styles.css` 声明：
+  `theme < base < components.ds < components.kit < components.workbench < components.features < utilities`。
+  DS 组件 17 份、conversation-kit 6 份、workbench 5 份、功能 65 份全部进各自子层。
+- `tokens/` 保持无层（值的产地）；DS `typography.css` 与 renderer 的 `html/body` 进 `base`；
+  `control/menu.css` 保持无层，文件头既有意图是「行样式要压过工具类」，登记为永久例外。
+- 迁移中修掉一个脚本错误：`conversation-kit/styles/surface.css` 的
+  `@import './composer-frame.css'` 被包进 `@layer` 内，浏览器忽略该导入，输入框框体整份
+  不加载。`@import` 已移回层外；这是位置敏感指令，后续迁移不得再包。
+- 已知风险：工具类现在压过所有项目组件 CSS，像素差异尚未 L2 对拍；
+  `bun fmt` 重排了被包裹的 CSS（缩进变化，无解析值变化）。
 
 ### 定时任务对齐 ZCode 调度模型（2026-11-22）
 

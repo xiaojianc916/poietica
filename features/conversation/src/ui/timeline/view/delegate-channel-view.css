@@ -1,93 +1,95 @@
-/* 子代理通道：标题条 + 转录 + 引导框（引导框是辅助对话那颗药丸，样式归 auxiliary-composer.css）。令牌都来自 [data-assistant-skin]。
+@layer components.features {
+  /* 子代理通道：标题条 + 转录 + 引导框（引导框是辅助对话那颗药丸，样式归 auxiliary-composer.css）。令牌都来自 [data-assistant-skin]。
  * 标题条的线与停止钮的框是产品指定的两档深灰，两套主题同值（这格自成一张深色卡），私有命名，各只此一处。 */
-.delegate-channel__header {
-  --delegate-channel-rule: #333333;
+  .delegate-channel__header {
+    --delegate-channel-rule: #333333;
 
-  display: flex;
-  flex: none;
-  min-inline-size: 0;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-block-end: 1px solid var(--delegate-channel-rule);
-  font-size: 13px;
-}
+    display: flex;
+    flex: none;
+    min-inline-size: 0;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-block-end: 1px solid var(--delegate-channel-rule);
+    font-size: 13px;
+  }
 
-/* 记号是瓦片脸（与时间线的派发行同一张）：尺寸随行，不受原语 20px 的下限影响。 */
-.delegate-channel__face {
-  inline-size: 14px;
-  block-size: 14px;
-  min-inline-size: 14px;
-  min-block-size: 14px;
-  flex: none;
-}
+  /* 记号是瓦片脸（与时间线的派发行同一张）：尺寸随行，不受原语 20px 的下限影响。 */
+  .delegate-channel__face {
+    inline-size: 14px;
+    block-size: 14px;
+    min-inline-size: 14px;
+    min-block-size: 14px;
+    flex: none;
+  }
 
-.delegate-channel__title {
-  min-inline-size: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+  .delegate-channel__title {
+    min-inline-size: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
-.delegate-channel__status {
-  flex: none;
-  color: var(--cp-ink-subtle);
-  font-size: 12px;
-}
+  .delegate-channel__status {
+    flex: none;
+    color: var(--cp-ink-subtle);
+    font-size: 12px;
+  }
 
-.delegate-channel__stop {
-  --delegate-channel-frame: #4c4c4c;
+  .delegate-channel__stop {
+    --delegate-channel-frame: #4c4c4c;
 
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  border: 1px solid var(--delegate-channel-frame);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--cp-ink);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border: 1px solid var(--delegate-channel-frame);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--cp-ink);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
 
-.delegate-channel__stop:hover:not(:disabled) {
-  background: var(--cp-hover);
-}
+  .delegate-channel__stop:hover:not(:disabled) {
+    background: var(--cp-hover);
+  }
 
-.delegate-channel__stop[data-armed] {
-  border-color: var(--cp-diff-removed-text);
-  color: var(--cp-diff-removed-text);
-}
+  .delegate-channel__stop[data-armed] {
+    border-color: var(--cp-diff-removed-text);
+    color: var(--cp-diff-removed-text);
+  }
 
-.delegate-channel__stop[data-armed]:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--cp-diff-removed-text) 12%, transparent);
-}
+  .delegate-channel__stop[data-armed]:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--cp-diff-removed-text) 12%, transparent);
+  }
 
-.delegate-channel__stop:disabled {
-  cursor: default;
-  opacity: 0.5;
-}
+  .delegate-channel__stop:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
 
-.delegate-channel__button-icon {
-  inline-size: 14px;
-  block-size: 14px;
-}
+  .delegate-channel__button-icon {
+    inline-size: 14px;
+    block-size: 14px;
+  }
 
-.delegate-channel__body {
-  position: relative;
-  display: flex;
-  min-block-size: 0;
-  flex: 1 1 auto;
-  flex-direction: column;
-}
+  .delegate-channel__body {
+    position: relative;
+    display: flex;
+    min-block-size: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
 
-.delegate-channel__notice {
-  flex: none;
-  margin: 0;
-  padding: 6px 12px;
-  color: var(--cp-diff-removed-text);
-  font-size: 12px;
+  .delegate-channel__notice {
+    flex: none;
+    margin: 0;
+    padding: 6px 12px;
+    color: var(--cp-diff-removed-text);
+    font-size: 12px;
+  }
 }

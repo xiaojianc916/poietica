@@ -1,80 +1,82 @@
-/* 工具栏下缘那条线读 --ui-dock-rule（右坞工具格的那对令牌，与审查面板、文件格同一份）：浅色卡内线，
+@layer components.workbench {
+  /* 工具栏下缘那条线读 --ui-dock-rule（右坞工具格的那对令牌，与审查面板、文件格同一份）：浅色卡内线，
  * 深色是一层跟字走的墨，主题差异在令牌层。 */
-.auxiliary-toolbar {
-  border-bottom: 1px solid var(--ui-dock-rule);
-}
+  .auxiliary-toolbar {
+    border-bottom: 1px solid var(--ui-dock-rule);
+  }
 
-/*
+  /*
  * 启动器按钮的悬浮底：浅色是 utilities 那支 currentColor 7% 的墨（bg-launcher 的底随主题令牌
  * 自己变，不需要重申）；深色压在 #1f1f1f 上要单独抬一档（产品指定实色）。hover 通道全在这里，
  * tsx 不再写 hover:bg-current/[7%]。
  */
-.auxiliary-launcher {
-  --auxiliary-launcher-hover: color-mix(in srgb, currentColor 7%, transparent);
-}
+  .auxiliary-launcher {
+    --auxiliary-launcher-hover: color-mix(in srgb, currentColor 7%, transparent);
+  }
 
-.auxiliary-launcher:hover:not(:disabled) {
-  background-color: var(--auxiliary-launcher-hover);
-}
+  .auxiliary-launcher:hover:not(:disabled) {
+    background-color: var(--auxiliary-launcher-hover);
+  }
 
-:root[data-theme='dark'] .auxiliary-launcher {
-  --auxiliary-launcher-hover: #2a2a2a;
-}
+  :root[data-theme='dark'] .auxiliary-launcher {
+    --auxiliary-launcher-hover: #2a2a2a;
+  }
 
-/*
+  /*
  * 右坞标签的活动底：产品指定的恒定深块，两套主题同值（不跟主题走）。与 --ui-popover 等
  * 深色族同值但角色独立，互不引用。
  */
-.auxiliary-dock-tab {
-  --auxiliary-tab-active: #262626;
-}
+  .auxiliary-dock-tab {
+    --auxiliary-tab-active: #262626;
+  }
 
-/*
+  /*
  * 标签页图标↔叉叉：只听图标那 14px 的悬浮，整行悬浮不触发。关叉平时不收指针事件不行：点按目标得是它，
  * onClick 才认得出要关标签。节点由 auxiliary-dock.tsx 渲染，规则归坞；功能侧不再改写这里。
  */
-.auxiliary-tab-icon:hover .auxiliary-tab-icon__glyph {
-  opacity: 0;
-}
+  .auxiliary-tab-icon:hover .auxiliary-tab-icon__glyph {
+    opacity: 0;
+  }
 
-.auxiliary-tab-icon:hover .auxiliary-tab-icon__close {
-  opacity: 1;
-  pointer-events: auto;
-}
+  .auxiliary-tab-icon:hover .auxiliary-tab-icon__close {
+    opacity: 1;
+    pointer-events: auto;
+  }
 
-/*
+  /*
  * 标签条右缘让位在全屏进出时的收回与归还。令牌缺席时整条声明失效、退化成瞬时切换，不是错误。
  */
-.auxiliary-tab-strip__row {
-  transition: padding-inline-end var(--workspace-layout-duration) var(--workspace-layout-ease);
-}
+  .auxiliary-tab-strip__row {
+    transition: padding-inline-end var(--workspace-layout-duration) var(--workspace-layout-ease);
+  }
 
-/*
+  /*
  * 标签条溢出时两端那道雾。正本是 dsh 的 ._stripTabs_6nhg2_257[data-dockkit-strip-scroll]：
  * 三档、24px、同一个渐变写法。
  *
  * 遮罩挂在滚动容器自己身上，不盖一层地色 —— 底下会换主题，叠实色必露接缝。右缘那排按钮
  * （加号、全屏）是兄弟节点，不在遮罩里，所以渐隐只吃掉标签，不吃按钮。
  */
-.auxiliary-tab-strip__tabs[data-strip-scroll='end'] {
-  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
-}
-
-.auxiliary-tab-strip__tabs[data-strip-scroll='start'] {
-  mask-image: linear-gradient(to right, transparent, #000 24px);
-}
-
-.auxiliary-tab-strip__tabs[data-strip-scroll='start end'] {
-  mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .auxiliary-tab-strip__row {
-    transition: none;
+  .auxiliary-tab-strip__tabs[data-strip-scroll='end'] {
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
   }
 
-  .auxiliary-tab-icon__glyph,
-  .auxiliary-tab-icon__close {
-    transition: none;
+  .auxiliary-tab-strip__tabs[data-strip-scroll='start'] {
+    mask-image: linear-gradient(to right, transparent, #000 24px);
+  }
+
+  .auxiliary-tab-strip__tabs[data-strip-scroll='start end'] {
+    mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .auxiliary-tab-strip__row {
+      transition: none;
+    }
+
+    .auxiliary-tab-icon__glyph,
+    .auxiliary-tab-icon__close {
+      transition: none;
+    }
   }
 }

@@ -1,13 +1,15 @@
-/* 看图铺满窗口，属对话框那一层；其上的菜单比它高一等，是 z 表里的次序（--ui-z-popover 110 > --ui-z-dialog 100）。 */
-.poietica-lightbox.yarl__root {
-  --yarl__color_backdrop: rgb(0 0 0 / 82%);
-  --yarl__slide_captions_container_background: transparent;
-
-  z-index: var(--ui-z-dialog);
-}
-
-@media (prefers-reduced-motion: reduce) {
+@layer components.kit {
+  /* 看图铺满窗口，属对话框那一层；其上的菜单比它高一等，是 z 表里的次序（--ui-z-popover 110 > --ui-z-dialog 100）。 */
   .poietica-lightbox.yarl__root {
-    --yarl__slide_transition_duration: 0ms;
+    --yarl__color_backdrop: rgb(0 0 0 / 82%);
+    --yarl__slide_captions_container_background: transparent;
+
+    z-index: var(--ui-z-dialog);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .poietica-lightbox.yarl__root {
+      --yarl__slide_transition_duration: 0ms;
+    }
   }
 }

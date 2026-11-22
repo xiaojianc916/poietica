@@ -1,28 +1,30 @@
-/* 与报错行同列左齐；字色跟报错行的次要字，不抢那一行的红。令牌来自 [data-assistant-skin]，
+@layer components.features {
+  /* 与报错行同列左齐；字色跟报错行的次要字，不抢那一行的红。令牌来自 [data-assistant-skin]，
  * 不写兜底值（兜底必然是浅色假设，深色主题下就是黑字压近黑底）。 */
-.timeline-retry {
-  display: flex;
-  padding: 4px 0;
-}
+  .timeline-retry {
+    display: flex;
+    padding: 4px 0;
+  }
 
-.timeline-retry__action {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border: 1px solid var(--cp-hairline);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--cp-ink-muted);
-  font-size: var(--cp-font-caption);
-  cursor: pointer;
-}
+  .timeline-retry__action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid var(--cp-hairline);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--cp-ink-muted);
+    font-size: var(--cp-font-caption);
+    cursor: pointer;
+  }
 
-.timeline-retry__action:hover {
-  background: var(--cp-hover);
-}
+  .timeline-retry__action:hover {
+    background: var(--cp-hover);
+  }
 
-.timeline-retry__mark {
-  width: 14px;
-  height: 14px;
+  .timeline-retry__mark {
+    width: 14px;
+    height: 14px;
+  }
 }

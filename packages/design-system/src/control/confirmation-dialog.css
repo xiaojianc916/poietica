@@ -1,15 +1,17 @@
-/*
+@layer components.ds {
+  /*
  * 确认框里那颗危险键。
  *
  * 浅色下铺实色红：浅底上一片浅粉压不住「这一步就要执行」的分量。深色下不铺满实色红 —— 那会在
  * 暗底上炸开一块亮斑；改成一层红墨压出底色、字留给红，浓度只在 --ui-destructive-soft* 里写
  * 一遍（light.css / dark.css 各一格），与软性危险动作同一个产地。
  */
-:root[data-theme='dark'] .confirmation-dialog__destructive {
-  background-color: var(--ui-destructive-soft);
-  color: var(--ui-destructive);
-}
+  :root[data-theme='dark'] .confirmation-dialog__destructive {
+    background-color: var(--ui-destructive-soft);
+    color: var(--ui-destructive);
+  }
 
-:root[data-theme='dark'] .confirmation-dialog__destructive:hover:not(:disabled) {
-  background-color: var(--ui-destructive-soft-hover);
+  :root[data-theme='dark'] .confirmation-dialog__destructive:hover:not(:disabled) {
+    background-color: var(--ui-destructive-soft-hover);
+  }
 }

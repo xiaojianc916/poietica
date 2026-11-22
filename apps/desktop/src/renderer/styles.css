@@ -8,6 +8,9 @@
  *
  * 路径相对本文件（apps/desktop/src/renderer/styles.css）算。
  */
+/* 层序先声明：项目自己的样式都进 components 下的子层，Tailwind 的 utilities 永远压在上面。 */
+@layer theme, base, components.ds, components.kit, components.workbench, components.features, utilities;
+
 /* 顺序照 legacy app.css：design-system 在前、tailwindcss 在后 —— @import 是层叠顺序，
    tailwind 的 preflight 因此盖在 design-system 的 base 之上。 */
 @import '@poietica/design-system/styles.css';
@@ -85,22 +88,23 @@
  * 整个界面会跟着上下滚（滚动条本身还会占掉右缘那一圈留白 —— 表现为右侧漏底色）。
  * legacy app.css 同此。
  */
-html,
-body,
-#root {
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  background: var(--window-backing-surface);
-}
+@layer base {
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    background: var(--window-backing-surface);
+  }
 
-body {
-  overflow: hidden;
-  font-family: var(--ui-font-sans);
-  color: var(--ui-foreground);
-}
+  body {
+    overflow: hidden;
+    font-family: var(--ui-font-sans);
+    color: var(--ui-foreground);
+  }
 
-/*
+  /*
  * 滚动条的样子（轨道、滑块、悬停、四角的取色与几何）全在
  * packages/design-system/src/scrollbar.css 一处，是对 DeepSeek Harness 的复刻。
  *
@@ -110,6 +114,7 @@ body {
  *
  * 本文件只剩「哪些地方不要条」：那必须逐处说出来。滑块宽度在正本里是 5px。
  */
-[role='tablist'] {
-  scrollbar-width: none;
+  [role='tablist'] {
+    scrollbar-width: none;
+  }
 }

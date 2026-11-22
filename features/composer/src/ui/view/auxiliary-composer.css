@@ -1,310 +1,312 @@
-/* 输入条只有侧栏那么宽（320–800）：一行而非两行的卡，只有一层容器 —— 药丸自己带边，外面再套同色边会读成双线框。 */
+@layer components.features {
+  /* 输入条只有侧栏那么宽（320–800）：一行而非两行的卡，只有一层容器 —— 药丸自己带边，外面再套同色边会读成双线框。 */
 
-.auxiliary-composer-pane__feed {
-  min-block-size: 0;
-  flex: 1;
-  /* 一问一答往下长：这一格自己滚，输入药丸钉在底下不动。 */
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
+  .auxiliary-composer-pane__feed {
+    min-block-size: 0;
+    flex: 1;
+    /* 一问一答往下长：这一格自己滚，输入药丸钉在底下不动。 */
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
 
-.auxiliary-composer-pane__empty {
-  margin: 0;
-  padding: var(--cp-stack) var(--cp-gutter);
-  font-size: var(--cp-font-caption);
-  color: var(--cp-ink-subtle);
-}
+  .auxiliary-composer-pane__empty {
+    margin: 0;
+    padding: var(--cp-stack) var(--cp-gutter);
+    font-size: var(--cp-font-caption);
+    color: var(--cp-ink-subtle);
+  }
 
-.auxiliary-composer-pane__dock {
-  flex: none;
-  padding: 0 var(--cp-inset) var(--cp-inset);
-}
+  .auxiliary-composer-pane__dock {
+    flex: none;
+    padding: 0 var(--cp-inset) var(--cp-inset);
+  }
 
-/* 加号面板贴着上沿展开：这一层是定位上下文，本身不画任何东西。 */
-.auxiliary-composer {
-  position: relative;
-}
+  /* 加号面板贴着上沿展开：这一层是定位上下文，本身不画任何东西。 */
+  .auxiliary-composer {
+    position: relative;
+  }
 
-/* 高度由里面最高的那颗键解出：加号与发送是 --cp-control-sm，上下各留一层 --cp-pad-mid。 */
-.auxiliary-composer__pill {
-  display: flex;
-  block-size: calc(var(--cp-control-sm) + var(--cp-pad-mid) * 2);
-  align-items: center;
-  gap: var(--cp-control-gap);
-  padding-inline: var(--cp-inset);
-  border: var(--cp-px) solid var(--cp-edge);
-  border-radius: var(--ui-radius-full);
-  background: var(--cp-surface);
-  /* 影比输入卡那一档（--cp-lift）轻：这一条只有一行高。 */
-  box-shadow: var(--ui-shadow-sm);
-}
+  /* 高度由里面最高的那颗键解出：加号与发送是 --cp-control-sm，上下各留一层 --cp-pad-mid。 */
+  .auxiliary-composer__pill {
+    display: flex;
+    block-size: calc(var(--cp-control-sm) + var(--cp-pad-mid) * 2);
+    align-items: center;
+    gap: var(--cp-control-gap);
+    padding-inline: var(--cp-inset);
+    border: var(--cp-px) solid var(--cp-edge);
+    border-radius: var(--ui-radius-full);
+    background: var(--cp-surface);
+    /* 影比输入卡那一档（--cp-lift）轻：这一条只有一行高。 */
+    box-shadow: var(--ui-shadow-sm);
+  }
 
-/* 加号与发送同高：两颗圆钮是这一行两端的括号，中间那三样都比它们矮。 */
-.auxiliary-composer .assistant-plus,
-.auxiliary-composer [data-slot='prompt-input-submit'] {
-  block-size: var(--cp-control-sm);
-  inline-size: var(--cp-control-sm);
-}
+  /* 加号与发送同高：两颗圆钮是这一行两端的括号，中间那三样都比它们矮。 */
+  .auxiliary-composer .assistant-plus,
+  .auxiliary-composer [data-slot='prompt-input-submit'] {
+    block-size: var(--cp-control-sm);
+    inline-size: var(--cp-control-sm);
+  }
 
-/* 侧栏可窄到 320，挤不下时先收模型名（它自带省略号）：草稿宽度为零看起来就是坏的；下限 4em 按提示四个字取。 */
-.auxiliary-composer__field {
-  min-inline-size: 4em;
-  flex: 1;
-  border: 0;
-  background: transparent;
-  font: inherit;
-  font-size: var(--cp-font-label);
-  color: var(--cp-ink);
-  outline: none;
-}
+  /* 侧栏可窄到 320，挤不下时先收模型名（它自带省略号）：草稿宽度为零看起来就是坏的；下限 4em 按提示四个字取。 */
+  .auxiliary-composer__field {
+    min-inline-size: 4em;
+    flex: 1;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: var(--cp-font-label);
+    color: var(--cp-ink);
+    outline: none;
+  }
 
-/* 模型名先让位：它有省略号收尾，草稿没有。 */
-.auxiliary-composer .assistant-model-select__button {
-  min-inline-size: 0;
-  flex: 0 1 auto;
-}
+  /* 模型名先让位：它有省略号收尾，草稿没有。 */
+  .auxiliary-composer .assistant-model-select__button {
+    min-inline-size: 0;
+    flex: 0 1 auto;
+  }
 
-.auxiliary-composer__field::placeholder {
-  color: var(--cp-placeholder);
-}
+  .auxiliary-composer__field::placeholder {
+    color: var(--cp-placeholder);
+  }
 
-/* 左端没有加号时（子代理标签页的引导框）：草稿别贴着药丸的圆边起笔。 */
-.auxiliary-composer__pill[data-leading='none'] {
-  padding-inline-start: calc(var(--cp-inset) * 2);
-}
+  /* 左端没有加号时（子代理标签页的引导框）：草稿别贴着药丸的圆边起笔。 */
+  .auxiliary-composer__pill[data-leading='none'] {
+    padding-inline-start: calc(var(--cp-inset) * 2);
+  }
 
-/* ── 辅助对话（侧边提问）的正文 ─────────────────────────────────────────────
+  /* ── 辅助对话（侧边提问）的正文 ─────────────────────────────────────────────
  * 侧栏只有 320–800 宽：问题是一颗靠右的浅底气泡（与主对话的用户消息同一个读法），答案是不带底的正文。
  * 所有量度取 --cp-* 那一套，不另起数字；状态只用字色说（不另起底色），与时间线的克制程度一致。
  */
 
-.auxiliary-chat__intro,
-.auxiliary-chat__topic {
-  display: grid;
-  gap: var(--cp-stack);
-  padding: var(--cp-stack) var(--cp-gutter);
-}
+  .auxiliary-chat__intro,
+  .auxiliary-chat__topic {
+    display: grid;
+    gap: var(--cp-stack);
+    padding: var(--cp-stack) var(--cp-gutter);
+  }
 
-.auxiliary-chat__recent {
-  display: grid;
-  gap: var(--cp-control-gap);
-}
+  .auxiliary-chat__recent {
+    display: grid;
+    gap: var(--cp-control-gap);
+  }
 
-.auxiliary-chat__recent-heading {
-  margin: 0;
-  font-size: var(--cp-font-micro);
-  font-weight: inherit;
-  color: var(--cp-ink-subtle);
-}
+  .auxiliary-chat__recent-heading {
+    margin: 0;
+    font-size: var(--cp-font-micro);
+    font-weight: inherit;
+    color: var(--cp-ink-subtle);
+  }
 
-.auxiliary-chat__recent-list {
-  display: grid;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
+  .auxiliary-chat__recent-list {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
 
-.auxiliary-chat__recent-row {
-  display: flex;
-  inline-size: 100%;
-  min-block-size: var(--cp-target-min);
-  align-items: center;
-  gap: var(--cp-control-gap);
-  padding-inline: var(--cp-pad-mid);
-  border: 0;
-  border-radius: var(--cp-radius-item);
-  background: transparent;
-  font: inherit;
-  font-size: var(--cp-font-caption);
-  color: var(--cp-ink-muted);
-  text-align: start;
-  cursor: pointer;
-}
+  .auxiliary-chat__recent-row {
+    display: flex;
+    inline-size: 100%;
+    min-block-size: var(--cp-target-min);
+    align-items: center;
+    gap: var(--cp-control-gap);
+    padding-inline: var(--cp-pad-mid);
+    border: 0;
+    border-radius: var(--cp-radius-item);
+    background: transparent;
+    font: inherit;
+    font-size: var(--cp-font-caption);
+    color: var(--cp-ink-muted);
+    text-align: start;
+    cursor: pointer;
+  }
 
-.auxiliary-chat__recent-row:hover,
-.auxiliary-chat__recent-row:focus-visible {
-  background: var(--cp-hover);
-  color: var(--cp-ink);
-}
+  .auxiliary-chat__recent-row:hover,
+  .auxiliary-chat__recent-row:focus-visible {
+    background: var(--cp-hover);
+    color: var(--cp-ink);
+  }
 
-/* 问题一行收尾：完整的那句在点进去之后的气泡里。 */
-.auxiliary-chat__recent-question {
-  min-inline-size: 0;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+  /* 问题一行收尾：完整的那句在点进去之后的气泡里。 */
+  .auxiliary-chat__recent-question {
+    min-inline-size: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
-.auxiliary-chat__recent-meta {
-  flex: none;
-  font-size: var(--cp-font-micro);
-  color: var(--cp-ink-subtle);
-}
+  .auxiliary-chat__recent-meta {
+    flex: none;
+    font-size: var(--cp-font-micro);
+    color: var(--cp-ink-subtle);
+  }
 
-.auxiliary-chat__back {
-  display: inline-flex;
-  justify-self: start;
-  align-items: center;
-  gap: var(--cp-pill-gap);
-  padding: 0 var(--cp-pad-mid) 0 0;
-  border: 0;
-  background: transparent;
-  font: inherit;
-  font-size: var(--cp-font-caption);
-  color: var(--cp-ink-subtle);
-  cursor: pointer;
-}
+  .auxiliary-chat__back {
+    display: inline-flex;
+    justify-self: start;
+    align-items: center;
+    gap: var(--cp-pill-gap);
+    padding: 0 var(--cp-pad-mid) 0 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: var(--cp-font-caption);
+    color: var(--cp-ink-subtle);
+    cursor: pointer;
+  }
 
-.auxiliary-chat__back:hover,
-.auxiliary-chat__back:focus-visible {
-  color: var(--cp-ink);
-}
+  .auxiliary-chat__back:hover,
+  .auxiliary-chat__back:focus-visible {
+    color: var(--cp-ink);
+  }
 
-.auxiliary-chat__back svg {
-  inline-size: var(--cp-icon);
-  block-size: var(--cp-icon);
-}
+  .auxiliary-chat__back svg {
+    inline-size: var(--cp-icon);
+    block-size: var(--cp-icon);
+  }
 
-.auxiliary-chat__turns {
-  display: grid;
-  gap: var(--cp-stack);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
+  .auxiliary-chat__turns {
+    display: grid;
+    gap: var(--cp-stack);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
 
-.auxiliary-chat__turn {
-  display: grid;
-  gap: var(--cp-control-gap);
-}
+  .auxiliary-chat__turn {
+    display: grid;
+    gap: var(--cp-control-gap);
+  }
 
-.auxiliary-chat__question {
-  justify-self: end;
-  max-inline-size: 90%;
-  margin: 0;
-  padding: var(--cp-pad-mid) var(--cp-pad-x);
-  border-radius: var(--cp-radius);
-  background: var(--cp-timeline-user-surface);
-  color: var(--cp-timeline-body-ink);
-  font-size: var(--cp-font-label);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
+  .auxiliary-chat__question {
+    justify-self: end;
+    max-inline-size: 90%;
+    margin: 0;
+    padding: var(--cp-pad-mid) var(--cp-pad-x);
+    border-radius: var(--cp-radius);
+    background: var(--cp-timeline-user-surface);
+    color: var(--cp-timeline-body-ink);
+    font-size: var(--cp-font-label);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
 
-.auxiliary-chat__answer {
-  min-inline-size: 0;
-  font-size: var(--cp-font-label);
-  color: var(--cp-timeline-body-ink);
-}
+  .auxiliary-chat__answer {
+    min-inline-size: 0;
+    font-size: var(--cp-font-label);
+    color: var(--cp-timeline-body-ink);
+  }
 
-.auxiliary-chat__thinking,
-.auxiliary-chat__outcome {
-  display: flex;
-  align-items: center;
-  gap: var(--cp-pill-gap);
-  margin: 0;
-  font-size: var(--cp-font-caption);
-  color: var(--cp-ink-subtle);
-}
+  .auxiliary-chat__thinking,
+  .auxiliary-chat__outcome {
+    display: flex;
+    align-items: center;
+    gap: var(--cp-pill-gap);
+    margin: 0;
+    font-size: var(--cp-font-caption);
+    color: var(--cp-ink-subtle);
+  }
 
-.auxiliary-chat__outcome[data-tone='error'] {
-  color: var(--cp-timeline-danger-text);
-}
+  .auxiliary-chat__outcome[data-tone='error'] {
+    color: var(--cp-timeline-danger-text);
+  }
 
-.auxiliary-chat__spinner {
-  inline-size: var(--cp-icon);
-  block-size: var(--cp-icon);
-  animation: auxiliary-chat-spin 1s linear infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
   .auxiliary-chat__spinner {
-    animation: none;
+    inline-size: var(--cp-icon);
+    block-size: var(--cp-icon);
+    animation: auxiliary-chat-spin 1s linear infinite;
   }
-}
 
-@keyframes auxiliary-chat-spin {
-  to {
-    transform: rotate(1turn);
+  @media (prefers-reduced-motion: reduce) {
+    .auxiliary-chat__spinner {
+      animation: none;
+    }
   }
-}
 
-.auxiliary-chat__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--cp-pill-gap);
-}
+  @keyframes auxiliary-chat-spin {
+    to {
+      transform: rotate(1turn);
+    }
+  }
 
-.auxiliary-chat__icon-button,
-.auxiliary-chat__text-button {
-  display: inline-flex;
-  block-size: var(--cp-control-xs);
-  align-items: center;
-  justify-content: center;
-  gap: var(--cp-pill-gap);
-  border: 0;
-  border-radius: var(--cp-radius-item);
-  background: transparent;
-  font: inherit;
-  font-size: var(--cp-font-caption);
-  color: var(--cp-ink-subtle);
-  cursor: pointer;
-}
+  .auxiliary-chat__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--cp-pill-gap);
+  }
 
-.auxiliary-chat__icon-button {
-  inline-size: var(--cp-control-xs);
-}
+  .auxiliary-chat__icon-button,
+  .auxiliary-chat__text-button {
+    display: inline-flex;
+    block-size: var(--cp-control-xs);
+    align-items: center;
+    justify-content: center;
+    gap: var(--cp-pill-gap);
+    border: 0;
+    border-radius: var(--cp-radius-item);
+    background: transparent;
+    font: inherit;
+    font-size: var(--cp-font-caption);
+    color: var(--cp-ink-subtle);
+    cursor: pointer;
+  }
 
-.auxiliary-chat__text-button {
-  padding-inline: var(--cp-pad-mid);
-}
+  .auxiliary-chat__icon-button {
+    inline-size: var(--cp-control-xs);
+  }
 
-.auxiliary-chat__icon-button:hover,
-.auxiliary-chat__text-button:hover:not(:disabled),
-.auxiliary-chat__icon-button:focus-visible,
-.auxiliary-chat__text-button:focus-visible {
-  background: var(--cp-hover);
-  color: var(--cp-ink);
-}
+  .auxiliary-chat__text-button {
+    padding-inline: var(--cp-pad-mid);
+  }
 
-.auxiliary-chat__text-button:disabled {
-  cursor: default;
-  opacity: 0.5;
-}
+  .auxiliary-chat__icon-button:hover,
+  .auxiliary-chat__text-button:hover:not(:disabled),
+  .auxiliary-chat__icon-button:focus-visible,
+  .auxiliary-chat__text-button:focus-visible {
+    background: var(--cp-hover);
+    color: var(--cp-ink);
+  }
 
-.auxiliary-chat__icon-button svg,
-.auxiliary-chat__text-button svg {
-  inline-size: var(--cp-icon);
-  block-size: var(--cp-icon);
-}
+  .auxiliary-chat__text-button:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
 
-/* 失败与提醒贴着药丸上沿：说的是「刚才那一下」，离输入最近。 */
-.auxiliary-chat__notice {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: var(--cp-control-gap);
-  margin: 0 var(--cp-inset) var(--cp-control-gap);
-  padding: var(--cp-pad-mid) var(--cp-pad-mid) var(--cp-pad-mid) var(--cp-pad-x);
-  border: var(--cp-px) solid var(--cp-edge);
-  border-radius: var(--cp-notice-radius);
-  background: var(--cp-surface);
-  font-size: var(--cp-font-caption);
-  color: var(--cp-ink-muted);
-}
+  .auxiliary-chat__icon-button svg,
+  .auxiliary-chat__text-button svg {
+    inline-size: var(--cp-icon);
+    block-size: var(--cp-icon);
+  }
 
-.auxiliary-chat__notice[data-tone='error'] {
-  color: var(--cp-timeline-danger-text);
-}
+  /* 失败与提醒贴着药丸上沿：说的是「刚才那一下」，离输入最近。 */
+  .auxiliary-chat__notice {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--cp-control-gap);
+    margin: 0 var(--cp-inset) var(--cp-control-gap);
+    padding: var(--cp-pad-mid) var(--cp-pad-mid) var(--cp-pad-mid) var(--cp-pad-x);
+    border: var(--cp-px) solid var(--cp-edge);
+    border-radius: var(--cp-notice-radius);
+    background: var(--cp-surface);
+    font-size: var(--cp-font-caption);
+    color: var(--cp-ink-muted);
+  }
 
-.auxiliary-chat__notice-text {
-  min-inline-size: 0;
-  flex: 1;
-  overflow-wrap: anywhere;
-}
+  .auxiliary-chat__notice[data-tone='error'] {
+    color: var(--cp-timeline-danger-text);
+  }
 
-/* 停止键与发送键同位同形，只换字形：正在答的时候它就是那颗键。 */
-.auxiliary-composer [data-slot='prompt-input-submit'][data-running='true'] {
-  cursor: pointer;
+  .auxiliary-chat__notice-text {
+    min-inline-size: 0;
+    flex: 1;
+    overflow-wrap: anywhere;
+  }
+
+  /* 停止键与发送键同位同形，只换字形：正在答的时候它就是那颗键。 */
+  .auxiliary-composer [data-slot='prompt-input-submit'][data-running='true'] {
+    cursor: pointer;
+  }
 }

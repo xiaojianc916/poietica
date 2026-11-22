@@ -1,27 +1,29 @@
-/* 内缩与滚动条照 legacy 一字未改 —— addon-fit 减掉的正是 .xterm 的 padding，滚动条几何依赖这个值。 */
+@layer components.features {
+  /* 内缩与滚动条照 legacy 一字未改 —— addon-fit 减掉的正是 .xterm 的 padding，滚动条几何依赖这个值。 */
 
-/* 内缩挂在 .xterm 上（addon-fit 减掉的正是这个元素的 padding）；下面的负 margin 必须与 padding-inline 同值。 */
-.xterm {
-  --terminal-pane-padding-inline: 10px;
+  /* 内缩挂在 .xterm 上（addon-fit 减掉的正是这个元素的 padding）；下面的负 margin 必须与 padding-inline 同值。 */
+  .xterm {
+    --terminal-pane-padding-inline: 10px;
 
-  padding: 6px var(--terminal-pane-padding-inline);
-}
+    padding: 6px var(--terminal-pane-padding-inline);
+  }
 
-/* v6 起 .xterm-viewport 不再是滚动容器：滚动与底色都归 .xterm-scrollable-element。xterm.css 留给它的 #000 让 padding 那圈露黑，
+  /* v6 起 .xterm-viewport 不再是滚动容器：滚动与底色都归 .xterm-scrollable-element。xterm.css 留给它的 #000 让 padding 那圈露黑，
  * overflow-y: scroll 画一条空的原生条。 */
-.xterm .xterm-viewport {
-  background-color: transparent;
-  overflow: hidden;
-}
+  .xterm .xterm-viewport {
+    background-color: transparent;
+    overflow: hidden;
+  }
 
-/* v6 自绘的条落在 content box（v5 的条长在 padding box 上），负 margin 把它挪回面板右缘。 */
-.xterm .xterm-scrollable-element > .scrollbar.vertical {
-  margin-inline-end: calc(-1 * var(--terminal-pane-padding-inline));
-}
+  /* v6 自绘的条落在 content box（v5 的条长在 padding box 上），负 margin 把它挪回面板右缘。 */
+  .xterm .xterm-scrollable-element > .scrollbar.vertical {
+    margin-inline-end: calc(-1 * var(--terminal-pane-padding-inline));
+  }
 
-/* 滑块几何全在行内（width 14px 来自 DEFAULT_SCROLL_BAR_WIDTH）：收到与产品那条同宽（--ui-scrollbar-size 的 5px），左让 9px。
+  /* 滑块几何全在行内（width 14px 来自 DEFAULT_SCROLL_BAR_WIDTH）：收到与产品那条同宽（--ui-scrollbar-size 的 5px），左让 9px。
  * !important 压的是行内值（豁免登记在 biome.json）。这里没有圆角：轨道只有 5px 宽，再挖圆角会把滑块啃掉一半。 */
-.xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
-  width: var(--ui-scrollbar-size) !important;
-  margin-inline-start: calc(14px - var(--ui-scrollbar-size));
+  .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
+    width: var(--ui-scrollbar-size) !important;
+    margin-inline-start: calc(14px - var(--ui-scrollbar-size));
+  }
 }

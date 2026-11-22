@@ -1,382 +1,383 @@
-@keyframes assistant-menu-in {
-  from {
-    opacity: 0;
-    transform: translateY(var(--cp-motion-rise)) scale(0.98);
+@layer components.features {
+  @keyframes assistant-menu-in {
+    from {
+      opacity: 0;
+      transform: translateY(var(--cp-motion-rise)) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
-  to {
-    opacity: 1;
-    transform: none;
+
+  /* 行几何全读 --ui-row-* 一族（不读编排器的控件尺寸）：会话行与导航行是同一种行，两处各读一套就会不同高。 */
+  .assistant-threads {
+    display: flex;
+    block-size: 100%;
+    min-block-size: 0;
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: calc(var(--ui-hairline) * 2);
+    padding-block-start: var(--cp-mast-gap);
   }
-}
 
-/* 行几何全读 --ui-row-* 一族（不读编排器的控件尺寸）：会话行与导航行是同一种行，两处各读一套就会不同高。 */
-.assistant-threads {
-  display: flex;
-  block-size: 100%;
-  min-block-size: 0;
-  flex: 1 1 0;
-  flex-direction: column;
-  gap: calc(var(--ui-hairline) * 2);
-  padding-block-start: var(--cp-mast-gap);
-}
-
-/*
+  /*
  * 会话列表是这一格里**唯一**的滚动盒：「项目」那一栏在它外面，滚动条够不到它，也就不需要吸顶。
  * 定位给退场影子用（AnimatedRows 按这个盒子算坐标），底部留白留在盒内，滚动条才一路到底。
  */
-.assistant-threads__scroll {
-  position: relative;
-  display: flex;
-  min-block-size: 0;
-  flex: 1 1 0;
-  flex-direction: column;
-  gap: calc(var(--ui-hairline) * 2);
-  overflow-y: auto;
-  padding-block-end: var(--cp-mast-gap);
-  padding-inline: var(--ui-row-inset);
-}
+  .assistant-threads__scroll {
+    position: relative;
+    display: flex;
+    min-block-size: 0;
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: calc(var(--ui-hairline) * 2);
+    overflow-y: auto;
+    padding-block-end: var(--cp-mast-gap);
+    padding-inline: var(--ui-row-inset);
+  }
 
-.assistant-threads__section {
-  min-inline-size: 0;
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--ui-hairline) * 2);
-}
+  .assistant-threads__section {
+    min-inline-size: 0;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--ui-hairline) * 2);
+  }
 
-/* 标题与三枚按钮是同一条栏（正本 sectionHeader）：栏本身不吃内缩 —— 按钮的右边缘与下面那些行对齐。 */
-.assistant-threads__section-bar {
-  display: flex;
-  align-items: center;
-  gap: calc(var(--ui-hairline) * 2);
-  padding-inline: var(--ui-row-inset);
-}
+  /* 标题与三枚按钮是同一条栏（正本 sectionHeader）：栏本身不吃内缩 —— 按钮的右边缘与下面那些行对齐。 */
+  .assistant-threads__section-bar {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--ui-hairline) * 2);
+    padding-inline: var(--ui-row-inset);
+  }
 
-.assistant-threads__section-title {
-  display: inline-flex;
-  block-size: var(--ui-row-height);
-  align-items: center;
-  align-self: stretch;
-  gap: var(--ui-row-gap);
-  border: 0;
-  border-radius: var(--ui-row-radius);
-  padding-inline: var(--ui-row-lead) var(--ui-row-trail);
-  background: transparent;
-  color: var(--cp-ink);
+  .assistant-threads__section-title {
+    display: inline-flex;
+    block-size: var(--ui-row-height);
+    align-items: center;
+    align-self: stretch;
+    gap: var(--ui-row-gap);
+    border: 0;
+    border-radius: var(--ui-row-radius);
+    padding-inline: var(--ui-row-lead) var(--ui-row-trail);
+    background: transparent;
+    color: var(--cp-ink);
 
-  font: inherit;
-  font-size: var(--cp-font-caption);
-  font-weight: 400;
-  line-height: 1.35;
-  letter-spacing: normal;
+    font: inherit;
+    font-size: var(--cp-font-caption);
+    font-weight: 400;
+    line-height: 1.35;
+    letter-spacing: normal;
 
-  text-align: start;
-  cursor: pointer;
-}
+    text-align: start;
+    cursor: pointer;
+  }
 
-/* 标题只占自己那一格：剩余宽度归右边那条工具栏，搜索展开时它才吃得到地方。 */
-.assistant-threads__section-bar .assistant-threads__section-title {
-  min-inline-size: 0;
-  flex: 0 1 auto;
-  overflow: hidden;
-  white-space: nowrap;
-  transition:
-    max-inline-size var(--ui-duration-normal) var(--ui-ease-standard),
-    opacity var(--ui-duration-fast) var(--ui-ease-standard);
-}
+  /* 标题只占自己那一格：剩余宽度归右边那条工具栏，搜索展开时它才吃得到地方。 */
+  .assistant-threads__section-bar .assistant-threads__section-title {
+    min-inline-size: 0;
+    flex: 0 1 auto;
+    overflow: hidden;
+    white-space: nowrap;
+    transition:
+      max-inline-size var(--ui-duration-normal) var(--ui-ease-standard),
+      opacity var(--ui-duration-fast) var(--ui-ease-standard);
+  }
 
-/* 搜索展开：标题与另两枚动作一起让位，这一栏整个让给输入框（正本 sectionLabelHidden / headerActionsHidden）。
+  /* 搜索展开：标题与另两枚动作一起让位，这一栏整个让给输入框（正本 sectionLabelHidden / headerActionsHidden）。
  * visibility 延迟到补间之后才切，退场那一帧才还看得见字。 */
-.assistant-threads__section-bar[data-searching='true'] .assistant-threads__section-title {
-  max-inline-size: 0;
-  opacity: 0;
-  visibility: hidden;
-  transition:
-    max-inline-size var(--ui-duration-normal) var(--ui-ease-standard),
-    opacity var(--ui-duration-fast) var(--ui-ease-standard),
-    visibility 0s linear var(--ui-duration-normal);
-}
+  .assistant-threads__section-bar[data-searching='true'] .assistant-threads__section-title {
+    max-inline-size: 0;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      max-inline-size var(--ui-duration-normal) var(--ui-ease-standard),
+      opacity var(--ui-duration-fast) var(--ui-ease-standard),
+      visibility 0s linear var(--ui-duration-normal);
+  }
 
-.assistant-threads__section-title:hover {
-  color: var(--ui-foreground);
-}
+  .assistant-threads__section-title:hover {
+    color: var(--ui-foreground);
+  }
 
-.assistant-threads__section-title:focus-visible {
-  outline: var(--cp-px) solid var(--cp-accent);
-  outline-offset: var(--cp-px);
-}
+  .assistant-threads__section-title:focus-visible {
+    outline: var(--cp-px) solid var(--cp-accent);
+    outline-offset: var(--cp-px);
+  }
 
-.assistant-threads__section-chevron {
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-  flex: none;
-  opacity: 0;
-  color: var(--cp-ink-muted);
-  pointer-events: none;
-  transform: rotate(-90deg);
-  transition:
-    opacity var(--cp-motion-swift) var(--cp-motion-ease),
-    transform var(--cp-motion-swift) var(--cp-motion-ease);
-}
+  .assistant-threads__section-chevron {
+    block-size: var(--cp-icon);
+    inline-size: var(--cp-icon);
+    flex: none;
+    opacity: 0;
+    color: var(--cp-ink-muted);
+    pointer-events: none;
+    transform: rotate(-90deg);
+    transition:
+      opacity var(--cp-motion-swift) var(--cp-motion-ease),
+      transform var(--cp-motion-swift) var(--cp-motion-ease);
+  }
 
-.assistant-threads__section-title[aria-expanded='true'] .assistant-threads__section-chevron {
-  transform: rotate(0deg);
-}
+  .assistant-threads__section-title[aria-expanded='true'] .assistant-threads__section-chevron {
+    transform: rotate(0deg);
+  }
 
-.assistant-threads__section-title:hover .assistant-threads__section-chevron,
-.assistant-threads__section-title:focus-visible .assistant-threads__section-chevron {
-  opacity: 1;
-}
+  .assistant-threads__section-title:hover .assistant-threads__section-chevron,
+  .assistant-threads__section-title:focus-visible .assistant-threads__section-chevron {
+    opacity: 1;
+  }
 
-.assistant-threads__empty {
-  margin: 0;
-  padding-block: var(--cp-optical);
-  padding-inline-start: var(--ui-row-lead);
-  font-size: var(--cp-font-caption);
-  color: var(--cp-ink-subtle);
-}
+  .assistant-threads__empty {
+    margin: 0;
+    padding-block: var(--cp-optical);
+    padding-inline-start: var(--ui-row-lead);
+    font-size: var(--cp-font-caption);
+    color: var(--cp-ink-subtle);
+  }
 
-.assistant-threads__create {
-  display: grid;
-  block-size: var(--assistant-threads-action-size);
-  inline-size: var(--assistant-threads-action-size);
-  place-items: center;
-  border: 0;
-  border-radius: var(--cp-optical);
-  padding: 0;
-  background: transparent;
-  color: var(--cp-ink-muted);
-  cursor: pointer;
-  transition:
-    background-color var(--cp-motion-swift) var(--cp-motion-ease),
-    transform var(--cp-motion-swift) var(--cp-motion-ease);
-  margin-inline: 0;
-}
+  .assistant-threads__create {
+    display: grid;
+    block-size: var(--assistant-threads-action-size);
+    inline-size: var(--assistant-threads-action-size);
+    place-items: center;
+    border: 0;
+    border-radius: var(--cp-optical);
+    padding: 0;
+    background: transparent;
+    color: var(--cp-ink-muted);
+    cursor: pointer;
+    transition:
+      background-color var(--cp-motion-swift) var(--cp-motion-ease),
+      transform var(--cp-motion-swift) var(--cp-motion-ease);
+    margin-inline: 0;
+  }
 
-.assistant-threads__create:hover {
-  background: var(--cp-hover);
-}
+  .assistant-threads__create:hover {
+    background: var(--cp-hover);
+  }
 
-.assistant-threads__create:active {
-  background: color-mix(in srgb, var(--ui-foreground) 12%, transparent);
-  transform: scale(0.94);
-}
+  .assistant-threads__create:active {
+    background: color-mix(in srgb, var(--ui-foreground) 12%, transparent);
+    transform: scale(0.94);
+  }
 
-.assistant-threads__create:focus-visible {
-  outline: var(--cp-px) solid var(--cp-accent);
-  outline-offset: var(--cp-px);
-}
+  .assistant-threads__create:focus-visible {
+    outline: var(--cp-px) solid var(--cp-accent);
+    outline-offset: var(--cp-px);
+  }
 
-.assistant-threads__list {
-  min-inline-size: 0;
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--ui-hairline) * 2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
+  .assistant-threads__list {
+    min-inline-size: 0;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--ui-hairline) * 2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
 
-/* 相邻两块底色之间必须留缝（与列表行距同一条），否则组头悬停底与第一行的当前底连成一块「坏掉的高行」。 */
-.assistant-threads__group,
-.thread-disclosure__inner {
-  min-inline-size: 0;
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--ui-hairline) * 2);
-}
+  /* 相邻两块底色之间必须留缝（与列表行距同一条），否则组头悬停底与第一行的当前底连成一块「坏掉的高行」。 */
+  .assistant-threads__group,
+  .thread-disclosure__inner {
+    min-inline-size: 0;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--ui-hairline) * 2);
+  }
 
-/*
+  /*
  * 展开壳只补 grid-template-rows（0fr↔1fr），不再逐帧改 height：布局属性每帧重排，几百条会话的列里会卡。
  * 0fr 那一档靠 overflow 裁剪；内层保持自己的列布局，内容高度仍由内容自己决定。
  * 时长与曲线与 shared/primitives/motion.ts 的 ENTER/EXIT 同值 —— 换一处必须同时换另一处。
  */
-.thread-disclosure {
-  min-inline-size: 0;
-  --thread-disclosure-enter: 200ms;
-  --thread-disclosure-exit: 140ms;
-  --thread-disclosure-enter-ease: cubic-bezier(0.2, 0, 0, 1);
-  --thread-disclosure-exit-ease: cubic-bezier(0.4, 0, 1, 1);
+  .thread-disclosure {
+    min-inline-size: 0;
+    --thread-disclosure-enter: 200ms;
+    --thread-disclosure-exit: 140ms;
+    --thread-disclosure-enter-ease: cubic-bezier(0.2, 0, 0, 1);
+    --thread-disclosure-exit-ease: cubic-bezier(0.4, 0, 1, 1);
 
-  display: grid;
-  grid-template-rows: 0fr;
-  overflow: hidden;
-  opacity: 0;
-  transition:
-    grid-template-rows var(--thread-disclosure-exit) var(--thread-disclosure-exit-ease),
-    opacity calc(var(--thread-disclosure-exit) * 0.7) linear;
-}
-
-.thread-disclosure[data-open='true'] {
-  grid-template-rows: 1fr;
-  opacity: 1;
-  transition:
-    grid-template-rows var(--thread-disclosure-enter) var(--thread-disclosure-enter-ease),
-    opacity calc(var(--thread-disclosure-enter) * 0.6) linear calc(var(--thread-disclosure-enter) * 0.25);
-}
-
-.thread-disclosure__inner {
-  min-block-size: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .thread-disclosure,
-  .thread-disclosure[data-open='true'] {
-    transition: none;
+    display: grid;
+    grid-template-rows: 0fr;
+    overflow: hidden;
+    opacity: 0;
+    transition:
+      grid-template-rows var(--thread-disclosure-exit) var(--thread-disclosure-exit-ease),
+      opacity calc(var(--thread-disclosure-exit) * 0.7) linear;
   }
-}
 
-/*
+  .thread-disclosure[data-open='true'] {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transition:
+      grid-template-rows var(--thread-disclosure-enter) var(--thread-disclosure-enter-ease),
+      opacity calc(var(--thread-disclosure-enter) * 0.6) linear calc(var(--thread-disclosure-enter) * 0.25);
+  }
+
+  .thread-disclosure__inner {
+    min-block-size: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .thread-disclosure,
+    .thread-disclosure[data-open='true'] {
+      transition: none;
+    }
+  }
+
+  /*
  * 行补间期间放开这一层裁剪（标记由 animated-rows.tsx 在提交后打上、250ms 后撤掉）。
  * 删掉一行时下面几行要从旧位置滑上来，而盒子的高度已经先缩到新值 —— 不放开的整段滑行都被切掉，
  * 看上去就是「突然跳下去」。收起/展开组时走的是「换视图」那一支，不补间，所以两者不会撞在一起。
  */
-.assistant-threads__scroll[data-moving='true'] .thread-disclosure {
-  overflow: visible;
-}
+  .assistant-threads__scroll[data-moving='true'] .thread-disclosure {
+    overflow: visible;
+  }
 
-/* 行高读侧边栏的 --ui-row-height，不读编排器的控件尺寸：两处各读一套，同一列上下两段就不同高。 */
-.assistant-thread {
-  position: relative;
-  min-inline-size: 0;
-  display: flex;
-  block-size: var(--ui-row-height);
-  align-items: center;
-  border-radius: var(--ui-row-radius);
-  gap: var(--ui-row-gap);
-  padding-inline-start: calc(var(--ui-row-lead) + var(--ui-row-icon-size) + var(--ui-row-gap));
-  padding-inline-end: var(--ui-row-trail);
-  font-size: var(--cp-font-caption);
-}
+  /* 行高读侧边栏的 --ui-row-height，不读编排器的控件尺寸：两处各读一套，同一列上下两段就不同高。 */
+  .assistant-thread {
+    position: relative;
+    min-inline-size: 0;
+    display: flex;
+    block-size: var(--ui-row-height);
+    align-items: center;
+    border-radius: var(--ui-row-radius);
+    gap: var(--ui-row-gap);
+    padding-inline-start: calc(var(--ui-row-lead) + var(--ui-row-icon-size) + var(--ui-row-gap));
+    padding-inline-end: var(--ui-row-trail);
+    font-size: var(--cp-font-caption);
+  }
 
-/* 底色读 --ui-sidebar-accent（与导航行同一条规则决定，分开写会出现底色没了、图标还在、时间又冒出来）。
+  /* 底色读 --ui-sidebar-accent（与导航行同一条规则决定，分开写会出现底色没了、图标还在、时间又冒出来）。
  * 用 :has(:focus-visible) 而非 :focus-within：后者对鼠标点击也成立，点开一个会话后这一行的时间永远不再回来（真实故障）。 */
-.assistant-thread:hover,
-.assistant-thread:has(:focus-visible) {
-  background: var(--ui-sidebar-accent);
-  --thread-trail-time: 0;
-  --thread-trail-actions: 1;
-}
+  .assistant-thread:hover,
+  .assistant-thread:has(:focus-visible) {
+    background: var(--ui-sidebar-accent);
+    --thread-trail-time: 0;
+    --thread-trail-actions: 1;
+  }
 
-.assistant-thread[data-active='true'] {
-  background: var(--ui-sidebar-accent);
-}
+  .assistant-thread[data-active='true'] {
+    background: var(--ui-sidebar-accent);
+  }
 
-.assistant-thread[data-muted='true'] {
-  opacity: 0.45;
-}
+  .assistant-thread[data-muted='true'] {
+    opacity: 0.45;
+  }
 
-.assistant-thread__open {
-  display: flex;
-  min-inline-size: 0;
-  flex: 1;
-  align-items: center;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  cursor: pointer;
-  margin-inline: 0;
-  font-size: inherit;
-}
+  .assistant-thread__open {
+    display: flex;
+    min-inline-size: 0;
+    flex: 1;
+    align-items: center;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+    margin-inline: 0;
+    font-size: inherit;
+  }
 
-.assistant-thread__title {
-  min-inline-size: 0;
-  overflow: hidden;
-  font-size: var(--cp-font-caption);
-  color: var(--cp-ink);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+  .assistant-thread__title {
+    min-inline-size: 0;
+    overflow: hidden;
+    font-size: var(--cp-font-caption);
+    color: var(--cp-ink);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
-/*
+  /*
  * 悬停时把省略号关掉：横移到达远端后，省略号会盖在已经露出来的字上。
  * 只在真能悬停的设备上生效 —— 触摸点一下会粘住 :hover，那行会永久没有省略号。
  */
-@media (hover: hover) {
-  .assistant-thread:hover .assistant-thread__title,
-  .assistant-thread:hover .assistant-thread__title-base {
-    text-overflow: clip;
+  @media (hover: hover) {
+    .assistant-thread:hover .assistant-thread__title,
+    .assistant-thread:hover .assistant-thread__title-base {
+      text-overflow: clip;
+    }
   }
-}
 
-/*
+  /*
  * 悬停横移：标题放不下时 Rows 侧逐帧把 scrollLeft 往右推（见 title-marquee.ts），
  * 爬动期间两端各留 12px 的渐隐，免得把半颗字硬切成一条边。
  * data-scrolled = 已离开开头（左端），data-clipped = 右边还有字没露出来；
  * 爬到远端时右钩子摘掉，最后一个字以全强度出现。
  * 遮罩挂在被裁的那一层本身，行首状态点与行尾序号不跟着变淡。
  */
-.assistant-thread__title[data-scrolled],
-.assistant-thread__title-base[data-scrolled] {
-  mask-image: linear-gradient(to right, transparent, #000 12px);
-}
+  .assistant-thread__title[data-scrolled],
+  .assistant-thread__title-base[data-scrolled] {
+    mask-image: linear-gradient(to right, transparent, #000 12px);
+  }
 
-.assistant-thread__title[data-clipped],
-.assistant-thread__title-base[data-clipped] {
-  mask-image: linear-gradient(to left, transparent, #000 12px);
-}
+  .assistant-thread__title[data-clipped],
+  .assistant-thread__title-base[data-clipped] {
+    mask-image: linear-gradient(to left, transparent, #000 12px);
+  }
 
-.assistant-thread__title[data-scrolled][data-clipped],
-.assistant-thread__title-base[data-scrolled][data-clipped] {
-  mask-image: linear-gradient(to right, transparent, #000 12px, #000 calc(100% - 12px), transparent);
-}
+  .assistant-thread__title[data-scrolled][data-clipped],
+  .assistant-thread__title-base[data-scrolled][data-clipped] {
+    mask-image: linear-gradient(to right, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+  }
 
-/*
+  /*
  * 行首那格由 padding-inline-start 留着，状态点绝对定位进去：出现与消失时标题不移动。
  *
  * 点自己只有 10px（ongoing 14px），而这一格是 16px 的行首图标位：居中摆进去，才与组头的
  * 文件夹、导航项的图标同一条中线。
  */
-/* 选择器带行前缀：StateDot 自己的 .ui-state-dot 声明了 position: relative，单类选择器与它同权重，
+  /* 选择器带行前缀：StateDot 自己的 .ui-state-dot 声明了 position: relative，单类选择器与它同权重，
  * 谁在后面谁赢 —— 设计系统那份样式后加载时，点会退回文件流里，缩进到标题的落点。 */
-.assistant-thread > .assistant-thread__status {
-  position: absolute;
-  inset-block-start: 50%;
-  inset-inline-start: calc(var(--ui-row-lead) + (var(--ui-row-icon-size) - 10px) / 2);
-  transform: translateY(-50%);
-}
+  .assistant-thread > .assistant-thread__status {
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-start: calc(var(--ui-row-lead) + (var(--ui-row-icon-size) - 10px) / 2);
+    transform: translateY(-50%);
+  }
 
-/* ongoing 的环外径 14px，比实心点宽 4px：左偏移跟着收 2px，两种状态的中线才是同一条。 */
-.assistant-thread > .assistant-thread__status[data-state='ongoing'] {
-  inset-inline-start: calc(var(--ui-row-lead) + (var(--ui-row-icon-size) - 14px) / 2);
-}
+  /* ongoing 的环外径 14px，比实心点宽 4px：左偏移跟着收 2px，两种状态的中线才是同一条。 */
+  .assistant-thread > .assistant-thread__status[data-state='ongoing'] {
+    inset-inline-start: calc(var(--ui-row-lead) + (var(--ui-row-icon-size) - 14px) / 2);
+  }
 
-/* 行尾的待答短标签：字与颜色和「时间」同一档，但它是等人处理的信号，用警告色提一档。 */
-.assistant-thread__pending {
-  position: absolute;
-  inset-block-start: 50%;
-  inset-inline-end: 0;
-  color: var(--ui-warning);
-  font-size: var(--cp-font-micro);
-  white-space: nowrap;
-  /* 与相对时间同一个开关：指针进来让位给置顶 / 归档两枚动作，不然短标签会压在它们下面。 */
-  opacity: var(--thread-trail-time, 1);
-  pointer-events: none;
-  transform: translateY(-50%);
-  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
-}
+  /* 行尾的待答短标签：字与颜色和「时间」同一档，但它是等人处理的信号，用警告色提一档。 */
+  .assistant-thread__pending {
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-end: 0;
+    color: var(--ui-warning);
+    font-size: var(--cp-font-micro);
+    white-space: nowrap;
+    /* 与相对时间同一个开关：指针进来让位给置顶 / 归档两枚动作，不然短标签会压在它们下面。 */
+    opacity: var(--thread-trail-time, 1);
+    pointer-events: none;
+    transform: translateY(-50%);
+    transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+  }
 
-/* 只给读屏的完整状态说法：视觉上不占位，但读屏能念出「等待审批」而不只是行尾那三个字。 */
-.assistant-thread__a11y {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
+  /* 只给读屏的完整状态说法：视觉上不占位，但读屏能念出「等待审批」而不只是行尾那三个字。 */
+  .assistant-thread__a11y {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 
-/* 定时任务开的对话：与运行中指示同一格，墨色淡一档 —— 它是来历，不是状态（R-16）。 */
-.assistant-thread__origin {
-  position: absolute;
-  inset-block-start: 50%;
-  inset-inline-start: var(--ui-row-lead);
-  block-size: var(--ui-row-icon-size);
-  inline-size: var(--ui-row-icon-size);
-  color: var(--cp-ink-subtle);
-  transform: translateY(-50%);
-}
+  /* 定时任务开的对话：与运行中指示同一格，墨色淡一档 —— 它是来历，不是状态（R-16）。 */
+  .assistant-thread__origin {
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-start: var(--ui-row-lead);
+    block-size: var(--ui-row-icon-size);
+    inline-size: var(--ui-row-icon-size);
+    color: var(--cp-ink-subtle);
+    transform: translateY(-50%);
+  }
 
-/*
+  /*
  * 时间与两个图标叠在同一网格单元，由同一条选择器决定谁在画：两条互不相干的条件会在
  * 「菜单开着而指针已离开」时同时成立，图标于是压在时间上。
  *
@@ -385,214 +386,215 @@
  * 时间不参与格子宽度：它绝对定位在格的右缘（与操作组同一右边缘），格子于是收到按钮组的宽度，
  * 图钉贴到右缘，静息时那行时间的位置一分不动。
  */
-.assistant-thread__trail {
-  position: relative;
-  display: grid;
-  flex: none;
-  align-items: center;
-  margin-inline-start: auto;
-}
+  .assistant-thread__trail {
+    position: relative;
+    display: grid;
+    flex: none;
+    align-items: center;
+    margin-inline-start: auto;
+  }
 
-.assistant-thread__trail > * {
-  grid-area: 1 / 1;
-}
+  .assistant-thread__trail > * {
+    grid-area: 1 / 1;
+  }
 
-/* 静息说时间、介入说操作，由行上那两个自定义属性决定谁在画；静息值写在这里的 var() 回退里，因为自定义属性表示「覆盖」不表示「默认」。
+  /* 静息说时间、介入说操作，由行上那两个自定义属性决定谁在画；静息值写在这里的 var() 回退里，因为自定义属性表示「覆盖」不表示「默认」。
  * 时间不接指针（否则会弹出 title 里的绝对时刻）；操作不能改成 display: none —— 菜单关闭动画里触发器离开布局，弹层会在窗口左上角闪一帧（真实故障）。 */
-.assistant-thread__time {
-  position: absolute;
-  inset-block-start: 50%;
-  inset-inline-end: 0;
-  font-size: var(--cp-font-micro);
-  color: var(--cp-ink-subtle);
-  opacity: var(--thread-trail-time, 1);
-  pointer-events: none;
-  white-space: nowrap;
-  transform: translateY(-50%);
-  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
-}
+  .assistant-thread__time {
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-end: 0;
+    font-size: var(--cp-font-micro);
+    color: var(--cp-ink-subtle);
+    opacity: var(--thread-trail-time, 1);
+    pointer-events: none;
+    white-space: nowrap;
+    transform: translateY(-50%);
+    transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+  }
 
-/*
+  /*
  * 两枚动作的间距。归档贴右缘不动，加大这一格就是把置顶往左推（flex 整组右对齐，间距只往左长）——
  * 用户 2026-10-19：图钉往左挪、两枚之间拉开。原先 2px 让两枚几乎连成一块，视觉上分不出是两颗。
  */
-.assistant-thread__actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  opacity: var(--thread-trail-actions, 0);
-  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
-}
+  .assistant-thread__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    opacity: var(--thread-trail-actions, 0);
+    transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+  }
 
-.assistant-thread__action {
-  display: grid;
-  block-size: var(--assistant-threads-action-size);
-  inline-size: var(--assistant-threads-action-size);
-  place-items: center;
-  border: 0;
-  border-radius: var(--cp-optical);
-  background: transparent;
-  color: var(--cp-ink-muted);
-  cursor: pointer;
-  margin-inline: 0;
-  padding-inline: 0;
-}
+  .assistant-thread__action {
+    display: grid;
+    block-size: var(--assistant-threads-action-size);
+    inline-size: var(--assistant-threads-action-size);
+    place-items: center;
+    border: 0;
+    border-radius: var(--cp-optical);
+    background: transparent;
+    color: var(--cp-ink-muted);
+    cursor: pointer;
+    margin-inline: 0;
+    padding-inline: 0;
+  }
 
-.assistant-thread__action:hover {
-  background: var(--cp-hover);
-  color: var(--cp-ink);
-}
+  .assistant-thread__action:hover {
+    background: var(--cp-hover);
+    color: var(--cp-ink);
+  }
 
-/*
+  /*
  * 卡面、圆角、行盒、行圆角、字形颜色与悬停底全归通用弹窗（control/popup-surface.ts 与
  * control/menu.css）。这一张只声明它在紧凑侧栏里的最小宽度 —— 这里以前写着整整一套皮肤，
  * 于是同一个控件在侧栏和别处是两张脸。
  */
-.assistant-thread-menu {
-  min-inline-size: 184px;
-}
+  .assistant-thread-menu {
+    min-inline-size: 184px;
+  }
 
-/* 会话列表首帧：读取落定之前不说"还没有会话"，所以指针也关掉。 */
-.assistant-thread[data-placeholder='true'] {
-  pointer-events: none;
-}
+  /* 会话列表首帧：读取落定之前不说"还没有会话"，所以指针也关掉。 */
+  .assistant-thread[data-placeholder='true'] {
+    pointer-events: none;
+  }
 
-/* 居中由 .assistant-thread 的 align-items 给，不手算偏移：手算的解在行高一改就偏。 */
-.assistant-thread__ghost {
-  display: block;
-  block-size: 10px;
-  margin: 0;
-  border-radius: 4px;
-  /* 骨架块的浅灰。此前读的是工具条浮层皮肤那一族变量（--am-line），那一族随皮肤一起拆掉了。 */
-  background: var(--ui-divider-subtle);
-  animation: assistant-thread-ghost 1200ms ease-in-out infinite;
-}
+  /* 居中由 .assistant-thread 的 align-items 给，不手算偏移：手算的解在行高一改就偏。 */
+  .assistant-thread__ghost {
+    display: block;
+    block-size: 10px;
+    margin: 0;
+    border-radius: 4px;
+    /* 骨架块的浅灰。此前读的是工具条浮层皮肤那一族变量（--am-line），那一族随皮肤一起拆掉了。 */
+    background: var(--ui-divider-subtle);
+    animation: assistant-thread-ghost 1200ms ease-in-out infinite;
+  }
 
-@keyframes assistant-thread-ghost {
-  0%,
-  100% {
+  @keyframes assistant-thread-ghost {
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.45;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .assistant-thread__ghost {
+      animation: none;
+    }
+  }
+
+  /* 图钉只负责居中，状态由字形表达：「已固定」用实心字形并提一档墨色，静息态也读得出来。 */
+  .assistant-thread__glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .assistant-thread__glyph[data-pinned='true'] {
+    color: var(--cp-ink);
+  }
+
+  /* 组头就是这一列里的另一行：行高、缩进、圆角、间距、字号墨色、悬停底色读会话行同一批令牌同一条判定。 */
+  .assistant-threads__group-header {
+    display: flex;
+    block-size: var(--ui-row-height);
+    align-items: center;
+    border-radius: var(--ui-row-radius);
+    gap: var(--ui-row-gap);
+    padding-inline-start: var(--ui-row-lead);
+    padding-inline-end: var(--ui-row-trail);
+    font-size: var(--cp-font-caption);
+  }
+
+  .assistant-threads__group-header:hover,
+  .assistant-threads__group-header:has(:focus-visible) {
+    background: var(--ui-sidebar-accent);
+  }
+
+  .assistant-threads__toggle {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: var(--ui-row-gap);
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    text-align: start;
+    cursor: default;
+  }
+
+  .assistant-threads__folder {
+    display: inline-flex;
+    block-size: var(--ui-row-icon-size);
+    inline-size: var(--ui-row-icon-size);
+    flex: none;
+    color: var(--cp-ink-muted);
+  }
+
+  .assistant-threads__name {
+    overflow: hidden;
+    color: var(--cp-ink);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* 组内新建只在这一组被介入时出现，安静时组头只有名字；指针与键盘两条判定同会话行。 */
+  .assistant-threads__group-header .assistant-threads__create {
+    flex: none;
+    opacity: 0;
+  }
+
+  .assistant-threads__group-header:hover .assistant-threads__create,
+  .assistant-threads__group-header:has(:focus-visible) .assistant-threads__create {
     opacity: 1;
   }
 
-  50% {
-    opacity: 0.45;
+  .assistant-threads__more {
+    display: block;
+    width: 100%;
+    padding: 4px var(--ui-row-trail) 4px calc(var(--ui-row-lead) + var(--ui-row-icon-size) + var(--ui-row-gap));
+    border: 0;
+    background: none;
+    color: var(--cp-ink-subtle);
+    font: inherit;
+    font-size: var(--cp-font-micro);
+    text-align: start;
+    cursor: default;
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .assistant-thread__ghost {
-    animation: none;
+  .assistant-threads__more:hover {
+    color: var(--cp-ink);
   }
-}
 
-/* 图钉只负责居中，状态由字形表达：「已固定」用实心字形并提一档墨色，静息态也读得出来。 */
-.assistant-thread__glyph {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
+  /* 框在这一层而不是列表上：列表若自己 block-size: 100% 又是滚动盒，只在独子时成立 —— 工作目录那一行进来后成了两个兄弟，占满 100% 的会把另一个挤出容器。 */
+  .assistant-panel {
+    display: flex;
+    block-size: 100%;
+    min-block-size: 0;
+    flex-direction: column;
+    /* 行内操作按钮的尺寸：20px，面板里只有一种，picker 与列表共读。 */
+    --assistant-threads-action-size: 20px;
+  }
 
-.assistant-thread__glyph[data-pinned='true'] {
-  color: var(--cp-ink);
-}
+  /* 序号 (n) 钉在可见端，正文那一段吃省略号；只在真的带序号时改布局，普通标题不动。 */
+  [data-assistant-skin] .assistant-thread__title[data-ordinal] {
+    display: inline-flex;
+    max-width: 100%;
+    min-width: 0;
+  }
 
-/* 组头就是这一列里的另一行：行高、缩进、圆角、间距、字号墨色、悬停底色读会话行同一批令牌同一条判定。 */
-.assistant-threads__group-header {
-  display: flex;
-  block-size: var(--ui-row-height);
-  align-items: center;
-  border-radius: var(--ui-row-radius);
-  gap: var(--ui-row-gap);
-  padding-inline-start: var(--ui-row-lead);
-  padding-inline-end: var(--ui-row-trail);
-  font-size: var(--cp-font-caption);
-}
+  [data-assistant-skin] .assistant-thread__title[data-ordinal] .assistant-thread__title-base {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
-.assistant-threads__group-header:hover,
-.assistant-threads__group-header:has(:focus-visible) {
-  background: var(--ui-sidebar-accent);
-}
-
-.assistant-threads__toggle {
-  display: flex;
-  flex: 1 1 auto;
-  align-items: center;
-  gap: var(--ui-row-gap);
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  text-align: start;
-  cursor: default;
-}
-
-.assistant-threads__folder {
-  display: inline-flex;
-  block-size: var(--ui-row-icon-size);
-  inline-size: var(--ui-row-icon-size);
-  flex: none;
-  color: var(--cp-ink-muted);
-}
-
-.assistant-threads__name {
-  overflow: hidden;
-  color: var(--cp-ink);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 组内新建只在这一组被介入时出现，安静时组头只有名字；指针与键盘两条判定同会话行。 */
-.assistant-threads__group-header .assistant-threads__create {
-  flex: none;
-  opacity: 0;
-}
-
-.assistant-threads__group-header:hover .assistant-threads__create,
-.assistant-threads__group-header:has(:focus-visible) .assistant-threads__create {
-  opacity: 1;
-}
-
-.assistant-threads__more {
-  display: block;
-  width: 100%;
-  padding: 4px var(--ui-row-trail) 4px calc(var(--ui-row-lead) + var(--ui-row-icon-size) + var(--ui-row-gap));
-  border: 0;
-  background: none;
-  color: var(--cp-ink-subtle);
-  font: inherit;
-  font-size: var(--cp-font-micro);
-  text-align: start;
-  cursor: default;
-}
-
-.assistant-threads__more:hover {
-  color: var(--cp-ink);
-}
-
-/* 框在这一层而不是列表上：列表若自己 block-size: 100% 又是滚动盒，只在独子时成立 —— 工作目录那一行进来后成了两个兄弟，占满 100% 的会把另一个挤出容器。 */
-.assistant-panel {
-  display: flex;
-  block-size: 100%;
-  min-block-size: 0;
-  flex-direction: column;
-  /* 行内操作按钮的尺寸：20px，面板里只有一种，picker 与列表共读。 */
-  --assistant-threads-action-size: 20px;
-}
-
-/* 序号 (n) 钉在可见端，正文那一段吃省略号；只在真的带序号时改布局，普通标题不动。 */
-[data-assistant-skin] .assistant-thread__title[data-ordinal] {
-  display: inline-flex;
-  max-width: 100%;
-  min-width: 0;
-}
-
-[data-assistant-skin] .assistant-thread__title[data-ordinal] .assistant-thread__title-base {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-[data-assistant-skin] .assistant-thread__title[data-ordinal] .assistant-thread__title-ordinal {
-  flex: none;
+  [data-assistant-skin] .assistant-thread__title[data-ordinal] .assistant-thread__title-ordinal {
+    flex: none;
+  }
 }

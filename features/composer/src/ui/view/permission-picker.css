@@ -1,109 +1,111 @@
 @import './session-controls.css';
 
-.assistant-posture,
-.assistant-posture-menu {
-  --pp-ink-alert: #e46620;
-}
-
-.assistant-posture {
-  --pp-ink: var(--cp-ink-muted);
-
-  display: inline-flex;
-  block-size: var(--cp-pill);
-
-  flex: none;
-  align-items: center;
-  gap: var(--cp-pill-gap);
-  border: 0;
-  border-radius: var(--ui-radius-full);
-
-  padding-inline: var(--cp-pill-lead) var(--cp-pill-trail);
-  font: inherit;
-  font-size: var(--cp-font-caption);
-  font-weight: 400;
-
-  line-height: 1;
-  color: var(--pp-ink);
-  cursor: pointer;
-  user-select: none;
-  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-/* 只剩字形时两侧留白取同一个数：没有字就没有要补偿的那一侧，留着尾巴会把字形顶得偏左。 */
-.assistant-posture[data-icon-only] {
-  padding-inline: var(--cp-pill-lead);
-}
-
-.assistant-posture > svg {
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-  flex: none;
-}
-
-.assistant-posture[data-alert] {
-  --pp-ink: var(--pp-ink-alert);
-}
-
-.assistant-posture__label {
-  max-inline-size: var(--cp-pill-label-max);
-  overflow: hidden;
-  line-height: 1;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-/* 卡面、行高、行圆角与悬停底都归通用弹窗（control/popup-surface.ts）。这里只留这一张自己的宽度。 */
-.assistant-posture-menu {
-  inline-size: 21rem;
-  max-inline-size: calc(100vw - 2 * var(--cp-gutter));
-}
-
-/* 两行字加一枚字形：格还在，但字号、字色、行盒取自通用弹窗的行。 */
-.assistant-posture-menu__item {
-  display: grid;
-  grid-template-areas: 'glyph name tick' 'glyph detail tick';
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  column-gap: 6px;
-  row-gap: 2px;
-}
-
-.assistant-posture-menu__item[data-alert] {
-  color: var(--pp-ink-alert);
-}
-
-.assistant-posture-menu__glyph {
-  grid-area: glyph;
-  color: var(--ui-popup-icon);
-}
-
-.assistant-posture-menu__name {
-  grid-area: name;
-}
-
-.assistant-posture-menu__detail {
-  grid-area: detail;
-  font-size: var(--cp-font-micro);
-  color: var(--cp-ink-subtle);
-}
-
-.assistant-posture-menu__tick {
-  display: flex;
-  grid-area: tick;
-  align-items: center;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .assistant-posture {
-    transition: none;
+@layer components.features {
+  .assistant-posture,
+  .assistant-posture-menu {
+    --pp-ink-alert: #e46620;
   }
-}
 
-.assistant-posture:not(:hover):not([data-popup-open]) {
-  background: transparent;
-  box-shadow: none;
-}
+  .assistant-posture {
+    --pp-ink: var(--cp-ink-muted);
 
-.assistant-posture:hover,
-.assistant-posture[data-popup-open] {
-  background: var(--cp-input-hover);
+    display: inline-flex;
+    block-size: var(--cp-pill);
+
+    flex: none;
+    align-items: center;
+    gap: var(--cp-pill-gap);
+    border: 0;
+    border-radius: var(--ui-radius-full);
+
+    padding-inline: var(--cp-pill-lead) var(--cp-pill-trail);
+    font: inherit;
+    font-size: var(--cp-font-caption);
+    font-weight: 400;
+
+    line-height: 1;
+    color: var(--pp-ink);
+    cursor: pointer;
+    user-select: none;
+    transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
+  }
+
+  /* 只剩字形时两侧留白取同一个数：没有字就没有要补偿的那一侧，留着尾巴会把字形顶得偏左。 */
+  .assistant-posture[data-icon-only] {
+    padding-inline: var(--cp-pill-lead);
+  }
+
+  .assistant-posture > svg {
+    block-size: var(--cp-icon);
+    inline-size: var(--cp-icon);
+    flex: none;
+  }
+
+  .assistant-posture[data-alert] {
+    --pp-ink: var(--pp-ink-alert);
+  }
+
+  .assistant-posture__label {
+    max-inline-size: var(--cp-pill-label-max);
+    overflow: hidden;
+    line-height: 1;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  /* 卡面、行高、行圆角与悬停底都归通用弹窗（control/popup-surface.ts）。这里只留这一张自己的宽度。 */
+  .assistant-posture-menu {
+    inline-size: 21rem;
+    max-inline-size: calc(100vw - 2 * var(--cp-gutter));
+  }
+
+  /* 两行字加一枚字形：格还在，但字号、字色、行盒取自通用弹窗的行。 */
+  .assistant-posture-menu__item {
+    display: grid;
+    grid-template-areas: 'glyph name tick' 'glyph detail tick';
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: 6px;
+    row-gap: 2px;
+  }
+
+  .assistant-posture-menu__item[data-alert] {
+    color: var(--pp-ink-alert);
+  }
+
+  .assistant-posture-menu__glyph {
+    grid-area: glyph;
+    color: var(--ui-popup-icon);
+  }
+
+  .assistant-posture-menu__name {
+    grid-area: name;
+  }
+
+  .assistant-posture-menu__detail {
+    grid-area: detail;
+    font-size: var(--cp-font-micro);
+    color: var(--cp-ink-subtle);
+  }
+
+  .assistant-posture-menu__tick {
+    display: flex;
+    grid-area: tick;
+    align-items: center;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .assistant-posture {
+      transition: none;
+    }
+  }
+
+  .assistant-posture:not(:hover):not([data-popup-open]) {
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .assistant-posture:hover,
+  .assistant-posture[data-popup-open] {
+    background: var(--cp-input-hover);
+  }
 }
