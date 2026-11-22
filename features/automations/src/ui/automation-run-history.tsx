@@ -54,10 +54,10 @@ function RunRow({
     <li className="flex flex-wrap items-center gap-3 px-4 py-3 text-xs">
       <span className={outcomeClass(run.outcome)}>{RUN_LABELS[run.outcome]}</span>
       {trigger === null ? null : (
-        <span className="rounded bg-sidebar-accent px-1.5 py-0.5 text-[11px] text-muted-foreground">{trigger}</span>
+        <span className="rounded bg-sidebar-accent px-1.5 py-0.5 text-caption text-muted-foreground">{trigger}</span>
       )}
       {run.attention ? (
-        <span className="rounded bg-warning/10 px-1.5 py-0.5 text-[11px] text-warning">需要关注</span>
+        <span className="rounded bg-warning/10 px-1.5 py-0.5 text-caption text-warning">需要关注</span>
       ) : null}
       {run.threadId === null ? (
         <span className="text-muted-foreground">没有关联对话</span>
