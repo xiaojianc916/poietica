@@ -38,6 +38,12 @@
     opacity: 0;
   }
 
+  /* 基础态必须在 CSS 里：opacity/pointer-events 若写成工具类，会压过这条 hover 规则（utilities 层在 components 之上）。 */
+  .auxiliary-tab-icon__close {
+    opacity: 0;
+    pointer-events: none;
+  }
+
   .auxiliary-tab-icon:hover .auxiliary-tab-icon__close {
     opacity: 1;
     pointer-events: auto;

@@ -151,10 +151,7 @@ function AuxiliaryTab({
         <span className="auxiliary-tab-icon__glyph pointer-events-none absolute inset-0 transition-opacity">
           {icon}
         </span>
-        <X
-          className="auxiliary-tab-icon__close pointer-events-none absolute inset-0 opacity-0 transition-opacity"
-          data-close-tab
-        />
+        <X className="auxiliary-tab-icon__close absolute inset-0 transition-opacity" data-close-tab />
       </span>
       <span className="min-w-0 self-center truncate">{title}</span>
     </button>
