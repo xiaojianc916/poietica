@@ -1,7 +1,7 @@
 @layer components.features {
   /*
  * 状态面板：ZCode V4 右上角的同一套壳 —— 收起态是单条摘要胶囊，展开态是 320px 卡片；
- * auto 由 conversation-body 容器查询在 1280px 处裁决，React 不读宽度。
+ * 形态由用户的展开 / 收起动作决定，不按容器宽度自动切换。
  *
  * 颜色、边框、阴影沿用本仓既有恒色卡（见 todo-panel.css 的 --status-panel-shell 族与
  * refactor-log Q56）；这里只补壳、胶囊与右上角控件。基础两条（.conversation-body /
@@ -228,7 +228,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* 展开态右上角的两个控件：更多（自动模式）与收起；位置、尺寸照 ZCode 的 right-3 top-3 / 24。 */
+  /* 展开态右上角的收起控件；位置、尺寸照 ZCode 的 right-3 top-3 / 24。 */
   .conversation-status-panel__controls {
     position: absolute;
     z-index: 1;
@@ -237,36 +237,6 @@
     display: flex;
     align-items: center;
     gap: 4px;
-  }
-
-  /* 菜单触发的提示：与设计系统 .ui-tooltip 同一套表面/墨色，侧边 4px，延迟 150ms。 */
-  .conversation-status-panel__control[data-tooltip] {
-    position: relative;
-  }
-
-  .conversation-status-panel__control[data-tooltip]::after {
-    content: attr(data-tooltip);
-    position: absolute;
-    z-index: 2;
-    inset-block-start: 50%;
-    inset-inline-end: calc(100% + 4px);
-    padding: 6px 12px;
-    border-radius: var(--ui-radius-md);
-    background: var(--ui-tooltip-surface);
-    color: var(--ui-tooltip-ink);
-    font-size: 12px;
-    line-height: 16px;
-    white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    translate: 0 -50%;
-    transition: opacity var(--ui-duration-fast) var(--ui-ease-standard);
-    transition-delay: 150ms;
-  }
-
-  .conversation-status-panel__control[data-tooltip]:hover::after,
-  .conversation-status-panel__control[data-tooltip]:focus-visible::after {
-    opacity: 1;
   }
 
   .conversation-status-panel__control {
@@ -301,26 +271,6 @@
   /* 深色下 --cp-ground 与地色齐平，只剩一圈边线；抬一档。产品指定 #202020，外框 #2b2b2b。 */
   :root[data-theme='dark'] .conversation-status-panel__surface {
     --todo-shell: #202020;
-  }
-
-  /* auto：窄容器只画胶囊；1280px 起换成完整面板，形状与 panel 一直。 */
-  .conversation-status-panel[data-display-mode='auto'] .conversation-status-panel__mini {
-    display: block;
-  }
-
-  @container conversation-body (min-width: 1280px) {
-    .conversation-status-panel[data-display-mode='auto'] .conversation-status-panel__surface {
-      inline-size: min(20rem, calc(100cqw - 2rem));
-      max-block-size: min(64dvh, 32rem);
-    }
-
-    .conversation-status-panel[data-display-mode='auto'] .conversation-status-panel__panel {
-      display: flex;
-    }
-
-    .conversation-status-panel[data-display-mode='auto'] .conversation-status-panel__mini {
-      display: none;
-    }
   }
 
   @media (prefers-reduced-motion: reduce) {

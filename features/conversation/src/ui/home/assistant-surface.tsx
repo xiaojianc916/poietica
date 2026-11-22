@@ -101,7 +101,7 @@ export interface AssistantSurfaceProps {
   /** 这条对话的斜杠命令（omp 的表与执行）；入口页没有会话，缺席 */
   readonly commands?: ThreadCommands | undefined
   readonly thread?: Thread | undefined
-  /** 状态面板形态偏好（null = auto）；草稿态不传，面板因此不挂载。 */
+  /** 状态面板形态偏好（mini 收起 / panel 展开）；草稿态不传，面板因此不挂载。 */
   readonly summaryPanelVariant?: SummaryPanelPreference | undefined
 }
 

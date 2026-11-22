@@ -1,23 +1,11 @@
 import type { SessionGoal } from '@poietica/conversation-kit/model'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-  withViewTransition,
-} from '@poietica/design-system'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, withViewTransition } from '@poietica/design-system'
 import { CommandsToken, type Observable, useService } from '@poietica/ui-kernel'
 import {
   Activity,
   ArrowRight,
   Bot,
   CheckCircle2,
-  Ellipsis,
   FileDiff,
   Goal,
   ListChecks,
@@ -25,7 +13,7 @@ import {
   Minimize2,
   SquareTerminal,
 } from 'lucide-react'
-import { type CSSProperties, type ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, type ReactNode, useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import { useWorkspaceGitFacts } from '../../ui-api'
 import {
   delegateCallsOf,
@@ -40,19 +28,18 @@ import './conversation-status-panel.css'
 import { type StatusSummary, statusSummaryOf } from './todo/status-summary'
 import { agentRows, TaskPanelContent } from './todo/todo-panel'
 
-/* 用户手动选择的形态。null 交给 CSS 的容器查询裁决（auto），React 不读宽度。 */
+/* 用户选择的形态：panel = 展开卡片，mini = 收起胶囊。 */
 export type SummaryPanelVariant = 'panel' | 'mini'
 
 /** 胶囊 ↔ 面板那一次过渡的类型名，CSS 在 conversation-status-panel.css 认领。 */
 const STATUS_PANEL_TRANSITION_TYPE = 'ui-status'
-type DisplayMode = SummaryPanelVariant | 'auto'
 
 /*
  * 面板形态偏好的唯一持有形状：读取是 Observable 那半边，写入用 set。宿主（setup 的 actions）
  * 把它交给对话表面，面板两侧（胶囊展开与收起按钮）都只经这一条写入路径。
  */
-export type SummaryPanelPreference = Observable<SummaryPanelVariant | null> & {
-  set(next: SummaryPanelVariant | null): void
+export type SummaryPanelPreference = Observable<SummaryPanelVariant> & {
+  set(next: SummaryPanelVariant): void
 }
 
 interface ConversationStatusPanelLayoutStyle extends CSSProperties {
@@ -68,7 +55,7 @@ export const CONVERSATION_STATUS_PANEL_LAYOUT_STYLE: ConversationStatusPanelLayo
 
 /*
  * 状态面板（ZCode V4 的同一套壳）：收起态是右上角的单条摘要胶囊，展开态是 320px 的卡片；
- * auto 由 conversation-body 容器查询在 1280px 处切换，宽度不经过 JS。
+ * 只用点胶囊展开、点收起钮折回，不按容器宽度自动切换。
  *
  * 没有内容就整块不挂载 —— 摘要链返回 null 就是「今天没有可报的状态」，不再画一个能点开的空面板。
  * 头部工具栏也不再提供开关：收起态点胶囊展开，展开态用右上角按钮收起。
@@ -88,10 +75,10 @@ export function ConversationStatusPanel({
   /** 目标暂停 / 恢复的出口（与输入框那一排选择器同一条路）。 */
   readonly onPauseGoal?: (() => void) | undefined
   readonly onResumeGoal?: (() => void) | undefined
-  readonly onVariantChange?: ((variant: SummaryPanelVariant | null) => void) | undefined
+  readonly onVariantChange?: ((variant: SummaryPanelVariant) => void) | undefined
   readonly threadId: string
-  /** null = auto（CSS 裁决），panel = 始终展开，mini = 始终收起。 */
-  readonly variant: SummaryPanelVariant | null
+  /** panel = 展开，mini = 收起。 */
+  readonly variant: SummaryPanelVariant
 }) {
   const todos = useAssistantTodos(threadId)
   const backgroundTasks = useAssistantBackgroundTasks(threadId)
@@ -137,23 +124,22 @@ export function ConversationStatusPanel({
     todos,
   })
 
-  const mode: DisplayMode = variant ?? 'auto'
   const asideRef = useRef<HTMLElement>(null)
   const pendingFocus = useRef<SummaryPanelVariant | null>(null)
 
   /*
    * 形态切换会卸掉点下去的那个按钮（胶囊里的展开钮 / 面板里的收起钮）：焦点交给新形态的第一个控件，
-   * 键盘用户不会掉到 body 上。`auto` 的宽度裁决不走这里，也就不会抢焦点。
+   * 键盘用户不会掉到 body 上。
    */
   useLayoutEffect(() => {
     const target = pendingFocus.current
     pendingFocus.current = null
-    /* 形态没真的落到请求的那一档（`auto` 或外部拒绝）就不动焦点。 */
-    if (target === null || mode === 'auto' || target !== mode || asideRef.current === null) return
+    /* 形态没真的落到请求的那一档（外部拒绝）就不动焦点。 */
+    if (target === null || target !== variant || asideRef.current === null) return
     const selector =
       target === 'panel' ? '.conversation-status-panel__panel button' : '.conversation-status-panel__summary'
     asideRef.current.querySelector<HTMLElement>(selector)?.focus()
-  }, [mode])
+  }, [variant])
 
   if (summary === null) {
     return null
@@ -161,9 +147,9 @@ export function ConversationStatusPanel({
 
   /*
    * 胶囊和面板是同一块浮层的两种形态：一起交给 View Transition 补间，别让宽度和高度硬跳。
-   * 形态没变（同一个值再点一次）不播；`auto` 由容器宽度裁决，不经过这里。
+   * 形态没变（同一个值再点一次）不播。
    */
-  const applyVariant = (next: SummaryPanelVariant | null): void => {
+  const applyVariant = (next: SummaryPanelVariant): void => {
     if (onVariantChange === undefined || next === variant) return
     pendingFocus.current = next
     withViewTransition(
@@ -178,14 +164,14 @@ export function ConversationStatusPanel({
     <aside
       aria-label="状态"
       className="conversation-status-panel"
-      data-display-mode={mode}
-      data-state={mode === 'mini' ? 'collapsed' : 'expanded'}
+      data-display-mode={variant}
+      data-state={variant === 'mini' ? 'collapsed' : 'expanded'}
       ref={asideRef}
     >
       <div className="conversation-status-panel__surface">
-        {mode === 'mini' ? null : (
+        {variant === 'mini' ? null : (
           <div className="conversation-status-panel__panel">
-            <PanelControls mode={mode} onVariantChange={applyVariant} />
+            <PanelControls onVariantChange={applyVariant} />
             <div className="conversation-status-panel__scroll">
               <TaskPanelContent
                 backgroundTasks={backgroundTasks}
@@ -205,7 +191,7 @@ export function ConversationStatusPanel({
             </div>
           </div>
         )}
-        {mode === 'panel' ? null : (
+        {variant === 'panel' ? null : (
           <div className="conversation-status-panel__mini">
             <StatusSummaryRow
               onExpand={() => {
@@ -221,42 +207,13 @@ export function ConversationStatusPanel({
 }
 
 function PanelControls({
-  mode,
   onVariantChange,
 }: {
-  readonly mode: DisplayMode
-  readonly onVariantChange?: ((variant: SummaryPanelVariant | null) => void) | undefined
+  readonly onVariantChange?: ((variant: SummaryPanelVariant) => void) | undefined
 }) {
-  /* 菜单开合受控：点选后由这里关掉，不依赖菜单库内部的关闭路径；同值再选一次也能收起。 */
-  const [menuOpen, setMenuOpen] = useState(false)
-
   return (
     <div className="conversation-status-panel__controls">
       <TooltipProvider delay={150}>
-        <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
-          {/* 提示用 CSS 画在按钮上：Tooltip 触发器与 Menu 触发器抢同一个按钮的指针事件时菜单可能打不开。 */}
-          <DropdownMenuTrigger
-            aria-label="状态面板展开策略"
-            className="conversation-status-panel__control"
-            data-tooltip="状态面板展开策略"
-            type="button"
-          >
-            <Ellipsis aria-hidden />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44" side="bottom">
-            <DropdownMenuRadioGroup value={mode}>
-              <DropdownMenuRadioItem
-                onClick={() => {
-                  setMenuOpen(false)
-                  onVariantChange?.(null)
-                }}
-                value="auto"
-              >
-                自动展开
-              </DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
         <Tooltip>
           <TooltipTrigger
             aria-label="收起为胶囊"

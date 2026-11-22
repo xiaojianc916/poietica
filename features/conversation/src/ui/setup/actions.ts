@@ -90,10 +90,10 @@ export function createConversationActions(setup: ConversationSetup): Conversatio
   )
 
   /*
-   * 状态面板的形态偏好（ZCode 的 workspace shell 偏好）：null = CSS auto，panel = 始终展开，
-   * mini = 始终收起。不落盘、不进协议 —— 它只影响这一份 renderer 的显示。
+   * 状态面板的形态偏好（ZCode 的 workspace shell 偏好）：mini = 收起胶囊（默认），panel = 展开。
+   * 不落盘、不进协议 —— 它只影响这一份 renderer 的显示；也不按容器宽度自动展开。
    */
-  const summaryPanelVariant: SummaryPanelPreference = createValue<SummaryPanelVariant | null>(null)
+  const summaryPanelVariant: SummaryPanelPreference = createValue<SummaryPanelVariant>('mini')
   /*
    * 当前线程 = **路由的派生**，不是另存的一份状态。原先它是只在 openThread 里赋值的变量：从别的路径回到入口页时没人清它，
    * 侧栏那一行于是在入口页仍然亮着（真实故障）。唯一判据是路由：停在线程页才有当前线程。
