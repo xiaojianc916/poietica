@@ -1,4 +1,4 @@
-import { cn, FileTree, type FileTreeRow, Tooltip, TooltipContent, TooltipTrigger } from '@poietica/design-system'
+import { cn, FileTree, type FileTreeRow, Input, Tooltip, TooltipContent, TooltipTrigger } from '@poietica/design-system'
 import type { WorkspacesUi } from '@poietica/feature-workspaces/ui-api'
 import { useFeatureStore, useLayout } from '@poietica/ui-kernel'
 import { Crosshair, FolderTree, ListCollapse, RefreshCw, Search, X } from 'lucide-react'
@@ -152,7 +152,7 @@ function Filter({ onChange, value }: { readonly onChange: (value: string) => voi
     <div className="flex shrink-0 px-2 py-2">
       <div className="files-filter flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-full pr-2 pl-2.5">
         <Search aria-hidden className=" text-placeholder" />
-        <input
+        <Input
           aria-label="筛选文件"
           className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-placeholder"
           onChange={(event) => {
@@ -166,6 +166,7 @@ function Filter({ onChange, value }: { readonly onChange: (value: string) => voi
           }}
           placeholder="筛选文件…"
           value={value}
+          variant="bare"
         />
         <span className={value === '' ? 'invisible' : undefined}>
           <IconButton label="清除筛选" onClick={() => onChange('')}>

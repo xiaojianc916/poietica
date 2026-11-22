@@ -1,3 +1,4 @@
+import { Input } from '@poietica/design-system'
 import { ArrowLeft, ArrowRight, Globe, RotateCw, Square, SquareDashedMousePointer } from 'lucide-react'
 import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { BrowserTab } from '../contract'
@@ -211,7 +212,7 @@ function AddressInput({
   }, [committed])
 
   return (
-    <input
+    <Input
       aria-label="地址栏"
       className="h-7 min-w-0 flex-1 rounded-md border bg-transparent px-2.5 text-xs outline-none placeholder:opacity-50 "
       data-browser-address=""
@@ -247,6 +248,7 @@ function AddressInput({
       placeholder="输入网址后回车"
       spellCheck={false}
       value={draft}
+      variant="bare"
     />
   )
 }
