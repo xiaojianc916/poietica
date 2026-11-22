@@ -1,4 +1,4 @@
-import { CjkText } from '@poietica/design-system'
+import { CjkText, RowButton } from '@poietica/design-system'
 import { Activity, FileText, ListChecks, type LucideIcon, Target } from 'lucide-react'
 import { describeSchedule } from './automation'
 import { AUTOMATION_TEMPLATES, type AutomationTemplate } from './templates'
@@ -27,13 +27,12 @@ export function TemplateGallery({ onPick }: TemplateGalleryProps) {
           const Glyph = GLYPHS[template.id] ?? FileText
           return (
             <li className="flex" key={template.id}>
-              <button
+              <RowButton
                 aria-label={`使用模板：${template.title}`}
                 className="flex w-full flex-col rounded-xl border bg-card px-4 py-3.5 text-left transition-colors hover:bg-popup-highlight"
                 onClick={() => {
                   onPick(template)
                 }}
-                type="button"
               >
                 <span className="flex items-center gap-2">
                   <Glyph aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
@@ -47,7 +46,7 @@ export function TemplateGallery({ onPick }: TemplateGalleryProps) {
                 <span className="mt-auto pt-2.5 text-xs text-muted-foreground">
                   {describeSchedule(template.schedule)}
                 </span>
-              </button>
+              </RowButton>
             </li>
           )
         })}

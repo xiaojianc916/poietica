@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  RowButton,
   SegmentedControl,
   type SegmentedOption,
   Switch,
@@ -121,14 +122,13 @@ function EditorBreadcrumb({
 }) {
   return (
     <nav className="flex items-center gap-1 px-2 pt-2 text-sm">
-      <button
+      <RowButton
         className="rounded-md px-2 py-1 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground disabled:opacity-50"
         disabled={saving}
         onClick={onBack}
-        type="button"
       >
         自动化
-      </button>
+      </RowButton>
       <ChevronRight aria-hidden className=" text-muted-foreground/60" />
       <span className="truncate text-foreground">{automation === null ? '新建任务' : automation.title}</span>
     </nav>

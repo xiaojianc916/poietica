@@ -1,3 +1,4 @@
+import { RowButton } from '@poietica/design-system'
 import type { Thread } from '@poietica/feature-conversation/contract'
 import { ConversationUiToken, threadActions, toolCallRenderers } from '@poietica/feature-conversation/ui-api'
 import { localTimeZone } from '@poietica/foundation'
@@ -147,19 +148,18 @@ function AutomationsNavRow({
     .join(' ')
 
   return (
-    <button
+    <RowButton
       aria-current={active ? 'page' : undefined}
       className={className}
       onClick={() => {
         navigation.navigate({ surface: 'automations.list', params: {} })
       }}
-      type="button"
     >
       <AlarmClock aria-hidden="true" className="sidebar-nav-row__icon" />
       <span className="sidebar-nav-row__label">自动化</span>
       {enabled === 0 ? null : (
         <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">{enabled}</span>
       )}
-    </button>
+    </RowButton>
   )
 }

@@ -1,3 +1,4 @@
+import { RowButton } from '@poietica/design-system'
 import type { ToolCallRendererProps } from '@poietica/feature-conversation/ui-api'
 import {
   AlarmClock,
@@ -167,7 +168,7 @@ function ListBody({
     <ul className="timeline-tool__body automation-tool__list">
       {rows.map((row) => (
         <li key={row.id}>
-          <button className="automation-tool__item" onClick={() => deps.openAutomation(row.id)} type="button">
+          <RowButton className="automation-tool__item" onClick={() => deps.openAutomation(row.id)}>
             <span aria-hidden className="automation-tool__dot" data-tone={row.tone} />
             <span className="automation-tool__item-title">{row.title}</span>
             <span className="automation-tool__item-plan">{row.plan}</span>
@@ -176,7 +177,7 @@ function ListBody({
                 {row.last}
               </span>
             )}
-          </button>
+          </RowButton>
         </li>
       ))}
       {more === 0 ? null : (
@@ -210,9 +211,9 @@ function RunRow({ deps, row }: { readonly deps: ToolCardDeps; readonly row: Card
           {content}
         </span>
       ) : (
-        <button className="automation-tool__item" onClick={() => deps.openThread(threadId)} type="button">
+        <RowButton className="automation-tool__item" onClick={() => deps.openThread(threadId)}>
           {content}
-        </button>
+        </RowButton>
       )}
     </li>
   )

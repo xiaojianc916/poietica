@@ -1,3 +1,4 @@
+import { RowButton } from '@poietica/design-system'
 import type { AutomationRun } from '../contract'
 import { describeMoment, isTerminal, RUN_LABELS, TRIGGER_LABELS } from './automation'
 
@@ -61,17 +62,16 @@ function RunRow({
       {run.threadId === null ? (
         <span className="text-muted-foreground">没有关联对话</span>
       ) : (
-        <button
+        <RowButton
           className="hover:underline"
           onClick={() => {
             if (run.threadId !== null) {
               onOpenThread(run.threadId, title)
             }
           }}
-          type="button"
         >
           打开对话
-        </button>
+        </RowButton>
       )}
       <time
         className="ml-auto text-muted-foreground"
