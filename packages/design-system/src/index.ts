@@ -71,4 +71,4 @@ export { type PathTreeFile, type PathTreeFolder, type PathTreeNode, pathTreeRows
 export { TruncatedText } from './truncated-text'
 export { useCopy } from './use-copy'
 export { type ScrollEnds, scrollEndsOf, useScrollEnds } from './use-scroll-ends'
-export { currentViewTransition, type ViewTransitionOptions, withViewTransition } from './view-transition'
+export { type ViewTransitionOptions, withViewTransition } from './view-transition'

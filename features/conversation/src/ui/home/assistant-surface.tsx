@@ -1,5 +1,4 @@
 import '@poietica/conversation-kit/styles/surface.css'
-import '../submit-transition.css'
 
 import type {
   AgentSessionPort,
@@ -12,7 +11,7 @@ import type {
   WithdrawnMessage,
 } from '@poietica/conversation-kit/model'
 import type { PlanItem, QuestionTimelineItem } from '@poietica/conversation-kit/timeline'
-import { Banner, currentViewTransition, WorkspacePicker, type WorkspacePickerProps } from '@poietica/design-system'
+import { Banner, WorkspacePicker, type WorkspacePickerProps } from '@poietica/design-system'
 import type { PermissionDockProps, PromptInputHandle, PromptInputMessage } from '@poietica/feature-composer/surface'
 import {
   AssistantComposer,
@@ -39,7 +38,7 @@ import {
 } from 'react'
 import type { Thread } from '../../contract'
 import { slashCommands, threadHeaderItems } from '../../ui-api'
-import { SUBMIT_TRANSITION_TYPE, takeComposerFocus, takeSubmitHandoff } from '../composer-handoff'
+import { takeComposerFocus } from '../composer-handoff'
 import {
   CONVERSATION_STATUS_PANEL_LAYOUT_STYLE,
   ConversationStatusPanel,
@@ -377,11 +376,13 @@ function ComposerPreconditions({
 function useSubmit({
   assistant,
   routeCommand,
+  setPhase,
   onBlocked,
   workspaceRequired,
 }: {
   readonly assistant: AssistantSession
   readonly routeCommand: (message: Omit<PromptInputMessage, 'queued'>) => boolean
+  readonly setPhase: (phase: 'entry' | 'live') => void
   readonly onBlocked: () => void
   readonly workspaceRequired: boolean
 }): (message: PromptInputMessage) => void {
@@ -399,15 +400,11 @@ function useSubmit({
       if (routeCommand(message)) {
         return
       }
-      /*
-       * 相位**不在这里翻**：入口页保持入口布局，直到路由过渡把输入框从中间接到线程页底部。
-       * 先翻相位会让输入框先跳到底部，路由过渡再把它淡一遍 —— 两截动画叠起来就是不丝滑的来源。
-       * 失败时也留在入口页，横幅就在输入区上方。
-       */
+      setPhase('live')
       /* 失败由横幅说：正常发送不看回执。 */
       void assistant.send(message, queued === true ? 'followUp' : undefined)
     },
-    [assistant.send, onBlocked, routeCommand, workspaceRequired],
+    [assistant.send, onBlocked, routeCommand, workspaceRequired, setPhase],
   )
 }
 
@@ -486,7 +483,6 @@ export const AssistantSurface = memo(function AssistantSurface({
 
   const live = phase === 'live'
   const clearance = useDockClearance(live)
-  const surfaceRef = useRef<HTMLElement>(null)
 
   const draftKey = endpoint
 
@@ -514,11 +510,12 @@ export const AssistantSurface = memo(function AssistantSurface({
     usage,
   })
 
-  /* `queued` 是人点名的「排队」，跑着时走 followUp 不打断。 */
+  /* 发言就是那次转场，先于 send：这一刻起就是对话而非入口。`queued` 是人点名的「排队」，跑着时走 followUp 不打断。 */
   const submit = useSubmit({
     assistant,
     onBlocked: showProjectRequired,
     routeCommand: slash.route,
+    setPhase,
     workspaceRequired,
   })
 
@@ -537,45 +534,11 @@ export const AssistantSurface = memo(function AssistantSurface({
 
   usePrefill(draft, endpoint, prefill)
 
-  /*
-   * 首句提交的交接：新线程表面挂载时（路由过渡的 update 回调里）把焦点交给输入框；
-   * 快照拍完之后把真元素藏起来（opacity 0），过渡图是唯一可见的那一份，收尾再露出来。
-   * 只认 openThread 从入口页打的那一次标记；点侧栏打开不隐藏、不抢焦点。
-   */
+  /* 从入口页提交过来的那一次：线程表面挂载后把焦点交回输入框（只认这一条路径，点侧栏打开不抢焦点）。 */
   useLayoutEffect(() => {
     if (isNew) return
-    const surface = surfaceRef.current
-    const submit = takeSubmitHandoff()
-    const focus = takeComposerFocus()
-    if (!submit) return
-
-    const transition = currentViewTransition()
-    if (surface === null) return
-    if (transition === null) {
-      /* 减弱动效 / 没有 View Transition API：状态已落地，只把焦点交回去。 */
-      if (focus) draft.current?.focus()
-      return
-    }
-    /* 晚到的挂载撞上一次普通路由过渡（标记过期）：不抢焦点、不藏元素。 */
-    if (!transition.types.has(SUBMIT_TRANSITION_TYPE)) return
-
-    let hidden = false
-    transition.ready.then(
-      () => {
-        surface.dataset.submitHandoff = 'true'
-        hidden = true
-        if (focus) draft.current?.focus()
-      },
-      () => {
-        if (focus) draft.current?.focus()
-      },
-    )
-    const restore = (): void => {
-      if (!hidden) return
-      delete surface.dataset.submitHandoff
-    }
-    transition.finished.then(restore, restore)
-    return restore
+    if (!takeComposerFocus()) return
+    draft.current?.focus()
   }, [isNew])
 
   /* 撤回的那一句（正文 + 附件）回输入框改：改完重发就是重新投一次（队列的顺序归 agent，本机不预演）。 */
@@ -627,7 +590,6 @@ export const AssistantSurface = memo(function AssistantSurface({
       /* 相位写到 DOM 上：样式表按相位分家，输入框只在会话态浮起 —— 这个布尔值不能只留在闭包里。 */
       data-phase={live ? 'live' : 'entry'}
       data-restoring={assistant.isRestoring ? 'true' : undefined}
-      ref={surfaceRef}
     >
       {/* 内容区固定的那一条（36px 高、地色底），两个相位都在；右端是 threadHeaderItems 的落点。 */}
       <div className="conversation-header" data-assistant-skin>
