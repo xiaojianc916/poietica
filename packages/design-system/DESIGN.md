@@ -79,9 +79,9 @@ palette → typography → scales → controls → assistant → rows → layers
 
 公开面以 `src/index.ts` 为准；子入口按重依赖切开（`./diff`、`./prose`、`./wave`）。
 
-- 有外观的按钮用 `Button`（`variant` / `size`）；整行/整卡点击用 `RowButton`（补齐后）；
+- 有外观的按钮用 `Button`（`variant` / `size`）；整行/整卡点击用 `RowButton`；
   不要再写一个带 `<button>` 的第 N 种实现。
-- 表单：`Input` / `Textarea` / `Checkbox` / `Radio`（补齐后）优先；设置页用
+- 表单：`Input` / `Textarea` / `Checkbox` / `Radio` 优先；设置页用
   `SettingsPage` / `SettingsGroup` / `SettingRow` / `ToggleRow`。
 - 三种「多档选择」按角色选，不按长相选：
   - `SegmentedControl`：表单里的单选（原生 radio 打底，有滑块）。

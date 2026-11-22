@@ -8,7 +8,7 @@
 | ------------------------------------------------------------------------------------------ | ------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------- |
 | 令牌                                                                                       | `src/tokens/*.css`                    | 颜色、字号、圆角、阴影、动效、栈序 | 数值唯一产地                                                                           |
 | `Button`                                                                                   | `src/control/button.tsx`              | 有外观的按钮                       | `default/destructive/dangerSoft/outline/secondary/soft/ghost`；`default/xs/sm/lg/icon` |
-| `RowButton`                                                                                | **缺**                                | 无外观的整行/整卡点击              | 计划补；补前原生 `<button>` 只允许用于整行点击并登记                                   |
+| `RowButton`                                                                                | `src/control/row-button.tsx`          | 无外观的整行/整卡点击              | 零样式，默认 `type=button`；外观由调用方 className 负责                                |
 | `Accordion`                                                                                | `src/control/accordion.tsx`           | 折叠面板                           |                                                                                        |
 | `Banner`                                                                                   | `src/control/banner.tsx`              | 页面级提示条                       |                                                                                        |
 | `Dialog`                                                                                   | `src/control/dialog.tsx`              | 模态框                             | 自带浮层登记                                                                           |
@@ -24,7 +24,7 @@
 | `ToolbarMenu`                                                                              | `src/control/toolbar-menu.tsx`        | 工具条菜单按钮                     |                                                                                        |
 | `WorkspacePicker`                                                                          | `src/control/workspace-picker.tsx`    | 项目选择                           | 已接受 `sidebar` / `composer` 两种落点                                                 |
 | `GitBranchPicker`                                                                          | `src/control/branch-picker.tsx`       | 分支选择                           | 已接受 `data-assistant-skin`                                                           |
-| `Input` / `Textarea` / `Checkbox` / `Radio`                                                | **缺**                                | 表单输入                           | 计划补；补前原生控件登记为例外                                                         |
+| `Input` / `Textarea` / `Checkbox` / `Radio`                                                | `src/control/`                        | 表单输入                           | Input/Textarea 默认 `settings-input`；`variant="bare"` 只转发原生属性                  |
 | `SettingsPage` / `SettingsGroup` / `SettingRow` / `ToggleRow`                              | `src/settings-primitives.tsx`         | 设置页骨架                         | 设置页不得自绘行                                                                       |
 | `RegionSplitter`                                                                           | `src/layout/region-splitter.tsx`      | 分栏拖拽                           |                                                                                        |
 | `FileTree` / `pathTreeRows`                                                                | `src/tree/`                           | 文件树                             |                                                                                        |
@@ -54,9 +54,9 @@
 - 只在单个功能成立的视图：timeline 卡片、mascot、review 的 PR 视图、browser 的面板……
 - 功能 CSS 只做布局与几何，规则见 `feature-css-boundary.md`。
 
-## 4. 当前缺口（Phase 2 要补）
+## 4. 当前缺口
 
-1. `Input`、`Textarea`、`Checkbox`、`Radio`：57 处原生控件没有替代。
-2. `RowButton`：124 处原生 `<button>` 里相当一部分是整行点击。
-3. `Tabs` / `Disclosure` / `ScrollMask` 的归属裁决。
-4. 13px 字号角色：大量存量，没有工具类。
+1. `Tabs` / `Disclosure` / `ScrollMask` 的归属裁决。
+2. 13px 字号角色：大量存量，没有工具类。
+3. 存量替换：57 处原生控件、124 处原生 `<button>` 仍需按功能逐块替换；
+   `Input`/`Textarea`/`Checkbox`/`Radio`/`RowButton` 原语已具备（2026-11-22）。

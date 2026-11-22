@@ -12,6 +12,7 @@ export { Accordion, AccordionHeader, AccordionItem, AccordionPanel, AccordionTri
 export { Banner } from './control/banner'
 export { GitBranchPicker, type GitBranchPickerProps } from './control/branch-picker'
 export { Button } from './control/button'
+export { Checkbox } from './control/checkbox'
 export { ConfirmationDialog } from './control/confirmation-dialog'
 export { Dialog } from './control/dialog'
 export {
@@ -28,10 +29,14 @@ export {
   DropdownMenuTrigger,
 } from './control/dropdown-menu'
 export { ErrorState, InlineSpinner, LoadingState } from './control/feedback'
+export { Input } from './control/input'
+export { Radio } from './control/radio'
+export { RowButton } from './control/row-button'
 export { SegmentedControl, type SegmentedOption } from './control/segmented-control'
 export { Select, type SelectOption } from './control/select'
 export { StateDot, type StateDotState } from './control/state-dot'
 export { Switch } from './control/switch'
+export { Textarea } from './control/textarea'
 export { ToolbarMenu, ToolbarMenuLabel } from './control/toolbar-menu'
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './control/tooltip'
 export { ViewSwitch, type ViewSwitchOption } from './control/view-switch'
