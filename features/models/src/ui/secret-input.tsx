@@ -1,3 +1,4 @@
+import { Input } from '@poietica/design-system'
 import { Eye, EyeOff } from 'lucide-react'
 import { type ComponentProps, useState } from 'react'
 
@@ -7,12 +8,7 @@ export function SecretInput({ className, disabled, ...props }: SecretInputProps)
   const [revealed, setRevealed] = useState(false)
   return (
     <span className="models-secret">
-      <input
-        {...props}
-        className={`settings-input ${className ?? ''}`}
-        disabled={disabled}
-        type={revealed ? 'text' : 'password'}
-      />
+      <Input {...props} className={className} disabled={disabled} type={revealed ? 'text' : 'password'} />
       <button
         aria-label={revealed ? '隐藏 API Key' : '显示 API Key'}
         className="models-secret__toggle"

@@ -1,4 +1,4 @@
-import { Button, Dialog, focusOnMount, InlineSpinner, useCopy } from '@poietica/design-system'
+import { Button, Dialog, focusOnMount, InlineSpinner, Input, useCopy } from '@poietica/design-system'
 import { Check, CircleAlert, CircleCheck, Copy, ExternalLink } from 'lucide-react'
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { LoginEvent, LoginProvider } from '../contract'
@@ -388,9 +388,8 @@ function PromptForm({
         {prompt.message}
       </label>
       <div className="models-login__row">
-        <input
+        <Input
           autoComplete="off"
-          className="settings-input"
           id="models-login-input"
           onChange={(event) => setValue(event.target.value)}
           placeholder={prompt.placeholder ?? undefined}
@@ -435,9 +434,8 @@ function ManualCode({
         {prompt.message}
       </label>
       <div className="models-login__row">
-        <input
+        <Input
           autoComplete="off"
-          className="settings-input"
           id="models-login-manual"
           onChange={(event) => setValue(event.target.value)}
           ref={focusOnMount}

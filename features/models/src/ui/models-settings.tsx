@@ -7,6 +7,8 @@ import {
   Button,
   ConfirmationDialog,
   InlineSpinner,
+  Input,
+  RowButton,
   SegmentedControl,
   type SegmentedOption,
   Select,
@@ -202,9 +204,8 @@ function ConfiguredModels({
       <span className="models-block__label">已配置的模型</span>
       <div className="models-card models-card--list">
         <div className="models-toolbar">
-          <input
+          <Input
             aria-label="搜索已配置模型"
-            className="settings-input"
             onChange={(event) => setQuery(event.target.value)}
             placeholder="搜索模型"
             type="search"
@@ -564,9 +565,9 @@ function CatalogAddTab({
     }
     return (
       <div className="models-add-tab">
-        <button className="models-catalog-back" onClick={() => setSelected(null)} type="button">
+        <RowButton className="models-catalog-back" onClick={() => setSelected(null)}>
           <ArrowLeft aria-hidden="true" /> 返回目录列表
-        </button>
+        </RowButton>
         <div className="models-add-heading">
           <strong>{selected.name}</strong>
           <span>
@@ -587,9 +588,9 @@ function CatalogAddTab({
 
   return (
     <div className="models-add-tab">
-      <input
+      <Input
         aria-label="搜索供应商"
-        className="settings-input models-search-input"
+        className="models-search-input"
         onChange={(event) => setQuery(event.target.value)}
         placeholder="搜索供应商"
         type="search"
@@ -600,12 +601,11 @@ function CatalogAddTab({
           <p className="models-empty">没有匹配的目录项。</p>
         ) : (
           catalog.map((provider) => (
-            <button
+            <RowButton
               className="models-catalog-row"
               disabled={disabled}
               key={provider.id}
               onClick={() => setSelected(provider)}
-              type="button"
             >
               <span className="models-catalog-row__main">
                 <strong>{provider.name}</strong>
@@ -615,7 +615,7 @@ function CatalogAddTab({
                 {provider.models.length}
                 {'\u00A0'}个模型
               </span>
-            </button>
+            </RowButton>
           ))
         )}
       </div>
@@ -849,9 +849,8 @@ function ProviderForm({
   return (
     <form className="models-provider-form" onSubmit={(event) => void submit(event)}>
       <Field htmlFor="provider-form-name" label="名称">
-        <input
+        <Input
           aria-required
-          className="settings-input"
           id="provider-form-name"
           onChange={(event) => setName(event.target.value)}
           placeholder="my-provider"
@@ -859,8 +858,7 @@ function ProviderForm({
         />
       </Field>
       <Field htmlFor="provider-form-base-url" label="Base URL">
-        <input
-          className="settings-input"
+        <Input
           id="provider-form-base-url"
           onChange={(event) => setBaseUrl(event.target.value)}
           placeholder="https://api.example.com/v1"
@@ -941,17 +939,15 @@ function ModelListEditor({
           const name = model.model.trim() === '' ? `模型 ${String(index + 1)}` : model.model
           return (
             <div className="models-model-grid__row" key={model.key}>
-              <input
+              <Input
                 aria-label={`${name} ID`}
-                className="settings-input"
                 onChange={(event) => onUpdate(model.key, { model: event.target.value })}
                 placeholder="模型 ID"
                 required
                 value={model.model}
               />
-              <input
+              <Input
                 aria-label={`${name}上下文长度`}
-                className="settings-input"
                 min="1"
                 onChange={(event) => onUpdate(model.key, { maxContextSize: event.target.value })}
                 placeholder="上下文"
@@ -959,9 +955,8 @@ function ModelListEditor({
                 type="number"
                 value={model.maxContextSize}
               />
-              <input
+              <Input
                 aria-label={`${name}显示名`}
-                className="settings-input"
                 onChange={(event) => onUpdate(model.key, { displayName: event.target.value })}
                 placeholder="可选"
                 value={model.displayName}
