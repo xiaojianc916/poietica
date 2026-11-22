@@ -15,7 +15,7 @@ import {
   StopIcon,
   SubmitIcon,
 } from '@poietica/conversation-kit/primitives'
-import { CjkText, useCopy } from '@poietica/design-system'
+import { CjkText, Input, RowButton, useCopy } from '@poietica/design-system'
 import { Prose } from '@poietica/design-system/prose'
 import { latestSideTurn, type SideTopic, type SideTurn } from '@poietica/runtime-protocol'
 import { useFeatureStore } from '@poietica/ui-kernel'
@@ -332,10 +332,10 @@ function SideIntro({
               const meta = sideTopicMeta(topic)
               return (
                 <li key={topic.id}>
-                  <button className="auxiliary-chat__recent-row" onClick={() => onOpen(topic.id)} type="button">
+                  <RowButton className="auxiliary-chat__recent-row" onClick={() => onOpen(topic.id)}>
                     <span className="auxiliary-chat__recent-question">{titleOf(topic)}</span>
                     {meta === undefined ? null : <span className="auxiliary-chat__recent-meta">{meta}</span>}
-                  </button>
+                  </RowButton>
                 </li>
               )
             })}
@@ -363,10 +363,10 @@ function SideTopicView({
   const last = topic.turns.length - 1
   return (
     <div className="auxiliary-chat__topic">
-      <button className="auxiliary-chat__back" onClick={onBack} type="button">
+      <RowButton className="auxiliary-chat__back" onClick={onBack}>
         <ChevronLeftIcon aria-hidden="true" />
         <span>全部话题</span>
-      </button>
+      </RowButton>
       <ol aria-label={titleOf(topic)} className="auxiliary-chat__turns">
         {topic.turns.map((turn, index) => (
           <SideTurnView
@@ -565,7 +565,7 @@ export function AuxiliaryComposerBar({
         {overlay}
         <div className="auxiliary-composer__pill" data-leading={leading === undefined ? 'none' : undefined}>
           {leading}
-          <input
+          <Input
             aria-label={inputLabel}
             className="auxiliary-composer__field"
             disabled={disabled}
@@ -575,6 +575,7 @@ export function AuxiliaryComposerBar({
             }}
             placeholder={placeholder}
             value={value}
+            variant="bare"
           />
           {trailing}
           {stopping ? (

@@ -3,10 +3,10 @@ import './question-panel.css'
 import type { QuestionAnswerMethod, QuestionResponse } from '@poietica/conversation-kit/model'
 import { answerOf, EMPTY_DRAFT, type QuestionDraft, responseOf } from '@poietica/conversation-kit/semantics'
 import type { QuestionTimelineItem } from '@poietica/conversation-kit/timeline'
-import { Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@poietica/design-system'
+import { Button, Input, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@poietica/design-system'
 import { invariant } from '@poietica/foundation'
 import { ChevronLeft, ChevronRight, Circle, CircleCheck, X } from 'lucide-react'
-import { type RefObject, useEffect, useRef, useState } from 'react'
+import { type RefObject, useEffect, useId, useRef, useState } from 'react'
 
 /* 一组题一次只画一道，全部答完或跳过后才提交；面板状态随题组 key 重建，QuestionResponse 只由 responseOf 生成。 */
 
@@ -144,6 +144,7 @@ function QuestionOptionList({
   const picked = new Set(draft.picked)
   const multi = current.multiSelect === true
   const choiceName = `question-${current.id}`
+  const otherId = useId()
 
   return (
     <>
@@ -186,21 +187,24 @@ function QuestionOptionList({
             className="assistant-question-panel__option assistant-question-panel__option--other"
             data-disabled={sent || draft.skipped ? 'true' : undefined}
             data-selected={otherSelected ? 'true' : undefined}
+            htmlFor={otherId}
           >
             <span className="assistant-question-panel__key">{current.options.length + 1}</span>
             <span className="assistant-question-panel__mark">
               <OtherMark aria-hidden="true" />
             </span>
             <span className="assistant-question-panel__label">{current.otherLabel ?? '其他'}</span>
-            <input
+            <Input
               aria-label={current.otherLabel ?? '其他'}
               className="assistant-question-panel__other-input"
               disabled={sent || draft.skipped}
+              id={otherId}
               onChange={(event) => onWrite(event.currentTarget.value)}
               onFocus={onFocusOther}
               placeholder={current.otherDescription ?? '请输入…'}
               ref={otherInput}
               value={draft.written}
+              variant="bare"
             />
           </label>
         ) : null}
@@ -349,13 +353,14 @@ export function QuestionPanel({ item, onAnswer, onDismiss }: QuestionPanelProps)
         </div>
 
         <div className="assistant-question-panel__tail">
-          <input
+          <Input
             aria-label="整组题的备注"
             className="assistant-question-panel__note"
             disabled={sent}
             onChange={(event) => setNote(event.target.value)}
             placeholder="备注（可选，随这组题一起送出）"
             value={note}
+            variant="bare"
           />
 
           <div className="assistant-question-panel__foot">

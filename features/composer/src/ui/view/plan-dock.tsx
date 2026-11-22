@@ -2,6 +2,7 @@ import './plan-dock.css'
 
 import type { PlanAnswer, PlanDecision } from '@poietica/conversation-kit/model'
 import type { PlanItem } from '@poietica/conversation-kit/timeline'
+import { Textarea } from '@poietica/design-system'
 import { Prose } from '@poietica/design-system/prose'
 import { memo, useState } from 'react'
 
@@ -99,7 +100,7 @@ export const PlanDock = memo(function PlanDock({ item, onResolve }: PlanDockProp
         )}
 
         {revising ? (
-          <textarea
+          <Textarea
             aria-label="修改意见"
             className="assistant-plan__feedback"
             onChange={(event) => {
@@ -108,6 +109,7 @@ export const PlanDock = memo(function PlanDock({ item, onResolve }: PlanDockProp
             }}
             placeholder="说说要怎么改…"
             value={feedback}
+            variant="bare"
           />
         ) : null}
 

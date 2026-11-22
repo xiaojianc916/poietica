@@ -1,6 +1,14 @@
 import type { DialogAnswer, DialogRequest } from '@poietica/conversation-kit/model'
 import type { QuestionTimelineItem } from '@poietica/conversation-kit/timeline'
-import { Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@poietica/design-system'
+import {
+  Button,
+  Input,
+  Textarea,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@poietica/design-system'
 import { invariant } from '@poietica/foundation'
 import { Circle, CircleCheck, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -134,16 +142,17 @@ export function DialogPanel({ item, onAnswer, onDismiss }: DialogPanelProps) {
           {dialog.kind === 'input' ? (
             <div className="assistant-question-panel__option assistant-question-panel__option--other assistant-dialog-panel__field">
               {dialog.multiline ? (
-                <textarea
+                <Textarea
                   aria-label={dialog.title}
                   className="assistant-question-panel__other-input assistant-dialog-panel__text"
                   disabled={sent}
                   onChange={(event) => setText(event.target.value)}
                   rows={4}
                   value={text}
+                  variant="bare"
                 />
               ) : (
-                <input
+                <Input
                   aria-label={dialog.title}
                   className="assistant-question-panel__other-input"
                   disabled={sent}
@@ -156,6 +165,7 @@ export function DialogPanel({ item, onAnswer, onDismiss }: DialogPanelProps) {
                   }}
                   placeholder={dialog.placeholder ?? '请输入…'}
                   value={text}
+                  variant="bare"
                 />
               )}
             </div>

@@ -10,6 +10,7 @@ import {
   EXIT_SECONDS,
   RISE_PX,
 } from '@poietica/conversation-kit/primitives'
+import { RowButton } from '@poietica/design-system'
 import { AnimatePresence, domAnimation, LazyMotion, m, useReducedMotion } from 'motion/react'
 import { type KeyboardEvent, type ReactNode, type RefObject, useEffect, useRef } from 'react'
 
@@ -285,7 +286,7 @@ export function ComposerPalette({ groups, highlighted, isOpen, listboxId, onHigh
 
                     return (
                       /* mousedown 而不是 click：preventDefault 拦住焦点转移，落点由 onPick 决定。 */
-                      <button
+                      <RowButton
                         aria-selected={at === highlighted}
                         aria-disabled={row.disabled === true ? true : undefined}
                         className="composer-palette__row"
@@ -307,10 +308,9 @@ export function ComposerPalette({ groups, highlighted, isOpen, listboxId, onHigh
                           onHighlight(at)
                         }}
                         role="option"
-                        type="button"
                       >
                         <PaletteRowContent row={row} />
-                      </button>
+                      </RowButton>
                     )
                   })}
                 </div>
