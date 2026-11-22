@@ -1,5 +1,5 @@
 /**
- * 样式边界闸门（S1/S3/S4/S6/S7/S9/S10）：把设计令牌收敛的结果锁住，以后只降不升。
+ * 样式边界闸门（S1/S3/S4/S6/S7/S9/S10/S11）：把设计令牌收敛的结果锁住，以后只降不升。
  *
  * 规则出处：tidy-poietica-frontend skill（frontend-map §6/§7/§10/§12.6 与 SKILL.md Phase 5）。
  * 例外一律写成下面的 EXCEPTIONS（精确路径 + 预算 + 理由），预算等于收尾时的实际计数：
@@ -98,6 +98,25 @@ const EXCEPTIONS: readonly Exception[] = [
     path: 'features/conversation/src/ui/status/todo/todo-panel.css',
     budget: 5,
     note: '文件头既有声明：换挂载点时不解析成空值',
+  },
+  // S11：未定义的 --ui-*/--cp-* 引用（拼错或漏定义时声明静默失效）。
+  {
+    rule: 'S11',
+    path: 'features/automations/src/ui/automation-composer.css',
+    budget: 1,
+    note: '--cp-chip 全仓无定义；修会改渲染，待 refactor-log 2026-11-22 设计系统条目裁决',
+  },
+  {
+    rule: 'S11',
+    path: 'features/conversation/src/ui/timeline/view/user-message.css',
+    budget: 1,
+    note: '--ui-ink-muted 全仓无定义；修会改渲染，待 refactor-log 2026-11-22 设计系统条目裁决',
+  },
+  {
+    rule: 'S11',
+    path: 'features/conversation/src/ui/timeline/minimap/conversation-minimap.css',
+    budget: 1,
+    note: '--cp-rail-card-y 由 use-rail-pointer.ts 运行时写入',
   },
 ]
 
@@ -213,6 +232,53 @@ if (s10Stroke > S10_BUDGET.strokeWidth)
   violations.push(
     `S10 全仓 lucide strokeWidth 属性 ${s10Stroke} 处，超出预算 ${S10_BUDGET.strokeWidth}（Q53 裁决前不得新增）`,
   )
+
+/*
+ * S11：引用了从未定义的 --ui-* / --cp-*。
+ *
+ * 这类错不会报错：浏览器直接丢掉整条声明，界面静默少一块样式（--cp-chip、
+ * --ui-ink-muted 就是这么漏过去的）。定义处与引用处一起扫：
+ * - CSS 的 `--x: …` 与 TSX 内联 style 的 `'--x': …` 都算定义；
+ * - 只查 UI 范围（features/ui、design-system、workbench、renderer），跳过注释与测试；
+ * - 运行时才写入的变量在 EXCEPTIONS 里登记，不靠猜。
+ */
+interface TokenReference {
+  readonly file: string
+  readonly line: number
+  readonly name: string
+  readonly text: string
+}
+
+const TOKEN_DEFINITION = /['"]?--((?:ui|cp)-[a-zA-Z0-9-]+)['"]?\s*:/g
+const TOKEN_REFERENCE = /var\(--((?:ui|cp)-[a-zA-Z0-9-]+)/g
+const UI_SOURCE_PREFIXES = [
+  'features/',
+  'packages/design-system/src/',
+  'packages/workbench/src/',
+  'apps/desktop/src/renderer/',
+] as const
+const definedTokens = new Set<string>()
+const tokenReferences: TokenReference[] = []
+
+for (const file of [...cssFiles, ...tsxFiles]) {
+  if (!UI_SOURCE_PREFIXES.some((prefix) => file.startsWith(prefix))) continue
+  if (file.includes('__tests__')) continue
+  const lines = (await Bun.file(path.join(ROOT, file)).text()).split('\n')
+  for (const [index, raw] of lines.entries()) {
+    // 注释里的 `--x:` 不是定义，注释里的 var() 也不是引用。
+    if (/^\s*(\/\/|\*)/.test(raw)) continue
+    const line = stripComment(raw)
+    if (!line.trim()) continue
+    for (const match of line.matchAll(TOKEN_DEFINITION)) definedTokens.add(match[1] as string)
+    for (const match of line.matchAll(TOKEN_REFERENCE)) {
+      tokenReferences.push({ file, line: index, name: match[1] as string, text: line })
+    }
+  }
+}
+
+for (const reference of tokenReferences) {
+  if (!definedTokens.has(reference.name)) report('S11', reference.file, reference.line, reference.text)
+}
 
 // 例外预算核对：命中数不得超过登记值。
 for (const e of EXCEPTIONS) {

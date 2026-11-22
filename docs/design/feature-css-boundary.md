@@ -21,7 +21,7 @@
 ## 实现位置
 
 - 现状：`features/conversation/src/ui/*.css`（28 份）、`features/composer`（14 份）等
-- 闸门：`tooling/checks/style-boundaries.ts`（S1/S3/S4/S6/S7/S9/S10）
+- 闸门：`tooling/checks/style-boundaries.ts`（S1/S3/S4/S6/S7/S9/S10/S11）
 - 层叠事实与迁移步骤：`tidy-poietica-frontend` 的 `references/frontend-map.md`
 
 ## 影响面

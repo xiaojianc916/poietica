@@ -72,6 +72,8 @@
   存量 65 份 / 10,673 行不在本次整体迁层（层叠会全局变化，另开专项）。
 - 补齐 DS 缺口：`Input` / `Textarea` / `Checkbox` / `Radio` / `RowButton`；
   替换时按 L1/L2 对拍，不追求一次覆盖全部原生控件。
+- `style-boundaries` 增 S11：引用未定义的 `--ui-*` / `--cp-*` 记红（两道已知缺陷与
+  `--cp-rail-card-y` 运行时变量登记为例外），防止声明静默失效再漏过去。
 - 样板：automations（第二块 review，参照 agent-settings）；每批只做一类事，
   `bun run all` 绿才提交。
 - 明确不做：拆 `assistant.css` 的业务耦合、换 CVA、搬 ZCode 的 2360 行 policy YAML。
