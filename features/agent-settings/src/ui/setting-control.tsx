@@ -1,4 +1,4 @@
-import { Select, type SelectOption, Switch } from '@poietica/design-system'
+import { Input, Select, type SelectOption, Switch } from '@poietica/design-system'
 import { useEffect, useState } from 'react'
 import type { SettingDescriptor } from '../contract'
 import './agent-settings.css'
@@ -88,9 +88,9 @@ function NumberControl({ entry, saving, onChange }: SettingControlProps) {
   }, [entry.value])
 
   return (
-    <input
+    <Input
       aria-label={entry.label}
-      className="settings-input agent-setting__input"
+      className="agent-setting__input"
       disabled={saving}
       inputMode="numeric"
       onBlur={() => {
@@ -127,10 +127,10 @@ function TextControl({ entry, saving, onChange }: SettingControlProps) {
   }
 
   return (
-    <input
+    <Input
       aria-label={entry.label}
       autoComplete="off"
-      className="settings-input agent-setting__input"
+      className="agent-setting__input"
       disabled={saving}
       onBlur={() => {
         if (draft !== '') {
@@ -159,10 +159,10 @@ function SecretControl({ entry, saving, onChange }: SettingControlProps) {
   const [draft, setDraft] = useState('')
 
   return (
-    <input
+    <Input
       aria-label={entry.label}
       autoComplete="off"
-      className="settings-input agent-setting__input"
+      className="agent-setting__input"
       disabled={saving}
       onChange={(event) => {
         setDraft(event.target.value)
