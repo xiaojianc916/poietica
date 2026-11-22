@@ -6,6 +6,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  Input,
   Select,
 } from '@poietica/design-system'
 import { Check, ChevronDown, Plus, X } from 'lucide-react'
@@ -273,7 +274,7 @@ function OnceInput({
   readonly onChange: (schedule: ScheduleValue) => void
 }) {
   return (
-    <input
+    <Input
       aria-describedby="automation-schedule-feedback"
       aria-invalid={feedback !== null}
       aria-label="运行时间"
@@ -284,6 +285,7 @@ function OnceInput({
       }}
       type="datetime-local"
       value={localInputOf(at)}
+      variant="bare"
     />
   )
 }
@@ -428,7 +430,7 @@ function IntervalControls({
   return (
     <>
       <span className="text-xs text-muted-foreground">每</span>
-      <input
+      <Input
         aria-describedby="automation-schedule-feedback"
         aria-invalid={invalid}
         aria-label="间隔"
@@ -443,6 +445,7 @@ function IntervalControls({
         }}
         type="number"
         value={rule.interval}
+        variant="bare"
       />
       <Select
         className="h-7 rounded-full border-0 bg-sidebar-accent/60 pl-2.5 pr-1.5 text-xs hover:bg-sidebar-accent"
@@ -641,7 +644,7 @@ function ScheduleRow({
     <ScheduleRowShell onClear={onClear} onPick={onPick} selected={kind}>
       {schedule.at !== null ? <OnceInput at={schedule.at} feedback={feedback} onChange={onChange} /> : null}
       {schedule.at === null && kind === 'custom' ? (
-        <input
+        <Input
           aria-describedby="automation-schedule-feedback"
           aria-invalid={feedback !== null}
           aria-label="crontab 表达式"
@@ -650,6 +653,7 @@ function ScheduleRow({
           onChange={(event) => onChange({ cron: event.currentTarget.value, at: null })}
           spellCheck={false}
           value={cron ?? ''}
+          variant="bare"
         />
       ) : null}
       {repeating ? (

@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Input,
   RowButton,
   SegmentedControl,
   type SegmentedOption,
@@ -755,13 +756,14 @@ export function AutomationEditor({
               )}
               <Field htmlFor="automation-title" label="任务标题">
                 {/* 底与「添加计划」同读 --ui-popover；焦点不换框色、不画环。 */}
-                <input
+                <Input
                   autoComplete="off"
                   className="h-11 w-full rounded-xl border bg-popover px-4 text-sm outline-none"
                   id="automation-title"
                   onChange={(event) => setTitle(event.currentTarget.value)}
                   placeholder="未命名定时任务"
                   value={title}
+                  variant="bare"
                 />
               </Field>
               <Field aside={hasSchedule ? statusText(preview) : undefined} label="调度">

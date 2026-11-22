@@ -7,6 +7,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuRadioItemIndicator,
   DropdownMenuTrigger,
+  Textarea,
 } from '@poietica/design-system'
 import type { ModelRef, Posture } from '@poietica/runtime-protocol'
 import { Brain, Check, ChevronDown, Hand, Lock, ShieldAlert, ShieldCheck } from 'lucide-react'
@@ -165,7 +166,7 @@ export function AutomationComposer({
   return (
     <div className="automation-composer" data-slot="prompt-input">
       <div data-slot="prompt-input-body">
-        <textarea
+        <Textarea
           aria-label="指令"
           className="assistant-prompt-editor"
           data-slot="prompt-input-editor"
