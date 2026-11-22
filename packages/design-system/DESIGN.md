@@ -83,6 +83,9 @@ palette → typography → scales → controls → assistant → rows → layers
   不要再写一个带 `<button>` 的第 N 种实现。
 - 表单：`Input` / `Textarea` / `Checkbox` / `Radio` 优先；设置页用
   `SettingsPage` / `SettingsGroup` / `SettingRow` / `ToggleRow`。
+- `<Input>` / `<Textarea>` 放进 `<label>` 时，label 带 `htmlFor`、控件带 `id`
+  （biome 的 `noLabelWithoutControl` 看不穿组件，必须显式关联；用 `useId` 生成）。
+- 依赖 `peer` 样式或自绘外观的复选框可以保留原生 `<input>`，在调用处注释写明原因。
 - 三种「多档选择」按角色选，不按长相选：
   - `SegmentedControl`：表单里的单选（原生 radio 打底，有滑块）。
   - `ViewSwitch`：工具条里的视图切换（`aria-pressed` 按钮，无滑块）。
