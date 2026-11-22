@@ -1,6 +1,7 @@
 import '../flow-row.css'
 import '../ticker/shimmer.css'
 import './tool-call.css'
+import './tool-prose-overrides.css'
 import './tool-group.css'
 
 import type { ToolGlyph } from '@poietica/conversation-kit/model'

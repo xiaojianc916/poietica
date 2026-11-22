@@ -111,8 +111,9 @@ palette → typography → scales → controls → assistant → rows → layers
   层序在 renderer 入口声明：`theme < base < vendor.xterm < components.ds < components.kit <
 components.workbench < components.features < utilities < overrides < prose`。
 - 第三方 CSS 进 `vendor.*` 层（目前只有 xterm）：它不能无层，否则会压过功能 CSS。
-- `overrides` 层在 `utilities` 之后：只收主题相关的组件皮肤（例如确认框深色危险键），
-  这类规则必须盖过工具类；其他组件 CSS 仍让 utilities 赢。
+- `overrides` 层在 `utilities` 之后：只收主题相关的组件皮肤与第三方组件覆盖
+  （确认框深色危险键、工具卡里的 streamdown 代码块外壳），这类规则必须盖过工具类；
+  其他组件 CSS 仍让 utilities 赢。
 - `prose` 层排在 `utilities` 之后：streamdown 给标题/代码硬编码了工具类，Markdown 正文的
   排版必须压过它们。
 - `tokens/` 保持无层（值的产地）；`control/menu.css` 是已登记的无层例外（行样式要压过工具类）。

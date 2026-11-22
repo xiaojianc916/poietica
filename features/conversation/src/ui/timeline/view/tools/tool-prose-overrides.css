@@ -1,0 +1,42 @@
+@layer overrides {
+  /*
+   * 工具卡的 Markdown 围栏：streamdown 的代码块外壳、标题行与复制键都用工具类画，
+   * utilities 层压得过 components.features。这里用 overrides 层把它们摘掉，
+   * 工具卡里只留命令/输出本身。
+   */
+
+  /* 围栏在这里不滚、只由面板滚：code-block-body 的 max-block-size + overflow 会让它变成第二个滚动容器。 */
+  .timeline-prose.timeline-tool__prose [data-streamdown='code-block'] {
+    display: block;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    margin: 0;
+    padding: 0;
+  }
+
+  .timeline-prose.timeline-tool__prose [data-streamdown='code-block-header'],
+  .timeline-prose.timeline-tool__prose [data-streamdown='code-block'] > :has(> [data-streamdown='code-block-actions']) {
+    display: none;
+  }
+
+  .timeline-prose.timeline-tool__prose [data-streamdown='code-block-body'] {
+    max-block-size: none;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
+  }
+
+  /* 代码不折行：等宽的价值在列对齐，长行交给面板那唯一的滚动容器。 */
+  .timeline-prose.timeline-tool__prose [data-streamdown='code-block-body'] pre {
+    white-space: pre;
+  }
+
+  /* 行内代码退一档：它平时的底色就是 --cp-timeline-inline-code-surface，而这个块自己已是那个颜色，同色叠同色就消失了。 */
+  .timeline-prose.timeline-tool__prose :not(pre) > code {
+    background: var(--cp-hover);
+  }
+}

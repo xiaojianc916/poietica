@@ -39,40 +39,8 @@
     font-size: var(--ui-prose-size-aux);
   }
 
-  /* 围栏在这里不滚、只由面板滚：code-block-body 的 max-block-size + overflow 会让它变成第二个滚动容器。这几条与全局特异性相同，靠书写顺序取胜。 */
-  .timeline-prose.timeline-tool__prose [data-streamdown='code-block'] {
-    display: block;
-    overflow: visible;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    margin: 0;
-    padding: 0;
-  }
-
-  .timeline-prose.timeline-tool__prose [data-streamdown='code-block-header'],
-  .timeline-prose.timeline-tool__prose [data-streamdown='code-block'] > :has(> [data-streamdown='code-block-actions']) {
-    display: none;
-  }
-
-  .timeline-prose.timeline-tool__prose [data-streamdown='code-block-body'] {
-    max-block-size: none;
-    overflow: visible;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    padding: 0;
-  }
-
-  /* 代码不折行：等宽的价值在列对齐，长行交给面板那唯一的滚动容器。 */
-  .timeline-prose.timeline-tool__prose [data-streamdown='code-block-body'] pre {
-    white-space: pre;
-  }
-
-  /* 行内代码退一档：它平时的底色就是 --cp-timeline-inline-code-surface，而这个块自己已是那个颜色，同色叠同色就消失了。 */
-  .timeline-prose.timeline-tool__prose :not(pre) > code {
-    background: var(--cp-hover);
-  }
+  /* 围栏外形、标题/复制键的隐藏都在 tool-prose-overrides.css 的 overrides 层：
+     streamdown 用工具类画这些盒子，utilities 层压得过 components.features。 */
 
   /* 截图竖排限宽，全屏截图按原始尺寸铺开会把抽屉撑到几屏高。走 <img> 不走 markdown：data URL 会被 Streamdown 当可疑来源拦掉。 */
   .timeline-tool__shots {
