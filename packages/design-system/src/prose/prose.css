@@ -1,4 +1,4 @@
-@layer components.ds {
+@layer prose {
   /* 行是从令牌画的、且带兜底：主题没加载也能读，加载后自动正确。 */
 
   /* `--sdm-*` 的兜底不是债：Shiki 经 Streamdown 逐 token 注入，逗号后那一半就是没被注入时的样子；本仓令牌一律不带兜底。 */

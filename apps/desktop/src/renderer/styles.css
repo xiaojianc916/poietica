@@ -8,8 +8,10 @@
  *
  * 路径相对本文件（apps/desktop/src/renderer/styles.css）算。
  */
-/* 层序先声明：项目自己的样式都进 components 下的子层，Tailwind 的 utilities 永远压在上面。 */
-@layer theme, base, components.ds, components.kit, components.workbench, components.features, utilities;
+/* 层序先声明：项目自己的样式都进 components 下的子层，Tailwind 的 utilities 压在上面；
+   Markdown 正文的 prose 单独排在 utilities 之后 —— streamdown 给标题/代码硬编码了工具类，
+   正文排版必须压过它们。 */
+@layer theme, base, components.ds, components.kit, components.workbench, components.features, utilities, prose;
 
 /* 顺序照 legacy app.css：design-system 在前、tailwindcss 在后 —— @import 是层叠顺序，
    tailwind 的 preflight 因此盖在 design-system 的 base 之上。 */

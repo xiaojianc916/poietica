@@ -19,7 +19,8 @@
 6. 新文件按归属放进对应子层：design-system → `components.ds`、conversation-kit →
    `components.kit`、workbench → `components.workbench`、功能 → `components.features`。
    层序在 renderer 入口声明：`theme < base < components.ds < components.kit <
-components.workbench < components.features < utilities`。
+components.workbench < components.features < utilities < prose`。
+   `prose` 排在 `utilities` 之后：streamdown 给标题/代码硬编码工具类，Markdown 正文排版要压过它们。
 
 ## 实现位置
 
