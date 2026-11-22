@@ -1,5 +1,5 @@
 import type { GoalAction, GoalActionHandler, GoalActionResult, SessionGoal } from '@poietica/conversation-kit/model'
-import { focusOnMount, Tooltip, TooltipContent, TooltipTrigger } from '@poietica/design-system'
+import { focusOnMount, Input, Tooltip, TooltipContent, TooltipTrigger } from '@poietica/design-system'
 import { Check, CirclePause, CirclePlay, Goal, Pencil, Trash2, X } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { describeFailure } from '../../failure'
@@ -155,7 +155,7 @@ function GoalBarView({ goal, actions }: GoalBarViewProps) {
     return (
       <div className="goal-bar__dock" data-goal-bar>
         <div className="goal-bar">
-          <input
+          <Input
             aria-label="目标内容"
             className="goal-bar__input"
             onChange={(event) => setDraft(event.target.value)}
@@ -171,6 +171,7 @@ function GoalBarView({ goal, actions }: GoalBarViewProps) {
             ref={focusOnMount}
             type="text"
             value={draft}
+            variant="bare"
           />
           {actionError === null ? null : (
             <span className="goal-bar__error" role="alert">

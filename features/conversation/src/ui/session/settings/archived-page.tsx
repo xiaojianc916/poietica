@@ -2,6 +2,7 @@ import { groupByWorkspace, type ThreadListItem } from '@poietica/conversation-ki
 import {
   Button,
   ConfirmationDialog,
+  Input,
   Select,
   type SelectOption,
   SettingRow,
@@ -323,16 +324,18 @@ export function ArchivedChatsPage({
 
       <SettingsGroup className="archived-chats__filter-group" title="筛选">
         <div className="archived-chats__toolbar">
-          <label className="settings-input settings-input--with-icon">
+          <label className="settings-input settings-input--with-icon" htmlFor="archived-chat-search">
             <Search aria-hidden="true" />
-            <input
+            <Input
               aria-label="搜索已归档聊天"
+              id="archived-chat-search"
               onChange={(event) => {
                 setQuery(event.target.value)
               }}
               placeholder="搜索已归档聊天"
               type="search"
               value={query}
+              variant="bare"
             />
           </label>
 

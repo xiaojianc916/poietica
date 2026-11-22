@@ -6,6 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Input,
 } from '@poietica/design-system'
 import { useContributions } from '@poietica/ui-kernel'
 import { ChevronDown, Copy, Download, Laptop, Link2, Pencil, Pin, PinOff } from 'lucide-react'
@@ -83,7 +84,7 @@ function TitleRenameField({
         finish('commit')
       }}
     >
-      <input
+      <Input
         aria-label="重命名对话"
         className="conversation-title__field"
         onBlur={() => {
@@ -100,6 +101,7 @@ function TitleRenameField({
         }}
         ref={selectOnMount}
         value={draft}
+        variant="bare"
       />
     </form>
   )

@@ -8,6 +8,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuRadioItemIndicator,
   DropdownMenuTrigger,
+  Input,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -107,7 +108,7 @@ export function ThreadsHeader({
           <TooltipContent side="bottom">搜索</TooltipContent>
         </Tooltip>
 
-        <input
+        <Input
           aria-label="搜索会话名称"
           className="threads-header__input"
           onChange={(event) => {
@@ -124,6 +125,7 @@ export function ThreadsHeader({
           tabIndex={expanded ? 0 : -1}
           type="text"
           value={query}
+          variant="bare"
         />
 
         {expanded ? (
