@@ -87,11 +87,30 @@ export const menuItemClassName = [
 ].join(' ')
 
 /*
- * 自定义布局的菜单行：只保留行为与状态（高亮/禁用/指针），不写 display、间距、内边距、
- * 字号与对齐 —— 这些交给消费方的 CSS。原因是这些工具类在本仓的 utilities 层，
- * 功能 CSS 在 components.features 层，压不过它们；用现有菜单行去改布局会被工具类盖掉。
+ * 自定义布局的菜单行：保留通用行的字号、行高、内边距与圆角，只让出 display、对齐与间距。
+ * 权限菜单用它把行改成 grid；字号仍与其它菜单行一致。
  */
 export const menuItemCustomClassName = [
+  'ds-menu-item',
+  'relative w-full min-h-7',
+  'cursor-default select-none',
+  'rounded-sm px-2 py-1',
+  'border-none bg-transparent',
+  'text-sm leading-relaxed',
+  'outline-none',
+  'hover:bg-menu-hover',
+  'focus-visible:bg-menu-hover',
+  'data-[highlighted]:bg-menu-hover',
+  'data-[disabled]:pointer-events-none',
+  'data-[disabled]:opacity-50',
+].join(' ')
+
+/*
+ * 完全自定义的菜单行：只保留行为与状态（高亮/禁用/指针），display、间距、内边距、
+ * 字号与对齐全部交给消费方 CSS。模型档位头部用它 —— 那一行的字号、居中和内边距
+ * 都由自己的 CSS 定义。
+ */
+export const menuItemBareClassName = [
   'ds-menu-item',
   'relative cursor-default select-none',
   'border-none bg-transparent',
@@ -99,7 +118,6 @@ export const menuItemCustomClassName = [
   'hover:bg-menu-hover',
   'focus-visible:bg-menu-hover',
   'data-[highlighted]:bg-menu-hover',
-  'data-[highlighted]:text-foreground',
   'data-[disabled]:pointer-events-none',
   'data-[disabled]:opacity-50',
 ].join(' ')

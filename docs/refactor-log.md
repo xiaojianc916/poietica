@@ -91,8 +91,8 @@
   的透明底色覆盖就会失效（四周露黑）。
 - `overrides` 层在 `utilities` 之后：收主题相关、必须盖过工具类的组件皮肤
   （确认框深色危险键）。`prose` 同样在 `utilities` 之后，收 Markdown 正文排版。
-- 菜单项新增 `layout="custom"`：只保留高亮/禁用状态，布局交给功能 CSS；
-  权限菜单与模型档位行已切过去。
+- 菜单项新增 `layout="custom"`（只让出布局，保留通用字号与内边距）与 `layout="bare"`
+  （连字号/内边距也交给功能 CSS）：权限菜单用 custom，模型档位头部用 bare。
 - `prose` 排在 `utilities` 之后：streamdown 给标题/代码硬编码了 `text-3xl`、`text-sm`、
   `px-1.5` 这类工具类，Markdown 正文的排版必须压过它们；这是 prose 的专用例外，
   其他项目 CSS 仍让 utilities 赢。

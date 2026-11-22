@@ -91,8 +91,8 @@ palette → typography → scales → controls → assistant → rows → layers
   - `ViewSwitch`：工具条里的视图切换（`aria-pressed` 按钮，无滑块）。
   - `Tabs`（conversation-kit）：有对应面板的页签（`role=tablist` 语义）。
 - 菜单/浮层用 `DropdownMenu` / `Select` / `Tooltip` / `Dialog`；不要在功能里手写弹层。
-- 菜单项默认带通用行布局；需要自定义布局时用 `layout="custom"`，只保留高亮/禁用状态，
-  display、间距、内边距、字号与对齐由功能 CSS 负责。
+- 菜单项默认带通用行布局；`layout="custom"` 只让出 display/对齐/间距，保留通用字号与内边距；
+  `layout="bare"` 连字号/内边距也交给功能 CSS（模型档位头部）。
 - 组件 API 是设计决策的一部分：能不给调用方留的口子就不留（例如确认框只给一个
   `destructive` 布尔，不开放任意 `variant` / 颜色）。功能的 `className` 只用于布局
   （外边距、宽度），不改组件外观。

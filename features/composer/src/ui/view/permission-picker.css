@@ -62,13 +62,11 @@
   /* 两行字加一枚字形：格还在，但字号、字色、行盒取自通用弹窗的行。 */
   .assistant-posture-menu__item {
     display: grid;
+    align-items: center;
     grid-template-areas: 'glyph name tick' 'glyph detail tick';
     grid-template-columns: auto minmax(0, 1fr) auto;
     column-gap: 6px;
     row-gap: 2px;
-    /* layout=custom 的菜单行不再带通用行的内边距与圆角，这两项由这里补回。 */
-    padding: 4px 8px;
-    border-radius: var(--ui-radius-sm);
   }
 
   .assistant-posture-menu__item[data-alert] {
@@ -78,6 +76,11 @@
   .assistant-posture-menu__glyph {
     grid-area: glyph;
     color: var(--ui-popup-icon);
+  }
+
+  /* 危险档位整行一色：图标也跟随行的橙色，不留在通用图标的灰上。 */
+  .assistant-posture-menu__item[data-alert] .assistant-posture-menu__glyph {
+    color: inherit;
   }
 
   .assistant-posture-menu__name {

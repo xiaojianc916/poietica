@@ -7,6 +7,7 @@ import './menu.css'
 import {
   menuCardClassName,
   menuCheckClassName,
+  menuItemBareClassName,
   menuItemClassName,
   menuItemCustomClassName,
   menuItemDangerClassName,
@@ -106,12 +107,13 @@ export function DropdownMenuLabel({ className, ...props }: ComponentProps<'div'>
  */
 type DropdownMenuItemProps = Omit<ComponentProps<typeof Menu.Item>, 'onSelect'> & {
   readonly danger?: boolean
-  /** custom：只保留状态类，布局/字号/内边距由消费方 CSS 给（features 层压得过 ds 层）。 */
-  readonly layout?: 'default' | 'custom' | null | undefined
+  /** custom：只让出布局；bare：连字号/内边距也交给消费方 CSS。 */
+  readonly layout?: 'default' | 'custom' | 'bare' | null | undefined
 }
 
 export function DropdownMenuItem({ className, danger = false, layout, ...props }: DropdownMenuItemProps) {
-  const base = layout === 'custom' ? menuItemCustomClassName : menuItemClassName
+  const base =
+    layout === 'bare' ? menuItemBareClassName : layout === 'custom' ? menuItemCustomClassName : menuItemClassName
   return <Menu.Item className={cn(base, danger && menuItemDangerClassName, className)} {...props} />
 }
 
@@ -146,9 +148,10 @@ export function DropdownMenuRadioItem({
   layout,
   ...props
 }: Omit<ComponentProps<typeof Menu.RadioItem>, 'onSelect'> & {
-  readonly layout?: 'default' | 'custom' | null | undefined
+  readonly layout?: 'default' | 'custom' | 'bare' | null | undefined
 }) {
-  const base = layout === 'custom' ? menuItemCustomClassName : menuItemClassName
+  const base =
+    layout === 'bare' ? menuItemBareClassName : layout === 'custom' ? menuItemCustomClassName : menuItemClassName
   return <Menu.RadioItem className={cn(base, className)} {...props} />
 }
 
