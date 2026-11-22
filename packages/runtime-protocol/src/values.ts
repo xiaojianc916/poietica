@@ -5,7 +5,7 @@ export const ModelRef = z.object({ provider: z.string().min(1), id: z.string().m
 export type ModelRef = z.infer<typeof ModelRef>
 
 /** 产品层的「权限档位」；engine-omp 映射到 omp 的 tools.approvalMode。 */
-export const Posture = z.enum(['read-only', 'ask', 'auto-edit', 'full-access'])
+export const Posture = z.enum(['ask', 'auto-edit', 'full-access'])
 export type Posture = z.infer<typeof Posture>
 
 export const ThinkingLevel = z.string().min(1) // 取值由模型决定，来自 Controls.thinkingLevels

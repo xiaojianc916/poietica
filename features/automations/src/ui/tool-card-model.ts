@@ -94,6 +94,7 @@ const NOTIFY_TEXT: Readonly<Record<string, string>> = {
   never: '不通知',
 }
 
+/* 只读档已从产品删除（2026-11-22），保留它只为把升级前落在历史工具卡里的那个值画成人话。 */
 const POSTURE_TEXT: Readonly<Record<string, string>> = {
   'read-only': '只读',
   ask: '每次询问',

@@ -26,7 +26,6 @@ export default defineCoreModule({
       scopes: ['global'],
       defaultValue: 'auto-edit',
       options: [
-        { value: 'read-only', label: '只读' },
         { value: 'ask', label: '每次询问' },
         { value: 'auto-edit', label: '工作区自动' },
         { value: 'full-access', label: '完全访问' },

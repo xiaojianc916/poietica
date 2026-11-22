@@ -118,7 +118,7 @@ interface PolicyToolContext {
   readonly approval?: 'read' | 'write' | 'exec'
   readonly cwd: string
   readonly sessionKey: string
-  readonly preset?: 'read-only' | 'ask' | 'auto-edit' | 'full-access'
+  readonly preset?: 'ask' | 'auto-edit' | 'full-access'
   readonly input?: Record<string, unknown>
 }
 

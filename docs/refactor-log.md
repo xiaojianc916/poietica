@@ -64,6 +64,16 @@
 
 ## 偏差与裁决
 
+### 删除只读档（2026-11-22）
+
+按用户裁决：`只读` 从产品删除，Posture 由四档恢复三档（`ask` / `auto-edit` / `full-access`），策略预设同步删掉 `read-only`。
+
+- **为什么删**：omp 层只读档与 `ask` 映射到同一个 `always-ask`，真实差别只在宿主策略门；而文案与 ADR 写的「写入与命令都拒绝」从未在代码里成立 —— 策略门的 exec 一直是 `ask`，人在场点一下批准命令就跑。一个承诺了硬只读却能被批准破坏的第四档，比少一档更容易误导。
+- **删除面**：`Posture` / ARP 会话档位 / `ArpPolicyPreset` / `PolicyPreset` 枚举；策略门的只读分支（写、网络、命令、子代理）与「工具策略」设置选项；对话权限菜单与自动化编辑器；自动化 agent 工具的可选值；写租约的「只读档不占租约」特判（`SubmissionServicePorts.requireThread` 不再返回 `posture`）。协议 80→81，快照已重生成。
+- **代价**：网络出口的「关闭」一档随它一起消失，最严的一档变成 `ask`（可以批准放行）；以后若要硬关网络，应另立独立开关，不要复活一个姿态档来兼职。
+- **存量数据**：`conversation_threads.posture` 与 `automations_automations.posture` 里的 `read-only` 前向迁移为 `ask` —— 保留「写要先问」，无人值守的自动化会卡在审批上，但不会像 `auto-edit` 那样静默拿到写权限；`settings_values` 里 `policy.preset = 'read-only'` 同步改成 `ask`。历史工具卡里的旧值仍画「只读」，只做显示。
+- **界面记忆**：`conversation.permissionPosture` 若还存着 `readonly`，`postureOfControl` 认不出会当作没有意图（入口页回默认档），不需要额外清理。
+
 ### Python 改为复用系统解释器（2026-11-22）
 
 按用户裁决：不再随产品装一份 Python，也不再有「删除」。

@@ -530,11 +530,6 @@ export class SubmissionService implements SubmissionServiceContract {
     const port = this.p.writeLease
     if (port === undefined) return true
     const thread = this.p.requireThread(row.threadId)
-    /*
-     * 只读档不写工作区，因而不该占写租约。自动化默认就跑在只读档上：占着它等于让同工作区里
-     * 所有真正要写的对话排在自己后面（真机故障：一条只读自动化占住租约，人的对话全在等）。
-     */
-    if (thread.posture === 'read-only') return true
     const deadline = this.d.clock.now() + LEASE_WAIT_TIMEOUT_MS
     for (;;) {
       if (!this.stillWanted(row)) return false

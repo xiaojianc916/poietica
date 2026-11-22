@@ -58,8 +58,6 @@ export interface SubmissionServicePorts {
   readonly requireThread: (threadId: string) => {
     readonly id: string
     readonly workspaceId: string
-    /** 只读档不写工作区，因而也不占写租约（定时任务默认就跑在只读档上）。 */
-    readonly posture: import('@poietica/runtime-protocol').Posture
   }
   readonly autoTitle: (threadId: string, text: string) => void
   readonly markActivity: (threadId: string) => void

@@ -79,7 +79,6 @@ export interface CreatePolicyGateOptions {
 }
 
 const RESTRICTIVENESS: Record<ArpPolicyPreset, number> = {
-  'read-only': 0,
   ask: 1,
   'auto-edit': 2,
   'full-access': 3,

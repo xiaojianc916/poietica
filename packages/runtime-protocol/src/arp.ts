@@ -64,7 +64,7 @@ export const arpSessionOpenParams = z.object({
   key: z.string().min(1),
   cwd: z.string().min(1),
   sessionFile: z.string().min(1).nullable(),
-  posture: z.enum(['read-only', 'ask', 'auto-edit', 'full-access']),
+  posture: z.enum(['ask', 'auto-edit', 'full-access']),
   model: z.object({ provider: z.string().min(1), id: z.string().min(1) }).nullable(),
   thinking: z.string().min(1).nullable(),
   autoTitle: z.boolean().optional(),
@@ -155,7 +155,7 @@ export const arpToolExecuteParams = z.object({
 export type ArpToolExecuteParams = z.infer<typeof arpToolExecuteParams>
 
 /** 执行安全平面（架构设计 §13）：Worker 在每次内置工具执行前把「要做什么」交给 Core 裁决。 */
-export const arpPolicyPreset = z.enum(['read-only', 'ask', 'auto-edit', 'full-access'])
+export const arpPolicyPreset = z.enum(['ask', 'auto-edit', 'full-access'])
 export type ArpPolicyPreset = z.infer<typeof arpPolicyPreset>
 
 export const arpPolicyCheckParams = z.object({

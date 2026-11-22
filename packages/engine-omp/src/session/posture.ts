@@ -6,7 +6,6 @@ import { overrideSetting, readSetting, type SettingsScope } from '../settings-ac
  * ask 不是“每次调用都要批准”，读类工具会自动放行。
  */
 export const POSTURE_MODE: Readonly<Record<Posture, string>> = Object.freeze({
-  'read-only': 'always-ask',
   ask: 'always-ask',
   'auto-edit': 'write',
   'full-access': 'yolo',

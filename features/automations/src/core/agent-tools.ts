@@ -16,7 +16,6 @@ import { isoIn, parseIsoWithOffset } from './time'
  * 防止任务自我繁殖或改写自己。 */
 
 const POSTURE_TEXT: Readonly<Record<Posture, string>> = {
-  'read-only': 'read-only：只读文件，所有写入与命令都拒绝',
   ask: 'ask：每次改文件、跑命令都要用户批准（无人值守时会卡住等批准）',
   'auto-edit': 'auto-edit（默认）：工作区内改文件不问；跑命令等仍要批准',
   'full-access': 'full-access：不问任何批准，完全访问',
@@ -73,7 +72,7 @@ const settingsShape = {
     .optional()
     .describe('Thinking level id for that model (from automation_options). null = default.'),
   posture: z
-    .enum(['read-only', 'ask', 'auto-edit', 'full-access'])
+    .enum(['ask', 'auto-edit', 'full-access'])
     .optional()
     .describe(
       'Approval posture for the runs. Default "auto-edit". Runs are unattended: "ask" will stall on approvals.',

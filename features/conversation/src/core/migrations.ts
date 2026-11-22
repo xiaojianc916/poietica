@@ -74,4 +74,13 @@ CREATE TABLE conversation_reclaim (
     sql: `ALTER TABLE conversation_submissions ADD COLUMN origin TEXT NOT NULL DEFAULT 'user'
   CHECK (origin IN ('user', 'automation'));`,
   },
+  {
+    /*
+     * 只读档已从产品删除（2026-11-22 用户裁决）：存量线程改到「请求批准」——它保留「写要先问」的约束，
+     * 是剩下的三档里最接近只读意图的一档，不会静默把写权限交出去。
+     */
+    version: 3,
+    name: 'drop-read-only-posture',
+    sql: `UPDATE conversation_threads SET posture = 'ask' WHERE posture = 'read-only';`,
+  },
 ]

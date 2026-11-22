@@ -86,4 +86,13 @@ CREATE INDEX automations_automations_claimed ON automations_automations (claimed
 ALTER TABLE automations_automations ADD COLUMN max_runs INTEGER;
 ALTER TABLE automations_automations ADD COLUMN end_at INTEGER;`,
   },
+  {
+    /*
+     * 只读档已从产品删除（2026-11-22 用户裁决）。存量任务改到「每次询问」：无人值守时它会卡在审批上，
+     * 但不会像自动编辑那样静默拿到写权限 —— 宁可让任务停下来等人，也不悄悄放宽授权。
+     */
+    version: 4,
+    name: 'drop-read-only-posture',
+    sql: `UPDATE automations_automations SET posture = 'ask' WHERE posture = 'read-only';`,
+  },
 ]

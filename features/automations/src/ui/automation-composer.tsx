@@ -10,7 +10,7 @@ import {
   Textarea,
 } from '@poietica/design-system'
 import type { ModelRef, Posture } from '@poietica/runtime-protocol'
-import { Brain, Check, ChevronDown, Hand, Lock, ShieldAlert, ShieldCheck } from 'lucide-react'
+import { Brain, Check, ChevronDown, Hand, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 
 /* 编辑器里的指令输入框。legacy 直接摆 conversation 的 AssistantComposer，而那个输入框没经 ui-api 导出、铁律又禁止功能之间
@@ -18,14 +18,12 @@ import { useState } from 'react'
  * "prompt-input-toolbar" 工具条。conversation 把这张卡导出之后，这个文件应当整份删除、改回引用同一份。 */
 
 const POSTURES: readonly { readonly value: Posture; readonly label: string; readonly detail: string }[] = [
-  { value: 'read-only', label: '只读', detail: '只读取文件；写入与命令都拒绝' },
   { value: 'ask', label: '每次询问', detail: '编辑外部文件和使用互联网时始终询问' },
   { value: 'auto-edit', label: '自动编辑', detail: '仅对检测到的风险操作请求批准' },
   { value: 'full-access', label: '完全放行', detail: '可不受限制地访问互联网和您电脑上的任何文件' },
 ]
 
 const GLYPH: Readonly<Record<Posture, typeof Hand>> = {
-  'read-only': Lock,
   ask: Hand,
   'auto-edit': ShieldCheck,
   'full-access': ShieldAlert,

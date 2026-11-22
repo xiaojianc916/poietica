@@ -18,33 +18,32 @@ const controls = (posture: Controls['posture']): Controls => ({
 })
 
 describe('引擎 Posture 与产品 permission 控件值', () => {
-  test('正向：四档 Posture 各自映射到产品值', () => {
-    expect(POSTURE_TO_CONTROL['read-only']).toBe('readonly')
+  test('正向：三档 Posture 各自映射到产品值', () => {
     expect(POSTURE_TO_CONTROL.ask).toBe('manual')
     expect(POSTURE_TO_CONTROL['auto-edit']).toBe('yolo')
     expect(POSTURE_TO_CONTROL['full-access']).toBe('auto')
   })
 
   test('正向：换算出来的 permission 控件，产品词表认得出它的每一档', () => {
-    for (const posture of ['read-only', 'ask', 'auto-edit', 'full-access'] as const) {
+    for (const posture of ['ask', 'auto-edit', 'full-access'] as const) {
       const found = sessionConfigControlsOf(controls(posture)).find((c) => c.purpose === 'permission')
       expect(found).toBeDefined()
-      expect(permissionPosturesOf(found!).length).toBe(4)
+      expect(permissionPosturesOf(found!).length).toBe(3)
       expect(permissionPosturesOf(found!).some((p) => p.value === found!.current)).toBe(true)
     }
   })
 
   test('反向：产品值换回引擎 Posture（发回 Core 的必须是引擎值）', () => {
-    expect(postureOfControl('readonly')).toBe('read-only')
     expect(postureOfControl('manual')).toBe('ask')
     expect(postureOfControl('yolo')).toBe('auto-edit')
     expect(postureOfControl('auto')).toBe('full-access')
+    expect(postureOfControl('readonly')).toBeUndefined()
     expect(postureOfControl('plan')).toBeUndefined()
     expect(postureOfControl('ask')).toBeUndefined()
   })
 
   test('双向是同一个双射：来回换一遍回到原值', () => {
-    for (const posture of ['read-only', 'ask', 'auto-edit', 'full-access'] as const) {
+    for (const posture of ['ask', 'auto-edit', 'full-access'] as const) {
       expect(postureOfControl(POSTURE_TO_CONTROL[posture])).toBe(posture)
     }
   })

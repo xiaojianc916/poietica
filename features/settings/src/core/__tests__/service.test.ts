@@ -25,13 +25,13 @@ describe('settings registry', () => {
       scopes: ['global', 'project', 'thread'],
       defaultValue: 'auto-edit',
       options: [
-        { value: 'read-only', label: '只读' },
+        { value: 'ask', label: '每次询问' },
         { value: 'auto-edit', label: '工作区自动' },
       ],
     })
     expect(settings.get('policy.preset').source).toBe('default')
-    settings.set({ key: 'policy.preset', scope: 'global', scopeId: 'global', value: 'read-only' })
-    expect(settings.get('policy.preset', { workspaceId: 'w1' }).value).toBe('read-only')
+    settings.set({ key: 'policy.preset', scope: 'global', scopeId: 'global', value: 'ask' })
+    expect(settings.get('policy.preset', { workspaceId: 'w1' }).value).toBe('ask')
     root.close()
   })
 

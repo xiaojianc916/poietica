@@ -15,8 +15,7 @@ describe('policy', () => {
     expect(classifyTool('brand_new_tool')).toMatchObject({ category: 'unknown', risk: 'high', checkpoint: true })
   })
 
-  test('预设：只读禁写、询问要确认、工作区自动放行树内写入', () => {
-    expect(evaluatePolicy('read-only', 'write', { workspaceRoot: 'C:/ws', paths: ['C:/ws/a'] }).action).toBe('deny')
+  test('预设：询问要确认、工作区自动放行树内写入', () => {
     expect(evaluatePolicy('ask', 'write', { workspaceRoot: 'C:/ws', paths: ['C:/ws/a'] }).action).toBe('ask')
     expect(evaluatePolicy('auto-edit', 'write', { workspaceRoot: 'C:/ws', paths: ['C:/ws/a'] }).action).toBe('allow')
     expect(evaluatePolicy('auto-edit', 'write', { workspaceRoot: 'C:/ws', paths: ['C:/other/a'] }).action).toBe('ask')
@@ -73,7 +72,6 @@ describe('policy', () => {
   })
 
   test('网络与未知工具保守处理', () => {
-    expect(evaluatePolicy('read-only', 'fetch').action).toBe('deny')
     expect(evaluatePolicy('auto-edit', 'fetch').action).toBe('ask')
     expect(evaluatePolicy('auto-edit', 'brand_new_tool').action).toBe('ask')
     expect(evaluatePolicy('full-access', 'brand_new_tool').action).toBe('allow')
@@ -116,13 +114,6 @@ describe('网络出口规则', () => {
     expect(blocked).toMatchObject({ action: 'ask', rule: 'network.not_allowlisted' })
     expect(blocked.network).toMatchObject({ host: 'unknown.example', action: 'ask' })
     expect(blocked.reason).toContain('unknown.example')
-  })
-
-  test('只读档关着网络，白名单对它不开口子', () => {
-    expect(evaluatePolicy('read-only', 'fetch', { url: 'https://api.github.com/user' })).toMatchObject({
-      action: 'deny',
-      rule: 'preset.read_only.network',
-    })
   })
 
   test('完全访问不看白名单；无法解析的目标一律先问', () => {

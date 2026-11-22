@@ -105,7 +105,7 @@ export function evaluateClassification(
   }
   if (classification.category === 'file.write') return writeDecision(preset, context, decision)
   if (classification.category === 'network') return networkDecision(preset, context, decision)
-  if (classification.category === 'agent') return agentDecision(preset, decision)
+  if (classification.category === 'agent') return agentDecision(decision)
   return otherDecision(preset, decision)
 }
 
@@ -120,7 +120,6 @@ function execDecision(
     return decision(dangerous.action, dangerous.rule, '命中危险命令规则')
   }
   if (preset === 'full-access') return decision('allow', 'preset.full_access', '完全访问只拦系统级破坏')
-  if (preset === 'read-only') return decision('ask', 'preset.read_only.exec', '只读预设下执行命令要询问')
   if (SAFE_COMMAND.test(command)) return decision('allow', 'command.safe', '只读命令')
   return decision('ask', 'command.unknown', '命令不在安全表内')
 }
@@ -130,7 +129,6 @@ function writeDecision(
   context: PolicyContext,
   decision: (action: PolicyAction, rule: string, reason: string) => PolicyDecision,
 ): PolicyDecision {
-  if (preset === 'read-only') return decision('deny', 'preset.read_only.write', '只读预设禁止写文件')
   if (preset === 'full-access') return decision('allow', 'preset.full_access', '完全访问')
   if (preset === 'ask') return decision('ask', 'preset.ask.write', '询问预设下写入要确认')
   const paths = context.paths ?? []
@@ -147,15 +145,13 @@ function writeDecision(
 }
 
 /*
- * 网络出口规则（§13.1 的「关闭 / 白名单 / 全部开放」）。判定顺序是「预设先关门 → 目标能解析才谈得上规则 →
- * 白名单先于预设放行」：只读档没有网络，白名单对它也不开口子；其余档位里，命中白名单的立刻放行，
- * 命不中才回落到该档位的默认行为。真强制（经本地代理执行）还没做，所以这里只裁决、不拦截流量。
+ * 网络出口规则（§13.1 的「白名单 / 全部开放」；「关闭」一档随只读档在 2026-11-22 删除）。判定顺序是
+ * 「目标能解析才谈得上规则 → 白名单先于预设放行」：命中白名单的立刻放行，命不中才回落到该档位的默认行为。
+ * 真强制（经本地代理执行）还没做，所以这里只裁决、不拦截流量。
  *
  * 规则码是稳定契约：审批卡片与审计都按它分类，不要为了文案改它。
  */
 const NETWORK_HOSTS: Readonly<Record<PolicyPreset, readonly string[]>> = {
-  /* 只读档的网络是关的，白名单不存在（列在这里只为了类型齐全） */
-  'read-only': [],
   ask: [],
   'auto-edit': [
     '*.github.com',
@@ -208,13 +204,6 @@ function networkDecision(
   context: PolicyContext,
   decision: (action: PolicyAction, rule: string, reason: string) => PolicyDecision,
 ): PolicyDecision {
-  if (preset === 'read-only') {
-    return withNetwork(decision('deny', 'preset.read_only.network', '只读预设关闭网络'), {
-      action: 'deny',
-      rule: 'preset.read_only.network',
-      reason: '只读预设关闭网络',
-    })
-  }
   const target = context.url
   /* 没有目标就退到原来的档位判断：产品工具只报了「这是网络」，没有可判定的主机 */
   if (target === undefined || target === '') {
@@ -251,12 +240,9 @@ function withNetwork(decision: PolicyDecision, network: NetworkVerdict): PolicyD
 }
 
 function agentDecision(
-  preset: PolicyPreset,
   decision: (action: PolicyAction, rule: string, reason: string) => PolicyDecision,
 ): PolicyDecision {
-  return preset === 'read-only'
-    ? decision('ask', 'preset.read_only.agent', '只读预设下子代理要确认')
-    : decision('allow', 'agent.delegated', '子代理按它实际调用的工具裁决')
+  return decision('allow', 'agent.delegated', '子代理按它实际调用的工具裁决')
 }
 
 function otherDecision(

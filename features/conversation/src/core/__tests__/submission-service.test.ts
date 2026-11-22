@@ -34,8 +34,6 @@ function serviceOf(
     readonly collectContext?: (threadId: string) => CollectedContext
     readonly lease?: SubmissionWriteLeasePort
     readonly clock?: Clock
-    /** t1 的姿态（默认 auto-edit）；只读档不占写租约。 */
-    readonly posture?: 'read-only' | 'auto-edit'
   } = {},
 ): {
   service: SubmissionService
@@ -74,11 +72,7 @@ function serviceOf(
   service.configure({
     workspaces,
     attachments,
-    requireThread: (threadId) => ({
-      id: threadId,
-      workspaceId: 'ws1',
-      posture: threadId === 't1' ? (overrides.posture ?? 'auto-edit') : 'auto-edit',
-    }),
+    requireThread: (threadId) => ({ id: threadId, workspaceId: 'ws1' }),
     autoTitle: () => undefined,
     markActivity: () => undefined,
     emitChanged: () => undefined,
@@ -201,7 +195,7 @@ describe('提交的来历：定时任务投的那段话不参与起名', () => {
     service.configure({
       workspaces: { requireUsable: () => undefined } as unknown as WorkspacesService,
       attachments: { describe: () => [], resolve: () => [], retain: () => undefined } as unknown as AttachmentsService,
-      requireThread: (threadId) => ({ id: threadId, workspaceId: 'ws1', posture: 'auto-edit' }),
+      requireThread: (threadId) => ({ id: threadId, workspaceId: 'ws1' }),
       autoTitle: (_threadId, text) => titles.push(text),
       markActivity: () => undefined,
       emitChanged: () => undefined,
@@ -906,46 +900,6 @@ describe('R1 排队上下文在失败路径收口', () => {
     expect(ctx.fixture.holder()).toBe('t1')
     ctx.service.releaseWriteLease('t1')
     expect(ctx.fixture.released).toEqual(['lease-1', 'lease-2'])
-  })
-
-  /*
-   * 真机故障（2026-11-19）：只读档的定时任务占住写租约，同工作区里所有真正要写的对话排在它后面；
-   * 而它自己不写工作区 —— 抢一个用不上的租约，把别人全堵死。只读档直接放行，不碰租约。
-   */
-  test('只读档不占写租约：别人的写轮占着也照常交出去', async () => {
-    const fixture = leaseFixture()
-    const submits: SubmitInput[] = []
-    const ctx = serviceOf({
-      lease: fixture.lease,
-      session: () => fakeSession(submits),
-      posture: 'read-only',
-    })
-    /* t2 先拿走租约 */
-    ctx.service.submit({
-      threadId: 't2',
-      clientTurnId: 'c0',
-      text: '另一条对话正在写',
-      attachmentIds: [],
-      skills: [],
-      deliverAs: 'turn',
-    })
-    await waitFor(() => submits.length === 1)
-    expect(fixture.holder()).toBe('t2')
-
-    ctx.service.submit({
-      threadId: 't1',
-      clientTurnId: 'c1',
-      text: '只读的一句',
-      attachmentIds: [],
-      skills: [],
-      deliverAs: 'turn',
-    })
-    await waitFor(() => submits.length === 2)
-
-    expect(submits[1]?.text).toBe('只读的一句')
-    /* 租约还是 t2 的：只读那一句既没抢、也没放别人的 */
-    expect(fixture.holder()).toBe('t2')
-    expect(fixture.released).toEqual([])
   })
 
   test('等租约的期间被停止：这一句不再交出去（也不去抢租约）', async () => {

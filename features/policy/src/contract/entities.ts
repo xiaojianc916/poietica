@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const PolicyPreset = z.enum(['read-only', 'ask', 'auto-edit', 'full-access'])
+export const PolicyPreset = z.enum(['ask', 'auto-edit', 'full-access'])
 export type PolicyPreset = z.infer<typeof PolicyPreset>
 
 export const ToolCategory = z.enum([
