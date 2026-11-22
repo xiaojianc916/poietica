@@ -37,4 +37,23 @@ describe('omp ARP handlers', () => {
       await dir.dispose()
     }
   })
+
+  test('engineCall 保留 null：Python 解释器没设置时不能折成空对象', async () => {
+    const engine = createFakeEngine()
+    const arp = createArpHandlers({ engine, callCore: async () => ({}), emit: () => undefined })
+    try {
+      const call = async (path: readonly string[], args: readonly unknown[]): Promise<unknown> =>
+        await arp.handlers[arpMethods.engineCall]!({ path, args })
+
+      expect(await call(['settings', 'getPythonInterpreter'], [])).toBeNull()
+
+      await engine.settings.setPythonInterpreter('C:\\Python315\\python.exe')
+      expect(await call(['settings', 'getPythonInterpreter'], [])).toBe('C:\\Python315\\python.exe')
+
+      /* void 方法仍然折成 {}：桥上不能回 undefined。 */
+      expect(await call(['settings', 'setPythonInterpreter'], ['C:\\Python315\\python.exe'])).toEqual({})
+    } finally {
+      await arp.dispose()
+    }
+  })
 })

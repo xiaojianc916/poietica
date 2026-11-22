@@ -17,22 +17,16 @@ export const pythonContract = defineContract({
       owner: 'core',
       params: empty,
       result: PythonStatus,
-      description: '查询 Python 安装状态',
+      description: '查询本机 Python 状态',
     }),
     defineMethod({
       name: 'python.install',
       owner: 'core',
       params: empty,
       result: PythonStatus,
-      timeoutMs: 300_000,
-      description: '安装 Python（幂等）',
-    }),
-    defineMethod({
-      name: 'python.remove',
-      owner: 'core',
-      params: empty,
-      result: empty,
-      description: '删除 Python',
+      /* 下载 36 MB 安装包并静默安装：慢网络下 5 分钟不够。互斥在 core 里，重复调用只会拿回当前状态。 */
+      timeoutMs: 900_000,
+      description: '安装或升级系统 Python（幂等）',
     }),
   ],
   notifications: [

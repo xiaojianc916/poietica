@@ -1,95 +1,90 @@
 import { describe, expect, it } from 'bun:test'
-import { PYTHON_ASSET_SHA256, PYTHON_DOWNLOAD_URLS, PYTHON_RELEASE_TAG, PYTHON_VERSION } from '../release'
-import { markerMatches, onReadyPlan, statusOf } from '../status'
+import type { PythonCandidate } from '../detect'
+import {
+  MIN_PYTHON_VERSION,
+  PYTHON_DOWNLOAD_URLS,
+  PYTHON_INSTALLER,
+  PYTHON_INSTALLER_SHA256,
+  PYTHON_VERSION,
+} from '../release'
+import { chooseCandidate, isSupported, statusOf } from '../status'
 
-describe('PY-7: release.test.ts', () => {
+describe('PY-7 钉住的发布物', () => {
   /* 占位值（64 个 0）也满足那条正则，却会让每一次真实安装都在校验处失败。这一条把它钉死：
    * `bun run python:pin` 没跑过，CI 就得红。 */
-  it('PYTHON_ASSET_SHA256 是 64 位小写十六进制，且不是占位值', () => {
-    expect(PYTHON_ASSET_SHA256).toMatch(/^[a-f0-9]{64}$/)
-    expect(PYTHON_ASSET_SHA256).not.toBe('0'.repeat(64))
-    expect(new Set(PYTHON_ASSET_SHA256).size).toBeGreaterThan(1)
+  it('PYTHON_INSTALLER_SHA256 是 64 位小写十六进制，且不是占位值', () => {
+    expect(PYTHON_INSTALLER_SHA256).toMatch(/^[a-f0-9]{64}$/)
+    expect(PYTHON_INSTALLER_SHA256).not.toBe('0'.repeat(64))
+    expect(new Set(PYTHON_INSTALLER_SHA256).size).toBeGreaterThan(1)
   })
 
-  /* 文件名里的 '+' 必须编码成 %2B，否则下载地址在部分 CDN 上被解成空格。 */
-  it('PYTHON_DOWNLOAD_URLS 中包含 %2B', () => {
-    expect(PYTHON_DOWNLOAD_URLS.some((url) => url.includes('%2B'))).toBe(true)
+  it('下载地址都指向同一个官方安装包，且先镜像后 python.org', () => {
+    expect(PYTHON_INSTALLER).toBe(`python-${PYTHON_VERSION}-amd64.exe`)
+    expect(PYTHON_DOWNLOAD_URLS.length).toBeGreaterThanOrEqual(2)
+    for (const url of PYTHON_DOWNLOAD_URLS) expect(url.endsWith(PYTHON_INSTALLER)).toBe(true)
+    expect(PYTHON_DOWNLOAD_URLS.at(-1)).toContain('python.org')
+  })
+
+  it('最低版本低于当前钉住版本', () => {
+    expect(isSupported(PYTHON_VERSION)).toBe(true)
+    expect(isSupported(MIN_PYTHON_VERSION)).toBe(true)
+    expect(isSupported('3.10.14')).toBe(false)
+    expect(isSupported('3.11.0')).toBe(true)
   })
 })
 
 describe('statusOf', () => {
-  it('ready 时 version 是 PYTHON_VERSION', () => {
-    const s = statusOf('ready', null, null, 'C:pythonpython.exe')
-    expect(s.state).toBe('ready')
-    expect(s.version).toBe(PYTHON_VERSION)
-    expect(s.interpreter).toBe('C:pythonpython.exe')
-    expect(s.error).toBeNull()
+  it('ready / outdated 带上版本与解释器', () => {
+    const ready = statusOf('ready', { version: '3.15.2', interpreter: 'C:\\Python315\\python.exe' })
+    expect(ready).toMatchObject({
+      state: 'ready',
+      version: '3.15.2',
+      interpreter: 'C:\\Python315\\python.exe',
+      progress: null,
+      error: null,
+    })
+
+    const outdated = statusOf('outdated', { version: '3.9.13', interpreter: 'C:\\Python39\\python.exe' })
+    expect(outdated.state).toBe('outdated')
+    expect(outdated.version).toBe('3.9.13')
   })
 
   it('failed 时 error 非空', () => {
-    const s = statusOf('failed', null, { code: 'python.download_failed', message: '网络错误' })
-    expect(s.state).toBe('failed')
-    expect(s.error?.code).toBe('python.download_failed')
+    const failed = statusOf('failed', { error: { code: 'python.download_failed', message: '网络错误' } })
+    expect(failed.state).toBe('failed')
+    expect(failed.error?.code).toBe('python.download_failed')
   })
 })
 
-describe('markerMatches', () => {
-  it('标记与自己这一版完全一致才算装好；tag 不一致、没有标记都是 false', () => {
-    expect(
-      markerMatches({ tag: PYTHON_RELEASE_TAG, version: PYTHON_VERSION, sha256: PYTHON_ASSET_SHA256, installedAt: 0 }),
-    ).toBe(true)
-    expect(markerMatches({ tag: 'wrong', version: PYTHON_VERSION, sha256: PYTHON_ASSET_SHA256, installedAt: 0 })).toBe(
-      false,
+describe('chooseCandidate', () => {
+  const candidate = (path: string, version: string): PythonCandidate => ({
+    path,
+    version,
+    managed: false,
+    default: false,
+    source: 'launcher',
+  })
+
+  const current = candidate('C:\\venv\\Scripts\\python.exe', '3.12.8')
+  const system = candidate('C:\\Python315\\python.exe', '3.15.2')
+  const tooOld = candidate('C:\\Python39\\python.exe', '3.9.13')
+
+  it('已配置且达标 → 尊重它，不被系统里的新版本顶掉', () => {
+    expect(chooseCandidate({ candidates: [system, current], current: current.path, preferDetected: false })).toBe(
+      current,
     )
-    expect(markerMatches(null)).toBe(false)
-  })
-})
-
-describe('onReadyPlan（07 页 §13C 的 onReady 判据）', () => {
-  const marker = { tag: PYTHON_RELEASE_TAG, version: PYTHON_VERSION, sha256: PYTHON_ASSET_SHA256, installedAt: 1 }
-
-  it('标记与 exe 都对 → ready，并把解释器路径再报一次', () => {
-    const plan = onReadyPlan({
-      marker,
-      exeExists: true,
-      interpreter: 'C:\\tools\\python\\python.exe',
-      pythonDir: 'C:\\tools\\python',
-    })
-    expect(plan.ready).toBe(true)
-    expect(plan.exePath).toBe('C:\\tools\\python\\python.exe')
-    expect(plan.clearInterpreter).toBe(false)
   })
 
-  it('PY-6：标记的 tag 不一致 → absent；引 Path 指向我们目录时清空', () => {
-    const plan = onReadyPlan({
-      marker: { ...marker, tag: 'wrong' },
-      exeExists: true,
-      interpreter: 'C:\\tools\\python\\python.exe',
-      pythonDir: 'C:\\tools\\python',
-    })
-    expect(plan.ready).toBe(false)
-    expect(plan.clearInterpreter).toBe(true)
+  it('已配置但版本过低 → 换到探测结果的第一顺位', () => {
+    expect(chooseCandidate({ candidates: [system, tooOld], current: tooOld.path, preferDetected: false })).toBe(system)
   })
 
-  it('解释器指向别处（用户自己的 Python）→ 不动它', () => {
-    const plan = onReadyPlan({
-      marker: null,
-      exeExists: false,
-      interpreter: 'C:\\Python312\\python.exe',
-      pythonDir: 'C:\\tools\\python',
-    })
-    expect(plan.ready).toBe(false)
-    expect(plan.clearInterpreter).toBe(false)
+  it('刚装完 → 直接取第一顺位', () => {
+    expect(chooseCandidate({ candidates: [system, current], current: current.path, preferDetected: true })).toBe(system)
   })
 
-  it('标记对但 exe 不在 → absent', () => {
-    const plan = onReadyPlan({
-      marker,
-      exeExists: false,
-      interpreter: null,
-      pythonDir: 'C:\\tools\\python',
-    })
-    expect(plan.ready).toBe(false)
-    expect(plan.clearInterpreter).toBe(false)
+  it('没有配置 → 第一顺位；一个都没有 → null', () => {
+    expect(chooseCandidate({ candidates: [system], current: null, preferDetected: false })).toBe(system)
+    expect(chooseCandidate({ candidates: [], current: null, preferDetected: false })).toBeNull()
   })
 })

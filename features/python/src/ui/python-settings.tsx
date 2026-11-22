@@ -1,46 +1,33 @@
-import { Banner, Button, ConfirmationDialog, InlineSpinner, SettingRow, SettingsGroup } from '@poietica/design-system'
+import { Banner, Button, InlineSpinner, SettingRow, SettingsGroup } from '@poietica/design-system'
 import { useEffect, useRef, useState } from 'react'
 import type { PythonStatus } from '../contract'
 import type { PythonApi } from './api'
 import './python-kernel.css'
 
-/* 状态、一步安装、删干净。它没有自己的一页，住在通用页里 —— 装的是 agent 跑代码要用的东西，与「这台软件怎么陪你干活」同一件事。分组名、行标签、
- * 说明文案、按钮标签、忙碌标记、不确定进度条、成功横幅与删除确认弹窗照 legacy；换掉的只有数据来源 —— 从原生侧轮询改成 python 功能的契约
- * （`python.status` / `python.install` / `python.remove` + `python.statusChanged`）。 */
+/* 状态、一步安装。它没有自己的一页，住在通用页里 —— 装的是 agent 跑代码要用的东西，与「这台软件怎么陪你干活」同一件事。
+ * 解释器不再随产品走：默认复用系统里已经装好的 Python，没有或太旧时由这里装官方最新稳定版。没有「删除」：
+ * 删掉的会是用户电脑上的 Python，不是产品的数据。 */
 const POLL_INTERVAL_MS = 1_000
 
-const READ_FAILED = '读不到本机 Python 内核的状态；稍后重试。'
-
-/** 装完就停：状态不再是 downloading / installing 就没有下一次。 */
-const REMOVE_WARNING = '删除会连同 agent 设置里的 python.interpreter 一起清空；下次要用得重新安装。'
+const READ_FAILED = '读不到本机 Python 的状态；稍后重试。'
 
 interface Copy {
   readonly description: string
-  /** **只在确认弹窗里说**，不挂在行上（legacy 同此）。 */
+  /** 失败原因挂在行的 warning 区；成功状态没有它。 */
   readonly failure: string | null
   readonly detail: string | null
 }
 
-/* 五档状态到文案的那一处映射。新契约的档位名与 legacy 不同，文案一个字未改。 */
-const DESCRIPTIONS: Readonly<Record<PythonStatus['state'], string>> = {
-  absent: '让 agent 用它自带的 Python 跑代码，不必另装一个解释器',
-  downloading: '正在准备解释器，这一步只发生一次',
-  installing: '正在准备解释器，这一步只发生一次',
-  ready: '已就绪；agent 跑 Python 代码时用这一份解释器',
-  failed: '这份安装不完整，解释器起不来',
-}
-
-/** legacy ACTIONS。 */
-type ActionKind = 'none' | 'install' | 'repair' | 'remove'
+/** legacy ACTIONS；`remove` 已去掉 —— 系统 Python 不归产品删。 */
+type ActionKind = 'none' | 'install' | 'repair'
 
 function actionOf(status: PythonStatus | null): { readonly kind: ActionKind; readonly label: string } {
   if (status === null) return { kind: 'none', label: '' }
 
   switch (status.state) {
     case 'absent':
+    case 'outdated':
       return { kind: 'install', label: '安装' }
-    case 'ready':
-      return { kind: 'remove', label: '删除' }
     case 'failed':
       return { kind: 'repair', label: '重新安装' }
     default:
@@ -50,20 +37,37 @@ function actionOf(status: PythonStatus | null): { readonly kind: ActionKind; rea
 
 function copyOf(status: PythonStatus | null): Copy {
   if (status === null) {
-    return { description: '正在读取本机 Python 内核的状态…', failure: null, detail: null }
+    return { description: '正在读取本机 Python 的状态…', failure: null, detail: null }
   }
 
   const failure = status.error === null ? null : failureText(status.error.message)
-  const description = (DESCRIPTIONS as Record<string, string | undefined>)[status.state]
+  const version = status.version
 
-  if (description === undefined) {
-    return { description: READ_FAILED, failure, detail: null }
-  }
-
-  return {
-    description,
-    failure,
-    detail: status.state === 'downloading' ? `已下载 ${Math.round((status.progress ?? 0) * 100)}%` : null,
+  switch (status.state) {
+    case 'absent':
+      return { description: '还没有可用的系统 Python；点「安装」会装到系统里供 agent 使用', failure, detail: null }
+    case 'outdated':
+      return {
+        description: `${version === null ? '本机 Python' : `本机 Python ${version}`} 版本过低；点「安装」会自动升级到最新稳定版`,
+        failure,
+        detail: null,
+      }
+    case 'downloading':
+      return {
+        description: '正在下载 Python 安装包，这一步只发生一次',
+        failure,
+        detail: `已下载 ${Math.round((status.progress ?? 0) * 100)}%`,
+      }
+    case 'installing':
+      return { description: '正在安装 Python，请稍候', failure, detail: null }
+    case 'ready':
+      return {
+        description: `${version === null ? '已就绪' : `已就绪（Python ${version}）`}；agent 跑 Python 代码时用这一份解释器`,
+        failure,
+        detail: null,
+      }
+    case 'failed':
+      return { description: '上一次安装没有完成；点「安装」重试', failure, detail: null }
   }
 }
 
@@ -78,7 +82,6 @@ export function PythonKernelGroup({ api }: { readonly api: PythonApi }) {
   const [status, setStatus] = useState<PythonStatus | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [confirmingRemoval, setConfirmingRemoval] = useState(false)
   const [installed, setInstalled] = useState(false)
   /* 这一轮装机是用户自己点的吗。只有它才配在装好后报一声 —— 打开设置页时早装好了，那不是一次「装好了」，报到人脸上就是假消息。 */
   const asked = useRef(false)
@@ -127,24 +130,16 @@ export function PythonKernelGroup({ api }: { readonly api: PythonApi }) {
     }
   }, [api, working])
 
-  const act = async (kind: 'install' | 'repair' | 'remove'): Promise<void> => {
+  const act = async (): Promise<void> => {
     setBusy(true)
     setFailure(null)
-    setConfirmingRemoval(false)
 
     try {
-      /* 装机是后台跑的，这条命令交回时状态还没变；装没装好由上面那次按秒重读认出来。 */
-      let next: PythonStatus
-
-      if (kind === 'remove') {
-        await api.remove()
-        next = await api.status()
-      } else {
-        next = await api.install()
-      }
+      /* 装机是后台跑的，这条命令交回时状态已经定局；过程中界面靠状态通知与按秒重读。 */
+      const next = await api.install()
 
       if (live.current) {
-        asked.current = kind !== 'remove'
+        asked.current = true
         setStatus(next)
       }
     } catch (cause) {
@@ -178,7 +173,7 @@ export function PythonKernelGroup({ api }: { readonly api: PythonApi }) {
         {working === true ? (
           <span className="python-kernel__busy">
             <InlineSpinner />
-            准备中
+            {status?.state === 'installing' ? '安装中' : '下载中'}
           </span>
         ) : null}
 
@@ -186,27 +181,20 @@ export function PythonKernelGroup({ api }: { readonly api: PythonApi }) {
           <Button
             disabled={busy}
             onClick={() => {
-              /* 删除会连 agent 那格设置一起清空，先问一句再动手。 */
-              if (action.kind === 'remove') {
-                setConfirmingRemoval(true)
-
-                return
-              }
-
-              void act(action.kind === 'repair' ? 'repair' : 'install')
+              void act()
             }}
             size="xs"
             type="button"
-            variant={action.kind === 'remove' ? 'dangerSoft' : 'soft'}
+            variant="soft"
           >
             {busy ? '处理中…' : action.label}
           </Button>
         )}
       </SettingRow>
 
-      {working === true ? <IndeterminateProgress label={copy.detail ?? '正在准备'} /> : null}
+      {working === true ? <IndeterminateProgress label={copy.detail ?? '正在安装'} /> : null}
 
-      {copy.detail === null || action.kind === 'remove' ? null : (
+      {copy.detail === null ? null : (
         <div className="settings-row">
           <div className="settings-row__copy">
             <p className="python-kernel__detail">{copy.detail}</p>
@@ -219,31 +207,16 @@ export function PythonKernelGroup({ api }: { readonly api: PythonApi }) {
           onDone={() => {
             setInstalled(false)
           }}
-          text="Python内核安装成功"
+          text="Python 安装成功"
           tone="success"
         />
       ) : null}
-
-      <ConfirmationDialog
-        busy={busy}
-        confirmLabel="删除"
-        description={REMOVE_WARNING}
-        destructive
-        onCancel={() => {
-          setConfirmingRemoval(false)
-        }}
-        onConfirm={() => {
-          void act('remove')
-        }}
-        open={confirmingRemoval}
-        title="删除内置 Python 内核？"
-      />
     </SettingsGroup>
   )
 }
 
 /**
- * 不确定进度条：上游不吐字节进度，所以这里只有「在动」这一件事可画。不给 aria-valuenow 是有意的 —— 那正是「progressbar 不知道进度」的表达，
+ * 不确定进度条：下载有百分比，安装阶段没有。不给 aria-valuenow 是有意的 —— 那正是「progressbar 不知道进度」的表达，
  * 报一个数字就是编一个百分比出来。
  */
 function IndeterminateProgress({ label }: { readonly label: string }) {

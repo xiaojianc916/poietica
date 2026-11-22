@@ -1,18 +1,27 @@
 import path from 'node:path'
 import { AppError } from '@poietica/foundation'
-import { windowsExecutable } from '@poietica/platform-kit'
-import type { InstallMarker } from '../contract'
 import { pythonErrors } from '../contract/errors'
 import {
   DOWNLOAD_TIMEOUT_MS,
-  PYTHON_ASSET_SHA256,
+  INSTALL_TIMEOUT_MS,
   PYTHON_DOWNLOAD_URLS,
-  PYTHON_RELEASE_TAG,
-  PYTHON_VERSION,
+  PYTHON_INSTALLER,
+  PYTHON_INSTALLER_SHA256,
 } from './release'
 
 /** 状态通知最多每 250ms 一次 */
 export const PROGRESS_INTERVAL_MS = 250
+
+/* 官方安装器的静默参数：装到当前用户（默认位置、不弹 UAC），写进用户 PATH；launcher 也装当前用户，
+ * 否则安装器会为了「所有用户的 launcher」提权。 */
+const INSTALL_ARGS: readonly string[] = [
+  '/quiet',
+  'InstallAllUsers=0',
+  'PrependPath=1',
+  'Include_test=0',
+  'Include_launcher=1',
+  'InstallLauncherAllUsers=0',
+]
 
 export interface InstallerDeps {
   readonly fetch: (
@@ -29,15 +38,10 @@ export interface InstallerDeps {
     args: readonly string[],
     timeoutMs: number,
   ) => Promise<{ stdout: string; stderr: string; code: number }>
-  /** 把 tar.gz 解到目录里；生产是 Bun.Archive，测试注入假的（不真解 22MB 的包） */
-  readonly extract: (archive: string, into: string) => Promise<void>
   readonly fs: {
     mkdir: (path: string, opts?: { recursive?: boolean }) => Promise<void>
-    rename: (from: string, to: string) => Promise<void>
     remove: (path: string, opts?: { recursive?: boolean }) => Promise<void>
-    exists: (path: string) => Promise<boolean>
-    readFile: (path: string) => Promise<string>
-    /** 文本与二进制都要能写（tar.gz 是字节流，不能当文本转一遍） */
+    /** 文本与二进制都要能写（安装包是字节流，不能当文本转一遍） */
     writeFile: (path: string, data: string | Uint8Array) => Promise<void>
   }
   readonly ulid: () => string
@@ -60,7 +64,7 @@ export interface PythonInstaller {
   abort(): void
 }
 
-export function createInstaller(deps: InstallerDeps, stagingDir: string, targetDir: string): PythonInstaller {
+export function createInstaller(deps: InstallerDeps, stagingDir: string): PythonInstaller {
   let state: InstallerState = { kind: 'idle' }
 
   const setState = (next: InstallerState): void => {
@@ -71,7 +75,7 @@ export function createInstaller(deps: InstallerDeps, stagingDir: string, targetD
    * 没拿到。全失败时把最后一次的错误码报出去。 */
   const fetchOnce = async (
     url: string,
-    archive: string,
+    installer: string,
     abort: AbortController,
   ): Promise<{ ok: true } | { ok: false; code: string; detail: string }> => {
     const signal = AbortSignal.any([abort.signal, AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS)])
@@ -85,7 +89,7 @@ export function createInstaller(deps: InstallerDeps, stagingDir: string, targetD
       const reader = response.body?.getReader()
       if (reader === undefined) return { ok: false, code: pythonErrors.download_failed, detail: 'no response body' }
 
-      /* 先按字节攒齐再一次性写盘。**不能**走 `Blob.text()` / 字符串写盘 —— 那会把 tar.gz 按 UTF-8 重新编码，字节全变，解压必炸。 */
+      /* 先按字节攒齐再一次性写盘。**不能**走 `Blob.text()` / 字符串写盘 —— 那会把 exe 按 UTF-8 重新编码，字节全变，装不上。 */
       const hasher = new Bun.CryptoHasher('sha256')
       const chunks: Uint8Array[] = []
       while (true) {
@@ -99,14 +103,14 @@ export function createInstaller(deps: InstallerDeps, stagingDir: string, targetD
           const now = deps.now()
           if (now - lastTick >= PROGRESS_INTERVAL_MS) {
             lastTick = now
-            deps.report({ kind: 'downloading', progress: received / total })
+            deps.report({ kind: 'downloading', progress: Math.min(1, received / total) })
           }
         }
       }
-      await deps.fs.writeFile(archive, joinChunks(chunks, received))
+      await deps.fs.writeFile(installer, joinChunks(chunks, received))
 
       const digest = hasher.digest('hex')
-      const expected = deps.expectedSha256 ?? PYTHON_ASSET_SHA256
+      const expected = deps.expectedSha256 ?? PYTHON_INSTALLER_SHA256
       if (digest !== expected) {
         deps.log('warn', `校验和不匹配：${digest} ≠ ${expected}`, { url })
         return { ok: false, code: pythonErrors.checksum_mismatch, detail: digest }
@@ -126,11 +130,12 @@ export function createInstaller(deps: InstallerDeps, stagingDir: string, targetD
     async install(): Promise<void> {
       if (state.kind !== 'idle') return
 
-      const markerPath = path.join(targetDir, 'poietica-python.json')
-      const staging = path.join(stagingDir, `python.staging-${deps.ulid()}`)
-      const archive = path.join(staging, 'python.tar.gz')
+      const staging = path.join(stagingDir, `python-setup-${deps.ulid()}`)
+      const installer = path.join(staging, PYTHON_INSTALLER)
       const abort = new AbortController()
 
+      /* 状态必须在第一个 await 之前切到 downloading：否则并发进来的第二次 install 会看到 idle，
+       * 再开一份下载（旧实现就是在这里先 await mkdir 的）。 */
       setState({ kind: 'downloading', progress: 0, abort })
       deps.report({ kind: 'downloading', progress: 0 })
 
@@ -139,15 +144,15 @@ export function createInstaller(deps: InstallerDeps, stagingDir: string, targetD
 
         let last: { code: string; detail: string } | undefined
         for (const url of PYTHON_DOWNLOAD_URLS) {
-          deps.log('info', `下载 Python：${url}`)
-          const result = await fetchOnce(url, archive, abort)
+          deps.log('info', `下载 Python 安装包：${url}`)
+          const result = await fetchOnce(url, installer, abort)
           if (result.ok) {
             last = undefined
             break
           }
           last = { code: result.code, detail: result.detail }
           /* 校验不符的这一份不能留给下一个地址去覆盖（内容也不可信）。 */
-          await deps.fs.remove(archive).catch(() => undefined)
+          await deps.fs.remove(installer).catch(() => undefined)
         }
 
         if (last !== undefined) {
@@ -163,58 +168,22 @@ export function createInstaller(deps: InstallerDeps, stagingDir: string, targetD
         setState({ kind: 'installing' })
         deps.report({ kind: 'installing' })
 
-        /* 解压走 Bun 自带的 tar+gzip：不依赖 `C:\Windows\System32\tar.exe`（精简系统上未必有），
-         * 也不经子进程。同一条命令实测过：真包 3344 个条目，解出的文件清单与逐文件 sha256 与
-         * bsdtar 逐字节相同，解出的 python.exe 直接跑得出 3.12.15。 */
-        try {
-          await deps.extract(archive, staging)
-        } catch (e) {
-          throw new AppError(pythonErrors.extract_failed, 'Python 解压失败', { detail: String(e) })
+        const result = await deps.run(installer, INSTALL_ARGS, INSTALL_TIMEOUT_MS)
+        /* 3010 = 安装成功但要重启；Python 安装器实际不会要求，预留只为了避免把成功报成失败。 */
+        if (result.code !== 0 && result.code !== 3010) {
+          deps.log('error', 'Python 安装器失败', { code: result.code, stderr: result.stderr.slice(0, 2000) })
+          throw new AppError(pythonErrors.install_failed, `安装器退出码 ${result.code}`, { exitCode: result.code })
         }
-
-        const exe = path.join(staging, 'python', windowsExecutable('python'))
-        const verify = await deps.run(exe, ['-c', `import sys;print(sys.version.split()[0])`], 30_000)
-        const version = verify.stdout.trim()
-        if (version !== PYTHON_VERSION) {
-          throw new AppError(pythonErrors.verify_failed, 'Python 安装后无法运行', {
-            got: version,
-            want: PYTHON_VERSION,
-          })
-        }
-
-        if (await deps.fs.exists(targetDir)) {
-          const old = path.join(stagingDir, `python.old-${deps.ulid()}`)
-          await deps.fs.rename(targetDir, old)
-          try {
-            await deps.fs.remove(old, { recursive: true })
-          } catch {
-            deps.log('warn', '删除旧目录失败')
-          }
-        }
-        await deps.fs.rename(path.join(staging, 'python'), targetDir)
-
-        const marker: InstallMarker = {
-          tag: PYTHON_RELEASE_TAG,
-          version: PYTHON_VERSION,
-          /* 记的是这一份安装**实际被校验通过**的那个哈希；生产恒等于产品钉住的那一个。 */
-          sha256: deps.expectedSha256 ?? PYTHON_ASSET_SHA256,
-          installedAt: Date.now(),
-        }
-        await deps.fs.writeFile(markerPath, JSON.stringify(marker))
-
+        setState({ kind: 'idle' })
+      } catch (e) {
+        setState({ kind: 'idle' })
+        throw e
+      } finally {
         try {
           await deps.fs.remove(staging, { recursive: true })
         } catch {
-          deps.log('warn', '删除暂存目录失败')
+          deps.log('warn', '删除 Python 安装暂存目录失败')
         }
-
-        setState({ kind: 'idle' })
-      } catch (e) {
-        try {
-          await deps.fs.remove(staging, { recursive: true })
-        } catch {}
-        setState({ kind: 'idle' })
-        throw e
       }
     },
     abort(): void {

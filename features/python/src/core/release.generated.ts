@@ -1,2 +1,2 @@
 // 由 features/python/scripts/pin-python.ts 生成，不要手改
-export const PYTHON_ASSET_SHA256 = '52124cee54126f3f360eaa378288f6f64c402c983a3c14c95eff67f4af986aaa'
+export const PYTHON_INSTALLER_SHA256 = '06e225a228191b0f4d1dcf6905fbb21bf9f6970d13a2ec63137ab9bee76f15aa'

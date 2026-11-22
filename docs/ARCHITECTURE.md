@@ -223,7 +223,7 @@ omp 的版本锁在根 `package.json` 的 catalog（四个 `@oh-my-pi/*` 同一�
 | 附件内容                                         | attachments   | `attachments/<sha 前两位>/<sha>`                                                                              |
 | 用户偏好 / 布局记忆 / 快捷键                     | preferences   | `preferences.json` / `ui-state.json` / `keymap.json`                                                          |
 | 窗口位置                                         | platform      | `window-state.json`                                                                                           |
-| 内置 Python                                      | python        | `tools/python/`                                                                                               |
+| 旧版内置 Python（已废弃）                        | python        | `tools/python/`（启动时删除，不再写入）                                                                       |
 | 内置浏览器                                       | browser       | `session/Partitions/persist:poietica-browser`                                                                 |
 | 日志                                             | Host / Core   | `logs/main.log` / `logs/core.log`（各只有一个写者：Host 写 main，Core 自己写 core；stderr 只留意外输出）      |
 

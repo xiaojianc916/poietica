@@ -1,5 +1,5 @@
 {
-  "version": 78,
+  "version": 80,
   "methods": [
     {
       "name": "agentSettings.capabilities",
@@ -14852,8 +14852,8 @@
     {
       "name": "python.install",
       "owner": "core",
-      "timeoutMs": 300000,
-      "description": "安装 Python（幂等）",
+      "timeoutMs": 900000,
+      "description": "安装或升级系统 Python（幂等）",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -14867,6 +14867,7 @@
             "type": "string",
             "enum": [
               "absent",
+              "outdated",
               "downloading",
               "installing",
               "ready",
@@ -14932,27 +14933,10 @@
       }
     },
     {
-      "name": "python.remove",
-      "owner": "core",
-      "timeoutMs": 30000,
-      "description": "删除 Python",
-      "params": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {}
-      },
-      "result": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {},
-        "additionalProperties": false
-      }
-    },
-    {
       "name": "python.status",
       "owner": "core",
       "timeoutMs": 30000,
-      "description": "查询 Python 安装状态",
+      "description": "查询本机 Python 状态",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -14966,6 +14950,7 @@
             "type": "string",
             "enum": [
               "absent",
+              "outdated",
               "downloading",
               "installing",
               "ready",
@@ -35150,6 +35135,7 @@
             "type": "string",
             "enum": [
               "absent",
+              "outdated",
               "downloading",
               "installing",
               "ready",
@@ -42951,10 +42937,6 @@
       "message": "偏好写入失败"
     },
     {
-      "code": "python.busy",
-      "message": "正在安装 Python，请稍候"
-    },
-    {
       "code": "python.checksum_mismatch",
       "message": "下载的 Python 文件校验失败"
     },
@@ -42963,12 +42945,12 @@
       "message": "Python 下载失败，请检查网络后重试"
     },
     {
-      "code": "python.extract_failed",
-      "message": "Python 解压失败"
+      "code": "python.install_failed",
+      "message": "Python 安装失败"
     },
     {
       "code": "python.verify_failed",
-      "message": "Python 安装后无法运行"
+      "message": "Python 安装后没有找到可用版本"
     },
     {
       "code": "review.branch_exists",

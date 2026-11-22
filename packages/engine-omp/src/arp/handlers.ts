@@ -147,7 +147,10 @@ export function createArpHandlers(d: ArpHandlersDeps): ArpHandlers {
         if (typeof method !== 'function') {
           throw new AppError(SystemErrorCode.methodNotFound, `ARP 方法不存在：${input.path.join('.')}`)
         }
-        return (await Reflect.apply(method, target, input.args)) ?? {}
+        /* 只有 undefined（void 方法）折成 {}；null 是合法返回值（例如「没有设置 Python 解释器」），
+         * 用 `?? {}` 会把空值变成对象，过桥后就成了一个假路径。 */
+        const result = await Reflect.apply(method, target, input.args)
+        return result === undefined ? {} : result
       },
       [arpMethods.sessionOpen]: async (params) => {
         const input = parse(arpSessionOpenParams, params)

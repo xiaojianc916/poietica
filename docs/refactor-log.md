@@ -64,6 +64,18 @@
 
 ## 偏差与裁决
 
+### Python 改为复用系统解释器（2026-11-22）
+
+按用户裁决：不再随产品装一份 Python，也不再有「删除」。
+
+- `python.status` 增加 `outdated`；`python.remove` 与 `python.busy` 从契约删除，`PROTOCOL_VERSION` 升到 80。
+- 探测来源：`py -0p`、注册表（PowerShell 显式 UTF-8）、PATH、`%LOCALAPPDATA%\Programs\Python` 与 Program Files；每个候选真跑 `python -X utf8 -c ...` 验证，注册表里卸载残留的条目在这一步被剔除。uv / Astral 管的解释器默认不算系统 Python（会被 `uv python prune` 清掉），只有用户已经配置在 `python.interpreter` 时才沿用。
+- 安装：钉住 3.15.2 官方 `python-3.15.2-amd64.exe`（SHA-256 由 `bun run python:pin` 从官方包现算），先 npmmirror 后 python.org；以当前用户静默安装（`InstallAllUsers=0`、`InstallLauncherAllUsers=0`、`PrependPath=1`），不触发 UAC。装完重新探测并要求 `ready`，否则 `verify_failed`。
+- 最低版本 3.11（3.10 已于 2026-10 结束支持）。低于它显示 `outdated`，安装按钮升到钉住的最新稳定版。
+- 旧版 `tools/python` 与 `python.staging-*` / `python.old-*` / `python-setup-*` 在每次 Core 启动时清掉；`python.interpreter` 若指向该目录则清空。
+- 界面去掉删除按钮与确认框；「Python 内核」行的文案改为系统 Python 语义。
+- 顺带修了 ARP `engineCall` 把 `null` 折成 `{}` 的桥接 bug：`settings.getPythonInterpreter` 的「没设置」过桥后成了空对象，Core 侧把它当路径，`path.resolve` / `toLowerCase` 直接抛。现在只把 `undefined`（void 方法）折成 `{}`。
+
 ### UI 架构整理：设计规范与资产归属（2026-11-22）
 
 按 ZCode v3.18.2 的前端架构对照（研究原文在 `docs/research/`，不入库），决定：

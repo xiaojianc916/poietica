@@ -8,7 +8,6 @@ export function createPythonApi(ctx: UiFeatureContext) {
   return {
     status: (): Promise<PythonStatus> => rpc.call('python.status', {}),
     install: (): Promise<PythonStatus> => rpc.call('python.install', {}),
-    remove: (): Promise<void> => rpc.call('python.remove', {}).then(() => undefined),
     onStatusChanged: (listener: (status: PythonStatus) => void) => rpc.on('python.statusChanged', listener),
   }
 }
