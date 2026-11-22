@@ -611,6 +611,14 @@ omp 会话文件只写了一个空会话头，同一窗口里三条线程的 Jou
 - **注释**：删掉与代码重复的「做了什么」型头注（mascot 渲染层 / 驱动层的目录式 banner、rings 的重复版、shell.ts 的「第二阶段四件事」回顾）。「为什么」的注释一条没动。
 - **冗余代码**：`agent-cli-text`（两行纯转发）、`workbuddy-client/guard`（只被一处用）、`fs-kit/dirs.ensureDir`（`mkdir` 的一行包装）与 `update-notice` 的 `updateBannerVisible`（`updateBannerNotice(...) !== null`）就地内联删除；mascot 里 `clamp`/`rand` 两份逐字重复的实现收进 `engine-runtime/math.ts`。附件包随之少一条 `@poietica/fs-kit` 依赖。
 
+### 2026-11-22 测试清仓（无编号）
+
+- **纯前端渲染测试全部删除（81 个 `.tsx`，约 1.3 万行）**：范围包括 `apps/desktop` 渲染层、`features/*/src/ui` 下的组件/钩子测试、`design-system` 与 `conversation-kit` 的组件测试，以及 `workbench` 的坞/几何/外壳测试。判据是 happy-dom 里钉 DOM、文案、类名与像素换算——这些事实的验收面是真机（`bun run dev` 与 `check:ticker`），单测红了不代表界面坏了。
+- **重构期与前端逻辑的临时判据删除（18 个 `.ts`）**：`transcript-projector-memo` / `timeline-scans-memo`（对象引用稳定）、`turn-changes-stability`（Provider 身份稳定）、`terminal-loader`（P-06 懒加载）、`use-slice-frames` / `view-frames`（P-02 帧合并）、`roll-scheduler` / `ticker-*` / `keep-alive` / `wave-*` / `view-transition` / `diagram-cache`（动画与渲染缓存）、`turn-seal-plan` / `inline-tool-presentation` / `overlay-scrollbar`（呈现计算）。这些是「当时的实现这样写」的化石，不是产品契约。
+- **源码文本与文案钉子删除**：`runtime-entry.test.ts`（读 `runtime-entry.ts` 断言两行代码的先后）、`data-read-only-notice.test.ts`（只断言文案里含「只读」）、整页快照（`history-legacy` / `live-legacy` 各一条 + 两份 `.snap`）。
+- **连带清理**：删掉只被这些测试用到的 devDependency（`features/composer`、`packages/workbench` 的 `@poietica/rpc`，以及两处的 `@testing-library/react`）。
+- **保留**：核心/宿主/迁移/协议/隔离/一致性用例，投影与时间线的行为用例，以及 UI 下的纯数据逻辑（store、模型、解析器）。删除后 `bun test` 371 文件、2820 用例全绿，`typecheck` / `format:check` / `lint` 均通过。
+
 ## 历史条目索引
 
 每行只有一句话：内容已被代码与提交说明吸收。需要细节时按标题 `git log -S'<标题>' -- docs/refactor-log.md`

@@ -330,27 +330,3 @@ describe('插话在历史里的形态（legacy interjection-layers.test.ts）', 
     expect(page.items.filter((item) => item.kind === 'turn')).toHaveLength(1)
   })
 })
-
-describe('一页的代表性形状（12 页 §9.5 的快照）', () => {
-  test('两轮：带图的第一轮 + 带工具的第二轮，整页快照一次看全', () => {
-    const page = projectHistoryPage(
-      [
-        {
-          role: 'user',
-          timestamp: T0,
-          content: [
-            { type: 'text', text: '看图' },
-            { type: 'image', data: 'AAAA', mimeType: 'image/png' },
-          ],
-        },
-        assistant('看到了', 10),
-        user('跑一下', 20),
-        toolCall('c1', 'bash', { command: 'npm test' }, 30),
-        toolResult('c1', [{ type: 'text', text: '全绿' }]),
-        assistant('做完了', 40),
-      ],
-      null,
-    )
-    expect(page).toMatchSnapshot()
-  })
-})

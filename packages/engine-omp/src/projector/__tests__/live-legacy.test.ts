@@ -1,12 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  type AgentEvent,
-  EMPTY_THREAD_STATE,
-  materialize,
-  reduceAll,
-  snapshotOf,
-  type ThreadState,
-} from '@poietica/agent-model'
+import { type AgentEvent, EMPTY_THREAD_STATE, materialize, reduceAll, type ThreadState } from '@poietica/agent-model'
 import { LiveProjector } from '../live'
 import { framesOf, iso, projector, snapshot } from './fixtures/live'
 
@@ -295,25 +288,5 @@ describe('现场图片上屏（legacy live-image-attachments.test.ts）', () => 
     const state = fold(p.userTurn({ text: '没有图' }))
     const turn = materialize(state).items[0]
     expect(turn?.kind === 'turn' && turn.attachmentIds).toBeUndefined()
-  })
-})
-
-describe('一轮的代表性形状（12 页 §9.5 的快照）', () => {
-  test('正文 + 思考 + 工具中间结果 + 轮终：整页快照一次看全', () => {
-    const p = projector()
-    const state = fold([
-      ...p.userTurn({ text: '跑一下测试', promptId: 'p-1', skills: ['review'] }),
-      ...p.thinkingDelta('先想一下'),
-      ...p.toolStart({ toolCallId: 'c1', toolName: 'bash', args: { command: 'npm test' }, intent: '跑测试' }),
-      ...p.toolUpdate({ toolCallId: 'c1', toolName: 'bash', partial: { stdout: '第一个用例过了' } }),
-      ...p.toolEnd({
-        toolCallId: 'c1',
-        toolName: 'bash',
-        result: { content: [{ type: 'text', text: '全绿' }] },
-      }),
-      ...p.textDelta('做完了'),
-      ...p.turnEnd('completed', null, { input: 10, output: 20, cacheRead: 3 }),
-    ])
-    expect(snapshotOf(state, { hasMoreOlder: false })).toMatchSnapshot()
   })
 })

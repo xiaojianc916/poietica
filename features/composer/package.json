@@ -20,9 +20,5 @@
     "motion": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:"
-  },
-  "devDependencies": {
-    "@poietica/rpc": "workspace:*",
-    "@testing-library/react": "catalog:"
   }
 }
