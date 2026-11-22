@@ -109,7 +109,7 @@ palette → typography → scales → controls → assistant → rows → layers
 - 新文件按归属放进对应子层：design-system → `components.ds`、conversation-kit →
   `components.kit`、workbench → `components.workbench`、功能 → `components.features`。
   层序在 renderer 入口声明：`theme < base < vendor.xterm < components.ds < components.kit <
-components.workbench < components.features < utilities < overrides < prose`。
+components.workbench < components.features < utilities < prose < overrides`。
 - 第三方 CSS 进 `vendor.*` 层（目前只有 xterm）：它不能无层，否则会压过功能 CSS。
 - `overrides` 层在 `utilities` 之后：只收主题相关的组件皮肤与第三方组件覆盖
   （确认框深色危险键、工具卡里的 streamdown 代码块外壳），这类规则必须盖过工具类；

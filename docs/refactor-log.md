@@ -85,7 +85,7 @@
 按用户裁决做一次性完整迁移，不逐功能 L2：
 
 - 层序在 `apps/desktop/src/renderer/styles.css` 声明：
-  `theme < base < vendor.xterm < components.ds < components.kit < components.workbench < components.features < utilities < overrides < prose`。
+  `theme < base < vendor.xterm < components.ds < components.kit < components.workbench < components.features < utilities < prose < overrides`。
   DS 组件 17 份、conversation-kit 6 份、workbench 5 份、功能 65 份全部进各自子层。
 - 第三方 CSS（xterm）进 `vendor.xterm`：它无层时会压过功能 CSS，终端面板对 `.xterm-viewport`
   的透明底色覆盖就会失效（四周露黑）。

@@ -19,7 +19,7 @@
 6. 新文件按归属放进对应子层：design-system → `components.ds`、conversation-kit →
    `components.kit`、workbench → `components.workbench`、功能 → `components.features`。
    层序在 renderer 入口声明：`theme < base < vendor.xterm < components.ds < components.kit <
-components.workbench < components.features < utilities < overrides < prose`。
+components.workbench < components.features < utilities < prose < overrides`。
    第三方 CSS 进 `vendor.*` 层（目前只有 xterm），不能无层；`overrides` 收主题相关、
    必须盖过工具类的组件皮肤；`prose` 排在 `utilities` 之后：streamdown 给标题/代码硬编码工具类。
 
