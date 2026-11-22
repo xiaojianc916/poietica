@@ -1,0 +1,6 @@
+/*
+ * 第三方 xterm 样式单独进 vendor 层：它无层时会压过 components.features，
+ * 终端面板对 .xterm-viewport 的透明底色覆盖就失效（四周露黑）。
+ * 层序在 renderer 入口声明，vendor.xterm 排在 components 之前。
+ */
+@import '@xterm/xterm/css/xterm.css' layer(vendor.xterm);

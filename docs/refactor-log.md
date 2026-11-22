@@ -85,8 +85,10 @@
 按用户裁决做一次性完整迁移，不逐功能 L2：
 
 - 层序在 `apps/desktop/src/renderer/styles.css` 声明：
-  `theme < base < components.ds < components.kit < components.workbench < components.features < utilities < prose`。
+  `theme < base < vendor.xterm < components.ds < components.kit < components.workbench < components.features < utilities < prose`。
   DS 组件 17 份、conversation-kit 6 份、workbench 5 份、功能 65 份全部进各自子层。
+- 第三方 CSS（xterm）进 `vendor.xterm`：它无层时会压过功能 CSS，终端面板对 `.xterm-viewport`
+  的透明底色覆盖就会失效（四周露黑）。
 - `prose` 排在 `utilities` 之后：streamdown 给标题/代码硬编码了 `text-3xl`、`text-sm`、
   `px-1.5` 这类工具类，Markdown 正文的排版必须压过它们；这是 prose 的专用例外，
   其他项目 CSS 仍让 utilities 赢。

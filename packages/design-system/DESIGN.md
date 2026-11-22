@@ -106,8 +106,9 @@ palette → typography → scales → controls → assistant → rows → layers
 - 新文件必须自带角色注释：这份 CSS 负责哪块布局、为什么工具类不够。
 - 新文件按归属放进对应子层：design-system → `components.ds`、conversation-kit →
   `components.kit`、workbench → `components.workbench`、功能 → `components.features`。
-  层序在 renderer 入口声明：`theme < base < components.ds < components.kit <
+  层序在 renderer 入口声明：`theme < base < vendor.xterm < components.ds < components.kit <
 components.workbench < components.features < utilities < prose`。
+- 第三方 CSS 进 `vendor.*` 层（目前只有 xterm）：它不能无层，否则会压过功能 CSS。
 - `prose` 层排在 `utilities` 之后：streamdown 给标题/代码硬编码了工具类，Markdown 正文的
   排版必须压过它们。
 - `tokens/` 保持无层（值的产地）；`control/menu.css` 是已登记的无层例外（行样式要压过工具类）。

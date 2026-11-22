@@ -6,9 +6,9 @@ import type { TerminalInfo } from '../contract'
 import type { TerminalApi } from './api'
 import { terminalTheme } from './xterm-theme'
 
-import '@xterm/xterm/css/xterm.css'
-/* 必须排在 xterm.css 之后、同一个分块里：两边有同特异性的规则（`.xterm .xterm-viewport`），谁后到谁赢。面板本身进了首屏，
- * 这份覆盖要是跟着面板走，就会比按需加载的 xterm.css 先到、反被它盖掉（露黑边、多一条原生滚动条）。 */
+import './xterm-vendor.css'
+/* xterm.css 在 vendor.xterm 层，terminal-pane.css 在 components.features 层：后者覆盖前者，
+ * 不再依赖同一个分块里的先后顺序。 */
 import './terminal-pane.css'
 
 /* 每个终端一个**常驻**的 xterm Terminal 对象，存在 store 之外的 Map 里。切换标签只换哪一块 DOM 可见，对象不动 —— 后台标签的
