@@ -39,8 +39,12 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* 中文正文：两端对齐，行宽按整字符数收束，拉伸只发生在拉丁词与压缩后的标点之间。 */
-  :where(.timeline-prose, .skill-doc__prose) :where(p):lang(zh) {
+  /*
+   * 非时间线的长文正文（技能文档等）：两端对齐，行宽按整字符数收束。
+   * 时间线不做这两条：它的列宽已经由 --cp-grid 定好，再收一档会把「时间线」这类词
+   * 提前拆到下一行，右侧却空出一大块。
+   */
+  :where(.skill-doc__prose) :where(p):lang(zh) {
     max-inline-size: var(--ui-measure-cjk);
     text-align: justify;
   }

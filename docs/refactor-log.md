@@ -153,7 +153,7 @@
 
 产品要求用一组 CSS 开关打磨换行、空格、对齐与截断。这是一次**有意的视觉变更**，与「界面视觉不得擅自改动」的常规约束不同，按任务要求执行；字体、字色、字号与布局宽度令牌未改。
 
-- **全局开关**：`packages/design-system/src/typography.css`（`@layer base`）。标题 `text-wrap: balance` + `word-break: keep-all`，段落 `text-wrap: pretty`，按钮 `white-space: nowrap`，表格/时间 `tabular-nums`，中文正文 `text-align: justify` 与 `--ui-measure-cjk: 26em`，中文根 `text-autospace: normal` / `text-spacing-trim: trim-start`，代码与输入框单独关掉后两条。
+- **全局开关**：`packages/design-system/src/typography.css`（`@layer base`）。标题 `text-wrap: balance` + `word-break: keep-all`，段落 `text-wrap: pretty`，按钮 `white-space: nowrap`，表格/时间 `tabular-nums`，非时间线长文（技能文档）中文正文 `text-align: justify` 与 `--ui-measure-cjk: 26em`，中文根 `text-autospace: normal` / `text-spacing-trim: trim-start`，代码与输入框单独关掉后两条。时间线不做行宽收束与两端对齐：列宽已由 `--cp-grid` 定好，再收窄会把词提前拆行。
 - **中文标题断点**：`cjk-text.tsx` 用 BudouX（catalog `0.10.4`）在词间插 `<wbr>`，按文案缓存；静态与动态标题共用这一条渲染路径，没有另做构建期转换。
 - **段落语言**：`prose/language.ts` 按汉字占比给 Markdown 段落补 `lang`，两端对齐只命中中文段落。
 - **截断提示**：`TruncatedText` 在 `scrollWidth > clientWidth` 时才挂 `title`。
