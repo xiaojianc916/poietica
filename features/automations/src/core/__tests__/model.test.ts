@@ -34,11 +34,11 @@ describe('R-14 契约与数据模型', () => {
       0,
     )
     /* 计划二选一、续用模式、不提醒、不补跑：四格各自落到自己的列上 */
-    expect(created.schedule).toEqual({ cron: null, at: 1, timeZone: 'UTC' })
+    expect(created.schedule).toEqual({ cron: null, at: 1, timeZone: 'UTC', rule: null })
     expect([created.threadMode, created.notify, created.catchUp]).toEqual(['continue', 'never', false])
 
     /* 补跑与手动之外的第三种触发，结局多一档 skipped；summary / attention 是跑完后的两份结论 */
-    repo.insertRun({
+    repo.insertRunIfAbsent({
       id: 'r1',
       automationId: 'a1',
       threadId: null,
@@ -50,6 +50,8 @@ describe('R-14 契约与数据模型', () => {
       message: null,
       summary: '这一次不必跑',
       attention: true,
+      dispatchStatus: 'dispatched',
+      attempts: 1,
     })
     expect(repo.getRun('r1')).toMatchObject({
       trigger: 'catch_up',
@@ -89,6 +91,15 @@ describe('R-14 契约与数据模型', () => {
     expect(codeOf(() => service.setEnabled(once.id, true))).toBe('automations.invalid_schedule')
     service.update(once.id, { schedule: { cron: null, at: clock.now() + HOUR, timeZone: 'UTC' } })
     expect(service.setEnabled(once.id, true).enabled).toBe(true)
+    db.close()
+  })
+
+  test('D4b 截止已过的任务仍能改名；显式把截止改到过去被拒', () => {
+    const { service, clock, db } = buildCore()
+    const a = service.create(fullDraft({ endAt: clock.now() + HOUR }))
+    clock.advance(2 * HOUR)
+    expect(service.update(a.id, { title: '新标题' }).title).toBe('新标题')
+    expect(codeOf(() => service.update(a.id, { endAt: clock.now() - 1 }))).toBe('automations.invalid_schedule')
     db.close()
   })
 

@@ -59,4 +59,37 @@ describe('automation schedule field', () => {
     mount({ cron: null, at: null })
     expect(screen.getByText('添加计划')).toBeDefined()
   })
+
+  test('自定义间隔：按规则显示，改数字写回规则并重新锚定', () => {
+    const changes: ScheduleValue[] = []
+    mount(
+      {
+        cron: '0 * * * *',
+        at: null,
+        rule: { unit: 'minute', interval: 90, hour: 9, minute: 0, anchorAt: 1_000 },
+      },
+      (next) => {
+        changes.push(next)
+      },
+    )
+    expect(screen.getByText('自定义间隔')).toBeDefined()
+    expect(screen.getByText('每 90 分钟')).toBeDefined()
+    const input = screen.getByLabelText('间隔') as HTMLInputElement
+    expect(input.value).toBe('90')
+    fireEvent.change(input, { target: { value: '120' } })
+    expect(changes.at(-1)?.rule?.interval).toBe(120)
+    expect(changes.at(-1)?.rule?.anchorAt).not.toBe(1_000)
+  })
+
+  test('从菜单选「自定义间隔」写回默认规则（每 30 分钟，从此刻起算）', async () => {
+    const changes: ScheduleValue[] = []
+    mount({ cron: '0 9 * * *', at: null }, (next) => {
+      changes.push(next)
+    })
+    fireEvent.click(screen.getByText('每天'))
+    fireEvent.click(await screen.findByText('自定义间隔'))
+    expect(changes.at(-1)?.rule?.unit).toBe('minute')
+    expect(changes.at(-1)?.rule?.interval).toBe(30)
+    expect(changes.at(-1)?.cron).toBeNull()
+  })
 })

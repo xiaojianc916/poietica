@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { describePlan, hasPlan } from '../automation'
 import { atOfLocalInput, defaultOnceAt, localInputOf } from '../automation-schedule-field'
-import { changedOf, clockText, resultText, toolCardOf } from '../tool-card-model'
+import { automationOf, changedOf, clockText, resultText, toolCardOf } from '../tool-card-model'
 
 /* R-16：C1 新建；C2 修改的「已修改」；C3 一次性与跑完；C4 列表；C5 运行记录；C6 汇报；C7 进行中与失败；C8 结果的几种外形；
  * C9 删除与立即运行；C10 可选项；C11 一次性时间换算与计划人话。结果 JSON 的字段名是 R-15 §3.3 的规格。 */
@@ -257,5 +257,40 @@ describe('R-16 定时任务工具卡', () => {
     expect(hasPlan({ cron: null, at: null })).toBe(false)
     expect(clockText('2026-05-02T01:00:00Z', TZ)).toBe('05-02 09:00')
     expect(clockText('nope', TZ)).toBeNull()
+  })
+
+  test('C12 自定义间隔：卡片按规则说，不按兼容 cron', () => {
+    const card = toolCardOf(
+      'automation_create',
+      { title: '每 90 分钟', schedule: { type: 'cron', intervalUnit: 'minute', interval: 90 } },
+      ok({
+        ...view({
+          schedule: { type: 'interval', unit: 'minute', interval: 90, cron: '0 * * * *', timeZone: TZ },
+        }),
+        upcoming: ['2026-05-04T10:30:00+08:00', '2026-05-04T12:00:00+08:00', '2026-05-04T13:30:00+08:00'],
+      }),
+      'succeeded',
+    )
+    if (card.body.kind !== 'automation') throw new Error('应当是任务卡')
+    expect(card.body.automation.plan).toBe('每 90 分钟')
+    expect(card.body.automation.upcoming).toEqual(['05-04 10:30', '05-04 12:00', '05-04 13:30'])
+  })
+
+  test('C13 派发状态：等待重试与最终失败分开，失败原因进 issue', () => {
+    const waiting = automationOf(
+      view({
+        dispatchStatus: 'failed_to_dispatch',
+        retryAt: '2026-05-04T09:30:00+08:00',
+        lastError: '引擎忙',
+      }),
+    )
+    expect(waiting?.state).toEqual({ label: '等待重试', tone: 'warning' })
+    expect(waiting?.issue).toBe('引擎忙')
+
+    const failed = automationOf(
+      view({ dispatchStatus: 'failed_to_dispatch', retryAt: null, lastError: '工作区文件夹已不存在' }),
+    )
+    expect(failed?.state).toEqual({ label: '派发失败', tone: 'danger' })
+    expect(failed?.issue).toBe('工作区文件夹已不存在')
   })
 })

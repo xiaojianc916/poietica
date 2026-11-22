@@ -4,12 +4,20 @@
 
 ## 职责
 
-- `core` 用 SQLite 的 `automations_automations`、`automations_runs` 保存任务、下次运行时间与运行历史。
+- `core` 用 SQLite 的 `automations_automations`、`automations_runs` 保存任务、下次运行时间、派发台账与运行历史。
 - `cron` 与 `at` 二选一，都带 IANA 时区；校验区分 `unreadable`、`never_runs`、`too_frequent`、`time_zone`、`in_past`、`conflict`。
-- 调度器每 30 秒扫描到期任务；启动时修复中断的运行，按 `catchUp` 补跑或记 `skipped`，上一次未结束时跳过。
+- `schedule.rule` 承载自定义重复（每 N 分钟/小时/天/周/月/年，含星期、月日、月份），是真实调度事实；`cron` 只是兼容展示。
+  编辑器有「自定义间隔」入口；服务端按规则写兼容 cron，改规则不会留下旧 cron。旧版存盘不带 `rule` 时，计划三格没变就保留原规则。
+- 有限次与截止：`maxRuns` 限制成功派发次数，`endAt` 之后不再排程；达到任一条件即停用。agent 工具的 `recurring=false`
+  默认只跑一次，`endAt` 用带时差的 ISO 8601。
+- 调度器每 30 秒扫描到期任务：在 SQLite 事务里把 `claimed_at` 从空置为当前时刻来原子认领（同一窗口只派发一次），
+  超过 10 分钟未结算的认领会作为崩溃残留回收；启动时释放上一进程的认领并修复中断的运行。
+- 错过窗口：一次性任务直接停用、不再补跑；周期任务按 `catchUp` 补跑或记 `skipped`，上一次未结束时跳过。
+- 派发失败按 30 秒起、15 分钟封顶、最多 5 次退避重试；重试沿用同一 `runId` 与同一条对话，不会多开空会话。
+- 全库最多保留 20 条任务定义，所有状态都占名额；删除才释放。
 - 运行时经 `ConversationServiceToken` 新建或续用对话，带入工作区、`posture`、`model`、`thinking`；运行超时 60 分钟，等待批准超时 2 小时。线程或工作区删除时清理关联。
 - `notice.ts` 判定通知：`never` 从不，`attention` 只在失败、等批准或 agent 标记关注时，`always` 另含成功；UI 只把结果转成系统通知。
-- 向 agent 注册八个 `automation_*` 工具；运行中的对话不能管理任务。
+- 向 agent 注册九个 `automation_*` 工具；运行中的对话不能管理任务，但可以 `automation_pause_self` 停掉自己的后续排程。
 
 ## 子入口
 

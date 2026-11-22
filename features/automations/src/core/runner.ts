@@ -21,8 +21,15 @@ export const RUN_TIMEOUT_MESSAGE = '运行超过 60 分钟，已停止'
 export const APPROVAL_TIMEOUT_MESSAGE = '等待批准超过 2 小时，已停止本次运行'
 export const BUSY_THREAD_MESSAGE = '续用的对话正在进行中，这一次跳过'
 
+export interface StartOptions {
+  /** 同一个到期窗口的标识；重试与幂等结算都靠它，不传表示手动运行。 */
+  readonly runId?: string
+  /** 上一次派发失败前已经建好的对话；重试沿用，避免每退避一次多一条空线程。 */
+  readonly retryThreadId?: string | null
+}
+
 export interface Runner {
-  start(a: Automation, trigger: RunTrigger, scheduledFor: number | null): Promise<AutomationRun>
+  start(a: Automation, trigger: RunTrigger, scheduledFor: number | null, options?: StartOptions): Promise<AutomationRun>
   skip(a: Automation, trigger: RunTrigger, scheduledFor: number | null, message: string): AutomationRun
   /** 没有开着的运行 → not_in_run。 */
   report(threadId: string, summary: string, attention: boolean): AutomationRun[]
@@ -53,6 +60,9 @@ const OUTCOME_OF: Readonly<Record<TurnSettled['outcome'], AutomationRun['outcome
   cancelled: 'cancelled',
   failed: 'failed',
 }
+
+type PickedThread =
+  { readonly kind: 'ready'; readonly threadId: string } | { readonly kind: 'busy'; readonly threadId: string }
 
 interface Watch {
   readonly timer: Disposable
@@ -101,9 +111,14 @@ export function createRunner(d: {
 
   /** 收口一条运行：写结局、停轮询、按策略通知。不往任务上挂 issue —— issue 只表示「计划本身有问题」，而 due() 只挑
    * issue 为空的任务，一次送达失败就挂 issue 的话这个任务从此不再被调度。 */
-  const settle = (run: AutomationRun, outcome: AutomationRun['outcome'], message: string | null): AutomationRun => {
+  const settle = (
+    run: AutomationRun,
+    outcome: AutomationRun['outcome'],
+    message: string | null,
+    dispatchStatus: AutomationRun['dispatchStatus'] = run.dispatchStatus,
+  ): AutomationRun => {
     stopWatching(run.id)
-    const settled: AutomationRun = { ...run, outcome, message, settledAt: clock.now() }
+    const settled: AutomationRun = { ...run, outcome, message, settledAt: clock.now(), dispatchStatus }
     publish(settled)
     announce(settled, 'settled')
     return settled
@@ -173,10 +188,11 @@ export function createRunner(d: {
     scheduledFor: number | null,
     threadId: string | null,
     startedAt: number,
+    init: { readonly id: string; readonly dispatchStatus: AutomationRun['dispatchStatus']; readonly attempts: number },
     closed: { outcome: 'skipped'; message: string } | null = null,
   ): AutomationRun => {
     const run: AutomationRun = {
-      id: createId(),
+      id: init.id,
       automationId: a.id,
       threadId,
       trigger,
@@ -187,10 +203,29 @@ export function createRunner(d: {
       message: closed === null ? null : closed.message,
       summary: null,
       attention: false,
+      dispatchStatus: closed === null ? init.dispatchStatus : 'dispatched',
+      attempts: init.attempts,
     }
-    repo.insertRun(run)
+    const inserted = repo.insertRunIfAbsent(run)
     repo.trimRuns(a.id)
-    return run
+    if (inserted) return run
+    /* 同一窗口已有台账：只有派发失败的那条可重试；把它翻回 running，结算才不会还停在上一轮的 failed。 */
+    const existing = repo.getRun(run.id)
+    if (existing === null) return run
+    const retried: AutomationRun = {
+      ...existing,
+      threadId,
+      trigger,
+      scheduledFor,
+      startedAt,
+      settledAt: null,
+      outcome: 'running',
+      message: null,
+      dispatchStatus: init.dispatchStatus,
+      attempts: init.attempts,
+    }
+    repo.updateRun(retried)
+    return retried
   }
 
   const skip = (
@@ -200,17 +235,26 @@ export function createRunner(d: {
     message: string,
     threadId: string | null = null,
   ): AutomationRun => {
-    const run = insertRun(a, trigger, scheduledFor, threadId, clock.now(), { outcome: 'skipped', message })
+    const run = insertRun(
+      a,
+      trigger,
+      scheduledFor,
+      threadId,
+      clock.now(),
+      {
+        id: createId(),
+        dispatchStatus: 'dispatched',
+        attempts: 1,
+      },
+      { outcome: 'skipped', message },
+    )
     d.emitRunUpdated(run)
     return run
   }
 
   /** 续用模式：记着的对话还在且还在这个工作区 → 用它；它正在跑 → 这一次跳过 —— 排在用户那一轮后面的话，用户那轮的
    * turnSettled 会被当成本次运行的结局。记着的对话没了 → 新建一条并重新记下。 */
-  const pickThread = (
-    a: Automation,
-    startedAt: number,
-  ): { readonly kind: 'ready'; readonly threadId: string } | { readonly kind: 'busy'; readonly threadId: string } => {
+  const pickThread = (a: Automation, startedAt: number): PickedThread => {
     if (a.threadMode === 'continue' && a.threadId !== null) {
       const existing = conversation.get(a.threadId)
       if (existing !== null && existing.workspaceId === a.workspaceId) {
@@ -235,6 +279,16 @@ export function createRunner(d: {
     return { kind: 'ready', threadId: thread.id }
   }
 
+  /** 派发失败后的重试沿用上一次建好的对话；对话没了就按正常路径重挑。 */
+  const retryThreadOf = (a: Automation, threadId: string | null): PickedThread | null => {
+    if (threadId === null) return null
+    const existing = conversation.get(threadId)
+    if (existing === null || existing.workspaceId !== a.workspaceId) return null
+    return existing.state === 'idle'
+      ? { kind: 'ready', threadId: existing.id }
+      : { kind: 'busy', threadId: existing.id }
+  }
+
   const workspaceProblemOf = (a: Automation): string | null => {
     try {
       workspaces.requireUsable(a.workspaceId)
@@ -246,35 +300,89 @@ export function createRunner(d: {
     }
   }
 
-  return {
-    async start(a, trigger, scheduledFor) {
-      if (repo.openRun(a.id) !== null) {
-        throw new AppError(automationsErrors.already_running, '这个任务正在运行')
-      }
-      const startedAt = clock.now()
-      const unusable = workspaceProblemOf(a)
-      if (unusable !== null) return settle(insertRun(a, trigger, scheduledFor, null, startedAt), 'failed', unusable)
-      const picked = pickThread(a, startedAt)
-      if (picked.kind === 'busy') return skip(a, trigger, scheduledFor, BUSY_THREAD_MESSAGE, picked.threadId)
+  const assertNotRunning = (a: Automation, existing: AutomationRun | null): void => {
+    /* 手动运行/首次派发：有开着的那一条就拒绝；同一窗口的重试不算。 */
+    if (existing === null && repo.openRun(a.id) !== null) {
+      throw new AppError(automationsErrors.already_running, '这个任务正在运行')
+    }
+  }
 
-      const run = insertRun(a, trigger, scheduledFor, picked.threadId, startedAt)
-      try {
-        await conversation.submit({
-          threadId: picked.threadId,
-          text: framePrompt(a, trigger, scheduledFor),
-          /* 这段话是任务替人投的：屏幕上不画成用户气泡，失败也不给「取回文字」。 */
-          origin: 'automation',
-        })
-      } catch (e) {
-        return settle(run, 'failed', e instanceof Error ? e.message : String(e))
+  /** 已经收口的窗口重放：直接还回台账，不重开第二轮。 */
+  const replayOf = (existing: AutomationRun | null): AutomationRun | null =>
+    existing !== null && existing.dispatchStatus !== 'failed_to_dispatch' ? existing : null
+
+  const claimInit = (existing: AutomationRun | null, runId: string | undefined) => ({
+    id: existing?.id ?? runId ?? createId(),
+    dispatchStatus: 'claimed' as const,
+    attempts: (existing?.attempts ?? 0) + 1,
+  })
+
+  const pickedFor = (
+    a: Automation,
+    existing: AutomationRun | null,
+    retryThreadId: string | null | undefined,
+    startedAt: number,
+  ): PickedThread => retryThreadOf(a, existing?.threadId ?? retryThreadId ?? null) ?? pickThread(a, startedAt)
+
+  const dispatchFailure = (
+    a: Automation,
+    trigger: RunTrigger,
+    scheduledFor: number | null,
+    threadId: string | null,
+    startedAt: number,
+    init: { readonly id: string; readonly dispatchStatus: 'claimed'; readonly attempts: number },
+    message: string,
+  ): AutomationRun =>
+    settle(insertRun(a, trigger, scheduledFor, threadId, startedAt, init), 'failed', message, 'failed_to_dispatch')
+
+  const deliver = async (
+    a: Automation,
+    run: AutomationRun,
+    threadId: string,
+    trigger: RunTrigger,
+    scheduledFor: number | null,
+    startedAt: number,
+  ): Promise<AutomationRun> => {
+    try {
+      await conversation.submit({
+        threadId,
+        text: framePrompt(a, trigger, scheduledFor),
+        /* 这段话是任务替人投的：屏幕上不画成用户气泡，失败也不给「取回文字」。 */
+        origin: 'automation',
+      })
+    } catch (e) {
+      /* 派发失败留台账里的 threadId：退避重试沿用同一条对话，不再多建空线程。 */
+      return settle({ ...run, threadId }, 'failed', e instanceof Error ? e.message : String(e), 'failed_to_dispatch')
+    }
+    /* 交接失败的事件可能先于 submit() 的 await 返回：这时运行已被 onSubmissionFailed 收成 failed，这里再 publish 一次会把它
+           覆盖回 running。所以重新读库，只有还开着的运行才接着等轮终。 */
+    const current = openRunById(run.id)
+    if (current === null) return repo.getRun(run.id) ?? run
+    const dispatched: AutomationRun = { ...current, threadId, dispatchStatus: 'dispatched' }
+    publish(dispatched)
+    watch(run.id, threadId, startedAt)
+    return dispatched
+  }
+
+  return {
+    async start(a, trigger, scheduledFor, options = {}) {
+      const existing = options.runId === undefined ? null : repo.getRun(options.runId)
+      const replay = replayOf(existing)
+      if (replay !== null) return replay
+      assertNotRunning(a, existing)
+      const startedAt = clock.now()
+      const init = claimInit(existing, options.runId)
+      const unusable = workspaceProblemOf(a)
+      if (unusable !== null) {
+        return dispatchFailure(a, trigger, scheduledFor, existing?.threadId ?? null, startedAt, init, unusable)
       }
-      /* 交接失败的事件可能先于 submit() 的 await 返回：这时运行已被 onSubmissionFailed 收成 failed，这里再 publish 一次会把它
-             覆盖回 running。所以重新读库，只有还开着的运行才接着等轮终。 */
-      const current = openRunById(run.id)
-      if (current === null) return repo.getRun(run.id) ?? run
-      publish(current)
-      watch(run.id, picked.threadId, startedAt)
-      return current
+      const picked = pickedFor(a, existing, options.retryThreadId, startedAt)
+      if (picked.kind === 'busy') {
+        if (existing === null) return skip(a, trigger, scheduledFor, BUSY_THREAD_MESSAGE, picked.threadId)
+        return dispatchFailure(a, trigger, scheduledFor, picked.threadId, startedAt, init, BUSY_THREAD_MESSAGE)
+      }
+      const run = insertRun(a, trigger, scheduledFor, picked.threadId, startedAt, init)
+      return deliver(a, run, picked.threadId, trigger, scheduledFor, startedAt)
     },
     skip: (a, trigger, scheduledFor, message) => skip(a, trigger, scheduledFor, message),
     report(threadId, summary, attention) {

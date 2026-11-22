@@ -139,6 +139,12 @@ export function AutomationList({ automations, pending, runsOf, onCreateBlank, on
   )
 }
 
+function dispatchNoteOf(automation: Automation): string | null {
+  if (automation.dispatchStatus !== 'failed_to_dispatch') return null
+  if (automation.retryAt !== null) return `上次派发未送达，将在 ${describeMoment(automation.retryAt)} 重试`
+  return `派发失败${automation.lastError === null ? '' : `：${automation.lastError}`}`
+}
+
 function planLine(automation: Automation): string {
   const schedule = describePlan(automation.schedule)
   if (automation.schedule.at !== null && !automation.enabled && automation.nextRunAt === null) {
@@ -169,6 +175,7 @@ function TaskCard({
   const busy = pending.some((key) => key.endsWith(`:${automation.id}`) || key === `cancel:${active?.id}`)
   const paused = hasPlan(automation.schedule) && !automation.enabled
   const line = planLine(automation)
+  const dispatchNote = dispatchNoteOf(automation)
   return (
     <li className="flex">
       <article className="flex w-full flex-col rounded-xl border border-divider bg-[var(--ui-card)] px-4 py-3.5">
@@ -191,6 +198,7 @@ function TaskCard({
         <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-muted-foreground">{automation.prompt}</p>
 
         {automation.issue ? <p className="mt-1.5 text-xs text-destructive">{automation.issue}</p> : null}
+        {dispatchNote === null ? null : <p className="mt-1.5 text-xs text-destructive">{dispatchNote}</p>}
 
         <div className="mt-auto flex items-center gap-2 pt-3 text-xs">
           <span className={cn('flex min-w-0 items-center gap-1.5', paused ? 'text-muted-foreground' : 'text-success')}>

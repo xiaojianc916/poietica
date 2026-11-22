@@ -9,11 +9,12 @@ import {
   Select,
 } from '@poietica/design-system'
 import { Check, ChevronDown, Plus, X } from 'lucide-react'
-import { useCallback, useState } from 'react'
-import type { ScheduleProblem } from '../contract'
+import { type ReactNode, useCallback, useState } from 'react'
+import type { ScheduleProblem, ScheduleRule, ScheduleUnit } from '../contract'
 import {
   DEFAULT_SCHEDULE,
   DEFAULT_SCHEDULE_TIME,
+  describeRule,
   describeSchedule,
   formatGmtOffset,
   pad2,
@@ -40,7 +41,7 @@ const PROBLEMS: Record<ScheduleProblem, string> = {
   conflict: '周期计划与一次性时间只能二选一。',
 }
 
-type FieldKind = ScheduleKind | 'once'
+type FieldKind = ScheduleKind | 'once' | 'interval'
 
 const LABELS: Record<FieldKind, string> = {
   once: '一次',
@@ -49,14 +50,16 @@ const LABELS: Record<FieldKind, string> = {
   weekdays: '每工作日',
   weekly: '每周',
   monthly: '每月',
+  interval: '自定义间隔',
   custom: '自定义',
 }
 
-const OPTIONS: readonly FieldKind[] = ['once', 'hourly', 'daily', 'weekdays', 'weekly', 'monthly', 'custom']
+const OPTIONS: readonly FieldKind[] = ['once', 'hourly', 'daily', 'weekdays', 'weekly', 'monthly', 'interval', 'custom']
 
 export interface ScheduleValue {
   readonly cron: string | null
   readonly at: number | null
+  readonly rule?: ScheduleRule | null | undefined
 }
 
 export function localInputOf(at: number): string {
@@ -337,6 +340,219 @@ function MonthDayPicker({
   )
 }
 
+const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => ({
+  label: `${index + 1} 月`,
+  value: String(index + 1),
+}))
+
+const UNIT_OPTIONS: readonly { readonly value: ScheduleUnit; readonly label: string }[] = [
+  { value: 'minute', label: '分钟' },
+  { value: 'hourly', label: '小时' },
+  { value: 'daily', label: '天' },
+  { value: 'weekly', label: '周' },
+  { value: 'monthly', label: '个月' },
+  { value: 'yearly', label: '年' },
+]
+
+function toWeekday(day: number): Weekday {
+  if (day === 7) return 0
+  return day >= 0 && day <= 6 ? (day as Weekday) : 1
+}
+
+function ruleWeekdaysOf(days: readonly number[] | undefined): Weekday[] {
+  return (days?.length ? days : [1]).map(toWeekday)
+}
+
+function isoWeekdaysOf(days: readonly Weekday[]): number[] {
+  return days.map((day) => (day === 0 ? 7 : day))
+}
+
+function timeOfRule(rule: ScheduleRule): string {
+  return `${pad2(rule.hour)}:${pad2(rule.minute)}`
+}
+
+function withTime(rule: ScheduleRule, time: string): ScheduleRule {
+  const [hour = '00', minute = '00'] = time.split(':')
+  return { ...rule, hour: Number(hour), minute: Number(minute) }
+}
+
+/** 从 cron 的时分或此刻起算：换到间隔模式时不让用户看到时间突然变了。 */
+function defaultIntervalRule(time?: string): ScheduleRule {
+  const now = Date.now()
+  const date = new Date(now)
+  const [hour = '00', minute = '00'] = (time ?? `${pad2(date.getHours())}:${pad2(date.getMinutes())}`).split(':')
+  return { unit: 'minute', interval: 30, hour: Number(hour), minute: Number(minute), anchorAt: now }
+}
+
+/** 换单位时补齐该单位需要的字段，并以此刻重新锚定。 */
+function withUnit(rule: ScheduleRule, unit: ScheduleUnit): ScheduleRule {
+  const anchorAt = Date.now()
+  const base = { ...rule, unit, anchorAt }
+  if (unit === 'weekly') return { ...base, weekdays: rule.weekdays?.length ? rule.weekdays : [1] }
+  if (unit === 'monthly') {
+    return { ...base, monthDays: rule.monthDays?.length ? rule.monthDays : [1], monthlyMode: 'date' }
+  }
+  if (unit === 'yearly') {
+    return {
+      ...base,
+      months: rule.months?.length ? rule.months : [new Date(anchorAt).getMonth() + 1],
+      monthDays: rule.monthDays?.length ? rule.monthDays : [1],
+    }
+  }
+  return base
+}
+
+function MonthPicker({ month, onChange }: { readonly month: number; readonly onChange: (month: number) => void }) {
+  return (
+    <Select
+      className="h-7 rounded-full border-0 bg-sidebar-accent/60 pl-2.5 pr-1.5 text-xs hover:bg-sidebar-accent"
+      data={MONTH_OPTIONS}
+      onValueChange={(next) => {
+        onChange(Number(next))
+      }}
+      type="月份"
+      value={String(month)}
+    />
+  )
+}
+
+function IntervalControls({
+  invalid,
+  onChange,
+  rule,
+}: {
+  readonly invalid: boolean
+  readonly onChange: (rule: ScheduleRule) => void
+  readonly rule: ScheduleRule
+}) {
+  return (
+    <>
+      <span className="text-xs text-muted-foreground">每</span>
+      <input
+        aria-describedby="automation-schedule-feedback"
+        aria-invalid={invalid}
+        aria-label="间隔"
+        className="h-7 w-12 rounded-full bg-sidebar-accent/60 px-2 text-center text-xs tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        max={200}
+        min={1}
+        onChange={(event) => {
+          const next = Number(event.currentTarget.value)
+          if (Number.isInteger(next) && next >= 1 && next <= 200) {
+            onChange({ ...rule, interval: next, anchorAt: Date.now() })
+          }
+        }}
+        type="number"
+        value={rule.interval}
+      />
+      <Select
+        className="h-7 rounded-full border-0 bg-sidebar-accent/60 pl-2.5 pr-1.5 text-xs hover:bg-sidebar-accent"
+        data={UNIT_OPTIONS}
+        onValueChange={(unit) => {
+          onChange(withUnit(rule, unit as ScheduleUnit))
+        }}
+        type="单位"
+        value={rule.unit}
+      />
+    </>
+  )
+}
+
+function ScheduleRowShell({
+  children,
+  onClear,
+  onPick,
+  selected,
+}: {
+  readonly children: ReactNode
+  readonly onClear: () => void
+  readonly onPick: (kind: FieldKind) => void
+  readonly selected: FieldKind
+}) {
+  return (
+    <div className="flex min-h-11 flex-nowrap items-center gap-1 overflow-hidden rounded-xl border bg-popover py-1 pl-[7px] pr-2">
+      <ScheduleMenu empty={false} onPick={onPick} selected={selected} />
+      {children}
+      <button
+        aria-label="移除计划"
+        className="ml-auto rounded-md p-1.5 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+        onClick={onClear}
+        type="button"
+      >
+        <X aria-hidden />
+      </button>
+    </div>
+  )
+}
+
+/** 自定义间隔：数字 + 单位；周/月/年再补星期、日期与月份。 */
+function IntervalRow({
+  invalid,
+  onChange,
+  onClear,
+  onPick,
+  rule,
+}: {
+  readonly invalid: boolean
+  readonly onChange: (rule: ScheduleRule) => void
+  readonly onClear: () => void
+  readonly onPick: (kind: FieldKind) => void
+  readonly rule: ScheduleRule
+}) {
+  return (
+    <ScheduleRowShell onClear={onClear} onPick={onPick} selected="interval">
+      <IntervalControls invalid={invalid} onChange={onChange} rule={rule} />
+      {rule.unit === 'weekly' ? (
+        <WeekdayPicker
+          onChange={(days) => {
+            onChange({ ...rule, weekdays: isoWeekdaysOf(days) })
+          }}
+          weekdays={ruleWeekdaysOf(rule.weekdays)}
+        />
+      ) : null}
+      {rule.unit === 'yearly' ? (
+        <MonthPicker
+          month={rule.months?.[0] ?? 1}
+          onChange={(month) => {
+            onChange({ ...rule, months: [month] })
+          }}
+        />
+      ) : null}
+      {rule.unit === 'monthly' || rule.unit === 'yearly' ? (
+        <MonthDayPicker
+          dayOfMonth={rule.monthDays?.[0] ?? 1}
+          onChange={(day) => {
+            onChange({ ...rule, monthDays: [day] })
+          }}
+        />
+      ) : null}
+      {rule.unit === 'minute' ? null : (
+        <>
+          <span className="px-0.5 text-xs text-muted-foreground">于</span>
+          {rule.unit === 'hourly' ? (
+            <HourlyMinutePicker
+              minute={rule.minute}
+              onChange={(minute) => {
+                onChange({ ...rule, minute })
+              }}
+            />
+          ) : (
+            <TimePicker
+              onChange={(time) => {
+                onChange(withTime(rule, time))
+              }}
+              time={timeOfRule(rule)}
+            />
+          )}
+          {rule.unit === 'hourly' ? null : (
+            <span className="whitespace-nowrap text-xs text-muted-foreground">{formatGmtOffset()}</span>
+          )}
+        </>
+      )}
+      <span className="min-w-0 flex-1 truncate pl-1 text-xs text-muted-foreground">{describeRule(rule)}</span>
+    </ScheduleRowShell>
+  )
+}
+
 function ScheduleDetail({
   dayOfMonth,
   kind,
@@ -395,6 +611,19 @@ function ScheduleRow({
   readonly weekdays: readonly Weekday[]
 }) {
   const cron = schedule.cron
+  if (schedule.rule != null) {
+    return (
+      <IntervalRow
+        invalid={feedback !== null}
+        onChange={(rule) => {
+          onChange({ cron: null, at: null, rule })
+        }}
+        onClear={onClear}
+        onPick={onPick}
+        rule={schedule.rule}
+      />
+    )
+  }
   if (cron === null && schedule.at === null) {
     return <ScheduleMenu empty onPick={onPick} selected={null} />
   }
@@ -409,8 +638,7 @@ function ScheduleRow({
   }
   const repeating = schedule.at === null && kind !== 'custom' && kind !== 'once'
   return (
-    <div className="flex min-h-11 flex-nowrap items-center gap-1 overflow-hidden rounded-xl border bg-popover py-1 pl-[7px] pr-2">
-      <ScheduleMenu empty={false} onPick={onPick} selected={kind} />
+    <ScheduleRowShell onClear={onClear} onPick={onPick} selected={kind}>
       {schedule.at !== null ? <OnceInput at={schedule.at} feedback={feedback} onChange={onChange} /> : null}
       {schedule.at === null && kind === 'custom' ? (
         <input
@@ -444,21 +672,21 @@ function ScheduleRow({
           <span className="min-w-0 flex-1 truncate pl-1 text-xs text-muted-foreground">{describeSchedule(cron)}</span>
         </>
       ) : null}
-      <button
-        aria-label="移除计划"
-        className="ml-auto rounded-md p-1.5 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-        onClick={onClear}
-        type="button"
-      >
-        <X aria-hidden />
-      </button>
-    </div>
+    </ScheduleRowShell>
   )
 }
 export function AutomationScheduleField({ schedule, preview, error, onChange }: AutomationScheduleFieldProps) {
   const [forceCustom, setForceCustom] = useState(false)
   const cron = schedule.cron
-  const kind: FieldKind = schedule.at !== null ? 'once' : forceCustom ? 'custom' : (scheduleKindOf(cron) ?? 'custom')
+  const rule = schedule.rule ?? null
+  const kind: FieldKind =
+    rule != null
+      ? 'interval'
+      : schedule.at !== null
+        ? 'once'
+        : forceCustom
+          ? 'custom'
+          : (scheduleKindOf(cron) ?? 'custom')
   const time = scheduleTimeOf(cron) ?? DEFAULT_SCHEDULE_TIME
   const weekdays = scheduleWeekdaysOf(cron)
   const dayOfMonth = scheduleDayOfMonthOf(cron) ?? 1
@@ -466,17 +694,27 @@ export function AutomationScheduleField({ schedule, preview, error, onChange }: 
   const feedback = error ?? (problem === null ? null : PROBLEMS[problem])
   function pick(next: FieldKind): void {
     setForceCustom(next === 'custom')
-    if (next === 'once') {
-      onChange({ cron: null, at: schedule.at ?? defaultOnceAt() })
-    } else if (next === 'custom') {
-      onChange({ cron: cron ?? DEFAULT_SCHEDULE, at: null })
-    } else if (next === 'weekly') {
-      onChange({ cron: scheduleFor('weekly', time, [1]), at: null })
-    } else if (next === 'weekdays') {
-      onChange({ cron: scheduleFor('weekdays', time), at: null })
-    } else {
-      onChange({ cron: scheduleFor(next, time), at: null })
+    if (next === 'interval') {
+      onChange({ cron: null, at: null, rule: defaultIntervalRule(time) })
+      return
     }
+    if (next === 'once') {
+      onChange({ cron: null, at: schedule.at ?? defaultOnceAt(), rule: null })
+      return
+    }
+    if (next === 'custom') {
+      onChange({ cron: cron ?? DEFAULT_SCHEDULE, at: null, rule: null })
+      return
+    }
+    if (next === 'weekly') {
+      onChange({ cron: scheduleFor('weekly', time, [1]), at: null, rule: null })
+      return
+    }
+    if (next === 'weekdays') {
+      onChange({ cron: scheduleFor('weekdays', time), at: null, rule: null })
+      return
+    }
+    onChange({ cron: scheduleFor(next, time), at: null, rule: null })
   }
   return (
     /*
@@ -492,7 +730,7 @@ export function AutomationScheduleField({ schedule, preview, error, onChange }: 
         onChange={onChange}
         onClear={() => {
           setForceCustom(false)
-          onChange({ cron: null, at: null })
+          onChange({ cron: null, at: null, rule: null })
         }}
         onPick={pick}
         schedule={schedule}

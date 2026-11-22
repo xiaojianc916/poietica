@@ -68,7 +68,7 @@ function rig() {
 const DAILY = { type: 'cron', cron: '0 9 * * *' } as const
 
 describe('R-15 定时任务 agent 工具', () => {
-  test('T1 八张工具，读的是 read、改的是 write', () => {
+  test('T1 九张工具，读的是 read、改的是 write', () => {
     const { specs, db } = rig()
     const approvals = Object.fromEntries([...specs.values()].map((s) => [s.name, s.approval]))
     expect(approvals).toEqual({
@@ -79,6 +79,7 @@ describe('R-15 定时任务 agent 工具', () => {
       automation_update: 'write',
       automation_run: 'write',
       automation_delete: 'write',
+      automation_pause_self: 'write',
       automation_report: 'read',
     })
     db.close()
@@ -115,6 +116,30 @@ describe('R-15 定时任务 agent 工具', () => {
     })
     expect(v.upcoming).toHaveLength(3)
     expect(v.upcoming[0]).toMatch(/T09:00:00\+08:00$/)
+    db.close()
+  })
+
+  test('T3b 自定义间隔：intervalUnit+interval 生成规则，兼容 cron 只做展示', async () => {
+    const { call, db } = rig()
+    const v = await call('automation_create', {
+      title: '每 90 分钟',
+      prompt: '巡检',
+      schedule: { type: 'cron', cron: '0 9 * * *', intervalUnit: 'minute', interval: 90 },
+    })
+    expect(v.schedule).toMatchObject({ type: 'interval', unit: 'minute', interval: 90, cron: '0 * * * *' })
+    expect(v.upcoming).toHaveLength(3)
+    const gaps = v.upcoming.slice(1).map((t: string, i: number) => Date.parse(t) - Date.parse(v.upcoming[i]))
+    expect(gaps).toEqual([90 * 60_000, 90 * 60_000])
+    db.close()
+  })
+
+  test('T3c 有限次与截止：recurring=false 默认只跑一次；maxRuns 不能脱离 recurring=false', async () => {
+    const { call, fails, db } = rig()
+    const v = await call('automation_create', { title: '一次', prompt: '跑', schedule: DAILY, recurring: false })
+    expect(v.maxRuns).toBe(1)
+    expect(v.endAt).toBeNull()
+    const e = await fails('automation_create', { title: '错', prompt: '跑', schedule: DAILY, maxRuns: 3 })
+    expect(e.message).toContain('maxRuns 只能与 recurring=false')
     db.close()
   })
 
@@ -268,6 +293,23 @@ describe('R-15 定时任务 agent 工具', () => {
     const rows = await call('automation_list', { workspaceId: 'ws1' })
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ title: 'A', lastRun: { outcome: 'succeeded', summary: '没有新问题' } })
+    db.close()
+  })
+
+  test('T13 运行中：pause_self 只停后续排程；别的管理操作仍拒绝', async () => {
+    const { call, fails, service, ctx, db } = rig()
+    const created = service.create(
+      fullDraft({ title: '巡检', schedule: { cron: '*/1 * * * *', at: null, timeZone: 'UTC' } }),
+    )
+    const run = await service.runNow(created.id)
+    const runCtx = { ...ctx, sessionKey: run.threadId! }
+
+    const paused = await call('automation_pause_self', {}, runCtx)
+    expect(paused).toMatchObject({ id: created.id, title: '巡检', enabled: false })
+    expect(service.get(created.id).enabled).toBe(false)
+
+    const e = await fails('automation_update', { id: created.id, title: '改名' }, runCtx)
+    expect(e.code).toBe('automations.forbidden_in_run')
     db.close()
   })
 })

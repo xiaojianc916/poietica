@@ -31,6 +31,8 @@ function runOf(over: Partial<AutomationRun>): AutomationRun {
     message: null,
     summary: null,
     attention: false,
+    dispatchStatus: 'dispatched',
+    attempts: 1,
     ...over,
   }
 }
@@ -43,7 +45,11 @@ describe('R-14 运行与调度', () => {
     expect(conversation.submitted[0]!.text).toBe(`【定时任务】晨会动态 · 手动运行\n\n汇总进展\n\n${REPORT_INSTRUCTION}`)
     const at = Date.parse('2026-05-02T01:00:00Z')
     expect(
-      framePrompt({ ...a, schedule: { cron: '0 9 * * *', at: null, timeZone: 'Asia/Shanghai' } }, 'schedule', at),
+      framePrompt(
+        { ...a, schedule: { cron: '0 9 * * *', at: null, timeZone: 'Asia/Shanghai', rule: null } },
+        'schedule',
+        at,
+      ),
     ).toContain('· 计划于 05-02 09:00')
     expect(framePrompt(a, 'catch_up', at)).toContain('· 补跑（原定 05-02 01:00，当时应用没有运行）')
     db.close()

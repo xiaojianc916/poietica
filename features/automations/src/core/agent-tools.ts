@@ -4,8 +4,9 @@ import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, type Clock, SystemErrorCode } from '@poietica/foundation'
 import type { Controls, ModelRef, Posture, RuntimeServices } from '@poietica/runtime-protocol'
 import { z } from 'zod'
-import type { Automation, AutomationDraft, AutomationRun, Schedule } from '../contract/entities'
+import type { Automation, AutomationDraft, AutomationRun, Schedule, ScheduleRule } from '../contract/entities'
 import { automationsErrors } from '../contract/errors'
+import { compatCronOf, defaultFields, parseCompatFields, ruleFromInterval } from './schedule-rule'
 import type { AutomationPatch, AutomationsService } from './service'
 import { isoIn, parseIsoWithOffset } from './time'
 
@@ -38,6 +39,13 @@ const scheduleParam = z
       .min(1)
       .optional()
       .describe('For type "once": ISO 8601 time WITH offset, e.g. "2026-05-02T09:00:00+08:00".'),
+    intervalUnit: z
+      .enum(['minute', 'hourly', 'daily', 'weekly', 'monthly', 'yearly'])
+      .optional()
+      .describe(
+        'Custom recurring interval. Pair with `interval` for "every N minutes/hours/days/weeks/months/years"; use it when cron cannot express the step (e.g. every 90 minutes). `cron`, if given, only supplies the time-of-day fields.',
+      ),
+    interval: z.number().int().min(1).max(200).optional().describe('1-200, must be paired with intervalUnit.'),
   })
   .describe('When the automation runs.')
 
@@ -88,6 +96,26 @@ const settingsShape = {
     .describe('If the app was not running at a scheduled time, run once when it starts again (default true).'),
 }
 
+const limitShape = {
+  recurring: z
+    .boolean()
+    .optional()
+    .describe(
+      'true (default) repeats until paused or deleted; false creates a finite automation. Without maxRuns a finite automation runs once.',
+    ),
+  maxRuns: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe('Maximum successful scheduled runs. Only valid with recurring=false.'),
+  endAt: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('ISO 8601 time WITH offset: no run is scheduled after it, e.g. "2026-06-30T23:59:59+08:00".'),
+}
+
 const createParams = z.object({
   title: z.string().trim().min(1).max(80).describe('Short title shown in the list, e.g. "每日 CI 巡检"'),
   prompt: z
@@ -98,6 +126,7 @@ const createParams = z.object({
     .describe('The full instruction the agent receives at each run. Self-contained: the run may not see this chat.'),
   schedule: scheduleParam,
   ...settingsShape,
+  ...limitShape,
 })
 
 const updateParams = z.object({
@@ -106,6 +135,7 @@ const updateParams = z.object({
   prompt: createParams.shape.prompt.optional(),
   schedule: scheduleParam.optional(),
   ...settingsShape,
+  ...limitShape,
   enabled: z.boolean().optional().describe('false = pause, true = resume'),
 })
 
@@ -165,11 +195,19 @@ export function registerAgentTools(d: {
   const iso = (at: number | null, timeZone: string): string | null => (at === null ? null : isoIn(at, timeZone))
 
   const scheduleView = (s: Schedule) =>
-    s.cron !== null
-      ? { type: 'cron' as const, cron: s.cron, timeZone: s.timeZone }
-      : s.at !== null
-        ? { type: 'once' as const, at: isoIn(s.at, s.timeZone), timeZone: s.timeZone }
-        : { type: 'manual' as const, timeZone: s.timeZone }
+    s.rule != null
+      ? {
+          type: 'interval' as const,
+          unit: s.rule.unit,
+          interval: s.rule.interval,
+          cron: s.cron,
+          timeZone: s.timeZone,
+        }
+      : s.cron !== null
+        ? { type: 'cron' as const, cron: s.cron, timeZone: s.timeZone }
+        : s.at !== null
+          ? { type: 'once' as const, at: isoIn(s.at, s.timeZone), timeZone: s.timeZone }
+          : { type: 'manual' as const, timeZone: s.timeZone }
 
   const runView = (run: AutomationRun, timeZone: string) => ({
     id: run.id,
@@ -204,6 +242,13 @@ export function registerAgentTools(d: {
     threadId: a.threadId,
     notify: a.notify,
     catchUp: a.catchUp,
+    runCount: a.runCount,
+    maxRuns: a.maxRuns,
+    endAt: iso(a.endAt, a.schedule.timeZone),
+    dispatchStatus: a.dispatchStatus,
+    dispatchAttempts: a.dispatchAttempts,
+    retryAt: iso(a.retryAt, a.schedule.timeZone),
+    lastError: a.lastError,
     issue: a.issue,
     lastRun: a.lastRun === null ? null : runView(a.lastRun, a.schedule.timeZone),
   })
@@ -213,16 +258,75 @@ export function registerAgentTools(d: {
     upcoming: service.previewSchedule(a.schedule, 3).times.map((t) => isoIn(t, a.schedule.timeZone)),
   })
 
-  const scheduleOf = (p: ScheduleParam, timeZone: string): Schedule => {
-    if (p.type === 'manual') return { cron: null, at: null, timeZone }
-    if (p.type === 'cron') {
-      if (p.cron === undefined) invalid('schedule.type 为 cron 时必须给 schedule.cron（例如 "0 9 * * 1-5"）')
-      return { cron: p.cron, at: null, timeZone }
+  const ruleOf = (p: ScheduleParam, timeZone: string): ScheduleRule | null => {
+    if (p.intervalUnit === undefined && p.interval === undefined) return null
+    if (p.intervalUnit === undefined || p.interval === undefined) {
+      invalid('intervalUnit 与 interval 必须成对给（每 N 分钟/小时/天/周/月/年）')
     }
+    const anchorAt = d.clock.now()
+    const fields =
+      p.cron === undefined ? defaultFields(anchorAt, timeZone) : parseCompatFields(p.cron, anchorAt, timeZone)
+    return ruleFromInterval(p.intervalUnit, p.interval, fields, anchorAt)
+  }
+
+  const manualSchedule = (rule: ScheduleRule | null, timeZone: string): Schedule => {
+    if (rule !== null) invalid('type 为 manual 时不能给 intervalUnit/interval')
+    return { cron: null, at: null, timeZone, rule: null }
+  }
+
+  const onceSchedule = (p: ScheduleParam, rule: ScheduleRule | null, timeZone: string): Schedule => {
+    if (rule !== null) invalid('type 为 once 时不能给 intervalUnit/interval')
     if (p.at === undefined) invalid('schedule.type 为 once 时必须给 schedule.at（带时差的 ISO 8601）')
     const at = parseIsoWithOffset(p.at)
     if (at === null) invalid(`读不懂时间「${p.at}」：要带时差的 ISO 8601，例如 2026-05-02T09:00:00+08:00`)
-    return { cron: null, at, timeZone }
+    return { cron: null, at, timeZone, rule: null }
+  }
+
+  const recurringSchedule = (p: ScheduleParam, rule: ScheduleRule | null, timeZone: string): Schedule => {
+    if (rule !== null) return { cron: compatCronOf(rule), at: null, timeZone, rule }
+    if (p.cron === undefined) invalid('schedule.type 为 cron 时必须给 schedule.cron，或给 intervalUnit+interval')
+    return { cron: p.cron, at: null, timeZone, rule: null }
+  }
+
+  const scheduleOf = (p: ScheduleParam, timeZone: string): Schedule => {
+    const rule = ruleOf(p, timeZone)
+    if (p.type === 'manual') return manualSchedule(rule, timeZone)
+    if (p.type === 'once') return onceSchedule(p, rule, timeZone)
+    return recurringSchedule(p, rule, timeZone)
+  }
+
+  const endAtOf = (text: string | undefined): number | null => {
+    if (text === undefined) return null
+    const at = parseIsoWithOffset(text)
+    if (at === null) invalid(`读不懂截止时间「${text}」：要带时差的 ISO 8601，例如 2026-06-30T23:59:59+08:00`)
+    return at
+  }
+
+  const limitsOf = (params: {
+    readonly recurring?: boolean | undefined
+    readonly maxRuns?: number | undefined
+    readonly endAt?: string | undefined
+  }): { readonly maxRuns: number | null; readonly endAt: number | null } => {
+    const endAt = endAtOf(params.endAt)
+    if (params.recurring === false) return { maxRuns: params.maxRuns ?? 1, endAt }
+    if (params.maxRuns !== undefined) invalid('maxRuns 只能与 recurring=false 一起用')
+    return { maxRuns: null, endAt }
+  }
+
+  const patchLimitsOf = (
+    params: {
+      readonly recurring?: boolean | undefined
+      readonly maxRuns?: number | undefined
+      readonly endAt?: string | undefined
+    },
+    current: Automation,
+  ): { readonly maxRuns: number | null | undefined; readonly endAt: number | null | undefined } => {
+    if (params.recurring === undefined) {
+      if (params.maxRuns !== undefined) invalid('maxRuns 只能与 recurring=false 一起用')
+      return { maxRuns: undefined, endAt: endAtOf(params.endAt) ?? undefined }
+    }
+    const maxRuns = params.recurring ? null : (params.maxRuns ?? 1)
+    return { maxRuns, endAt: endAtOf(params.endAt) ?? current.endAt }
   }
 
   const assertModel = async (model: ModelRef | null, thinking: string | null): Promise<void> => {
@@ -305,6 +409,7 @@ export function registerAgentTools(d: {
       threadId: thread?.threadId,
       notify: params.notify,
       catchUp: params.catchUp,
+      ...patchLimitsOf(params, current),
     }
   }
 
@@ -399,6 +504,7 @@ export function registerAgentTools(d: {
           threadId: thread?.threadId ?? null,
           notify: params.notify ?? 'attention',
           catchUp: params.catchUp ?? true,
+          ...limitsOf(params),
         })
         return json(await detailOf(created, ctx.sessionKey))
       } catch (e) {
@@ -459,6 +565,23 @@ export function registerAgentTools(d: {
         const a = service.get(params.id)
         await service.remove(a.id)
         return json({ id: a.id, title: a.title, removed: true })
+      } catch (e) {
+        return chinese(e)
+      }
+    },
+  })
+
+  tools.register({
+    name: 'automation_pause_self',
+    label: '暂停这个定时任务',
+    description:
+      'Only during an automation run: pause the automation that started this conversation. The current run continues; no future runs start. Use it when the task no longer needs to repeat.',
+    parameters: z.object({}),
+    approval: 'write',
+    async execute(_params, ctx) {
+      try {
+        const paused = service.pauseSelf(ctx.sessionKey)
+        return json({ id: paused.id, title: paused.title, enabled: paused.enabled })
       } catch (e) {
         return chinese(e)
       }

@@ -1,6 +1,7 @@
 import { Cron } from 'croner'
 
 import type { Schedule } from '../contract/entities'
+import { computeRuleNext } from './schedule-rule'
 
 export type ScheduleProblem = 'unreadable' | 'never_runs' | 'too_frequent' | 'time_zone' | 'in_past' | 'conflict'
 export interface ScheduleResult {
@@ -8,7 +9,7 @@ export interface ScheduleResult {
   readonly problem: ScheduleProblem | null
 }
 
-function validTimeZone(tz: string): boolean {
+export function validTimeZone(tz: string): boolean {
   try {
     new Intl.DateTimeFormat('en-US', { timeZone: tz })
     return true
@@ -65,7 +66,14 @@ export function preview(
 /** 一次性计划的时间已过时 next 为 null、problem 为 in_past，由调用方决定它算不算问题。 */
 export function nextOf(schedule: Schedule, now: number): ScheduleResult {
   if (!validTimeZone(schedule.timeZone)) return { next: null, problem: 'time_zone' }
-  if (schedule.cron !== null && schedule.at !== null) return { next: null, problem: 'conflict' }
+  /* cron 与 rule 可以并存（cron 只是展示）；at 与它们任何一条并存都算二选一冲突。 */
+  if (schedule.at !== null && (schedule.cron !== null || schedule.rule != null)) {
+    return { next: null, problem: 'conflict' }
+  }
+  if (schedule.rule != null) {
+    const next = computeRuleNext(schedule.rule, schedule.timeZone, now)
+    return next === null ? { next: null, problem: 'never_runs' } : { next, problem: null }
+  }
   if (schedule.at !== null)
     return schedule.at > now ? { next: schedule.at, problem: null } : { next: null, problem: 'in_past' }
   return nextAfter(schedule.cron, schedule.timeZone, now)
@@ -76,6 +84,18 @@ export function previewOf(
   now: number,
   count: number,
 ): { times: number[]; problem: ScheduleProblem | null } {
+  if (schedule.at === null && schedule.rule != null) {
+    if (!validTimeZone(schedule.timeZone)) return { times: [], problem: 'time_zone' }
+    const times: number[] = []
+    let cursor = now
+    for (let i = 0; i < count; i++) {
+      const next = computeRuleNext(schedule.rule, schedule.timeZone, cursor)
+      if (next === null) break
+      times.push(next)
+      cursor = next
+    }
+    return { times, problem: null }
+  }
   if (schedule.at === null) {
     if (!validTimeZone(schedule.timeZone)) return { times: [], problem: 'time_zone' }
     return preview(schedule.cron, schedule.timeZone, now, count)

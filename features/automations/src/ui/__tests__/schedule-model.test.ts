@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  describePlan,
   describeSchedule,
   formatGmtOffset,
   scheduleDayOfMonthOf,
@@ -50,5 +51,25 @@ describe('schedule model', () => {
     expect(formatGmtOffset(480)).toBe('GMT+8')
     expect(formatGmtOffset(-210)).toBe('GMT-3:30')
     expect(formatGmtOffset(0)).toBe('GMT')
+  })
+
+  test('自定义规则的人话优先于兼容 cron', () => {
+    const base = { cron: '0 * * * *', at: null } as const
+    expect(describePlan({ ...base, rule: { unit: 'minute', interval: 90, hour: 0, minute: 0, anchorAt: 0 } })).toBe(
+      '每 90 分钟',
+    )
+    expect(
+      describePlan({
+        ...base,
+        rule: { unit: 'weekly', interval: 2, hour: 9, minute: 30, anchorAt: 0, weekdays: [1, 5] },
+      }),
+    ).toBe('每 2 周周一、周五 09:30')
+    expect(
+      describePlan({
+        ...base,
+        rule: { unit: 'monthly', interval: 3, hour: 9, minute: 0, anchorAt: 0, monthDays: [15] },
+      }),
+    ).toBe('每 3 个月 15 号 09:00')
+    expect(describePlan({ ...base, rule: null })).toBe('每小时的第 00 分')
   })
 })

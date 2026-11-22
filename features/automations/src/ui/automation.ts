@@ -1,5 +1,13 @@
 import { invariant } from '@poietica/foundation'
-import type { Automation, AutomationDraft, AutomationRun, RunOutcome, RunTrigger, Schedule } from '../contract'
+import type {
+  Automation,
+  AutomationDraft,
+  AutomationRun,
+  RunOutcome,
+  RunTrigger,
+  Schedule,
+  ScheduleRule,
+} from '../contract'
 
 /* 照 legacy 逐字搬迁的纯逻辑。差别只有数据形状两处：时间戳由 ISO 字符串换成毫秒数；会话配置换成 AutomationDraft 的三格。 */
 
@@ -225,15 +233,54 @@ export function clockOf(at: number): string {
   return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
 }
 
-export function describePlan(schedule: Pick<Schedule, 'cron' | 'at'>): string {
+const UNIT_LABELS: Readonly<Record<ScheduleRule['unit'], string>> = {
+  minute: '分钟',
+  hourly: '小时',
+  daily: '天',
+  weekly: '周',
+  monthly: '个月',
+  yearly: '年',
+}
+
+/** 「每 N 分钟/小时/…」的短说法；工具卡只知道 carrier 的两个字段，也用它。 */
+export function describeInterval(unit: string, interval: number): string | null {
+  if (!Number.isInteger(interval) || interval < 1) return null
+  const label: string | undefined = (UNIT_LABELS as Readonly<Record<string, string>>)[unit]
+  if (label === undefined) return null
+  return interval === 1 ? `每${label}` : `每 ${interval} ${label}`
+}
+
+/** 规则的星期是 ISO 1-7，界面标签是 0-6；范围检查后再取标签。 */
+function isoWeekdayLabel(day: number): string {
+  const index = day === 7 ? 0 : day
+  return index >= 0 && index <= 6 ? WEEKDAY_LABELS[index as Weekday] : ''
+}
+
+/** 自定义规则的人话；cron 只是兼容展示，规则才是真实节奏。 */
+export function describeRule(rule: ScheduleRule): string {
+  const every = describeInterval(rule.unit, rule.interval) ?? ''
+  if (rule.unit === 'minute') return every
+  if (rule.unit === 'hourly') return `${every}的第 ${pad2(rule.minute)} 分`
+  const time = `${pad2(rule.hour)}:${pad2(rule.minute)}`
+  if (rule.unit === 'daily') return `${every} ${time}`
+  if (rule.unit === 'weekly') {
+    const days = (rule.weekdays?.length ? rule.weekdays : [1]).map((day) => isoWeekdayLabel(day)).join('、')
+    return `${every}${days} ${time}`
+  }
+  if (rule.unit === 'monthly') return `${every} ${rule.monthDays?.[0] ?? 1} 号 ${time}`
+  return `${every} ${rule.months?.[0] ?? 1} 月 ${rule.monthDays?.[0] ?? 1} 日 ${time}`
+}
+
+export function describePlan(schedule: Pick<Schedule, 'cron' | 'at' | 'rule'>): string {
+  if (schedule.rule != null) return describeRule(schedule.rule)
   if (schedule.at !== null) {
     return `一次 · ${clockOf(schedule.at)}`
   }
   return describeSchedule(schedule.cron)
 }
 
-export function hasPlan(schedule: Pick<Schedule, 'cron' | 'at'>): boolean {
-  return schedule.cron !== null || schedule.at !== null
+export function hasPlan(schedule: Pick<Schedule, 'cron' | 'at' | 'rule'>): boolean {
+  return schedule.cron !== null || schedule.at !== null || schedule.rule != null
 }
 
 export const TRIGGER_LABELS: Readonly<Record<RunTrigger, string | null>> = {
@@ -279,6 +326,7 @@ export function sameDraft(left: AutomationDraft, right: AutomationDraft): boolea
     left.schedule.cron === right.schedule.cron &&
     left.schedule.at === right.schedule.at &&
     left.schedule.timeZone === right.schedule.timeZone &&
+    JSON.stringify(left.schedule.rule ?? null) === JSON.stringify(right.schedule.rule ?? null) &&
     left.workspaceId === right.workspaceId &&
     left.posture === right.posture &&
     (left.model?.provider ?? null) === (right.model?.provider ?? null) &&

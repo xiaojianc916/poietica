@@ -12,7 +12,7 @@ function automation(id: string, over: Partial<Automation> = {}): Automation {
     id,
     title: `任务 ${id}`,
     prompt: '跑一次',
-    schedule: { cron: '0 9 * * *', at: null, timeZone: 'Asia/Shanghai' },
+    schedule: { cron: '0 9 * * *', at: null, timeZone: 'Asia/Shanghai', rule: null },
     workspaceId: 'ws1',
     posture: 'auto-edit',
     model: null,
@@ -26,6 +26,13 @@ function automation(id: string, over: Partial<Automation> = {}): Automation {
     updatedAt: 0,
     nextRunAt: null,
     issue: null,
+    runCount: 0,
+    maxRuns: null,
+    endAt: null,
+    dispatchStatus: 'idle',
+    dispatchAttempts: 0,
+    retryAt: null,
+    lastError: null,
     lastRun: null,
     ...over,
   }
@@ -44,6 +51,8 @@ function run(id: string, automationId: string, over: Partial<AutomationRun> = {}
     message: null,
     summary: null,
     attention: false,
+    dispatchStatus: 'dispatched',
+    attempts: 1,
     ...over,
   }
 }
@@ -85,7 +94,7 @@ function fakeApi(): FakeApi {
       const created = automation('new', {
         title: draft.title,
         prompt: draft.prompt,
-        schedule: draft.schedule,
+        schedule: { ...draft.schedule, rule: draft.schedule.rule ?? null },
         workspaceId: draft.workspaceId,
         posture: draft.posture,
       })
@@ -98,7 +107,11 @@ function fakeApi(): FakeApi {
       if (current === undefined) {
         throw new Error('not found')
       }
-      const next = { ...current, ...patch }
+      const next = {
+        ...current,
+        ...patch,
+        schedule: { ...(patch.schedule ?? current.schedule), rule: patch.schedule?.rule ?? current.schedule.rule },
+      }
       api.listed = api.listed.map((a) => (a.id === id ? next : a))
       return next
     },

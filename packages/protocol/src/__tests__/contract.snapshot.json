@@ -1,5 +1,5 @@
 {
-  "version": 76,
+  "version": 78,
   "methods": [
     {
       "name": "agentSettings.capabilities",
@@ -1083,6 +1083,87 @@
               "timeZone": {
                 "type": "string",
                 "minLength": 1
+              },
+              "rule": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "unit": {
+                        "type": "string",
+                        "enum": [
+                          "minute",
+                          "hourly",
+                          "daily",
+                          "weekly",
+                          "monthly",
+                          "yearly"
+                        ]
+                      },
+                      "interval": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                      },
+                      "hour": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 23
+                      },
+                      "minute": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 59
+                      },
+                      "anchorAt": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "weekdays": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 7
+                        }
+                      },
+                      "monthDays": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 31
+                        }
+                      },
+                      "months": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 12
+                        }
+                      },
+                      "monthlyMode": {
+                        "type": "string",
+                        "enum": [
+                          "date",
+                          "weekday"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "unit",
+                      "interval",
+                      "hour",
+                      "minute",
+                      "anchorAt"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
@@ -1167,6 +1248,30 @@
           "catchUp": {
             "default": true,
             "type": "boolean"
+          },
+          "maxRuns": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endAt": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -1220,12 +1325,95 @@
               "timeZone": {
                 "type": "string",
                 "minLength": 1
+              },
+              "rule": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "unit": {
+                        "type": "string",
+                        "enum": [
+                          "minute",
+                          "hourly",
+                          "daily",
+                          "weekly",
+                          "monthly",
+                          "yearly"
+                        ]
+                      },
+                      "interval": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                      },
+                      "hour": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 23
+                      },
+                      "minute": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 59
+                      },
+                      "anchorAt": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "weekdays": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 7
+                        }
+                      },
+                      "monthDays": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 31
+                        }
+                      },
+                      "months": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 12
+                        }
+                      },
+                      "monthlyMode": {
+                        "type": "string",
+                        "enum": [
+                          "date",
+                          "weekday"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "unit",
+                      "interval",
+                      "hour",
+                      "minute",
+                      "anchorAt"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
               "cron",
               "at",
-              "timeZone"
+              "timeZone",
+              "rule"
             ],
             "additionalProperties": false
           },
@@ -1308,6 +1496,30 @@
             "default": true,
             "type": "boolean"
           },
+          "maxRuns": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endAt": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -1337,6 +1549,43 @@
             ]
           },
           "issue": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "dispatchStatus": {
+            "type": "string",
+            "enum": [
+              "idle",
+              "claimed",
+              "dispatched",
+              "failed_to_dispatch"
+            ]
+          },
+          "dispatchAttempts": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "retryAt": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastError": {
             "type": [
               "string",
               "null"
@@ -1421,6 +1670,19 @@
                   },
                   "attention": {
                     "type": "boolean"
+                  },
+                  "dispatchStatus": {
+                    "type": "string",
+                    "enum": [
+                      "claimed",
+                      "dispatched",
+                      "failed_to_dispatch"
+                    ]
+                  },
+                  "attempts": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
                   }
                 },
                 "required": [
@@ -1434,7 +1696,9 @@
                   "outcome",
                   "message",
                   "summary",
-                  "attention"
+                  "attention",
+                  "dispatchStatus",
+                  "attempts"
                 ],
                 "additionalProperties": false
               },
@@ -1456,12 +1720,19 @@
           "threadId",
           "notify",
           "catchUp",
+          "maxRuns",
+          "endAt",
           "id",
           "enabled",
           "createdAt",
           "updatedAt",
           "nextRunAt",
           "issue",
+          "runCount",
+          "dispatchStatus",
+          "dispatchAttempts",
+          "retryAt",
+          "lastError",
           "lastRun"
         ],
         "additionalProperties": false
@@ -1529,12 +1800,95 @@
               "timeZone": {
                 "type": "string",
                 "minLength": 1
+              },
+              "rule": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "unit": {
+                        "type": "string",
+                        "enum": [
+                          "minute",
+                          "hourly",
+                          "daily",
+                          "weekly",
+                          "monthly",
+                          "yearly"
+                        ]
+                      },
+                      "interval": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                      },
+                      "hour": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 23
+                      },
+                      "minute": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 59
+                      },
+                      "anchorAt": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "weekdays": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 7
+                        }
+                      },
+                      "monthDays": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 31
+                        }
+                      },
+                      "months": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 12
+                        }
+                      },
+                      "monthlyMode": {
+                        "type": "string",
+                        "enum": [
+                          "date",
+                          "weekday"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "unit",
+                      "interval",
+                      "hour",
+                      "minute",
+                      "anchorAt"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
               "cron",
               "at",
-              "timeZone"
+              "timeZone",
+              "rule"
             ],
             "additionalProperties": false
           },
@@ -1617,6 +1971,30 @@
             "default": true,
             "type": "boolean"
           },
+          "maxRuns": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endAt": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -1646,6 +2024,43 @@
             ]
           },
           "issue": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "dispatchStatus": {
+            "type": "string",
+            "enum": [
+              "idle",
+              "claimed",
+              "dispatched",
+              "failed_to_dispatch"
+            ]
+          },
+          "dispatchAttempts": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "retryAt": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastError": {
             "type": [
               "string",
               "null"
@@ -1730,6 +2145,19 @@
                   },
                   "attention": {
                     "type": "boolean"
+                  },
+                  "dispatchStatus": {
+                    "type": "string",
+                    "enum": [
+                      "claimed",
+                      "dispatched",
+                      "failed_to_dispatch"
+                    ]
+                  },
+                  "attempts": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
                   }
                 },
                 "required": [
@@ -1743,7 +2171,9 @@
                   "outcome",
                   "message",
                   "summary",
-                  "attention"
+                  "attention",
+                  "dispatchStatus",
+                  "attempts"
                 ],
                 "additionalProperties": false
               },
@@ -1765,12 +2195,19 @@
           "threadId",
           "notify",
           "catchUp",
+          "maxRuns",
+          "endAt",
           "id",
           "enabled",
           "createdAt",
           "updatedAt",
           "nextRunAt",
           "issue",
+          "runCount",
+          "dispatchStatus",
+          "dispatchAttempts",
+          "retryAt",
+          "lastError",
           "lastRun"
         ],
         "additionalProperties": false
@@ -1835,12 +2272,95 @@
                     "timeZone": {
                       "type": "string",
                       "minLength": 1
+                    },
+                    "rule": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "unit": {
+                              "type": "string",
+                              "enum": [
+                                "minute",
+                                "hourly",
+                                "daily",
+                                "weekly",
+                                "monthly",
+                                "yearly"
+                              ]
+                            },
+                            "interval": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 200
+                            },
+                            "hour": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 23
+                            },
+                            "minute": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 59
+                            },
+                            "anchorAt": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "weekdays": {
+                              "type": "array",
+                              "items": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 7
+                              }
+                            },
+                            "monthDays": {
+                              "type": "array",
+                              "items": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 31
+                              }
+                            },
+                            "months": {
+                              "type": "array",
+                              "items": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 12
+                              }
+                            },
+                            "monthlyMode": {
+                              "type": "string",
+                              "enum": [
+                                "date",
+                                "weekday"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "unit",
+                            "interval",
+                            "hour",
+                            "minute",
+                            "anchorAt"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
                     "cron",
                     "at",
-                    "timeZone"
+                    "timeZone",
+                    "rule"
                   ],
                   "additionalProperties": false
                 },
@@ -1923,6 +2443,30 @@
                   "default": true,
                   "type": "boolean"
                 },
+                "maxRuns": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "endAt": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "id": {
                   "type": "string"
                 },
@@ -1952,6 +2496,43 @@
                   ]
                 },
                 "issue": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "runCount": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "dispatchStatus": {
+                  "type": "string",
+                  "enum": [
+                    "idle",
+                    "claimed",
+                    "dispatched",
+                    "failed_to_dispatch"
+                  ]
+                },
+                "dispatchAttempts": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "retryAt": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lastError": {
                   "type": [
                     "string",
                     "null"
@@ -2036,6 +2617,19 @@
                         },
                         "attention": {
                           "type": "boolean"
+                        },
+                        "dispatchStatus": {
+                          "type": "string",
+                          "enum": [
+                            "claimed",
+                            "dispatched",
+                            "failed_to_dispatch"
+                          ]
+                        },
+                        "attempts": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
                         }
                       },
                       "required": [
@@ -2049,7 +2643,9 @@
                         "outcome",
                         "message",
                         "summary",
-                        "attention"
+                        "attention",
+                        "dispatchStatus",
+                        "attempts"
                       ],
                       "additionalProperties": false
                     },
@@ -2071,12 +2667,19 @@
                 "threadId",
                 "notify",
                 "catchUp",
+                "maxRuns",
+                "endAt",
                 "id",
                 "enabled",
                 "createdAt",
                 "updatedAt",
                 "nextRunAt",
                 "issue",
+                "runCount",
+                "dispatchStatus",
+                "dispatchAttempts",
+                "retryAt",
+                "lastError",
                 "lastRun"
               ],
               "additionalProperties": false
@@ -2128,6 +2731,87 @@
               "timeZone": {
                 "type": "string",
                 "minLength": 1
+              },
+              "rule": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "unit": {
+                        "type": "string",
+                        "enum": [
+                          "minute",
+                          "hourly",
+                          "daily",
+                          "weekly",
+                          "monthly",
+                          "yearly"
+                        ]
+                      },
+                      "interval": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                      },
+                      "hour": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 23
+                      },
+                      "minute": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 59
+                      },
+                      "anchorAt": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "weekdays": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 7
+                        }
+                      },
+                      "monthDays": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 31
+                        }
+                      },
+                      "months": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 12
+                        }
+                      },
+                      "monthlyMode": {
+                        "type": "string",
+                        "enum": [
+                          "date",
+                          "weekday"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "unit",
+                      "interval",
+                      "hour",
+                      "minute",
+                      "anchorAt"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
@@ -2305,6 +2989,19 @@
           },
           "attention": {
             "type": "boolean"
+          },
+          "dispatchStatus": {
+            "type": "string",
+            "enum": [
+              "claimed",
+              "dispatched",
+              "failed_to_dispatch"
+            ]
+          },
+          "attempts": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
           }
         },
         "required": [
@@ -2318,7 +3015,9 @@
           "outcome",
           "message",
           "summary",
-          "attention"
+          "attention",
+          "dispatchStatus",
+          "attempts"
         ],
         "additionalProperties": false
       }
@@ -2430,6 +3129,19 @@
                 },
                 "attention": {
                   "type": "boolean"
+                },
+                "dispatchStatus": {
+                  "type": "string",
+                  "enum": [
+                    "claimed",
+                    "dispatched",
+                    "failed_to_dispatch"
+                  ]
+                },
+                "attempts": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 }
               },
               "required": [
@@ -2443,7 +3155,9 @@
                 "outcome",
                 "message",
                 "summary",
-                "attention"
+                "attention",
+                "dispatchStatus",
+                "attempts"
               ],
               "additionalProperties": false
             }
@@ -2521,12 +3235,95 @@
               "timeZone": {
                 "type": "string",
                 "minLength": 1
+              },
+              "rule": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "unit": {
+                        "type": "string",
+                        "enum": [
+                          "minute",
+                          "hourly",
+                          "daily",
+                          "weekly",
+                          "monthly",
+                          "yearly"
+                        ]
+                      },
+                      "interval": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                      },
+                      "hour": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 23
+                      },
+                      "minute": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 59
+                      },
+                      "anchorAt": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "weekdays": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 7
+                        }
+                      },
+                      "monthDays": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 31
+                        }
+                      },
+                      "months": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 12
+                        }
+                      },
+                      "monthlyMode": {
+                        "type": "string",
+                        "enum": [
+                          "date",
+                          "weekday"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "unit",
+                      "interval",
+                      "hour",
+                      "minute",
+                      "anchorAt"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
               "cron",
               "at",
-              "timeZone"
+              "timeZone",
+              "rule"
             ],
             "additionalProperties": false
           },
@@ -2609,6 +3406,30 @@
             "default": true,
             "type": "boolean"
           },
+          "maxRuns": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endAt": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -2638,6 +3459,43 @@
             ]
           },
           "issue": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "dispatchStatus": {
+            "type": "string",
+            "enum": [
+              "idle",
+              "claimed",
+              "dispatched",
+              "failed_to_dispatch"
+            ]
+          },
+          "dispatchAttempts": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "retryAt": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastError": {
             "type": [
               "string",
               "null"
@@ -2722,6 +3580,19 @@
                   },
                   "attention": {
                     "type": "boolean"
+                  },
+                  "dispatchStatus": {
+                    "type": "string",
+                    "enum": [
+                      "claimed",
+                      "dispatched",
+                      "failed_to_dispatch"
+                    ]
+                  },
+                  "attempts": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
                   }
                 },
                 "required": [
@@ -2735,7 +3606,9 @@
                   "outcome",
                   "message",
                   "summary",
-                  "attention"
+                  "attention",
+                  "dispatchStatus",
+                  "attempts"
                 ],
                 "additionalProperties": false
               },
@@ -2757,12 +3630,19 @@
           "threadId",
           "notify",
           "catchUp",
+          "maxRuns",
+          "endAt",
           "id",
           "enabled",
           "createdAt",
           "updatedAt",
           "nextRunAt",
           "issue",
+          "runCount",
+          "dispatchStatus",
+          "dispatchAttempts",
+          "retryAt",
+          "lastError",
           "lastRun"
         ],
         "additionalProperties": false
@@ -2824,6 +3704,87 @@
                   "timeZone": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "rule": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "unit": {
+                            "type": "string",
+                            "enum": [
+                              "minute",
+                              "hourly",
+                              "daily",
+                              "weekly",
+                              "monthly",
+                              "yearly"
+                            ]
+                          },
+                          "interval": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 200
+                          },
+                          "hour": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                          },
+                          "minute": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 59
+                          },
+                          "anchorAt": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "weekdays": {
+                            "type": "array",
+                            "items": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 7
+                            }
+                          },
+                          "monthDays": {
+                            "type": "array",
+                            "items": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 31
+                            }
+                          },
+                          "months": {
+                            "type": "array",
+                            "items": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 12
+                            }
+                          },
+                          "monthlyMode": {
+                            "type": "string",
+                            "enum": [
+                              "date",
+                              "weekday"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "unit",
+                          "interval",
+                          "hour",
+                          "minute",
+                          "anchorAt"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -2901,6 +3862,30 @@
               },
               "catchUp": {
                 "type": "boolean"
+              },
+              "maxRuns": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "endAt": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             }
           }
@@ -2954,12 +3939,95 @@
               "timeZone": {
                 "type": "string",
                 "minLength": 1
+              },
+              "rule": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "unit": {
+                        "type": "string",
+                        "enum": [
+                          "minute",
+                          "hourly",
+                          "daily",
+                          "weekly",
+                          "monthly",
+                          "yearly"
+                        ]
+                      },
+                      "interval": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 200
+                      },
+                      "hour": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 23
+                      },
+                      "minute": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 59
+                      },
+                      "anchorAt": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "weekdays": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 7
+                        }
+                      },
+                      "monthDays": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 31
+                        }
+                      },
+                      "months": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 12
+                        }
+                      },
+                      "monthlyMode": {
+                        "type": "string",
+                        "enum": [
+                          "date",
+                          "weekday"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "unit",
+                      "interval",
+                      "hour",
+                      "minute",
+                      "anchorAt"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
               "cron",
               "at",
-              "timeZone"
+              "timeZone",
+              "rule"
             ],
             "additionalProperties": false
           },
@@ -3042,6 +4110,30 @@
             "default": true,
             "type": "boolean"
           },
+          "maxRuns": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endAt": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -3071,6 +4163,43 @@
             ]
           },
           "issue": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "dispatchStatus": {
+            "type": "string",
+            "enum": [
+              "idle",
+              "claimed",
+              "dispatched",
+              "failed_to_dispatch"
+            ]
+          },
+          "dispatchAttempts": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "retryAt": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastError": {
             "type": [
               "string",
               "null"
@@ -3155,6 +4284,19 @@
                   },
                   "attention": {
                     "type": "boolean"
+                  },
+                  "dispatchStatus": {
+                    "type": "string",
+                    "enum": [
+                      "claimed",
+                      "dispatched",
+                      "failed_to_dispatch"
+                    ]
+                  },
+                  "attempts": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
                   }
                 },
                 "required": [
@@ -3168,7 +4310,9 @@
                   "outcome",
                   "message",
                   "summary",
-                  "attention"
+                  "attention",
+                  "dispatchStatus",
+                  "attempts"
                 ],
                 "additionalProperties": false
               },
@@ -3190,12 +4334,19 @@
           "threadId",
           "notify",
           "catchUp",
+          "maxRuns",
+          "endAt",
           "id",
           "enabled",
           "createdAt",
           "updatedAt",
           "nextRunAt",
           "issue",
+          "runCount",
+          "dispatchStatus",
+          "dispatchAttempts",
+          "retryAt",
+          "lastError",
           "lastRun"
         ],
         "additionalProperties": false
@@ -32216,6 +33367,19 @@
           },
           "attention": {
             "type": "boolean"
+          },
+          "dispatchStatus": {
+            "type": "string",
+            "enum": [
+              "claimed",
+              "dispatched",
+              "failed_to_dispatch"
+            ]
+          },
+          "attempts": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
           }
         },
         "required": [
@@ -32229,7 +33393,9 @@
           "outcome",
           "message",
           "summary",
-          "attention"
+          "attention",
+          "dispatchStatus",
+          "attempts"
         ],
         "additionalProperties": false
       }
@@ -41535,6 +42701,10 @@
     {
       "code": "automations.already_running",
       "message": "这个任务正在运行"
+    },
+    {
+      "code": "automations.create_limit",
+      "message": "定时任务数量已达上限"
     },
     {
       "code": "automations.forbidden_in_run",

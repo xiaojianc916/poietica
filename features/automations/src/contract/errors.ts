@@ -8,4 +8,5 @@ export const automationsErrors = defineErrors('automations', {
   invalid_thread: '续用的对话不可用',
   not_in_run: '这条对话当前没有在运行的定时任务',
   forbidden_in_run: '定时任务运行中不能管理定时任务',
+  create_limit: '定时任务数量已达上限',
 })

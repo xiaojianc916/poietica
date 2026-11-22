@@ -15,7 +15,7 @@ function automation(over: Partial<Automation> = {}): Automation {
     id: 'a1',
     title: '测试任务：报告当前时间与工作区状态',
     prompt: '这是一个测试用的自动化任务，请报告当前时间与工作区状态。',
-    schedule: { cron: '0 9 * * *', at: null, timeZone: 'Asia/Shanghai' },
+    schedule: { cron: '0 9 * * *', at: null, timeZone: 'Asia/Shanghai', rule: null },
     workspaceId: 'ws1',
     posture: 'auto-edit',
     model: null,
@@ -29,6 +29,13 @@ function automation(over: Partial<Automation> = {}): Automation {
     updatedAt: 0,
     nextRunAt: null,
     issue: null,
+    runCount: 0,
+    maxRuns: null,
+    endAt: null,
+    dispatchStatus: 'idle',
+    dispatchAttempts: 0,
+    retryAt: null,
+    lastError: null,
     lastRun: null,
     ...over,
   }
@@ -47,6 +54,8 @@ function run(over: Partial<AutomationRun> = {}): AutomationRun {
     message: null,
     summary: null,
     attention: false,
+    dispatchStatus: 'dispatched',
+    attempts: 1,
     ...over,
   }
 }
@@ -105,5 +114,22 @@ describe('automation list card', () => {
     mount(automation({ lastRun: run({ summary: RUN_SUMMARY, attention: true }) }), [run()])
     expect(screen.queryByText(RUN_SUMMARY) !== null).toBe(false)
     expect(screen.queryByText('需要关注') !== null).toBe(false)
+  })
+
+  test('派发失败：卡片写出原因与重试时刻', () => {
+    mount(
+      automation({
+        dispatchStatus: 'failed_to_dispatch',
+        dispatchAttempts: 1,
+        lastError: '引擎忙',
+        retryAt: Date.UTC(2026, 4, 4, 2, 30),
+      }),
+    )
+    expect(screen.getByText(/上次派发未送达，将在 .+ 重试/)).toBeDefined()
+  })
+
+  test('派发最终失败：没有重试时刻时写原因', () => {
+    mount(automation({ dispatchStatus: 'failed_to_dispatch', dispatchAttempts: 5, lastError: '工作区文件夹已不存在' }))
+    expect(screen.getByText('派发失败：工作区文件夹已不存在')).toBeDefined()
   })
 })

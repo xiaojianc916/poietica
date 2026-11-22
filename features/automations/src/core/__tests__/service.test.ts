@@ -101,7 +101,7 @@ describe('automations service', () => {
     const automation = service.create(draftOf())
     const open = await service.runNow(automation.id)
     for (let i = 0; i < 60; i++) {
-      repo.insertRun({ ...open, id: `skipped-${i}`, outcome: 'skipped', startedAt: i + 1, settledAt: i + 1 })
+      repo.insertRunIfAbsent({ ...open, id: `skipped-${i}`, outcome: 'skipped', startedAt: i + 1, settledAt: i + 1 })
       repo.trimRuns(automation.id)
     }
     /* 这一条是 isRunning 的唯一依据；被裁掉的话下一次 tick 会为同一任务再开一个运行。 */
@@ -157,6 +157,52 @@ describe('automations service', () => {
     const bad = service.previewSchedule({ cron: '0 0 * *', at: null, timeZone: 'Asia/Shanghai' }, 5)
     expect(bad.problem).toBe('unreadable')
     expect(bad.times).toEqual([])
+    db.close()
+  })
+
+  test('自定义规则：按规则算下一次；原样存盘保留规则，改了计划就清掉', () => {
+    const { service, clock, db } = build()
+    const anchorAt = clock.now()
+    const created = service.create(
+      draftOf({
+        schedule: {
+          cron: '0 9 * * *',
+          at: null,
+          timeZone: 'UTC',
+          rule: { unit: 'minute', interval: 90, hour: 0, minute: 0, anchorAt },
+        },
+      }),
+    )
+    expect(created.nextRunAt).toBe(anchorAt + 90 * 60_000)
+    expect(created.schedule.rule?.unit).toBe('minute')
+
+    /* 服务端把兼容 cron 写成 0 * * * *；编辑器原样存盘（三格没变、不带 rule）→ 保留原规则。 */
+    expect(created.schedule.cron).toBe('0 * * * *')
+    const kept = service.update(created.id, {
+      schedule: { cron: created.schedule.cron, at: null, timeZone: 'UTC' },
+    })
+    expect(kept.schedule.rule?.interval).toBe(90)
+
+    /* 用户改了计划 → 明确回到 cron。 */
+    const cleared = service.update(created.id, { schedule: { cron: '0 10 * * *', at: null, timeZone: 'UTC' } })
+    expect(cleared.schedule.rule).toBeNull()
+    expect(cleared.nextRunAt).not.toBeNull()
+    db.close()
+  })
+
+  test('自定义规则的预览按规则走，不按兼容 cron', () => {
+    const { service, clock, db } = build()
+    const anchorAt = clock.now()
+    const preview = service.previewSchedule(
+      {
+        cron: '0 * * * *',
+        at: null,
+        timeZone: 'UTC',
+        rule: { unit: 'minute', interval: 90, hour: 0, minute: 0, anchorAt },
+      },
+      3,
+    )
+    expect(preview.times).toEqual([anchorAt + 90 * 60_000, anchorAt + 180 * 60_000, anchorAt + 270 * 60_000])
     db.close()
   })
 })

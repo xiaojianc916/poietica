@@ -1,4 +1,4 @@
-import { describeSchedule, pad2 } from './automation'
+import { describeInterval, describeSchedule, pad2 } from './automation'
 
 /* 工具调用 → 一份只读的卡片模型。纯函数、不碰 React —— 卡片长什么样由 automation-tool-card.tsx 画，「这一次调用说了什么」只在
  * 这里判一次。输入是 conversation 交来的三样：args（「已修改：…」读它给了哪些键）、result、status。读不出来的一律退回
@@ -66,6 +66,7 @@ const VERBS: Readonly<Record<string, readonly [running: string, done: string]>> 
   automation_update: ['正在修改定时任务', '修改了定时任务'],
   automation_run: ['正在启动定时任务', '启动了定时任务'],
   automation_delete: ['正在删除定时任务', '删除了定时任务'],
+  automation_pause_self: ['正在暂停定时任务', '暂停了定时任务'],
   automation_report: ['正在汇报本次结果', '汇报了本次结果'],
 }
 
@@ -77,6 +78,7 @@ const FAILED_VERBS: Readonly<Record<string, string>> = {
   automation_update: '修改定时任务失败',
   automation_run: '启动定时任务失败',
   automation_delete: '删除定时任务失败',
+  automation_pause_self: '暂停定时任务失败',
   automation_report: '汇报本次结果失败',
 }
 
@@ -198,7 +200,12 @@ export function clockText(at: string | number, timeZone: string | null = null): 
 export function planOf(schedule: unknown): string {
   const type = str(schedule, 'type')
   const timeZone = str(schedule, 'timeZone')
-  if (type === 'cron') return describeSchedule(str(schedule, 'cron'))
+  const rawInterval = bag(schedule).interval
+  const interval = typeof rawInterval === 'number' ? rawInterval : Number.NaN
+  if (type === 'interval' || type === 'cron') {
+    const unit = str(schedule, type === 'interval' ? 'unit' : 'intervalUnit') ?? ''
+    return describeInterval(unit, interval) ?? describeSchedule(str(schedule, 'cron'))
+  }
   if (type === 'once') {
     const at = str(schedule, 'at')
     const when = at === null ? null : clockText(at, timeZone)
@@ -209,6 +216,11 @@ export function planOf(schedule: unknown): string {
 
 function stateOf(view: unknown): { label: string; tone: Tone } {
   if (str(view, 'issue') !== null) return { label: '计划有问题', tone: 'warning' }
+  if (str(view, 'dispatchStatus') === 'failed_to_dispatch') {
+    return str(view, 'retryAt') === null
+      ? { label: '派发失败', tone: 'danger' }
+      : { label: '等待重试', tone: 'warning' }
+  }
   const outcome = str(bag(view).lastRun, 'outcome')
   if (outcome === 'running') return { label: '运行中', tone: 'success' }
   if (outcome === 'awaiting') return { label: '等待批准', tone: 'warning' }
@@ -268,7 +280,7 @@ export function automationOf(view: unknown): CardAutomation | null {
     state: stateOf(view),
     meta: metaOf(view),
     upcoming,
-    issue: str(view, 'issue'),
+    issue: str(view, 'issue') ?? (str(view, 'dispatchStatus') === 'failed_to_dispatch' ? str(view, 'lastError') : null),
     timeZone,
     once: str(schedule, 'type') === 'once',
   }

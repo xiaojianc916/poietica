@@ -53,6 +53,28 @@
 
 ## 偏差与裁决
 
+### 定时任务对齐 ZCode 调度模型（2026-11-22）
+
+按用户裁决「只对齐定时自动化、行为等价重写」移植 ZCode 的派发台账（ZCode v3.18.2 的
+`automationRepo` / `desktop/src/scheduler`）。已落地：schema v2（`claimed_at`、`dispatch_*`、`retry_at`、
+`last_error`、`run_count`，运行行补 `dispatch_status` / `attempts`）、SQLite 事务内原子认领与 10 分钟僵尸回收、
+`<automationId>:<scheduledFor>` 幂等运行键、派发失败 30s→15min 封顶 5 次退避、一次性任务错过即终态、
+全库 20 条创建上限。schema v3 再加 `schedule_rule`（JSON）、`max_runs`、`end_at`：自定义重复以规则为唯一调度事实，
+`cron` 只做兼容展示；达到次数上限或下一次超过截止即停用。agent 工具补了 `intervalUnit`+`interval`、
+`recurring`/`maxRuns`/`endAt` 与 `automation_pause_self`。协议形状变化已升 `PROTOCOL_VERSION` 到 78 并重生成快照。
+
+与 ZCode 的差异（保留 Poietica 现状，不照抄）：
+
+- **调度器宿主**：ZCode 用 `electronUtilityProcess.fork` 拉起独立 cron 进程，因为它的 Main 必须保持薄。
+  Poietica 的 Core 已是唯一长驻、唯一的库写者，调度器放 `features/automations/core` 即可；多一个进程只会多一套消息协议。
+- **错过窗口**：ZCode 默认跳过（misfire grace 后记 skipped）。Poietica 保留每任务的 `catchUp` 选项与
+  「应用没开着」文案，只把**一次性任务**改成错过即终态，不再从兼容 cron 推导下一次。
+- **立即运行**：ZCode 把 manual run 写进 `automation_runs` 排队，避免与 scheduler 的派发并发；Poietica 的 Core
+  在写运行行与提交之间没有可穿插的进程，`runNow` 仍直接派发，靠 open run 拒绝重复触发。
+- **编辑器的规则保真**：编辑器新增「自定义间隔」入口（用户 2026-11-22 裁决，属有意的视觉变更），规则直接进草稿；
+  服务端按规则写兼容 cron，cron 只作展示。旧版存盘只带 cron/at/时区时，服务层按「三格没变就保留原规则、改了计划才清掉」处理。
+- **派发失败可见**：列表卡片与编辑器提示写 `lastError` 与 `retryAt`（重试中 / 最终失败分开），工具卡状态同步读 `dispatchStatus`。
+
 ### 字体排印开关（2026-11-20）
 
 产品要求用一组 CSS 开关打磨换行、空格、对齐与截断。这是一次**有意的视觉变更**，与「界面视觉不得擅自改动」的常规约束不同，按任务要求执行；字体、字色、字号与布局宽度令牌未改。

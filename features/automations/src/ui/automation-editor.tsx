@@ -65,12 +65,32 @@ function workspaceChoiceOf(workspaceId: string, choices: readonly WorkspaceChoic
   return choices.find((choice) => choice.id === workspaceId) ?? { id: workspaceId, name: workspaceId }
 }
 
-function EditorAlerts({ issue, message }: { readonly issue: string | null; readonly message: string | null }) {
+function dispatchAlertOf(automation: Automation): string | null {
+  if (automation.dispatchStatus !== 'failed_to_dispatch') return null
+  const reason = automation.lastError ?? '派发失败'
+  if (automation.retryAt === null) return `派发失败：${reason}`
+  return `上次派发未送达：${reason}。将在 ${new Date(automation.retryAt).toLocaleString('zh-CN')} 自动重试`
+}
+
+function EditorAlerts({
+  dispatch,
+  issue,
+  message,
+}: {
+  readonly dispatch: string | null
+  readonly issue: string | null
+  readonly message: string | null
+}) {
   return (
     <>
       {message ? (
         <p className="mb-4 text-sm text-destructive" role="alert">
           {message}
+        </p>
+      ) : null}
+      {dispatch ? (
+        <p className="mb-4 text-sm text-destructive" role="alert">
+          {dispatch}
         </p>
       ) : null}
       {issue ? (
@@ -515,7 +535,8 @@ function useModelChoices(store: AutomationsStore, model: ModelRef | null): Model
   return choices
 }
 
-const scheduleKey = (schedule: ScheduleValue): string => `${schedule.cron ?? ''}|${schedule.at ?? ''}`
+const scheduleKey = (schedule: ScheduleValue): string =>
+  `${schedule.cron ?? ''}|${schedule.at ?? ''}|${schedule.rule == null ? '' : JSON.stringify(schedule.rule)}`
 
 interface PreviewState {
   readonly key: string
@@ -567,6 +588,7 @@ export function AutomationEditor({
   const [schedule, setSchedule] = useState<ScheduleValue>(() => ({
     cron: draft.schedule.cron,
     at: draft.schedule.at,
+    rule: draft.schedule.rule ?? null,
   }))
   const [posture, setPosture] = useState(() => draft.posture)
   const [model, setModel] = useState(() => draft.model)
@@ -583,15 +605,15 @@ export function AutomationEditor({
   const [view, setView] = useState<EditorView>('settings')
   const storeError = useFeatureStore(store.store, (held) => held.error)
   const choices = useModelChoices(store, model)
-  const { cron, at } = schedule
-  const hasSchedule = cron !== null || at !== null
+  const { cron, at, rule } = schedule
+  const hasSchedule = cron !== null || at !== null || rule != null
 
   const timeZone = draft.schedule.timeZone
   const next: AutomationDraft = useMemo(
     () => ({
       title: title.trim(),
       prompt: prompt.trim(),
-      schedule: { cron, at, timeZone },
+      schedule: { cron, at, timeZone, rule },
       workspaceId,
       posture,
       model,
@@ -610,6 +632,7 @@ export function AutomationEditor({
       notify,
       posture,
       prompt,
+      rule,
       thinking,
       threadMode,
       timeZone,
@@ -627,16 +650,16 @@ export function AutomationEditor({
   useEffect(() => {
     let disposed = false
     const timer = setTimeout(() => {
-      void store.preview({ cron, at, timeZone }, 5).then(
+      void store.preview({ cron, at, timeZone, rule }, 5).then(
         (result) => {
           if (!disposed) {
-            setPreviewState({ key: scheduleKey({ cron, at }), preview: result, error: null })
+            setPreviewState({ key: scheduleKey({ cron, at, rule }), preview: result, error: null })
           }
         },
         (cause: unknown) => {
           if (!disposed) {
             setPreviewState({
-              key: scheduleKey({ cron, at }),
+              key: scheduleKey({ cron, at, rule }),
               preview: null,
               error: cause instanceof Error ? cause.message : String(cause),
             })
@@ -648,7 +671,7 @@ export function AutomationEditor({
       disposed = true
       clearTimeout(timer)
     }
-  }, [store, cron, at, timeZone])
+  }, [store, cron, at, rule, timeZone])
 
   async function chooseWorkspace(): Promise<void> {
     try {
@@ -712,7 +735,11 @@ export function AutomationEditor({
           view={view}
         />
         <div className="mt-8">
-          <EditorAlerts issue={automation?.issue ?? null} message={localError ?? storeError} />
+          <EditorAlerts
+            dispatch={automation === null ? null : dispatchAlertOf(automation)}
+            issue={automation?.issue ?? null}
+            message={localError ?? storeError}
+          />
           {view === 'settings' ? (
             <form
               aria-busy={saving}
