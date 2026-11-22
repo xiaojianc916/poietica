@@ -545,7 +545,7 @@ function AuxiliaryLauncher({
         <div className="mt-6 grid gap-2">
           {offers.map((offer) => (
             <button
-              className="auxiliary-launcher flex min-h-10 items-center gap-3 rounded-lg bg-launcher px-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/30"
+              className="auxiliary-launcher flex min-h-10 items-center gap-3 rounded-lg px-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/30"
               key={offer.kind}
               onClick={() => {
                 onOpen(offer.kind)

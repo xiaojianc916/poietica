@@ -11,6 +11,7 @@
  * tsx 不再写 hover:bg-current/[7%]。
  */
   .auxiliary-launcher {
+    background-color: var(--ui-launcher);
     --auxiliary-launcher-hover: color-mix(in srgb, currentColor 7%, transparent);
   }
 
