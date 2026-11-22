@@ -87,6 +87,24 @@ export const menuItemClassName = [
 ].join(' ')
 
 /*
+ * 自定义布局的菜单行：只保留行为与状态（高亮/禁用/指针），不写 display、间距、内边距、
+ * 字号与对齐 —— 这些交给消费方的 CSS。原因是这些工具类在本仓的 utilities 层，
+ * 功能 CSS 在 components.features 层，压不过它们；用现有菜单行去改布局会被工具类盖掉。
+ */
+export const menuItemCustomClassName = [
+  'ds-menu-item',
+  'relative cursor-default select-none',
+  'border-none bg-transparent',
+  'outline-none',
+  'hover:bg-menu-hover',
+  'focus-visible:bg-menu-hover',
+  'data-[highlighted]:bg-menu-hover',
+  'data-[highlighted]:text-foreground',
+  'data-[disabled]:pointer-events-none',
+  'data-[disabled]:opacity-50',
+].join(' ')
+
+/*
  * 危险行（正本 .danger）：整行红字，高亮走软红底而不是中性高亮。图标不在这一份里 —— 它跟随
  * 行走，规则写在 control/menu.css 的 :not(.ds-menu-item-danger) 那一条上。
  */

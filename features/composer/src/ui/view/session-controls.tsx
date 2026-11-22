@@ -365,6 +365,7 @@ function BandPane({
         <DropdownMenuItem
           className="assistant-model-select__head"
           closeOnClick={false}
+          layout="custom"
           ref={head}
           onClick={() => {
             setPane(MODEL)

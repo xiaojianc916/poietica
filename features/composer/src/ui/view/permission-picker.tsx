@@ -122,6 +122,7 @@ export const PermissionPicker = memo(function PermissionPicker({
                 className="assistant-posture-menu__item"
                 data-alert={posture.alerts ? 'true' : undefined}
                 key={posture.value}
+                layout="custom"
                 value={posture.value}
               >
                 <Row aria-hidden="true" className="assistant-posture-menu__glyph" />

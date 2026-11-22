@@ -91,6 +91,8 @@ palette → typography → scales → controls → assistant → rows → layers
   - `ViewSwitch`：工具条里的视图切换（`aria-pressed` 按钮，无滑块）。
   - `Tabs`（conversation-kit）：有对应面板的页签（`role=tablist` 语义）。
 - 菜单/浮层用 `DropdownMenu` / `Select` / `Tooltip` / `Dialog`；不要在功能里手写弹层。
+- 菜单项默认带通用行布局；需要自定义布局时用 `layout="custom"`，只保留高亮/禁用状态，
+  display、间距、内边距、字号与对齐由功能 CSS 负责。
 - 组件 API 是设计决策的一部分：能不给调用方留的口子就不留（例如确认框只给一个
   `destructive` 布尔，不开放任意 `variant` / 颜色）。功能的 `className` 只用于布局
   （外边距、宽度），不改组件外观。
@@ -107,8 +109,10 @@ palette → typography → scales → controls → assistant → rows → layers
 - 新文件按归属放进对应子层：design-system → `components.ds`、conversation-kit →
   `components.kit`、workbench → `components.workbench`、功能 → `components.features`。
   层序在 renderer 入口声明：`theme < base < vendor.xterm < components.ds < components.kit <
-components.workbench < components.features < utilities < prose`。
+components.workbench < components.features < utilities < overrides < prose`。
 - 第三方 CSS 进 `vendor.*` 层（目前只有 xterm）：它不能无层，否则会压过功能 CSS。
+- `overrides` 层在 `utilities` 之后：只收主题相关的组件皮肤（例如确认框深色危险键），
+  这类规则必须盖过工具类；其他组件 CSS 仍让 utilities 赢。
 - `prose` 层排在 `utilities` 之后：streamdown 给标题/代码硬编码了工具类，Markdown 正文的
   排版必须压过它们。
 - `tokens/` 保持无层（值的产地）；`control/menu.css` 是已登记的无层例外（行样式要压过工具类）。

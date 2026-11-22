@@ -66,6 +66,9 @@
     grid-template-columns: auto minmax(0, 1fr) auto;
     column-gap: 6px;
     row-gap: 2px;
+    /* layout=custom 的菜单行不再带通用行的内边距与圆角，这两项由这里补回。 */
+    padding: 4px 8px;
+    border-radius: var(--ui-radius-sm);
   }
 
   .assistant-posture-menu__item[data-alert] {

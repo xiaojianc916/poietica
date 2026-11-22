@@ -8,6 +8,7 @@ import {
   menuCardClassName,
   menuCheckClassName,
   menuItemClassName,
+  menuItemCustomClassName,
   menuItemDangerClassName,
   menuLabelClassName,
   menuScrollableClassName,
@@ -105,10 +106,13 @@ export function DropdownMenuLabel({ className, ...props }: ComponentProps<'div'>
  */
 type DropdownMenuItemProps = Omit<ComponentProps<typeof Menu.Item>, 'onSelect'> & {
   readonly danger?: boolean
+  /** custom：只保留状态类，布局/字号/内边距由消费方 CSS 给（features 层压得过 ds 层）。 */
+  readonly layout?: 'default' | 'custom' | null | undefined
 }
 
-export function DropdownMenuItem({ className, danger = false, ...props }: DropdownMenuItemProps) {
-  return <Menu.Item className={cn(menuItemClassName, danger && menuItemDangerClassName, className)} {...props} />
+export function DropdownMenuItem({ className, danger = false, layout, ...props }: DropdownMenuItemProps) {
+  const base = layout === 'custom' ? menuItemCustomClassName : menuItemClassName
+  return <Menu.Item className={cn(base, danger && menuItemDangerClassName, className)} {...props} />
 }
 
 /*
@@ -139,9 +143,13 @@ export function DropdownMenuCheck({ className, ...props }: Omit<ComponentProps<t
  */
 export function DropdownMenuRadioItem({
   className,
+  layout,
   ...props
-}: Omit<ComponentProps<typeof Menu.RadioItem>, 'onSelect'>) {
-  return <Menu.RadioItem className={cn(menuItemClassName, className)} {...props} />
+}: Omit<ComponentProps<typeof Menu.RadioItem>, 'onSelect'> & {
+  readonly layout?: 'default' | 'custom' | null | undefined
+}) {
+  const base = layout === 'custom' ? menuItemCustomClassName : menuItemClassName
+  return <Menu.RadioItem className={cn(base, className)} {...props} />
 }
 
 /* 各组自己的皮肤规则按选择器权重覆盖这一份的分隔线颜色。 */
