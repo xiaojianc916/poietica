@@ -135,6 +135,9 @@ UI 功能的注册项按功能持有：`setup` 中途失败时立即逆序释放
   conversation，再经类型被擦掉的服务令牌（`MarkdownRendererToken`、`SkillDocumentToken`）漏给别的功能。
 - 只被一个功能用的界面留在那个功能里，哪怕它很大（例如 conversation 的吉祥物）。
 
+界面的使用规范与资产归属见 [`packages/design-system/DESIGN.md`](../packages/design-system/DESIGN.md)
+与 [`docs/design/`](design/README.md)：控件清单、字号档、浮层登记、功能 CSS 边界都在那里。
+
 **`core-api` 只在 Core 进程内流转。** 服务令牌由 Core 的模块注册，`ui` / `ui-api` / `host` / `contract`
 看不到那个注册表，import 跨功能的 `core-api` 只能拿到一个永远没人注册的令牌（depcruise
 `feature-core-api-cross-process`）。UI 之间协作走 `ui-api` 的令牌与贡献点，Host 走 `contract` 里的方法与通知。
