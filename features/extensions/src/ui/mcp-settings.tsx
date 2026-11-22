@@ -7,9 +7,11 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Input,
   SegmentedControl,
   type SegmentedOption,
   Switch,
+  Textarea,
 } from '@poietica/design-system'
 import { Check, ChevronDown, Download, Monitor, Plus, RotateCw, Search } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from 'react'
@@ -176,12 +178,13 @@ export function McpSettingsPage({ api }: { readonly api: ExtensionsApi }) {
           }}
         >
           <Search aria-hidden="true" />
-          <input
+          <Input
             aria-label="搜索 MCP 服务器"
             onChange={(event) => setNeedle(event.target.value)}
             placeholder="过滤已装；回车去在线目录搜"
             type="search"
             value={needle}
+            variant="bare"
           />
           <button className="mcp__text-btn text-[12px]" disabled={registryBusy} type="submit">
             {registryBusy ? '搜索中…' : '在线搜索'}
@@ -543,6 +546,7 @@ function McpJsonPage({
   const [text, setText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
+  const jsonId = useId()
   let entries: readonly McpEntry[] = []
   let parseError: string | null = null
 
@@ -575,12 +579,13 @@ function McpJsonPage({
         <span className="mcp__muted">作用域</span>
         <ScopePill />
       </div>
-      <label className="mcp-field">
+      <label className="mcp-field" htmlFor={`${jsonId}-config`}>
         <span className="mcp__muted">完整配置</span>
-        <textarea
+        <Textarea
           autoComplete="off"
           className="mcp__code"
           disabled={busy}
+          id={`${jsonId}-config`}
           onChange={(event) => {
             setText(event.target.value)
             setSelected(new Set())
@@ -590,6 +595,7 @@ function McpJsonPage({
           rows={12}
           spellCheck={false}
           value={text}
+          variant="bare"
         />
       </label>
       <p className="mcp__muted">
@@ -677,6 +683,7 @@ export function McpFields({ entry, error }: { readonly entry: McpEntry; readonly
   const [transport, setTransport] = useState<McpTransport>(declaredTransport)
   const [envOpen, setEnvOpen] = useState(false)
   const envLabelId = useId()
+  const fieldId = useId()
   const text = (key: string) =>
     typeof config[key] === 'string' || typeof config[key] === 'number' ? String(config[key]) : ''
   const json = (key: string, fallback: unknown) => JSON.stringify(config[key] ?? fallback, null, 2)
@@ -685,9 +692,16 @@ export function McpFields({ entry, error }: { readonly entry: McpEntry; readonly
   return (
     <div className="mcp-form">
       <div className="mcp-form__row">
-        <label className="mcp-field mcp-field--narrow">
+        <label className="mcp-field mcp-field--narrow" htmlFor={`${fieldId}-name`}>
           <span className="mcp__muted">名称</span>
-          <input aria-invalid={invalid('name')} name="name" placeholder="my-mcp-server" required />
+          <Input
+            aria-invalid={invalid('name')}
+            id={`${fieldId}-name`}
+            name="name"
+            placeholder="my-mcp-server"
+            required
+            variant="bare"
+          />
           <FieldError error={error} field="name" />
         </label>
         <span className="mcp-form__scope">
@@ -706,74 +720,91 @@ export function McpFields({ entry, error }: { readonly entry: McpEntry; readonly
         />
         <FieldError error={error} field="transport" />
       </div>
-      <label className="mcp-field mcp-field--narrow">
+      <label className="mcp-field mcp-field--narrow" htmlFor={`${fieldId}-timeout`}>
         <span className="mcp__muted">请求超时（毫秒，0 表示不限）</span>
-        <input
+        <Input
           aria-invalid={invalid('timeout')}
           defaultValue={text('timeout')}
+          id={`${fieldId}-timeout`}
           max={2147483647}
           min={0}
           name="timeout"
           placeholder="30000"
           step={1}
           type="number"
+          variant="bare"
         />
         <FieldError error={error} field="timeout" />
       </label>
       {transport === 'stdio' ? (
         <>
-          <label className="mcp-field">
+          <label className="mcp-field" htmlFor={`${fieldId}-command`}>
             <span className="mcp__muted">命令</span>
-            <input
+            <Input
               aria-invalid={invalid('command')}
               defaultValue={text('command')}
+              id={`${fieldId}-command`}
               name="command"
               placeholder="npx"
               required
+              variant="bare"
             />
             <FieldError error={error} field="command" />
           </label>
-          <label className="mcp-field">
+          <label className="mcp-field" htmlFor={`${fieldId}-args`}>
             <span className="mcp__muted">参数（JSON 字符串数组）</span>
-            <textarea
+            <Textarea
               aria-invalid={invalid('args')}
               defaultValue={json('args', [])}
+              id={`${fieldId}-args`}
               name="args"
               placeholder='["-y", "@modelcontextprotocol/server-memory"]'
               rows={2}
               spellCheck={false}
+              variant="bare"
             />
             <FieldError error={error} field="args" />
           </label>
-          <label className="mcp-field">
+          <label className="mcp-field" htmlFor={`${fieldId}-cwd`}>
             <span className="mcp__muted">工作目录（可选）</span>
-            <input aria-invalid={invalid('cwd')} defaultValue={text('cwd')} name="cwd" placeholder="留空使用默认目录" />
+            <Input
+              aria-invalid={invalid('cwd')}
+              defaultValue={text('cwd')}
+              id={`${fieldId}-cwd`}
+              name="cwd"
+              placeholder="留空使用默认目录"
+              variant="bare"
+            />
             <FieldError error={error} field="cwd" />
           </label>
         </>
       ) : (
         <>
-          <label className="mcp-field">
+          <label className="mcp-field" htmlFor={`${fieldId}-url`}>
             <span className="mcp__muted">服务器 URL</span>
-            <input
+            <Input
               aria-invalid={invalid('url')}
               defaultValue={text('url')}
+              id={`${fieldId}-url`}
               name="url"
               placeholder="https://example.com/mcp"
               required
               type="url"
+              variant="bare"
             />
             <FieldError error={error} field="url" />
           </label>
-          <label className="mcp-field">
+          <label className="mcp-field" htmlFor={`${fieldId}-headers`}>
             <span className="mcp__muted">请求头（JSON，可选）</span>
-            <textarea
+            <Textarea
               aria-invalid={invalid('headers')}
               autoComplete="off"
               defaultValue={json('headers', {})}
+              id={`${fieldId}-headers`}
               name="headers"
               rows={2}
               spellCheck={false}
+              variant="bare"
             />
             <FieldError error={error} field="headers" />
           </label>
@@ -792,7 +823,7 @@ export function McpFields({ entry, error }: { readonly entry: McpEntry; readonly
           <span id={envLabelId}>环境变量（可选）</span>
         </button>
         {envOpen ? (
-          <textarea
+          <Textarea
             aria-invalid={invalid('env')}
             aria-labelledby={envLabelId}
             autoComplete="off"
@@ -802,6 +833,7 @@ export function McpFields({ entry, error }: { readonly entry: McpEntry; readonly
             placeholder={'{\n  "MY_API_KEY": "your-key"\n}'}
             rows={4}
             spellCheck={false}
+            variant="bare"
           />
         ) : null}
         <FieldError error={error} field="env" />

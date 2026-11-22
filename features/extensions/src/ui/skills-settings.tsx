@@ -5,6 +5,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   ErrorState,
+  Input,
   LoadingState,
   Select,
   type SelectOption,
@@ -137,10 +138,11 @@ export function SkillsSettingsPage({ api }: { readonly api: ExtensionsApi }) {
       {failure === null ? null : <ErrorState message={failure} onRetry={reload} title="技能操作失败" />}
 
       <div className="skill-page__tools">
-        <label className="settings-input settings-input--with-icon">
+        <label className="settings-input settings-input--with-icon" htmlFor="skill-search">
           <Search aria-hidden="true" />
-          <input
+          <Input
             aria-label="搜索技能"
+            id="skill-search"
             onBlur={() => {
               setFocusedKey(undefined)
             }}
@@ -177,6 +179,7 @@ export function SkillsSettingsPage({ api }: { readonly api: ExtensionsApi }) {
             }}
             placeholder="搜索名称、说明或路径"
             value={query}
+            variant="bare"
           />
         </label>
 

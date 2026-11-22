@@ -1,5 +1,5 @@
-import { Button, CjkText } from '@poietica/design-system'
-import { type ReactNode, useState } from 'react'
+import { Button, CjkText, Input } from '@poietica/design-system'
+import { type ReactNode, useId, useState } from 'react'
 import {
   availableServerName,
   BUILTIN_SERVERS,
@@ -137,13 +137,14 @@ function InstallServer({ id, onInstall }: InstallServerProps) {
           </span>
         )
       ) : (
-        <input
+        <Input
           aria-label={server.input.label}
           className="h-7 w-40 max-w-full min-w-0 rounded-lg bg-muted/60 px-2.5 text-xs outline-none ring-1 ring-transparent transition-[background-color,box-shadow] focus:bg-background focus:ring-foreground/10"
           onChange={(event) => setFilled(event.target.value)}
           placeholder={server.input.placeholder}
           title={server.needs}
           value={filled}
+          variant="bare"
         />
       )}
       <Button className="catalog-card__install-btn" disabled={missing} onClick={install} size="xs" variant="soft">
@@ -164,6 +165,7 @@ interface InstallRegistryProps {
  * 这里把输入框折成一行显示（最多三个），缺什么就禁用安装键 —— 与精选卡片同一套判据，只是来源不同。
  */
 function InstallRegistry({ onInstall, row, taken }: InstallRegistryProps) {
+  const inputId = useId()
   const { entry } = row
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(entry.inputs.map((input) => [input.key, input.defaultValue ?? ''])),
@@ -207,14 +209,15 @@ function InstallRegistry({ onInstall, row, taken }: InstallRegistryProps) {
       {!open ? null : (
         <div className="flex w-full flex-col gap-1.5 pt-1">
           {entry.inputs.map((input) => (
-            <label className="flex items-center gap-2" key={input.key}>
+            <label className="flex items-center gap-2" htmlFor={`${inputId}-${input.key}`} key={input.key}>
               <span className="min-w-28 text-[11px] text-muted-foreground">
                 {input.label === '' ? input.key : input.label}
                 {input.required ? '' : '（可选）'}
               </span>
-              <input
+              <Input
                 aria-label={input.key}
                 className="h-7 min-w-0 flex-1 rounded-lg bg-muted/60 px-2.5 text-xs outline-none ring-1 ring-transparent transition-[background-color,box-shadow] focus:bg-background focus:ring-foreground/10"
+                id={`${inputId}-${input.key}`}
                 onChange={(event) => {
                   const next = event.target.value
                   setValues((was) => ({ ...was, [input.key]: next }))
@@ -223,6 +226,7 @@ function InstallRegistry({ onInstall, row, taken }: InstallRegistryProps) {
                 title={input.description ?? undefined}
                 type={input.sensitive ? 'password' : 'text'}
                 value={values[input.key] ?? ''}
+                variant="bare"
               />
             </label>
           ))}
