@@ -7,6 +7,7 @@ import {
   ErrorState,
   Input,
   LoadingState,
+  RowButton,
   Select,
   type SelectOption,
   Switch,
@@ -281,7 +282,7 @@ function SkillListRow({
 
   return (
     <div className="skill-list__row" data-focused={focused ? 'true' : 'false'} ref={ref}>
-      <button className="skill-list__open" onClick={onOpen} type="button">
+      <RowButton className="skill-list__open" onClick={onOpen}>
         <span className="skill-list__glyph">
           <PackageOpen aria-hidden="true" />
         </span>
@@ -292,7 +293,7 @@ function SkillListRow({
           </span>
           <small>{skill.description === '' ? skill.path : skill.description}</small>
         </span>
-      </button>
+      </RowButton>
 
       <DropdownMenu>
         <DropdownMenuTrigger aria-label={`${skill.name} 的更多操作`} className="skill-list__more" title="更多操作">

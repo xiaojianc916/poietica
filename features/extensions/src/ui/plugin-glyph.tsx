@@ -42,7 +42,7 @@ export function PluginGlyph({ displayName, id }: PluginGlyphProps) {
   return (
     <span
       aria-hidden="true"
-      className="flex shrink-0 select-none items-center justify-center overflow-hidden font-semibold size-10 rounded-[10px] text-xs"
+      className="flex shrink-0 select-none items-center justify-center overflow-hidden font-semibold size-10 rounded-lg text-xs"
       style={{
         backgroundColor,
         color: foregroundColor,
