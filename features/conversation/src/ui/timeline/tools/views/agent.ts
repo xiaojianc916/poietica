@@ -4,19 +4,16 @@ import { code, failOr, given, join, listOf, NONE, oneLine, prose, proseSaid, sai
 
 export const TODO_OPS: Readonly<Record<string, string>> = {
   append: '追加任务',
-  block: '标记阻塞',
   done: '完成任务',
   drop: '丢弃任务',
   init: '初始化任务清单',
   rm: '移除任务',
   start: '开始任务',
-  unblock: '解除阻塞',
   view: '查看任务清单',
 }
 
 export const TASK_MARKS: Readonly<Record<string, string>> = {
   abandoned: '（已丢弃）',
-  blocked: '（阻塞）',
   completed: '（完成）',
   in_progress: '（进行中）',
   pending: '',
@@ -25,10 +22,7 @@ export const TASK_MARKS: Readonly<Record<string, string>> = {
 // omp 清单分段、四档状态（比协议多一档「丢弃」），自己拼 GFM 任务清单。
 function taskLine(task: OmpTodoItem): string {
   const box = task.status === 'completed' ? '- [x]' : task.status === 'abandoned' ? '- [~]' : '- [ ]'
-  const note =
-    task.status === 'blocked' && task.blocker !== undefined
-      ? `（阻塞：${task.blocker}）`
-      : (TASK_MARKS[task.status] ?? '')
+  const note = TASK_MARKS[task.status] ?? ''
 
   return `${box} ${task.content}${note}`
 }
@@ -88,24 +82,23 @@ export const todoView: Handler<'todo'> = (ctx) => {
   )
 }
 
+// omp 18.18 起 ask 是**一张 HTML 表单**（入参只有 `html`，产出是 `answers`），不再有逐题的
+// `questions`。卡片读产出里已经结构化好的问答对；流式期间没有产出就只报「询问」。
 export const askView: Handler<'ask'> = (ctx) => {
-  const questions = ctx.input?.questions ?? []
-  const first = questions[0]
-  const question = first?.question ?? ''
-  const options = first?.options ?? []
-  const body = options
-    .map(
-      (entry, index) =>
-        `${String(index + 1)}. ${entry.label}${entry.description === undefined ? '' : ` —— ${entry.description}`}`,
-    )
-    .join('\n')
-  const multiple = questions.length > 1 ? `${String(questions.length)} 个问题` : undefined
+  const answers = ctx.details?.answers ?? []
+  const first = answers[0]
+  const subject = oneLine(first?.question ?? '') || '询问'
+  const body = answers
+    .filter((entry) => entry.answer !== '')
+    .map((entry) => `**${entry.question}**\n\n${entry.answer}`)
+    .join('\n\n')
+  const timedOut = ctx.details?.timedOut === true
 
   return view(
     'other',
-    join('询问', multiple ?? oneLine(question)) || '询问',
-    oneLine(question),
-    [...(question === '' ? NONE : [prose(`**${question}**`)]), ...(body === '' ? NONE : [code(body, 'text')])],
+    join('询问', subject) || '询问',
+    subject,
+    [...(body === '' ? NONE : [prose(body)]), ...(timedOut ? [prose('（超时，表单按当时的值提交）')] : NONE)],
     failOr(ctx, proseSaid(ctx)),
   )
 }

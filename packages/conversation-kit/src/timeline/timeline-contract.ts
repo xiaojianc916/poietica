@@ -95,7 +95,7 @@ export interface ToolCallTimelineItem extends TimelineEntry {
   readonly type: 'tool_call'
   readonly toolCallId: string
   readonly title: string
-  /** 平时与 title 同值，只有 `write xd://<工具>` 不同 —— 帧上是 write，跑的是被挂载的那个设备。 */
+  /** 平时与 title 同值；只有 omp 18 旧会话里的 `write xd://<工具>` 不同 —— 帧上是 write，跑的是被挂载的那个设备。 */
   readonly invokedTool: string
   /**
    * read/write 是传输工具，名字回答不了「在读文件还是读技能」—— 地址回答得了。空串表示不是内部资源。

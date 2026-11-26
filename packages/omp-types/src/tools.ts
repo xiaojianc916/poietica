@@ -4,7 +4,7 @@
 // 只有 omp 公开导出的类型才从包里取（`.../tools/<tool>`）；没有导出输入类型的工具，这里按
 // 「卡片实际读的那几个字段」写最小结构接口 —— 不照抄 omp 内部 schema，免得跟着它的实现漂移。
 
-import type { AskToolInput } from '@oh-my-pi/pi-coding-agent/tools/ask'
+import type { AskParams } from '@oh-my-pi/pi-coding-agent/tools/ask'
 import type { BashToolInput } from '@oh-my-pi/pi-coding-agent/tools/bash'
 import type { GlobToolInput } from '@oh-my-pi/pi-coding-agent/tools/glob'
 import type { GrepToolInput } from '@oh-my-pi/pi-coding-agent/tools/grep'
@@ -301,7 +301,7 @@ export interface OmpWebSearchToolDetails {
 /** 工具名 → 入参形状。表里的名字都是 omp 真的会报出来的（含官方视图表登记的历史别名）。 */
 export interface OmpToolInputs {
   readonly apply_patch: OmpEditToolInput
-  readonly ask: AskToolInput
+  readonly ask: AskParams
   readonly ast_edit: OmpAstEditToolInput
   readonly ast_grep: OmpAstGrepToolInput
   readonly bash: BashToolInput

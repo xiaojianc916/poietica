@@ -2,6 +2,7 @@ import { AppError, type Clock, type Disposable, type Logger, systemClock, toDisp
 import {
   DISCARDED_TABS_PROTOCOL_VERSION,
   type RelayInbound,
+  type RelayKeepalive,
   type RelayOutbound,
   type TabSnapshot,
 } from '@poietica/runtime-protocol'
@@ -105,7 +106,7 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
   const listeners = new Set<(connected: boolean) => void>()
   const attachedListeners = new Set<(attachedTabIds: readonly number[]) => void>()
 
-  function post(message: RelayOutbound): void {
+  function post(message: RelayOutbound | RelayKeepalive): void {
     if (socket !== null && socket.readyState === SOCKET_OPEN) {
       socket.send(JSON.stringify(message))
     }
@@ -293,6 +294,14 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
       case 'group':
       case 'ungroup':
         return {}
+      /*
+       * findDownload / overlay 是 omp 19 给 Chrome 扩展加的 RPC（下载配对、页内覆盖层）。Electron 内置
+       * 浏览器既没有 downloads API 也不开覆盖层 —— hello 里没声明那两个能力，omp 正常不会发；
+       * 真发来时如实回「不支持」，比假装成功让 agent 等一个永远不会来的结果强。
+       */
+      case 'findDownload':
+      case 'overlay':
+        throw new AppError(browserErrors.unsupported_rpc, `内置浏览器不支持 ${message.op}`)
     }
   }
 
@@ -399,6 +408,7 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
       hello()
       setConnected(true)
       pingTimer = clock.setInterval(() => {
+        /* 心跳走 RelayKeepalive（omp 19 起协议里没有 ping/pong 了）；bridge 对不认识的 t 忽略 */
         post({ t: 'ping' })
       }, PING_INTERVAL_MS)
     })

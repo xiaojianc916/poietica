@@ -8,7 +8,6 @@ import {
   updateMCPServer,
   validateServerName,
 } from '@oh-my-pi/pi-coding-agent/mcp/config-writer'
-import { searchSmitheryRegistry, toConfigName } from '@oh-my-pi/pi-coding-agent/mcp/smithery-registry'
 import { AppError, Emitter, type Logger, SystemErrorCode } from '@poietica/foundation'
 import type { McpCatalogEntry, McpPort, McpServerInfo, McpStatus } from '@poietica/runtime-protocol'
 import type { z } from 'zod'
@@ -17,12 +16,6 @@ import type { OmpMcpManager } from '../omp-context'
 
 /** 用户级 MCP 配置文件：<ompAgentDir>/mcp.json（omp 自己的位置，不自己拼 JSON）。 */
 const MCP_CONFIG_NAME = 'mcp.json'
-
-/**
- * 一次搜回几条。目录方自己把上限钳在 1–100（默认 20），这里取 20：一屏够翻，
- * 请求也不会因为一次拉太多详情而拖长（每条都要再取一次详情）。
- */
-const CATALOG_LIMIT = 20
 
 /** omp 的名称判据（字母数字与 `_ . - :`、词间单个空格、≤100）拒绝时给的中文说明。 */
 const NAME_HINT = '只能包含字母、数字、连字符、下划线、点与冒号，词之间只允许一个空格，最长 100 个字符'
@@ -137,39 +130,11 @@ export class OmpMcpPort implements McpPort {
   }
 
   /**
-   * 在线目录检索（omp 的 Smithery registry）。空关键词不查 —— 不必为已知的空结果发网络请求。
-   * 写进配置的**名字**用 omp 自己的 `toConfigName` 归一：目录名形如 `org/server`，带斜杠会被
-   * `validateServerName` 拒掉；归一后重名由调用方让用户改。
+   * 在线目录检索（omp 19.0 起 Smithery 已于 2026-10-31 关停 API，omp 同步删除了整块 SDK）。
+   * 目录源头没了，如实回空数组：契约与界面不动，等 omp 提供替代目录时再接回来。
    */
-  async catalog(query: string): Promise<z.infer<typeof McpCatalogEntry>[]> {
-    const keyword = query.trim()
-    if (keyword === '') return []
-    try {
-      const found = await searchSmitheryRegistry(keyword, { limit: CATALOG_LIMIT })
-      return found.map((entry) => ({
-        id: entry.id,
-        /* entry.name 已去掉前导 @，toConfigName 再收一次斜杠与非法字符。 */
-        name: toConfigName(entry.name),
-        title: entry.title ?? entry.display.displayName,
-        description: entry.description ?? entry.display.description,
-        homepage: entry.display.homepage ?? null,
-        sourceType: entry.sourceType,
-        useCount: entry.display.useCount,
-        verified: entry.display.verified,
-        inputs: entry.requiredInputs.map((input) => ({
-          key: input.key,
-          label: input.label,
-          required: input.required,
-          sensitive: input.sensitive,
-          defaultValue: input.defaultValue ?? null,
-          description: input.description ?? null,
-        })),
-        warnings: [...entry.warnings],
-        config: { ...(entry.config as unknown as Record<string, unknown>) },
-      }))
-    } catch (error) {
-      throw toEngineError(error)
-    }
+  async catalog(_query: string): Promise<z.infer<typeof McpCatalogEntry>[]> {
+    return []
   }
 
   /** 连接状态有变（连上 / 断开 / 工作区释放）时由 MCP 工作区调一次：按名汇总后 fire。 */

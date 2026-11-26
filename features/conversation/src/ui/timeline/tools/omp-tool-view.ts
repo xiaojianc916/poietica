@@ -56,7 +56,7 @@ import { astGrepView, findView, globView, grepView, lspView } from './views/sear
  * 表里每个名字都是 omp 真的会报出来的那一个：内建与隐藏工具（builtin-names.ts，search 是 grep 的历史别名）、
  * 官方视图表登记的别名（apply_patch / puppeteer / js / python / notebook，老会话存着的名字要认得）、
  * eval 的 prelude（browser / computer）、omp 注册的 CustomTool（generate_image / tts / vibe_*）、
- * 以及 xd:// 设备（report_issue / resolve / reject / propose，经 write 委派到达）。
+ * 以及 omp 18 旧会话里的 xd:// 设备（report_issue / resolve / reject / propose，经 write 委派到达）。
  *
  * 每一格的值是按名字对齐的 `Handler<名字>`：处理器里的入参与 details 都是那个工具的类型，字段直接读。
  */
@@ -185,7 +185,7 @@ export function ompToolView(
         })
 
   if (!base.known) {
-    /* 画不出来不等于不知道是谁在跑：委派过的设备名要留给字形那一格。 */
+    /* 画不出来不等于不知道是谁在跑：旧会话委派过的设备名要留给字形那一格。 */
     return base.invokedTool === '' ? EMPTY : { ...EMPTY, invokedTool: base.invokedTool }
   }
 
@@ -196,12 +196,12 @@ export function ompToolView(
   return {
     ...base,
     background,
-    /* 委派过的那一次由 writeView 填了被调工具的名字，这里只给没填的那些补。 */
+    /* 旧会话的 write xd://<工具> 由 writeView 填了被调工具的名字，这里只给没填的那些补。 */
     invokedTool: base.invokedTool === '' ? name : base.invokedTool,
     headline: headlineOf(name, base.headline, intent),
     ...(shots.length === 0 ? {} : { response: [...base.response, ...shots] }),
   }
 }
 
-// 出口登记给 view-kit：writeView 的 xd:// 委派要经它回调进来。
+// 出口登记给 view-kit：writeView 的旧会话 xd:// 委派要经它回调进来。
 registerViewLookup((tool, input, output) => ompToolView(tool, input, output))

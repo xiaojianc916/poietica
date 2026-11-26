@@ -20,6 +20,7 @@
     "@poietica/fs-kit": "workspace:*",
     "@poietica/runtime-layout": "workspace:*",
     "@poietica/agent-model": "workspace:*",
+    "@poietica/omp-types": "workspace:*",
     "zod": "catalog:",
     "@poietica/runtime-kernel": "workspace:*",
     "@poietica/rpc": "workspace:*"

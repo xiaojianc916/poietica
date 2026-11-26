@@ -12,6 +12,9 @@
       "path": "../fs-kit"
     },
     {
+      "path": "../omp-types"
+    },
+    {
       "path": "../rpc"
     },
     {

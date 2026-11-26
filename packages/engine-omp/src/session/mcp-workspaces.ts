@@ -1,8 +1,8 @@
+import { randomUUID } from 'node:crypto'
 import type { AgentSession, Settings } from '@oh-my-pi/pi-coding-agent'
 import type { LoadedCustomCommand } from '@oh-my-pi/pi-coding-agent/extensibility/custom-commands/types'
 import type { loadAllMCPConfigs, shouldFilterBrowserMCPForPrelude } from '@oh-my-pi/pi-coding-agent/mcp/config'
 import type { MCPManager } from '@oh-my-pi/pi-coding-agent/mcp/manager'
-import type { MCPToolCache } from '@oh-my-pi/pi-coding-agent/mcp/tool-cache'
 import type { createMCPProxyTools, followMCPTools } from '@oh-my-pi/pi-coding-agent/task/executor'
 import type { Logger } from '@poietica/foundation'
 import { listenSetting, readSetting, type SettingsScope } from '../settings-access'
@@ -13,7 +13,6 @@ import { listenSetting, readSetting, type SettingsScope } from '../settings-acce
  */
 export interface McpRuntime {
   readonly MCPManager: typeof MCPManager
-  readonly MCPToolCache: typeof MCPToolCache
   readonly loadAllMCPConfigs: typeof loadAllMCPConfigs
   readonly shouldFilterBrowserMCPForPrelude: typeof shouldFilterBrowserMCPForPrelude
   readonly createMCPProxyTools: typeof createMCPProxyTools
@@ -42,6 +41,11 @@ export interface McpWorkspacesOptions {
 /** 会话从工作区借来的那一份：manager 交给 createAgentSession，会话建好后 attach，关掉时 release */
 export interface McpLease {
   readonly manager: MCPManager
+  /**
+   * 这份会话在 manager 里的工具视图号（omp 19 起 MCP 工具按 scope 归会话，借用者不能占 owner 那一份）。
+   * 建会话时同时交给 `createAgentSession({ mcpToolScope })`，子代理从这份视图起步。
+   */
+  readonly scope: string
   /** 会话建好后调用一次：挂上工具跟随、提示命令，必要时启动这个工作区的首次发现。不抛错 */
   attach(session: AgentSession): Promise<void>
   /** 归还（幂等）；attach 过的会话 dispose 时会自动调用 */
@@ -117,8 +121,10 @@ export class McpWorkspaces {
     workspace.refs++
     if (workspace.idleTimer !== null) clearTimeout(workspace.idleTimer)
     workspace.idleTimer = null
+    /* omp 19 起工具视图按会话隔离：借用者有自己的 scope，子代理从这份视图起步 */
+    const scope = `poietica:${randomUUID()}`
     /* 先订阅再建代理（omp followMCPTools 的约定）：会话建立期间的变化会在 bind 时补放 */
-    const follower = this.o.runtime.followMCPTools(workspace.manager)
+    const follower = this.o.runtime.followMCPTools(workspace.manager, { scope })
     let attached: AgentSession | null = null
     let released = false
     const release = (): void => {
@@ -130,6 +136,7 @@ export class McpWorkspaces {
     }
     return {
       manager: workspace.manager,
+      scope,
       release,
       attach: async (session) => {
         if (released || attached !== null) return
@@ -145,13 +152,13 @@ export class McpWorkspaces {
           session.setPendingMCPDiscovery(
             workspace.discovery.then(async () => {
               if (!session.isDisposed)
-                await session.refreshMCPTools(this.o.runtime.createMCPProxyTools(workspace.manager))
+                await session.refreshMCPTools(this.o.runtime.createMCPProxyTools(workspace.manager, scope))
             }),
           )
           return
         }
         /* 复用已经连好的工作区：交出会话之前就把工具挂上，首轮什么都不用等 */
-        const tools = this.o.runtime.createMCPProxyTools(workspace.manager)
+        const tools = this.o.runtime.createMCPProxyTools(workspace.manager, scope)
         if (tools.length === 0) return
         await session
           .refreshMCPTools(tools)
@@ -221,9 +228,13 @@ export class McpWorkspaces {
   }
 
   #open(cwd: string, fingerprint: string): Workspace {
-    const { MCPManager, MCPToolCache } = this.o.runtime
-    const storage = (this.o.root as unknown as Settings).getStorage()
-    const manager = new MCPManager(cwd, storage ? new MCPToolCache(storage) : null)
+    const { MCPManager } = this.o.runtime
+    /*
+     * omp 19 起工具缓存与 MCP 主机都在 omp 自己的 daemon 里，构造不再收缓存；工具视图按会话 scope
+     * 开（lease）。第三个参数是 modern 服务器的空闲逗留（毫秒）：我们自己的宽限期由 #unref 记账，
+     * 给 omp 的这份给 0 —— 会话释放时立刻停，别叠一层自己的 5 分钟默认（那是 omp 单独跑时的策略）。
+     */
+    const manager = new MCPManager(cwd, undefined, 0)
     manager.setAuthStorage(this.o.authStorage as never)
     if (readSetting(this.o.root, 'mcp.notifications') === true) manager.setNotificationsEnabled(true)
     const ws: Workspace = {

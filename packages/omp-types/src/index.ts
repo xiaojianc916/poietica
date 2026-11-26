@@ -36,6 +36,11 @@ export type {
   ToolDefinition,
   UsageStatistics,
 } from '@oh-my-pi/pi-coding-agent'
+/* ask 的题组答复形状：engine-omp 折叠题组/表单时要用，从这里取而不是再写一条 deep import。 */
+export type {
+  ExtensionAskDialogResult,
+  ExtensionAskDialogResultItem,
+} from '@oh-my-pi/pi-coding-agent/extensibility/extensions/types'
 export type { AgentSessionEvent } from '@oh-my-pi/pi-coding-agent/session/agent-session-events'
 
 // 工具载荷：按工具名各有其形，界面不再猜字段（见 tools.ts）。

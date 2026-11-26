@@ -1,5 +1,5 @@
 import type { ToolCallContent } from '@poietica/conversation-kit/model'
-import type { OmpGenericToolDetails } from '@poietica/omp-types'
+import type { OmpGenericToolDetails, OmpToolInputOf } from '@poietica/omp-types'
 import type { Ctx, Handler } from '../view-kit'
 import {
   at,
@@ -134,11 +134,29 @@ export const fetchView: Handler<'fetch'> = (ctx) => {
   )
 }
 
-// write 还是 xd:// 传输本身：omp 把可挂载工具收进 write xd://<tool>，
-// 一次 write 其实是在调另一个工具，按被调的那个工具画，否则永远显示成「写入 xd://browser」。
+/*
+ * omp 19 起 `write` 只写文件：`xd://` 设备传输被工具命令取代（少用工具在 bash 里以命令形式跑），
+ * 产出 details 里不再有 `xdev`。旧会话里仍留着那一份，按它画回被调的那个工具。
+ */
+interface LegacyXdev {
+  readonly tool: string
+  readonly args: OmpToolInputOf | undefined
+  readonly mode: string
+  readonly inner?: unknown
+}
+
+function legacyXdevOf(details: unknown): LegacyXdev | undefined {
+  const xdev = (details as { readonly xdev?: unknown } | undefined)?.xdev
+  if (typeof xdev !== 'object' || xdev === null) return undefined
+  const candidate = xdev as Partial<LegacyXdev>
+  return typeof candidate.tool === 'string' && typeof candidate.mode === 'string'
+    ? (candidate as LegacyXdev)
+    : undefined
+}
+
 export const writeView: Handler<'write'> = (ctx) => {
   const path = given(ctx.input?.path) ?? given(ctx.details?.resolvedPath) ?? ''
-  const device = ctx.details?.xdev
+  const device = legacyXdevOf(ctx.details)
 
   // read/write 是传输本身，不会是被挂载的设备。
   if (device !== undefined && device.tool !== 'read' && device.tool !== 'write' && device.mode !== 'help') {

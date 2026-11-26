@@ -24,10 +24,10 @@
       "@biomejs/biome": "2.6.8",
       "@happy-dom/global-registrator": "21.0.4",
       "@lydell/node-pty": "1.2.0-beta.18",
-      "@oh-my-pi/pi-ai": "18.16.0",
-      "@oh-my-pi/pi-coding-agent": "18.16.0",
-      "@oh-my-pi/pi-tui": "18.16.0",
-      "@oh-my-pi/pi-utils": "18.16.0",
+      "@oh-my-pi/pi-ai": "19.1.0",
+      "@oh-my-pi/pi-coding-agent": "19.1.0",
+      "@oh-my-pi/pi-tui": "19.1.0",
+      "@oh-my-pi/pi-utils": "19.1.0",
       "@streamdown/cjk": "1.0.5",
       "@streamdown/code": "2.0.1",
       "@streamdown/math": "1.0.4",
@@ -143,10 +143,13 @@
     "@poietica/runtime-layout": "workspace:*"
   },
   "overrides": {
-    "@oh-my-pi/pi-ai": "18.16.0",
-    "@oh-my-pi/pi-coding-agent": "18.16.0",
-    "@oh-my-pi/pi-tui": "18.16.0",
-    "@oh-my-pi/pi-utils": "18.16.0",
+    "@oh-my-pi/pi-ai": "19.1.0",
+    "@oh-my-pi/pi-coding-agent": "19.1.0",
+    "@oh-my-pi/pi-tui": "19.1.0",
+    "@oh-my-pi/pi-utils": "19.1.0",
     "electron": "45.2.2"
+  },
+  "patchedDependencies": {
+    "@oh-my-pi/pi-coding-agent@19.1.0": "patches/@oh-my-pi%2Fpi-coding-agent@19.1.0.patch"
   }
 }

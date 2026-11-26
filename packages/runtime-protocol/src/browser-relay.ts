@@ -41,22 +41,60 @@ export interface TabSnapshot {
 }
 
 export type RelayRpc =
-  | { op: 'attach'; tabId: number }
+  /** clearForeignFrames：omp 19 起被别的扩展的帧拒掉时允许清空再附着（Electron 无此场景，忽略这一格） */
+  | { op: 'attach'; tabId: number; clearForeignFrames?: boolean }
   | { op: 'detach'; tabId: number }
-  | { op: 'send'; tabId: number; sessionId?: string; method: string; params?: Record<string, unknown> }
+  | {
+      op: 'send'
+      tabId: number
+      sessionId?: string
+      method: string
+      params?: Record<string, unknown>
+      clearForeignFrames?: boolean
+    }
   /** active: false = 开在后台不抢焦点；不带则按 Chrome 的默认（选中）。 */
   | { op: 'createTab'; url: string; active?: boolean }
   | { op: 'removeTab'; tabId: number }
   | { op: 'activateTab'; tabId: number }
   | { op: 'group'; tabIds: number[]; title: string; color: string }
   | { op: 'ungroup'; tabIds: number[] }
+  /**
+   * omp 19 起把「下载到哪了」交给扩展找（Electron 的下载不在这条线上，扩展端没有 downloads API 时 omp 也不会发）。
+   * 收进类型保证线上形状对齐；运行时不实现 —— relay-client 对认不出的 op 照样回 rpcResult。
+   */
+  | { op: 'findDownload'; guid: string }
+  /**
+   * 页内覆盖层（Chrome 侧面板 / 拾取那套 UI 用的）。Electron 内置浏览器画不了覆盖层，overlayProtocol 不在
+   * hello 里声明，omp 不会发；收进类型保持对齐。
+   */
+  | { op: 'overlay'; tabId: number; action: 'mount' | 'unmount' | 'hide' | 'show' }
 
-/**
+/*
  * `reload` 是 omp 18.14 起让扩展 `chrome.runtime.reload()` 的消息（扩展自更新）；我们的 hello 不带
  * `reloadProtocol`，omp 不会发它，relay-client 对非 `rpc` 消息本来就整体忽略。这里仍收进类型：
  * 线上形状要与 omp 对齐（见 browser-relay-conformance.ts）。
+ * `input` / `callResult` 是 omp 19 的覆盖层与侧面板消息（OVERLAY_PROTOCOL / PANEL_PROTOCOL 没声明就不会
+ * 来）；`pong` 已随心跳一起删掉 —— omp 19 的 RelayToExtMessage 里没有它。
  */
-export type RelayInbound = ({ t: 'rpc'; id: number } & RelayRpc) | { t: 'pong' } | { t: 'reload' }
+export type RelayInbound =
+  | ({ t: 'rpc'; id: number } & RelayRpc)
+  | { t: 'reload' }
+  /** 覆盖层输入回执（CDP 输入已被 Chrome 确认后给覆盖层画）：fire-and-forget，不需要回 rpcResult */
+  | { t: 'input'; tabId: number; input: RelayOverlayInput }
+  /** 侧面板 `call` 的答复（我们不开侧面板，不会收到，类型上收下） */
+  | { t: 'callResult'; id: number; ok: boolean; result?: unknown; error?: string }
+
+/** 覆盖层输入的形状（omp 的 OverlayInput）：key 不带坐标，其余都要 x/y 主视口 CSS 像素 */
+export type RelayOverlayInput =
+  | { readonly kind: 'move' | 'release' | 'wheel'; readonly x: number; readonly y: number }
+  | {
+      readonly kind: 'press'
+      readonly x: number
+      readonly y: number
+      readonly button: 'left' | 'middle' | 'right' | 'back' | 'forward' | 'none'
+      readonly clickCount: number
+    }
+  | { readonly kind: 'key' }
 
 export type RelayOutbound =
   | {
@@ -77,4 +115,12 @@ export type RelayOutbound =
   | { t: 'tabCreated'; tab: TabSnapshot }
   | { t: 'tabUpdated'; tab: TabSnapshot }
   | { t: 'tabRemoved'; tabId: number }
-  | { t: 'ping' }
+
+/**
+ * 心跳：我们这一侧定时发的 WebSocket 保活。omp 18 有 pong 应答、19 把整对 ping/pong 从协议里删了，
+ * 它的 bridge 收到不认识的 `t` 直接忽略 —— 所以**不在** RelayOutbound（协议对齐检查只认 omp 收的形状），
+ * relay-client 的 `post` 单独收这一格。
+ */
+export interface RelayKeepalive {
+  readonly t: 'ping'
+}

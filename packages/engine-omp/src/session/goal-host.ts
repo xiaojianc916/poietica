@@ -87,7 +87,8 @@ export function createGoalHost(input: {
   return {
     observe(event) {
       controller.observe(event as unknown as AgentSessionEvent)
-      if (event.type === 'agent_end' && event.isTerminal !== false) awaitingFirstTurn = false
+      /* omp 19 起 agent_end 只在 run 真正结束（没有东西能再续跑）时发一次；首轮算跑过了 */
+      if (event.type === 'agent_end') awaitingFirstTurn = false
     },
     continuationPending: () => controller.continuationPending,
     stopForHostAbort: () => controller.stopForHostAbort(),

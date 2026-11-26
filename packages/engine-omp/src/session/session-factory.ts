@@ -195,8 +195,9 @@ export class SessionFactory {
          * 为这个会话新建 manager、不在后台拉起服务器、dispose 时也不断开 —— 切对话不再杀掉重启全部 MCP 进程。
          * 工具不经 mcpTools 传：那一格会被 omp 算作「缓存形状变了」，续开分叉会话时丢掉继承的 prompt cache key；
          * 改由 attach 在会话建好后 refreshMCPTools（与 omp 延迟发现的路径相同）。
+         * `mcpToolScope` 是这份会话自己的工具视图（omp 19 起按会话隔离）；子代理从它起步，不会互相顶掉。
          */
-        ...(lease === null ? {} : { mcpManager: lease.manager }),
+        ...(lease === null ? {} : { mcpManager: lease.manager, mcpToolScope: lease.scope }),
         /*
          * omp 知识 #17：**必须在这里打开**。omp 的自动起名只由 `config.autoTitle === true` 这一道门放行
          * （agent-session.ts 的 `#noteTitleInput`），默认 false；宿主不传就一次都不会跑，线程永远停在首句兜底上。

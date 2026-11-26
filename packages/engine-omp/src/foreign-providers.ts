@@ -3,6 +3,7 @@ import { readSetting, type SettingsScope } from './settings-access'
 /*
  * 会读到隔离根以外内容的 provider。omp 的 discovery 提供者逐个核对后得出（每个文件一个 PROVIDER_ID），
  * 保留的 6 个是 native / omp-plugins / mcp-json / ssh-json / skillshare / agents（`agents` 按产品决定放行）。
+ * omp 19 新增的 `ssh-config` 读 `~/.ssh/config` 与 `/etc/ssh/ssh_config`，属于隔离根外的外来目录，禁用。
  * 核对方法见 docs/omp-sdk-reference.md §L 与 refactor-log Q43。
  */
 export const FOREIGN_PROVIDERS: readonly string[] = Object.freeze([
@@ -19,6 +20,7 @@ export const FOREIGN_PROVIDERS: readonly string[] = Object.freeze([
   'agents-md',
   'claude-md',
   'agent-plugins',
+  'ssh-config',
 ])
 
 const DISABLED_KEY = 'disabledProviders'

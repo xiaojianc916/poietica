@@ -42,18 +42,16 @@ export interface EngineTestSeams {
 
 /** omp 的模块入口：集中在这里动态 import，便于测试替换与阅读创建顺序 */
 async function ompModules() {
-  const [sdk, capability, mcpManager, mcpToolCache, mcpConfig] = await Promise.all([
+  const [sdk, capability, mcpManager, mcpConfig] = await Promise.all([
     import('@oh-my-pi/pi-coding-agent'),
     import('@oh-my-pi/pi-coding-agent/capability'),
     import('@oh-my-pi/pi-coding-agent/mcp/manager'),
-    import('@oh-my-pi/pi-coding-agent/mcp/tool-cache'),
     import('@oh-my-pi/pi-coding-agent/mcp/config'),
   ])
   return {
     // omp 知识 #22：MCP 归工作区，引擎持有 manager、会话借用（session/mcp-workspaces.ts）
     mcp: {
       MCPManager: mcpManager.MCPManager,
-      MCPToolCache: mcpToolCache.MCPToolCache,
       loadAllMCPConfigs: mcpConfig.loadAllMCPConfigs,
       shouldFilterBrowserMCPForPrelude: mcpConfig.shouldFilterBrowserMCPForPrelude,
       createMCPProxyTools: sdk.createMCPProxyTools,

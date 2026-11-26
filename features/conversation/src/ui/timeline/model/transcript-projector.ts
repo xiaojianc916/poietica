@@ -262,7 +262,7 @@ function toolFrameOf(
     at: stamp,
     toolCallId: frame.toolCallId,
     title: frame.name,
-    // 认名字要认得「真正在跑的那一个」：write xd://<工具> 跑的是被挂载的设备；title 保持帧上的名字。
+    // 认名字要认得「真正在跑的那一个」：eval 的 prelude / omp 18 旧会话的 write xd://<工具>；title 保持帧上的名字。
     invokedTool: view.known && view.invokedTool !== '' ? view.invokedTool : frame.name,
     scheme: view.known ? view.scheme : '',
     kind: view.known ? view.kind : (tool?.kind ?? 'other'),

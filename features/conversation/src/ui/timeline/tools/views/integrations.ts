@@ -310,7 +310,7 @@ export const vibeKillView: Handler<'vibe_kill'> = (ctx) => {
 export const vibeListView: Handler<'vibe_list'> = (ctx) =>
   view('delegate', '查看 vibe 会话', '', NONE, failOr(ctx, proseSaid(ctx)), 'result')
 
-/* xd:// 设备不是顶层工具，只能经 `write xd://<name>` 到达；这几个名字要认得，否则屏幕上只剩裸名字。 */
+/* omp 18 旧会话里的 xd:// 设备不是顶层工具，只能经 `write xd://<name>` 到达；这几个名字要认得，否则屏幕上只剩裸名字。 */
 export const deviceView = (said: string): Handler =>
   function device(ctx) {
     return view('other', said, '', NONE, failOr(ctx, proseSaid(ctx)), 'result')

@@ -1,8 +1,5 @@
-import type {
-  ExtensionAskDialogQuestion,
-  ExtensionAskDialogResult,
-  ExtensionAskDialogResultItem,
-} from '@oh-my-pi/pi-coding-agent/extensibility/extensions/types'
+import { fieldQuestions as fieldQuestionsOf, type HtmlFormData } from '@oh-my-pi/pi-tui/html-form/data'
+import type { ExtensionAskDialogResult, ExtensionAskDialogResultItem } from '@poietica/omp-types'
 import type { Interaction } from '@poietica/runtime-protocol'
 import type { InteractionDraft } from './broker'
 
@@ -154,4 +151,91 @@ function noteOf(note: unknown): string | undefined {
   return trimmed === '' ? undefined : trimmed
 }
 
-export type EngineAskDialogQuestion = ExtensionAskDialogQuestion
+/*
+ * ==== omp 19 的 HTML 表单 ask ====
+ *
+ * omp 18.18.3 起 ask 的入参是一张 HTML `<form>`（omp 的 `recoverAskHtml` 会把旧 `questions` 形状重建成表单），
+ * 经 `ui.formDialog(html)` 呈现。产品没有 HTML 表单面板，只有题组卡片 —— 所以在这里把表单**折叠成题组**：
+ * 解析用 omp 自己的 `parseHtmlForm`（radio/checkbox/select → 单选或多选题，text/textarea → 一句话题），
+ * 题号用控件名、选项号用选项 value；答复按号折回 `HtmlFormData` 交回 omp（它按控件名读值）。
+ */
+
+/** 解析后的表单类型直接取 `fieldQuestions` 的入参：少一条 deep import，也不会与 omp 的形状漂开 */
+type ParsedForm = Parameters<typeof fieldQuestionsOf>[0]
+type FormField = ParsedForm['fields'][number]
+
+/** 表单里的一个字段 → 产品的一题；控件名当题号（HTML 里 name 就是它的身份） */
+function fieldQuestionOf(question: string, field: FormField): EngineQuestionGroup {
+  if (field.kind === 'text') {
+    return { id: field.name, prompt: question, multiple: false, allowCustom: true, options: [] }
+  }
+  return {
+    id: field.name,
+    prompt: question,
+    multiple: field.multi,
+    allowCustom: field.other,
+    options: field.options
+      .filter((option) => !option.disabled)
+      .map((option) => ({
+        /* 选项号就用 value：它与提交回来的值同一个产地，折回时不用二次映射 */
+        id: option.value,
+        label: option.value,
+        description: null,
+      })),
+  }
+}
+
+/** 一张表单 → 产品题组。与 askQuestionsOf 同一个出口形状：控件有名字就是一题 */
+export function formQuestionsOf(form: ParsedForm): EngineQuestionGroup[] {
+  const questions = fieldQuestionsOf(form)
+  return form.fields
+    .filter((field) => field.name !== '')
+    .map((field) => fieldQuestionOf(questions.get(field) ?? field.name, field))
+}
+
+/** 产品的题组答复 → 表单数据：只补人答的控件，任何一个都没答就当作取消 */
+export function formResultOf(form: ParsedForm, response: unknown): HtmlFormData | undefined {
+  const answers = answersOf(response)
+  if (answers === undefined) return undefined
+
+  const data: Record<string, string | number | string[]> = Object.create(null)
+  let answered = 0
+
+  for (const field of form.fields) {
+    if (field.name === '') continue
+    const value = formValueOf(field, answers[field.name])
+    if (value === undefined) continue
+    data[field.name] = value
+    answered += 1
+  }
+
+  /* hidden 与预选的值 omp 会自己带上（defaultFormData），我们只补人答的那几格 */
+  return answered === 0 ? undefined : data
+}
+
+/** 产品答复里的 `answers` 表；缺了它就是没答 */
+function answersOf(response: unknown): Record<string, unknown> | undefined {
+  if (typeof response !== 'object' || response === null) return undefined
+  const answers = (response as { readonly answers?: unknown }).answers
+  return typeof answers === 'object' && answers !== null ? (answers as Record<string, unknown>) : undefined
+}
+
+/** 一个控件的人答值；`undefined` 表示这一格没答（或答案形状不认识） */
+function formValueOf(field: FormField, raw: unknown): string | number | string[] | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined
+  const selected = (raw as { readonly selected?: unknown }).selected
+  const custom = (raw as { readonly custom?: unknown }).custom
+
+  if (field.kind === 'text') {
+    const text = typeof custom === 'string' ? custom : ''
+    return text === '' ? undefined : text
+  }
+
+  const picked = Array.isArray(selected) ? selected.filter((value): value is string => typeof value === 'string') : []
+  const own = field.options.filter((option) => picked.includes(option.value)).map((option) => option.value)
+  const free = typeof custom === 'string' && custom !== '' ? custom : undefined
+  /* 多选提交 value 数组，单选提交一个 value；other 的自由输入并进同一格 */
+  if (!field.multi) return own[0] ?? free
+  const values = free === undefined ? own : [...own, free]
+  return values.length === 0 ? undefined : values
+}

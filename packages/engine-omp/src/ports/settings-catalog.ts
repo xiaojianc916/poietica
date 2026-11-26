@@ -368,9 +368,10 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   'tools.speculativeExecution.maxInFlight': '预测执行并发数',
   'tools.maxTimeout': '工具最大超时',
   'async.enabled': '异步执行',
-  'tools.xdev': 'xd:// 工具',
-  'tools.xdevDocs': 'xd:// 提示词文档',
-  'tools.xdevInlineDevices': 'xd:// 内联设备',
+  'tools.commands': '工具命令',
+  'tools.commandDocs': '工具命令文档',
+  'tools.commandInline': '内联工具命令',
+  'tools.commandNotices': '工具命令提示',
   'mcp.enableProjectConfig': 'MCP 项目配置',
   'mcp.startupTimeoutMs': 'MCP 启动等待',
   'mcp.renderMarkdownResults': 'MCP Markdown 结果',
@@ -422,7 +423,6 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   'providers.webSearchTimeoutSeconds': '网页搜索超时',
   'providers.antigravityEndpoint': 'Antigravity 端点模式',
   'providers.fireworksTier': 'Fireworks 档位',
-  'live.voice': '实时语音音色',
   'tts.localVoice': '本地 TTS 音色',
   'speech.enabled': '语音朗读',
   'speech.mode': '语音朗读范围',
@@ -437,11 +437,14 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   'providers.streamIdleTimeoutSeconds': '流空闲超时',
   'providers.openrouterVariant': 'OpenRouter 路由',
   'providers.fetch': '网页抓取后端',
-  'codexResets.autoRedeem': 'Codex 自动使用已存重置',
+  'codexResets.autoRedeem5h': 'Codex 自动使用 5 小时窗口重置',
+  'codexResets.autoRedeemWeekly': 'Codex 自动使用周窗口重置',
   'codexResets.minBlockedMinutes': 'Codex 自动重置最小阻塞',
   'codexResets.keepCredits': 'Codex 自动重置保留量',
   'codexResets.salvageHorizonHours': 'Codex 重置抢救时限',
-  'claudeResets.autoRedeem': 'Claude 自动使用已存重置',
+  'claudeResets.autoRedeem5h': 'Claude 自动使用 5 小时窗口重置',
+  'claudeResets.autoRedeemWeekly': 'Claude 自动使用周窗口重置',
+  'claudeResets.autoRedeemFable': 'Claude 自动使用 Fable 重置',
   'claudeResets.minBlockedMinutes': 'Claude 自动重置最小阻塞',
   'claudeResets.keepCredits': 'Claude 自动重置保留量',
   'claudeResets.salvageHorizonHours': 'Claude 重置抢救时限',
@@ -465,11 +468,9 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   'task.speculativeLaunch': '子任务提前启动',
   'task.completionProbe': '子代理完成度探测',
   'browser.tern': 'Tern 浏览器',
-  'ida.enabled': 'IDA Pro',
-  'ida.python': 'IDA Python',
-  'ida.installDir': 'IDA 安装目录',
-  'ida.maxOpen': 'IDA 同时打开上限',
-  'ida.idleCloseSec': 'IDA 空闲关闭超时',
+  'disassembler.backend': '反汇编后端',
+  'disassembler.maxOpen': '反汇编数据库上限',
+  'disassembler.idleCloseSec': '反汇编数据库空闲关闭',
 }
 
 /** 说明：只写产品真正要跟用户说清楚的那些；查不到就交回 omp 自己的英文说明 */
@@ -564,7 +565,7 @@ export const SETTING_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'launch.enabled': '启用具名 bash 服务与 proc:// 监督，用于共享的长期项目进程',
   'speechgen.enabled': '启用 tts 工具做端上（Kokoro）或 xAI Grok Voice 语音文件合成',
   'generate_image.enabled':
-    '启用 generate_image 工具（文生图与图像编辑）。当 tools.xdev 开启时，它以 xd:// 设备的形式暴露。',
+    '启用 generate_image 工具（文生图与图像编辑）。当 tools.commands 开启时，它以命令的形式暴露。',
   'computer.enabled': '启用可脚本化的宿主桌面 eval 前奏（截图、输入、无障碍）',
   'computer.display': '合成所有显示器，或选择一个原生显示器 id',
   'computer.maxWidth': '合成截图的最大宽度（像素）',
@@ -606,12 +607,13 @@ export const SETTING_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'tools.speculativeExecution.maxInFlight': '在转入正常派发之前，最多允许多少个经过校验的本地读取并发跑着。',
   'tools.maxTimeout': 'Agent 可为任意工具设置的最大超时秒数（0 = 不限制）',
   'async.enabled': '启用异步 bash 命令与后台任务执行',
-  'tools.xdev':
-    '把少用的（可发现的）工具挂到 xd:// 设备 URL 下，用 read/write 驱动，而不是每个请求都带上它们的 schema。显式工具清单里给了 read 却没给 write 的会话，会通过只支持 write 的设备传输来挂载设备（文件系统写入仍会被拒绝）。关闭后，所有已启用的工具都暴露在顶层。',
-  'tools.xdevDocs':
-    '选择哪些已挂载设备的文档与 schema 内联进系统提示词。Built-ins 让核心工具保持内联，MCP 与扩展工具仍按需加载。',
-  'tools.xdevInlineDevices':
-    '当 xd:// 提示词文档为 Built-ins Only 时，内联名字匹配这些 glob 模式的动态设备（例如 mcp__context_mode_*）。Catalog Only 会忽略此设置。',
+  'tools.commands':
+    '把少用的（可发现的）工具挂成 bash 命令，用 schema 生成的 `--help` 现场查，而不是每个请求都带上它们的 schema。需要 bash 工具：没有 bash 的会话仍把已启用工具全放在顶层。关闭后，所有已启用的工具都暴露在顶层。',
+  'tools.commandDocs':
+    '选择哪些已挂载命令的 `--help` 正文内联进系统提示词。Built-ins 让核心工具保持内联，MCP 与扩展工具仍按需加载。',
+  'tools.commandInline':
+    '当工具命令文档为 Built-ins Only 时，内联名字匹配这些 glob 模式的动态命令（例如 mcp__context_mode_*）。Catalog Only 会忽略此设置。',
+  'tools.commandNotices': 'MCP 或扩展工具挂载 / 卸载为命令时给一条提示；模型在下一轮提示词里本来就会知道这个变化。',
   'mcp.enableProjectConfig': '从项目根目录加载 .mcp.json/mcp.json',
   'mcp.startupTimeoutMs': '等待这么久（毫秒）用于 MCP 工具的首次发现；0 表示一直等到连接稳定',
   'mcp.renderMarkdownResults': '把非 JSON 的 MCP 文本结果在对话里渲染成 Markdown',
@@ -777,16 +779,22 @@ export const SETTING_DESCRIPTIONS: Readonly<Record<string, string>> = {
     '模型流在两个事件之间允许沉默的秒数；-1 使用供应商/环境变量的默认值，0 关闭该看门狗',
   'providers.openrouterVariant': '追加到 OpenRouter 模型 ID 的默认路由变体后缀（若选择器里已指明变体则不再追加）',
   'providers.fetch': 'fetch/读取 URL 工具的读取后端优先级',
-  'codexResets.autoRedeem':
-    '自动花掉已存下的 Codex 速率限制重置：当某一轮卡住且没有其他账号能接手时，恢复一个因 5 小时窗口或周窗口耗尽而被阻塞的账号；同时抢救即将过期的额度。unset 会在第一次花费前询问，yes 直接花掉不再提示，no 关闭这两项检查。',
+  'codexResets.autoRedeem5h':
+    '自动花掉已存下的 Codex 速率限制重置，用于只卡住 5 小时窗口的阻塞，以及最完整的可用窗口是 5 小时、又即将过期的额度。unset 会在第一次花费前询问，yes 直接花掉不再提示，no 从不花。',
+  'codexResets.autoRedeemWeekly':
+    '自动花掉已存下的 Codex 重置，用于周窗口阻塞，以及最完整的可用窗口是周、又即将过期的额度。只知道一个很短的 429 等待时，两个 Codex 窗口都得卡住才算。unset 会在第一次花费前询问，yes 直接花掉不再提示，no 从不花。',
   'codexResets.minBlockedMinutes':
     '仅当自然解封时间 —— 已耗尽的 5 小时/周窗口中最近的那次重置 —— 还至少隔着这么多分钟时才自动使用（不为等一小会儿就花掉稀缺的重置）。把它调高（例如 360）即可忽略只涉及 5 小时窗口的阻塞。',
   'codexResets.keepCredits':
     '已存重置数低于此值时绝不自动花费（0 = 最后一个重置也可以被自动花掉）。即将过期的重置不受此限 —— 一个保留着却过期的重置什么也没保住。',
   'codexResets.salvageHorizonHours':
     '当某个已存的 Codex 重置将在这么多小时内过期，且 5 小时或周窗口中至少有一个还有可观用量可恢复时，自动花掉它（0 关闭过期抢救）。',
-  'claudeResets.autoRedeem':
-    '自动花掉可用的 Claude Cedar 或 Juniper 重置。Cedar 只用于其覆盖范围内的限制；Juniper 只能恢复单独的 5 小时阻塞。unset 会在第一次花费前询问，yes 直接花掉不再提示，no 同时关闭阻塞恢复与过期抢救。',
+  'claudeResets.autoRedeem5h':
+    '自动花掉可用的 Claude Cedar 或 Juniper 重置，用于只卡住 5 小时窗口的阻塞，以及最完整的受覆盖限制是 5 小时、又即将过期的授予。unset 会在第一次花费前询问，yes 直接花掉不再提示，no 从不花。',
+  'claudeResets.autoRedeemWeekly':
+    '自动花掉 Claude Cedar 重置，用于周窗口或模型范围的阻塞，以及最完整的受覆盖限制是周、又即将过期的授予。unset 会在第一次花费前询问，yes 直接花掉不再提示，no 从不花。',
+  'claudeResets.autoRedeemFable':
+    '自动花掉 Claude Fable 发布重置（恢复 Fable 的周用量与 5 小时窗口）。只有这一格管它。unset 会在第一次花费前询问，yes 直接花掉不再提示，no 从不花。',
   'claudeResets.minBlockedMinutes':
     '仅当自然解封时间 —— 已耗尽的受覆盖窗口中最近的那次重置 —— 还至少隔着这么多分钟时才自动使用。只覆盖 5 小时的重置绝不用于周窗口或模型范围的阻塞。',
   'claudeResets.keepCredits':
@@ -903,13 +911,12 @@ export const SETTING_DESCRIPTIONS: Readonly<Record<string, string>> = {
     '通过一次缓存旁路请求（类似 /btw）问正在干活的子代理：任务大概完成多少了 —— 在再过 2、5、10、30 分钟时各问一次，之后每小时一次。估算值显示在 wait 与 task 视图里该子代理旁边。只问交互式会话的主代理派出的子代理；print、RPC、ACP 与 SDK 那几条路不探测。',
   'browser.tern':
     '在 Tern 面板里，浏览器标签页以画中画形式开在 omp 面板之上（原生 web view），而不是用无头 Chromium；没有 Tern 窗口能承载时退回 Chromium。显式的 app 选项、relay 与 Browser CDP URL 优先；headed:false 或 app.tern:false 可让单次打开退出这条路。可用 PI_BROWSER_TERN=0 / =1 覆盖。',
-  'ida.enabled':
-    '把 `read` 打开的可行执行文件送进 IDA Pro（idalib），并启用 `ida` 工具；找不到 IDA 安装时这一格不起作用',
-  'ida.python': '能 import ida_domain 与 idapro 的 Python 解释器；留空自动探测',
-  'ida.installDir': '含有 libidalib 的目录，会作为 IDADIR 导出；留空自动探测（$IDADIR、ida-config.json、标准安装路径）',
-  'ida.maxOpen':
-    '每个项目同时打开的 IDA 数据库上限（omp ps 里的 omp.ida.* 守护进程）；再开一个会保存并关掉最久未用的那个空闲库',
-  'ida.idleCloseSec': '空闲超过这么多秒的 IDA 数据库会被保存并关闭（0 表示永不）；重开时 exec 命名空间会重置',
+  'disassembler.backend':
+    'read 的分析选择器与 eval 的 dsm 命名空间用哪个反汇编后端；裸可执行文件读取只显示元数据。Auto 装了 IDA Pro 就用它，否则用 Ghidra（首次分析时下载）；Binary Ninja 只在显式选中时使用。',
+  'disassembler.maxOpen':
+    '每个项目同时打开的反汇编数据库上限（每个都是 omp ps 里的反汇编单元，按其后端与二进制名标示）；再开一个会逐出无人引用的空闲库。用完请关闭保留的 dsm 句柄。',
+  'disassembler.idleCloseSec':
+    '无人引用的数据库空闲超过这么多秒就保存并关闭（0 表示永不）；保留的 dsm 句柄会一直开着。重开时 exec 命名空间会重置。',
 }
 
 /*
@@ -946,7 +953,8 @@ const IRRELEVANT_PATHS: readonly string[] = [
   'composer.recallClearedDrafts',
   'stt.enabled',
   'stt.submitTrigger',
-  'live.voice',
+  'live.endpoint',
+  'live.apiKey',
   'tts.localVoice',
   'hideThinkingBlock',
   'proseOnlyThinking',

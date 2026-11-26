@@ -54,7 +54,9 @@ export {
   DISCARDED_TABS_PROTOCOL_VERSION,
   parseRelayToken,
   type RelayInbound,
+  type RelayKeepalive,
   type RelayOutbound,
+  type RelayOverlayInput,
   type RelayRpc,
   type TabSnapshot,
 } from './browser-relay'

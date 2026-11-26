@@ -23,7 +23,8 @@ export interface OmpToolView {
   readonly known: boolean
   readonly kind: ToolKind
   /*
-   * 平时就是帧上的 name；只有 `write xd://<工具>` 例外 —— 帧上是 write，跑的是被挂载的那个设备。字形按名字取，认 write 会画成铅笔而屏幕上写着「读取诊断」。
+   * 平时就是帧上的 name；eval 里的 browser / computer prelude 例外 —— 帧上是 eval，跑的是 prelude，
+   * 字形按 invokedTool 取，认 eval 会把浏览器操作画成脚本。
    */
   readonly invokedTool: string
   /**
@@ -41,7 +42,8 @@ export interface OmpToolView {
 export const NONE: readonly ToolCallContent[] = []
 
 /*
- * 出口反向登记：writeView 遇到 xd:// 设备委派时要用整张 HANDLERS 表再认一次名字，而表在 registry 里、registry 又 import 每个视图文件 —— 直接互相 import 就成环。
+ * 出口反向登记：writeView 要按旧会话里的 `xd://` 设备名再认一次工具（omp 18 的历史数据），
+ * 而表在 registry 里、registry 又 import 每个视图文件 —— 直接互相 import 就成环。
  */
 export type ViewLookup = (tool: string, input: OmpToolInputOf | undefined, output: OmpToolOutputOf) => OmpToolView
 

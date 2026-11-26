@@ -2,7 +2,8 @@ import type { InteractionAnswer } from '@poietica/runtime-protocol'
 import type { InteractionDraft } from './broker'
 
 /**
- * 计划模式下的「提交计划 / 请求批准」。omp 那边只有一条 `xd://propose`；这里把「标题 + 计划正文」
+ * 计划模式下的「提交计划 / 请求批准」。omp 那边只有一条提交入口（18.x 是 `write xd://propose`，
+ * 19.x 起是 `propose` 工具命令），都落到同一个 `PlanProposalHandler`；这里把「标题 + 计划正文」
  * 翻成产品的 `kind:'plan'` 卡片，答复再翻回 omp 要的东西：approve → 登记参考路径（setPlanReferencePath）
  * 并退出计划模式；revise → 留在计划模式、把人的反馈回给模型；reject / dismiss（超时、中止、cancelAll）
  * → 提交作废但**仍留在计划模式里**（出模式等于告诉模型可以动手了），dismiss 是「取消、退出计划模式」。

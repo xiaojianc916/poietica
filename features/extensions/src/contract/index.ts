@@ -88,10 +88,8 @@ export const extensionsContract = defineContract({
       name: 'mcp.catalog',
       owner: 'core',
       params: z.object({ query: z.string() }),
-      /* 一次要取每条目的详情，目录方那边可能慢；给足预算，别让 60 秒的默认值把它掐了。 */
-      timeoutMs: 30_000,
       result: z.object({ entries: z.array(McpCatalogEntry) }),
-      description: '在在线目录（Smithery）里搜 MCP 服务器；查不到是空数组，取不到目录才抛错',
+      description: '在在线目录里搜 MCP 服务器；Smithery 关停后 omp 暂无目录源，恒回空数组',
     }),
     defineMethod({
       name: 'plugins.list',

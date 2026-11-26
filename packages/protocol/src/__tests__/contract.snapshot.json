@@ -1,5 +1,5 @@
 {
-  "version": 82,
+  "version": 83,
   "methods": [
     {
       "name": "agentSettings.capabilities",
@@ -12832,7 +12832,7 @@
       "name": "mcp.catalog",
       "owner": "core",
       "timeoutMs": 30000,
-      "description": "在在线目录（Smithery）里搜 MCP 服务器；查不到是空数组，取不到目录才抛错",
+      "description": "在在线目录里搜 MCP 服务器；Smithery 关停后 omp 暂无目录源，恒回空数组",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -42704,6 +42704,10 @@
     {
       "code": "browser.tab_not_found",
       "message": "标签不存在"
+    },
+    {
+      "code": "browser.unsupported_rpc",
+      "message": "内置浏览器不支持这条浏览器命令"
     },
     {
       "code": "checkpoints.conflict",

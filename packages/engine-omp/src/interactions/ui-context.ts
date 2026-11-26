@@ -1,22 +1,24 @@
-import type {
-  AutocompleteProviderFactory,
-  ExtensionApprovalAnswer,
-  ExtensionApprovalPrompt,
-  ExtensionAskDialogQuestion,
-  ExtensionAskDialogResult,
-  ExtensionCustomOptions,
-  ExtensionUIContext,
-  ExtensionUIDialogOptions,
-  ExtensionUISelectItem,
-  ExtensionUiComponent,
-  ExtensionUiComponentFactory,
-  ExtensionWidgetContent,
-  ExtensionWidgetOptions,
-  TerminalInputHandler,
+import {
+  type AutocompleteProviderFactory,
+  type ExtensionApprovalAnswer,
+  type ExtensionApprovalPrompt,
+  type ExtensionAskDialogQuestion,
+  type ExtensionAskDialogResult,
+  type ExtensionCustomOptions,
+  type ExtensionFormDialogResult,
+  type ExtensionUIContext,
+  type ExtensionUIDialogOptions,
+  type ExtensionUISelectItem,
+  type ExtensionUiComponent,
+  type ExtensionUiComponentFactory,
+  type ExtensionWidgetContent,
+  type ExtensionWidgetOptions,
+  getExtensionUISelectOptionLabel,
+  type TerminalInputHandler,
 } from '@oh-my-pi/pi-coding-agent/extensibility/extensions/types'
-import { getExtensionUISelectOptionLabel } from '@oh-my-pi/pi-coding-agent/extensibility/extensions/types'
 import type { EditorTheme, TUI } from '@oh-my-pi/pi-tui'
 import type { KeybindingsManager } from '@oh-my-pi/pi-tui/app-keybindings'
+import { parseHtmlForm } from '@oh-my-pi/pi-tui/html-form/parse'
 import type { CustomEditor } from '@oh-my-pi/pi-tui/prompt/custom-editor'
 import {
   setTheme as applyTheme,
@@ -38,7 +40,7 @@ import {
   approvalToolOf,
 } from './approval'
 import type { AskOptions, InteractionBroker } from './broker'
-import { askQuestionsOf, askResultOf, questionInteraction } from './questions'
+import { askQuestionsOf, askResultOf, formQuestionsOf, formResultOf, questionInteraction } from './questions'
 
 /**
  * omp 的 ExtensionUIContext 实现。授权闸门与提问都经这个接口找人：没有它时闸门 fail closed，
@@ -181,14 +183,35 @@ class OmpUiContext implements ExtensionUIContext {
 
     /*
      * 一道题都认不出：画不出来，但**不能就这么算了** —— askDialog 的 Promise 还挂着，
-     * 人没有可答的东西，模型会永远等下去。如实收成取消（omp 把 undefined 读成「用户取消」，
-     * tools/ask.ts:786-789），那一轮因此停在一个说得清的地方，而不是挂死。
+     * 人没有可答的东西，模型会永远等下去。如实收成取消（omp 把 undefined 读成「用户取消」），
+     * 那一轮因此停在一个说得清的地方，而不是挂死。
      */
     if (asked.length === 0) return undefined
 
     const answer = await this.broker.ask(questionInteraction(asked), askOptions(dialogOptions))
     if (answer.kind !== 'question') return undefined
     return askResultOf(asked, { answers: answer.answers })
+  }
+
+  /**
+   * omp 19 的 ask：一张 HTML `<form>`。产品没有表单面板，把表单折叠成题组卡片
+   * （questions.ts 的 `formQuestionsOf`），答复按控件名折回 `HtmlFormData` 交回 omp。
+   * 解析不了的表单（连一个控件名都没有）如实收成取消，理由同上。
+   */
+  async formDialog(
+    html: string,
+    dialogOptions?: ExtensionUIDialogOptions,
+  ): Promise<ExtensionFormDialogResult | undefined> {
+    const form = parseHtmlForm(html)
+    const asked = formQuestionsOf(form)
+
+    if (asked.length === 0) return undefined
+
+    const answer = await this.broker.ask(questionInteraction(asked), askOptions(dialogOptions))
+    if (answer.kind !== 'question') return undefined
+    const data = formResultOf(form, { answers: answer.answers })
+    if (data === undefined) return undefined
+    return { data }
   }
 
   /* —— 交互式 TUI 的面：嵌入方没有，逐个如实空实现（不是「有，只是都是空的」） —— */
@@ -205,6 +228,9 @@ class OmpUiContext implements ExtensionUIContext {
 
   /** 消息由宿主自己的 React 视图画，没有 assistant-text 渲染器可重跑 */
   rerenderMessage(_timestamp: number): void {}
+
+  /** 同上：transcript 呈现器是 TUI 的面，这里没有可重画的块 */
+  refreshTranscript(_ids: readonly string[]): void {}
 
   /** 同上：可点击的链接是 TUI 的 assistant-text 渲染器才有的面，这里没有 */
   getLinkClicksAvailable(): boolean {

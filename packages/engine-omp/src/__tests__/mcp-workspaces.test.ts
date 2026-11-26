@@ -34,8 +34,12 @@ process.stdin.on('data', (chunk) => {
     const msg = JSON.parse(line)
     if (msg.id === undefined) continue
     let result = {}
-    if (msg.method === 'initialize') {
-      result = { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name, version: '1' } }
+    /* omp 19 起 era 探测先问 server/discover：答 supportedVersions + capabilities 判 modern（进程跨会话共享）。
+     * 只答 initialize 的旧服务器被判 legacy —— 会话绑进程，每个 manager 一份，「每台只拉起一次」就不成立了。 */
+    if (msg.method === 'server/discover') {
+      result = { supportedVersions: ['2026-07-28'], capabilities: { tools: { listChanged: true } } }
+    } else if (msg.method === 'initialize') {
+      result = { protocolVersion: '2025-11-25', capabilities: { tools: {} }, serverInfo: { name, version: '1' } }
     } else if (msg.method === 'tools/list') {
       result = { tools: [{ name: 'ping', description: 'ping', inputSchema: { type: 'object', properties: {} } }] }
     } else if (msg.method === 'tools/call') {
@@ -145,11 +149,12 @@ describe('MCP 归工作区', () => {
     const first = await open(engine, 'k1')
     const second = await open(engine, 'k2')
     await until('a、b 都连上', () => connected(engine, ['a', 'b']))
-    expect(pids('a')).toHaveLength(1)
-    expect(pids('b')).toHaveLength(1)
+    /* omp 19 起 era 探测也会 spawn 一次（短命进程，日志里多一行）：存活数才说「几台在跑」 */
+    expect(alive('a')).toHaveLength(1)
+    expect(alive('b')).toHaveLength(1)
     await first.dispose()
     await second.dispose()
-    expect(pids('a')).toHaveLength(1)
+    expect(alive('a')).toHaveLength(1)
   }, 30_000)
 
   test('最后一个会话关掉后：宽限期内再开不重启，到期进程退出、状态清空', async () => {
@@ -162,11 +167,11 @@ describe('MCP 归工作区', () => {
     expect(alive('a')).toHaveLength(1)
     expect(await connected(engine, ['a'])).toBe(true)
     const second = await open(engine, 'k2')
-    expect(pids('a')).toHaveLength(1)
+    const before = alive('a')
     await second.dispose()
+    expect(alive('a')).toEqual(before)
     await until('宽限到期后 a 退出', () => alive('a').length === 0)
     await until('状态清空', async () => (await engine.mcp.status()).length === 0)
-    expect(pids('a')).toHaveLength(1)
   }, 30_000)
 
   test('配置变了：新会话换一份新的，旧的等用它的会话关掉再退出', async () => {
@@ -174,16 +179,18 @@ describe('MCP 归工作区', () => {
     const { engine } = await engineWith(60_000)
     const old = await open(engine, 'k1')
     await until('a 连上', () => connected(engine, ['a']))
-    const [oldPid] = pids('a')
+    const [oldPid] = alive('a')
     await engine.mcp.upsert({ name: 'b', transport: 'stdio', enabled: true, config: serverConfig('b') })
     /* 旧会话还开着：旧进程不动 */
     expect(alive('a')).toEqual([oldPid as number])
     const fresh = await open(engine, 'k2')
-    await until('新的一份 a、b 都拉起', () => pids('a').length === 2 && pids('b').length === 1)
+    /*
+     * omp 19 起现代服务器按 identity（command+args+cwd+env）跨 manager 共享：a 的 spec 没变，
+     * 新工作区直接复用旧进程，只有新增的 b 才拉起新的 —— 钉住这个共享语义，而不是旧模型的「各拉一份」。
+     */
+    await until('b 拉起（a 复用旧进程）', () => alive('b').length === 1)
+    expect(alive('a')).toEqual([oldPid as number])
     await old.dispose()
-    await until('旧的 a 退出', () => !isAlive(oldPid as number))
-    expect(alive('a')).toHaveLength(1)
-    expect(alive('b')).toHaveLength(1)
     await fresh.dispose()
   }, 30_000)
 
@@ -194,11 +201,17 @@ describe('MCP 归工作区', () => {
     try {
       const here = await open(engine, 'k1')
       const there = await open(engine, 'k2', other)
-      await until('两个工作区各拉起一份 a', () => pids('a').length === 2)
+      await until('两个工作区各拉起一份 a', () => alive('a').length === 2)
       await here.dispose()
       await there.dispose()
     } finally {
-      fs.rmSync(other, { recursive: true, force: true })
+      /* 两个工作区都还在 60s 宽限期里、进程 cwd 就在 other 下：Windows 删被占用的目录会 EBUSY，
+       * 这是测试清理而不是被测行为 —— 交给系统临时目录清理 */
+      try {
+        fs.rmSync(other, { recursive: true, force: true })
+      } catch {
+        // EBUSY / EPERM：宽限期里的服务器进程还占着这个目录
+      }
     }
   }, 30_000)
 
@@ -238,6 +251,6 @@ describe('MCP 归工作区', () => {
       expect(JSON.stringify(tools[0]?.kind === 'tool' ? tools[0].output : null)).toContain('pong:a')
       await session.dispose()
     }
-    expect(pids('a')).toHaveLength(1)
+    expect(alive('a')).toHaveLength(1)
   }, 30_000)
 })
